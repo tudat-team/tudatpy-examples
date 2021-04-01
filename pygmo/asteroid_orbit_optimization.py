@@ -52,6 +52,21 @@ from tudatpy.kernel.astro import conversion, frames
 # DEFINITION OF HELPER FUNCTIONS ##############################################
 ###############################################################################
 
+
+# #########              CREATING ITOKAWA AS CUSTOM BODY            ######### #
+#
+# The following helper functions facilitate the creation of the Itokawa asteroid as a custom body.
+# This includes the setup of the body's custom properties, namely
+#
+#    - rotational model          -> get_itokawa_rotation_settings( )
+#    - ephemeris                 -> get_itokawa_ephemeris_settings( )
+#    - gravity field             -> get_itokawa_gravity_field_settings( )
+#    - shape                     -> get_itokawa_shape_settings( )
+#
+# as well as a function that facilitates the creation of the custom body alongside standard bodies
+# in the simulation's system of bodies ( -> create_simulation_bodies( ) ).
+
+
 def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
         tudatpy.kernel.simulation.environment_setup.rotation_model.RotationalModelSettings:
     """
@@ -271,6 +286,16 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation
     return bodies
 
 
+
+# #########                PROPAGATOR SETUP HELPERS                 ######### #
+#
+# The following helper functions support the propagator setup by defining:
+#
+#    - acceleration models              -> get_acceleration_models( )
+#    - termination settings             -> get_termination_settings( )
+#    - dependent variables to save      -> get_dependent_variables_to_save( )
+
+
 def get_acceleration_models(bodies_to_propagate: List[str],
                             central_bodies: List[str],
                             bodies: tudatpy.kernel.simulation.environment_setup.SystemOfBodies) -> \
@@ -464,7 +489,7 @@ class AsteroidOrbitProblem:
 
     def get_bounds(self) -> Tuple[List[float], List[float]]:
         """
-        Defines the search space.
+        Returns the search space.
 
         Parameters
         ----------
@@ -473,7 +498,7 @@ class AsteroidOrbitProblem:
         Returns
         -------
         Tuple[List[float], List[float]]
-            Two lists of size n (for this problem, n=4), defining respectively the lower and upper
+            Two lists of size n (for this problem, n=4), containing respectively the lower and upper
             boundaries of each variable.
         """
         return (list(self.design_variable_lower_boundaries), list(self.design_variable_upper_boundaries))

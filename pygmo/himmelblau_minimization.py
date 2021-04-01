@@ -31,7 +31,7 @@ Here, a Pygmo-compatible problem class is defined. This is usually known in Pygm
 User-Defined Problem (UDP). This class will be taken as input from the pygmo.problem() class to create the actual Pygmo
 problem class. To be Pygmo-compatible, the UDP class must have two methods:
 
-. get_bounds(): it takes no input and returns a tuple of two n-dimensional lists, defining respectively the lower and 
+. get_bounds(): it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and 
 upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the
 return type of the this function;
 
@@ -93,7 +93,7 @@ class HimmelblauOptimization:
         -------
         none
         """
-        # Set input arguments as attributs
+        # Set input arguments as attributes
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -101,7 +101,7 @@ class HimmelblauOptimization:
 
     def get_bounds(self):
         """
-        Defines the boundaries of the search space.
+        Returns the boundaries of the search space.
 
         Parameters
         ----------
@@ -110,7 +110,7 @@ class HimmelblauOptimization:
         Returns
         -------
         tuple
-            Two lists of size n (for this problem, n=2), defining respectively the lower and upper
+            Two lists of size n (for this problem, n=2), containing respectively the lower and upper
             boundaries of each variable.
         """
         return ([self.x_min, self.y_min], [self.x_max, self.y_max])
@@ -142,7 +142,7 @@ def main():
     ##########################################################
 
     """
-    First, we define the Pygmo problem by using the UDP class defined above. Note that an instantiation of the UDP class
+    First, we define the Pygmo problem by using the UDP class defined above. Note that an instance of the UDP class
     must be passed as input to pygmo.problem() and NOT the class itself. It is also possible to use a PyGMO UDP, i.e.
     a problem that is already defined in PyGMO, but it will not be shown in this tutorial.
     See also: https://esa.github.io/pygmo2/tutorials/using_problem.html.
