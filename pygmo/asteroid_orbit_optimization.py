@@ -23,6 +23,8 @@ https://esa.github.io/pygmo/index.html; as you can see, they can easily be confu
 
 PyGMO is the Python counterpart of PAGMO: https://esa.github.io/pagmo2/index.html.
 """
+import sys
+sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy')
 
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
@@ -42,33 +44,20 @@ import pygmo as pg
 import tudatpy
 from tudatpy.io import save2txt
 from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.simulation import environment_setup
-from tudatpy.kernel.simulation import propagation_setup
-from tudatpy.kernel.astro import conversion, frames
+from tudatpy.kernel.interface import spice
+from tudatpy.kernel import numerical_simulation
+from tudatpy.kernel.numerical_simulation import environment_setup
+from tudatpy.kernel.numerical_simulation import propagation_setup
+from tudatpy.kernel.astro import element_conversion
+from tudatpy.kernel.astro import frame_conversion
 
 
 ###############################################################################
 # DEFINITION OF HELPER FUNCTIONS ##############################################
 ###############################################################################
 
-
-# #########              CREATING ITOKAWA AS CUSTOM BODY            ######### #
-#
-# The following helper functions facilitate the creation of the Itokawa asteroid as a custom body.
-# This includes the setup of the body's custom properties, namely
-#
-#    - rotational model          -> get_itokawa_rotation_settings( )
-#    - ephemeris                 -> get_itokawa_ephemeris_settings( )
-#    - gravity field             -> get_itokawa_gravity_field_settings( )
-#    - shape                     -> get_itokawa_shape_settings( )
-#
-# as well as a function that facilitates the creation of the custom body alongside standard bodies
-# in the simulation's system of bodies ( -> create_simulation_bodies( ) ).
-
-
 def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
-        tudatpy.kernel.simulation.environment_setup.rotation_model.RotationalModelSettings:
+        tudatpy.kernel.numerical_simulation.environment_setup.rotation_model.RotationModelSettings:
     """
     Defines the Itokawa rotation settings by using a constant angular velocity.
 
@@ -82,7 +71,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
 
     Returns
     -------
-    tudatpy.kernel.simulation.environment_setup.rotation_model.RotationalModelSettings
+    tudatpy.kernel.numerical_simulation.environment_setup.rotation_model.RotationalModelSettings
         Rotational model settings object for Itokawa.
     """
 
@@ -95,10 +84,10 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
     meridian_at_epoch = 0.0
 
     # Define initial Itokawa orientation in inertial frame (equatorial plane)
-    initial_orientation_j2000 = frames.inertial_to_body_fixed_rotation_matrix(
+    initial_orientation_j2000 = frame_conversion.inertial_to_body_fixed_rotation_matrix(
         pole_declination, pole_right_ascension, meridian_at_epoch)
     # Get initial Itokawa orientation in inertial frame but in the Ecliptic plane
-    initial_orientation_eclipj2000 = np.matmul(spice_interface.compute_rotation_matrix_between_frames(
+    initial_orientation_eclipj2000 = np.matmul(spice.compute_rotation_matrix_between_frames(
         "ECLIPJ2000", "J2000", 0.0), initial_orientation_j2000)
 
     # Manually check the results, if desired
@@ -114,22 +103,22 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
 
-def get_itokawa_ephemeris_settings(itokawa_gravitational_parameter) -> \
-        tudatpy.kernel.simulation.environment_setup.ephemeris.KeplerEphemerisSettings:
+def get_itokawa_ephemeris_settings(sun_gravitational_parameter) -> \
+        tudatpy.kernel.numerical_simulation.environment_setup.ephemeris.KeplerEphemerisSettings:
     """
     Sets the Itokawa ephemeris.
 
     The ephemeris for Itokawa are set using a Keplerian orbit around the Sun. To do this, the initial position at a
-    certain epoch is needed. The asteroid's gravitational parameter is also needed.
+    certain epoch is needed.
 
     Parameters
     ----------
     itokawa_gravitational_parameter : float
-        Itokawa gravitational parameter.
+        Sun gravitational parameter.
 
     Returns
     -------
-    tudatpy.kernel.simulation.environment_setup.ephemeris.KeplerEphemerisSettings
+    tudatpy.kernel.numerical_simulation.environment_setup.ephemeris.KeplerEphemerisSettings
         The ephemeris settings object for Itokawa.
     """
     # Define Itokawa initial Kepler elements
@@ -141,7 +130,7 @@ def get_itokawa_ephemeris_settings(itokawa_gravitational_parameter) -> \
         np.deg2rad(69.0803904880264),
         np.deg2rad(187.6327516838828)])
     # Convert mean anomaly to true anomaly
-    itokawa_kepler_elements[5] = conversion.mean_to_true_anomaly(
+    itokawa_kepler_elements[5] = element_conversion.mean_to_true_anomaly(
         eccentricity=itokawa_kepler_elements[1],
         mean_anomaly=itokawa_kepler_elements[5])
     # Get epoch of initial Kepler elements (in Julian Days)
@@ -153,14 +142,14 @@ def get_itokawa_ephemeris_settings(itokawa_gravitational_parameter) -> \
     return environment_setup.ephemeris.keplerian(
         itokawa_kepler_elements,
         kepler_elements_reference_epoch,
-        itokawa_gravitational_parameter,
+        sun_gravitational_parameter,
         "Sun",
         "ECLIPJ2000")
 
 
 def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame: str,
                                        itokawa_radius: float) -> \
-        tudatpy.kernel.simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings:
+        tudatpy.kernel.numerical_simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings:
     """
     Defines the Itokawa gravity field model.
 
@@ -176,7 +165,7 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame: str,
 
     Returns
     -------
-    tudatpy.kernel.simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings
+    tudatpy.kernel.numerical_simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings
         The gravity field settings object for Itokawa.
     """
     itokawa_gravitational_parameter = 2.36
@@ -199,7 +188,7 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame: str,
 
 
 def get_itokawa_shape_settings(itokawa_radius: float) -> \
-        tudatpy.kernel.simulation.environment_setup.shape.SphericalBodyShapeSettings:
+        tudatpy.kernel.numerical_simulation.environment_setup.shape.SphericalBodyShapeSettings:
     """
     Defines the shape settings object for Itokawa.
 
@@ -212,14 +201,14 @@ def get_itokawa_shape_settings(itokawa_radius: float) -> \
 
     Returns
     -------
-    tudatpy.kernel.simulation.environment_setup.shape.SphericalBodyShapeSettings
+    tudatpy.kernel.numerical_simulation.environment_setup.shape.SphericalBodyShapeSettings
         The spherical shape settings object for Itokawa.
     """
     # Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
 
 
-def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation.environment_setup.SystemOfBodies:
+def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.numerical_simulation.environment.SystemOfBodies:
     """
     It creates all the body settings and body objects required by the simulation.
 
@@ -230,7 +219,7 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation
 
     Returns
     -------
-    tudatpy.kernel.simulation.environment_setup.SystemOfBodies
+    tudatpy.kernel.numerical_simulation.environment.SystemOfBodies
         System of bodies to be used in the simulation.
     """
     ### CELESTIAL BODIES ###
@@ -250,17 +239,16 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation
 
     # Add Itokawa body
     body_settings.add_empty_settings("Itokawa")
-    # Gravity field definition
-    itokawa_gravity_field_settings = get_itokawa_gravity_field_settings(itokawa_body_frame_name,
-                                                                        itokawa_radius)
+
     # Adds Itokawa settings
     # Gravity field
-    body_settings.get("Itokawa").gravity_field_settings = itokawa_gravity_field_settings
+    body_settings.get("Itokawa").gravity_field_settings = get_itokawa_gravity_field_settings(itokawa_body_frame_name,
+                                                                        itokawa_radius)
     # Rotational model
     body_settings.get("Itokawa").rotation_model_settings = get_itokawa_rotation_settings(itokawa_body_frame_name)
     # Ephemeris
     body_settings.get("Itokawa").ephemeris_settings = get_itokawa_ephemeris_settings(
-        itokawa_gravity_field_settings.gravitational_parameter)
+        spice.get_body_gravitational_parameter( 'Sun') )
     # Shape (spherical)
     body_settings.get("Itokawa").shape_settings = get_itokawa_shape_settings(itokawa_radius)
     # Create system of selected bodies
@@ -269,7 +257,7 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation
     ### VEHICLE BODY ###
     # Create vehicle object
     bodies.create_empty_body("Spacecraft")
-    bodies.get_body("Spacecraft").set_constant_mass(400.0)
+    bodies.get("Spacecraft").set_constant_mass(400.0)
 
     # Create radiation pressure settings, and add to vehicle
     reference_area_radiation = 4.0
@@ -286,20 +274,10 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.simulation
     return bodies
 
 
-
-# #########                PROPAGATOR SETUP HELPERS                 ######### #
-#
-# The following helper functions support the propagator setup by defining:
-#
-#    - acceleration models              -> get_acceleration_models( )
-#    - termination settings             -> get_termination_settings( )
-#    - dependent variables to save      -> get_dependent_variables_to_save( )
-
-
 def get_acceleration_models(bodies_to_propagate: List[str],
                             central_bodies: List[str],
-                            bodies: tudatpy.kernel.simulation.environment_setup.SystemOfBodies) -> \
-        Dict[str, Dict[str, List[tudatpy.kernel.astro.fundamentals.AccelerationModel]]]:
+                            bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies) -> \
+        Dict[str, Dict[str, List[tudatpy.kernel.numerical_simulation.propagation.AccelerationModel]]]:
     """
     Creates the acceleration models for the simulation.
 
@@ -312,12 +290,12 @@ def get_acceleration_models(bodies_to_propagate: List[str],
         List of bodies to be numerically propagated.
     central_bodies: List[str]
         List of central bodies related to the propagated bodies.
-    bodies : bodies: tudatpy.kernel.simulation.environment_setup.SystemOfBodies
+    bodies : bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies
         System of bodies object
 
     Returns
     -------
-    Dict[str, Dict[str, List[tudatpy.kernel.astro.fundamentals.AccelerationModel]]]
+    Dict[str, Dict[str, List[tudatpy.kernel.numerical_simulation.propagation.fundamentals.AccelerationModel]]]
         Acceleration settings object.
     """
     # Define accelerations acting on Spacecraft
@@ -383,7 +361,7 @@ def get_termination_settings(mission_initial_time: float,
 
     Returns
     -------
-    tudatpy.kernel.simulation.propagation_setup.propagator.PropagationTerminationSettings
+    tudatpy.kernel.numerical_simulation.propagation_setup.propagator.PropagationTerminationSettings
         Termination settings object.
     """
     time_termination_settings = propagation_setup.propagator.time_termination(
@@ -426,7 +404,7 @@ def get_dependent_variables_to_save():
 
     Returns
     -------
-    List[tudatpy.kernel.simulation.propagation_setup.dependent_variable.tp::SingleDependentVariableSaveSettings
+    List[tudatpy.kernel.numerical_simulation.propagation_setup.dependent_variable.tp::SingleDependentVariableSaveSettings
     """
     dependent_variables_to_save = [
         propagation_setup.dependent_variable.central_body_fixed_spherical_position(
@@ -453,7 +431,7 @@ class AsteroidOrbitProblem:
     """
 
     def __init__(self,
-                 bodies: tudatpy.kernel.simulation.environment_setup.SystemOfBodies,
+                 bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
                  integrator_settings,
                  propagator_settings,
                  mission_initial_time: float,
@@ -465,7 +443,7 @@ class AsteroidOrbitProblem:
 
         Parameters
         ----------
-        bodies : tudatpy.kernel.simulation.environment_setup.SystemOfBodies:
+        bodies : tudatpy.kernel.numerical_simulation.environment.SystemOfBodies:
             System of bodies.
         integrator_settings :
             Integrator settings object.
@@ -474,7 +452,6 @@ class AsteroidOrbitProblem:
         """
         # Sets input arguments as lambda function attributes
         # NOTE: this is done so that the class is "pickable", i.e., can be serialized by pygmo
-        # TODO Dominic: add here, if needed
         self.bodies_function = lambda: bodies
         self.integrator_settings_function = lambda: integrator_settings
         self.propagator_settings_function = lambda: propagator_settings
@@ -489,7 +466,7 @@ class AsteroidOrbitProblem:
 
     def get_bounds(self) -> Tuple[List[float], List[float]]:
         """
-        Returns the search space.
+        Defines the search space.
 
         Parameters
         ----------
@@ -498,7 +475,7 @@ class AsteroidOrbitProblem:
         Returns
         -------
         Tuple[List[float], List[float]]
-            Two lists of size n (for this problem, n=4), containing respectively the lower and upper
+            Two lists of size n (for this problem, n=4), defining respectively the lower and upper
             boundaries of each variable.
         """
         return (list(self.design_variable_lower_boundaries), list(self.design_variable_upper_boundaries))
@@ -527,9 +504,9 @@ class AsteroidOrbitProblem:
         # Retrieves system of bodies
         current_bodies = self.bodies_function()
         # Retrieves Itokawa gravitational parameter
-        itokawa_gravitational_parameter = current_bodies.get_body("Itokawa").gravitational_parameter
+        itokawa_gravitational_parameter = current_bodies.get("Itokawa").gravitational_parameter
         # Reset the initial state from the decision variable vector
-        new_initial_state = conversion.keplerian_to_cartesian(
+        new_initial_state = element_conversion.keplerian_to_cartesian_elementwise(
             gravitational_parameter=itokawa_gravitational_parameter,
             semi_major_axis=orbit_parameters[0],
             eccentricity=orbit_parameters[1],
@@ -542,10 +519,10 @@ class AsteroidOrbitProblem:
         # Retrieves integrator settings object
         integrator_settings = self.integrator_settings_function()
         # Reset the initial state
-        propagator_settings.reset_initial_states(new_initial_state)
+        propagator_settings.initial_states = new_initial_state
 
         # Propagate orbit
-        dynamics_simulator = propagation_setup.SingleArcDynamicsSimulator(current_bodies,
+        dynamics_simulator = numerical_simulation.SingleArcSimulator(current_bodies,
                                                                           integrator_settings,
                                                                           propagator_settings,
                                                                           print_dependent_variable_data=False)
@@ -609,7 +586,7 @@ def main():
     ###########################################################################
 
     # Load spice kernels
-    spice_interface.load_standard_kernels()
+    spice.load_standard_kernels()
 
     # Define Itokawa radius
     itokawa_radius = 161.915
@@ -671,6 +648,7 @@ def main():
 
     # Fix seed for reproducibility
     fixed_seed = 17031861
+
     # Instantiate orbit problem
     orbitProblem = AsteroidOrbitProblem(bodies,
                                         integrator_settings,
