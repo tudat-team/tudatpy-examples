@@ -1,11 +1,25 @@
+"""
+Copyright (c) 2010-2021, Delft University of Technology
+All rights reserved
+
+This file is part of the Tudat. Redistribution and use in source and
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
+
+TUDATPY EXAMPLE APPLICATION: Re-entry trajectory
+"""
+
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
 import numpy as np
 from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.simulation import environment_setup
-from tudatpy.kernel.simulation import propagation_setup
-from tudatpy.kernel.astro import conversion
+from tudatpy.kernel import numerical_simulation
+from tudatpy.kernel.numerical_simulation import environment_setup, environment
+from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
+from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel import example
 
 
@@ -29,8 +43,8 @@ def system_of_bodies_getattr(body_system):
     setattr(body_system, "__getattr__", get_body_fn)
 
 
-system_of_bodies_error_catch(environment_setup.SystemOfBodies)
-system_of_bodies_getattr(environment_setup.SystemOfBodies)
+system_of_bodies_error_catch(environment.SystemOfBodies)
+system_of_bodies_getattr(environment.SystemOfBodies)
 
 
 def main():
@@ -65,9 +79,7 @@ def main():
     bodies.Apollo.set_constant_mass(5.0e3)
 
     # Add predefined aerodynamic coefficient database to the body
-    bodies.Apollo.set_aerodynamic_coefficient_interface(
-        example.apollo_aerodynamics_coefficient_interface()
-    )
+    bodies.Apollo.aerodynamic_coefficient_interface = example.apollo_aerodynamics_coefficient_interface()
 
     ###########################################################################
     # CREATE ACCELERATIONS ####################################################
@@ -108,7 +120,7 @@ def main():
     initial_radial_distance = (
         bodies.get_body("Earth").shape_model.average_radius + 120.0e3
     )
-    initial_earth_fixed_state = conversion.spherical_to_cartesian(
+    initial_earth_fixed_state = element_conversion.spherical_to_cartesian_elementwise(
         radial_distance=initial_radial_distance,
         latitude=np.deg2rad(0.0),
         longitude=np.deg2rad(68.75),
@@ -119,7 +131,7 @@ def main():
 
     # Convert the state from Earth-fixed to inertial frame
     earth_rotation_model = bodies.get_body("Earth").rotation_model
-    initial_state = conversion.transform_to_inertial_orientation(
+    initial_state = environment.transform_to_inertial_orientation(
         initial_earth_fixed_state, simulation_start_epoch, earth_rotation_model
     )
 
@@ -165,7 +177,7 @@ def main():
     ###########################################################################
 
     # Create simulation object and propagate dynamics.
-    dynamics_simulator = propagation_setup.SingleArcDynamicsSimulator(
+    dynamics_simulator = numerical_simulation.SingleArcSimulator(
         bodies, integrator_settings, propagator_settings
     )
     states = dynamics_simulator.state_history

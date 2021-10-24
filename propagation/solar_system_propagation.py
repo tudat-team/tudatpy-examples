@@ -1,10 +1,24 @@
+"""
+Copyright (c) 2010-2021, Delft University of Technology
+All rights reserved
+
+This file is part of the Tudat. Redistribution and use in source and
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
+
+TUDATPY EXAMPLE APPLICATION: Solar System Propagation
+"""
+
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
 from tudatpy.kernel import constants
+from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.simulation import environment_setup
-from tudatpy.kernel.simulation import propagation_setup
+from tudatpy.kernel.numerical_simulation import environment_setup, environment
+from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
 
 ################################################################################
 # GENERAL SIMULATION SETUP #####################################################
@@ -90,19 +104,22 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     ############################################################################
 
     # Get system initial state.
-    system_initial_state = propagation_setup.get_initial_state_of_bodies(
+    system_initial_state = propagation.get_initial_state_of_bodies(
         bodies_to_propagate=bodies_to_propagate,
         central_bodies=central_bodies,
         body_system=body_system,
         initial_time=simulation_start_epoch,
     )
+    # Create termination settings.
+    termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
     # Create propagation settings.
     propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
         bodies_to_propagate,
         system_initial_state,
-        simulation_end_epoch,
+        termination_condition,
     )
     # Create numerical integrator settings.
     integrator_settings = propagation_setup.integrator.runge_kutta_4(
@@ -114,14 +131,14 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     ############################################################################
 
     # Instantiate the dynamics simulator.
-    dynamics_simulator = propagation_setup.SingleArcDynamicsSimulator(
+    dynamics_simulator = numerical_simulation.SingleArcSimulator(
         body_system, integrator_settings, propagator_settings, True
     )
 
     # Propagate and store results to outer loop results dictionary.
     results[
         propagation_variant
-    ] = dynamics_simulator.get_equations_of_motion_numerical_solution()
+    ] = dynamics_simulator.state_history
 
 ################################################################################
 # VISUALISATION / OUTPUT / PRELIMINARY ANALYSIS ################################

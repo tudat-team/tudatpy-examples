@@ -1,13 +1,24 @@
+"""
+Copyright (c) 2010-2021, Delft University of Technology
+All rights reserved
+
+This file is part of the Tudat. Redistribution and use in source and
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
+
+TUDATPY EXAMPLE APPLICATION: Earth-Moon Transfer with non-default environment settings
+"""
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
 import numpy as np
-from tudatpy import elements
 from tudatpy.util import result2array
-from tudatpy.kernel import constants
+from tudatpy.kernel import constants, numerical_simulation
 from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.simulation import environment_setup
-from tudatpy.kernel.simulation import propagation_setup
+from tudatpy.kernel.numerical_simulation import environment_setup, environment
+from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
 
 ################################################################################
 # GENERAL SIMULATION SETUP #####################################################
@@ -26,7 +37,7 @@ fixed_step_size = 3600.0
 simulation_end_epoch = 1.0e7 + 5.0 * constants.JULIAN_YEAR
 
 # Set vehicle mass.
-vehicle_mass = 5.0e3
+vehicle_mass = 2000.0
 
 # Set vehicle thrust magnitude.
 thrust_magnitude = 25.0
@@ -38,11 +49,19 @@ specific_impulse = 5.0e3
 # SETUP ENVIRONMENT ############################################################
 ################################################################################
 
-# Define bodies in simulation.
-bodies_to_create = ["Sun", "Earth", "Moon"]
+# create empty body settings dict
+bodies_to_create = ["Earth", "Moon", "Sun"]
 
-# Create bodies in simulation.
-body_settings = environment_setup.get_default_body_settings(bodies_to_create)
+# create Earth body for simulation
+body_settings = environment_setup.get_default_body_settings(bodies_to_create, "SSB", "J2000")
+
+# set constant ephemeris settings for Earth
+body_settings.get("Earth").ephemeris_settings = environment_setup.ephemeris.constant(np.zeros(6), "SSB", "J2000")
+
+# set gravity field settings for Earth
+body_settings.get("Earth").gravity_field_settings = environment_setup.gravity_field.central_spice()
+
+# create system of bodies in simulation
 system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ################################################################################
@@ -57,7 +76,7 @@ system_of_bodies.get_body("Vehicle").set_constant_mass(vehicle_mass)
 ################################################################################
 
 thrust_direction_settings = (
-    propagation_setup.acceleration.ThrustDirectionFromStateGuidanceSettings(
+    propagation_setup.thrust.thrust_direction_from_state_guidance(
         central_body="Earth",
         is_colinear_with_velocity=True,
         direction_is_opposite_to_vector=False,
@@ -65,7 +84,7 @@ thrust_direction_settings = (
 )
 
 thrust_magnitude_settings = (
-    propagation_setup.acceleration.ConstantThrustMagnitudeSettings(
+    propagation_setup.thrust.constant_thrust_magnitude(
         thrust_magnitude=thrust_magnitude, specific_impulse=specific_impulse
     )
 )
@@ -76,7 +95,7 @@ thrust_magnitude_settings = (
 
 acceleration_on_vehicle = dict(
     Vehicle=[
-        propagation_setup.acceleration.ThrustAccelerationSettings(
+        propagation_setup.acceleration.thrust_from_direction_and_magnitude(
             thrust_direction_settings=thrust_direction_settings,
             thrust_magnitude_settings=thrust_magnitude_settings,
         )
@@ -94,7 +113,7 @@ acceleration_dict = dict(Vehicle=acceleration_on_vehicle)
 
 # Convert acceleration mappings into acceleration models.
 acceleration_models = propagation_setup.create_acceleration_models(
-    system_of_bodies=system_of_bodies,
+    body_system=system_of_bodies,
     selected_acceleration_per_body=acceleration_dict,
     bodies_to_propagate=bodies_to_propagate,
     central_bodies=central_bodies,
@@ -119,7 +138,8 @@ system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
 #     theta=np.deg2rad(0.1)
 # )
 
-# termination_settings = propagation_setup.
+# Create termination settings.
+termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 # Create propagation settings.
 propagator_settings = propagation_setup.propagator.translational(
@@ -127,7 +147,7 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     system_initial_state,
-    simulation_end_epoch,
+    termination_condition
 )
 # Create numerical integrator settings.
 integrator_settings = propagation_setup.integrator.runge_kutta_4(
@@ -139,12 +159,12 @@ integrator_settings = propagation_setup.integrator.runge_kutta_4(
 ################################################################################
 
 # Instantiate the dynamics simulator.
-dynamics_simulator = propagation_setup.SingleArcDynamicsSimulator(
+dynamics_simulator = numerical_simulation.SingleArcSimulator(
     system_of_bodies, integrator_settings, propagator_settings, True
 )
 
 # Propagate and store results to outer loop results dictionary.
-result = dynamics_simulator.get_equations_of_motion_numerical_solution()
+result = dynamics_simulator.state_history
 
 ################################################################################
 # VISUALISATION / OUTPUT / PRELIMINARY ANALYSIS ################################

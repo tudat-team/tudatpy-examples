@@ -1,3 +1,15 @@
+"""
+Copyright (c) 2010-2021, Delft University of Technology
+All rights reserved
+
+This file is part of the Tudat. Redistribution and use in source and
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
+
+TUDATPY EXAMPLE APPLICATION: Keplerian Orbit (two-body problem)
+"""
 
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
@@ -67,7 +79,7 @@ def main():
     # CREATE PROPAGATION SETTINGS #############################################
     ###########################################################################
 
-    # Set initial conditions for the Asterix satellite that will be
+    # Set initial conditions for the satellite that will be
     # propagated in this simulation. The initial conditions are given in
     # Keplerian elements and later on converted to Cartesian elements.
     earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
@@ -81,8 +93,10 @@ def main():
         true_anomaly=np.deg2rad(139.87),
     )
 
+    # Create termination settings.
+    termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
     # Create propagation settings.
-    termination_condition = propagation_setup.propagator.time_termination( simulation_end_epoch )
     propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
