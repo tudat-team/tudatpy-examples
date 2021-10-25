@@ -165,20 +165,21 @@ And the velocity vector of Delfi-C3 is [km]: \n{
     # VISUALISE TRAJECTORY ####################################################
     ###########################################################################
 
+    # In order to gain some more intuitive insight into the simulation we will
+    #  plot the propagated trajectory of Delfi-C3 around Earth.
+
     import matplotlib as mpl
     mpl.use('macOSX')  # choose your preferred mpl backend
     from matplotlib import pyplot as plt
 
-
     fig1 = plt.figure(figsize=(8, 6))
     ax1 = fig1.add_subplot(111, projection='3d')
-    ax1.set_title(f'System state evolution in 3D')
+    ax1.set_title(f'Delfi-C3 trajectory around Earth')
 
     ax1.plot(states_array[:, 1], states_array[:, 2], states_array[:, 3], label=bodies_to_propagate[0], linestyle='-.')
     ax1.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
 
     ax1.legend()
-
     ax1.set_xlabel('x [m]')
     ax1.set_ylabel('y [m]')
     ax1.set_zlabel('z [m]')

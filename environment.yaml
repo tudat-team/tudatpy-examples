@@ -1,0 +1,8 @@
+name: tudatpy-examples
+channels:
+  - conda-forge
+  - tudat-team
+dependencies:
+  - matplotlib
+  - numpy
+  - tudatpy
