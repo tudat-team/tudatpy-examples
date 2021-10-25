@@ -9,11 +9,37 @@ a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
 TUDATPY EXAMPLE APPLICATION: Solar System Propagation
+FOCUS:                       Multi-body propagation and propagation variations
+"""
+
+###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Solar System Propagation            ############
+###############################################################################
+
+""" ABSTRACT.
+
+This example script demonstrates a multi-body propagation of simplified inner
+ solar system model. Multi-body propagations become necessary when one or more 
+ propagated bodies cannot be treated as quasi-massless. Through their 
+ non-negligible mass, the bodies mutually exert accelerations on each other and 
+ thereby affecting each others' future states. In order to consistently simulate
+ the evolution of such a system, the equations of motion of all massive bodies 
+ have to be propagated concurrently in a multi-body propagation.
+The example showcases the versatility with which the propagation_setup module 
+ allows for advanced multi-body acceleration models and propagators.
+ Via the selected_acceleration_per_body argument of the 
+ propagation_setup.create_acceleration_models() function, acceleration model 
+ settings can be defined for an arbitrary amount of bodies in the system. 
+ The central_bodies argument gives the option specify the centre of propagation
+ for each propagated body individually. In this script, this feature is used to
+ implement a hierarchical propagation scheme. 
+
 """
 
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
+from tudatpy.util import result2array
 from tudatpy.kernel import constants
 from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.interface import spice_interface
@@ -140,6 +166,107 @@ for propagation_variant in ["barycentric", "hierarchical"]:
         propagation_variant
     ] = dynamics_simulator.state_history
 
+
+
 ################################################################################
 # VISUALISATION / OUTPUT / PRELIMINARY ANALYSIS ################################
 ################################################################################
+
+# After propagation, the state evolution is visualised by plotting the
+#  trajectory of each body over the propagation time.
+# Note that in the hierarchical case the raw output of the propagation cannot be
+#  plotted in the one figure, since some bodies have their propagated state
+#  defined w.r.t different bodies. The results of the hierarchical propagation
+#  are therefore split over multiple figures.
+
+import matplotlib as mpl
+mpl.use('macOSX')  # choose your preferred mpl backend
+from matplotlib import pyplot as plt
+
+
+# auxiliary function for plotting multi-body state history and splitting hierarchical states
+def plot_multi_body_system_state_history(system_state_history_array, propagated_bodies, hierarchical=False):
+
+    if hierarchical:
+
+        fig1 = plt.figure(figsize=plt.figaspect(0.3))
+        ax1 = fig1.add_subplot(131, projection='3d')
+        ax1.set_title(f'System state evolution w.r.t Sun')
+        ax1.scatter(0, 0, 0, marker='x', label="Sun")
+
+        ax2 = fig1.add_subplot(132, projection='3d')
+        ax2.set_title(f'Trajectory of the Sun w.r.t SSB')
+        ax2.scatter(0, 0, 0, marker='x', label="SSB")
+
+        ax3 = fig1.add_subplot(133, projection='3d')
+        ax3.set_title(f'Trajectory of the Moon w.r.t Earth')
+        ax3.scatter(0, 0, 0, marker='x', label="Earth")
+
+
+
+        for i, body in enumerate(propagated_bodies):
+            if body != "Sun" and body != "Moon":
+                ax1.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
+                         system_state_history_array[:, 6 * i + 3],
+                         label=body)
+
+            elif body == "Sun":
+                ax2.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
+                         system_state_history_array[:, 6 * i + 3],
+                         label=body)
+
+
+            elif body == "Moon":
+                ax3.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
+                         system_state_history_array[:, 6 * i + 3],
+                         label=body)
+
+
+        ax1.legend()
+        ax1.set_xlabel('x [m]')
+        ax1.set_ylabel('y [m]')
+        ax1.set_zlabel('z [m]')
+
+        ax2.legend()
+        ax2.set_xlabel('x [m]')
+        ax2.set_ylabel('y [m]')
+        ax2.set_zlabel('z [m]')
+
+        ax3.legend()
+        ax3.set_xlabel('x [m]')
+        ax3.set_ylabel('y [m]')
+        ax3.set_zlabel('z [m]')
+
+
+    else:
+
+        fig1 = plt.figure(figsize=(8, 6))
+        ax1 = fig1.add_subplot(111, projection='3d')
+        ax1.set_title(f'System state evolution of all bodies w.r.t SSB.')
+
+
+        for i, body in enumerate(propagated_bodies):
+            ax1.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
+                     system_state_history_array[:, 6 * i + 3],
+                     label=body)
+            ax1.scatter(system_state_history_array[0, 6 * i + 1], system_state_history_array[0, 6 * i + 2],
+                        system_state_history_array[0, 6 * i + 3],
+                        marker='x')
+
+        ax1.scatter(0, 0, 0, marker='x', label="SSB", color='black')
+        ax1.legend()
+        ax1.set_xlabel('x [m]')
+        ax1.set_ylabel('y [m]')
+        ax1.set_zlabel('z [m]')
+
+    return fig1
+
+# convert state history dictionaries to arrays for easier processing
+barycentric_system_state_array = result2array(results['barycentric'])
+hierarchical_system_state_array = result2array(results['hierarchical'])
+
+# plot system evolution
+figA = plot_multi_body_system_state_history(barycentric_system_state_array, bodies_to_propagate)
+figB = plot_multi_body_system_state_history(hierarchical_system_state_array, bodies_to_propagate, hierarchical=True)
+plt.tight_layout()
+plt.show()
