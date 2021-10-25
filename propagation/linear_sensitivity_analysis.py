@@ -9,6 +9,30 @@ a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
 TUDATPY EXAMPLE APPLICATION: Linear Sensitivity Analysis
+FOCUS:                       Variational Equations and Sensitivity Analysis
+"""
+
+###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Linear Sensitivity Analysis         ############
+###############################################################################
+
+""" ABSTRACT.
+
+This example is an extension of the Perturbed Satellite Orbit Application. It 
+ adopts the simulation setup from the Perturbed Satellite Orbit, considering 
+ a slightly reduced set of perturbing accelerations for the propagation of the 
+ vehicle. 
+The script demonstrates how the basic numerical simulation setup (aiming to propagate 
+ the state of the system) can swiftly be extended to enable a study of the system's
+ sensitivity. Via the estimation_setup.parameter module, the system parameters w.r.t. 
+ which the sensitivity is to be studied are defined and a SingleArcVariationalSimulator
+ object from the numerical_simulation module is used in order to setup and integrate 
+ the system's variational equations. After obtaining the state transition matrices
+ from the integrated variational equations, the system's response to small 
+ perturbations can be tested via simple matrix multiplication.
+The availability of variational equations in tudat enables many more, advanced 
+ functionalities, such as covariance analysis and precise orbit determination.
+
 """
 
 ###############################################################################
@@ -45,7 +69,7 @@ def main():
     global_frame_origin = "Earth"
     global_frame_orientation = "J2000"
     body_settings = environment_setup.get_default_body_settings(
-        bodies_to_create, global_frame_origin, global_frame_orientation )
+        bodies_to_create, global_frame_origin, global_frame_orientation)
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
 
@@ -54,8 +78,8 @@ def main():
     ###########################################################################
 
     # Create vehicle objects.
-    bodies.create_empty_body( "Delfi-C3" )
-    bodies.get( "Delfi-C3").mass = 400.0
+    bodies.create_empty_body("Delfi-C3")
+    bodies.get("Delfi-C3").mass = 400.0
 
     ###########################################################################
     # CREATE VEHICLE - ENVIRONMENT INTERFACE ##################################
@@ -65,10 +89,10 @@ def main():
     reference_area = 4.0
     drag_coefficient = 1.2
     aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-        reference_area,[drag_coefficient,0,0]
+        reference_area, [drag_coefficient, 0.0, 0.0]
     )
     environment_setup.add_aerodynamic_coefficient_interface(
-                bodies, "Delfi-C3", aero_coefficient_settings );
+                bodies, "Delfi-C3", aero_coefficient_settings)
 
 
     # Create radiation pressure settings
@@ -79,7 +103,7 @@ def main():
         "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
     )
     environment_setup.add_radiation_pressure_interface(
-                bodies, "Delfi-C3", radiation_pressure_settings );
+                bodies, "Delfi-C3", radiation_pressure_settings)
 
     ###########################################################################
     # CREATE ACCELERATIONS ####################################################
@@ -93,13 +117,11 @@ def main():
 
     # Define unique (Sun, Earth) accelerations acting on Delfi-C3.
     accelerations_settings_delfi_c3 = dict(
-        Sun=
-        [
+        Sun=[
             propagation_setup.acceleration.cannonball_radiation_pressure(),
             propagation_setup.acceleration.point_mass_gravity()
         ],
-        Earth=
-        [
+        Earth=[
             propagation_setup.acceleration.spherical_harmonic_gravity(5, 5),
             propagation_setup.acceleration.aerodynamic()
         ])
@@ -126,7 +148,7 @@ def main():
     # Set initial conditions for the Asterix satellite that will be
     # propagated in this simulation. The initial conditions are given in
     # Keplerian elements and later on converted to Cartesian elements.
-    earth_gravitational_parameter = bodies.get( "Earth" ).gravitational_parameter
+    earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
     initial_state = element_conversion.keplerian_to_cartesian_elementwise(
         gravitational_parameter=earth_gravitational_parameter,
         semi_major_axis=7500.0E3,
@@ -137,7 +159,7 @@ def main():
         true_anomaly=np.deg2rad(139.87)
     )
     # Create propagation settings.
-    termination_condition = propagation_setup.propagator.time_termination( simulation_end_epoch )
+    termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
     propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
@@ -148,8 +170,7 @@ def main():
 
     # Create list of parameters for which the variational equations are to be
     # propagated
-    parameter_settings = estimation_setup.parameter.initial_states(
-	propagator_settings, bodies )
+    parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
     parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
     parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
 
@@ -166,16 +187,20 @@ def main():
 
     # Create simulation object and propagate dynamics.
     variational_equations_solver = numerical_simulation.SingleArcVariationalSimulator(
-        bodies, integrator_settings, propagator_settings, estimation_setup.create_parameters_to_estimate( parameter_settings, bodies ),
-        integrate_on_creation=1 )
+        bodies, integrator_settings, propagator_settings, estimation_setup.create_parameters_to_estimate(
+            parameter_settings, bodies), integrate_on_creation=True)
 
     states = variational_equations_solver.state_history
     state_transition_matrices = variational_equations_solver.state_transition_matrix_history
     sensitivity_matrices = variational_equations_solver.sensitivity_matrix_history
 
+
     ###########################################################################
     # PERFORM SENSITIVITY ANALYSIS    #########################################
     ###########################################################################
+
+    # The system response (i.e. change of vehicle trajectory) to the variations
+    #  of system parameters is calculated over the course of a given time.
 
     initial_state_variation = [1, 0, 0, 1.0E-3, 0, 0]
     earth_standard_param_variation = [-2.0E+5, 0.0]
@@ -190,9 +215,17 @@ def main():
         earth_standard_param_dict[epoch] = np.dot(sensitivity_matrices[epoch], earth_standard_param_variation)
         delta_drag_coeff_dict[epoch] = np.dot(sensitivity_matrices[epoch], drag_coeff_variation)
 
+
     ###########################################################################
     # PLOT RESULTS   ##########################################################
     ###########################################################################
+
+    # The system response (i.e. change of vehicle trajectory) to the variations
+    #  of system parameters is plotted as a function of time.
+
+    import matplotlib as mpl
+    mpl.use('macOSX')  # choose your preferred mpl backend
+    from matplotlib import pyplot as plt
 
     font_size = 20
     plt.rcParams.update({'font.size': font_size})
@@ -205,38 +238,40 @@ def main():
     delta_drag_coefficient = np.vstack(list(delta_drag_coeff_dict.values()))
 
     # 1 // due to initial state variation
-    delta_r1 = np.linalg.norm( delta_initial_state[:, 0:3], axis = 1 )
-    delta_v1 = np.linalg.norm( delta_initial_state[:, 3:7], axis = 1 )
+    delta_r1 = np.linalg.norm(delta_initial_state[:, 0:3], axis=1)
+    delta_v1 = np.linalg.norm(delta_initial_state[:, 3:7], axis=1)
 
     # 2 // due to gravitational parameter variation
-    delta_r2 = np.linalg.norm( delta_earth_standard_param[:, 0:3], axis = 1 )
-    delta_v2 = np.linalg.norm( delta_earth_standard_param[:, 3:7], axis = 1 )
+    delta_r2 = np.linalg.norm(delta_earth_standard_param[:, 0:3], axis=1)
+    delta_v2 = np.linalg.norm(delta_earth_standard_param[:, 3:7], axis=1)
 
     # 3 // due to drag coefficient variation
-    delta_r3 = np.linalg.norm( delta_drag_coefficient[:, 0:3], axis = 1 )
-    delta_v3 = np.linalg.norm( delta_drag_coefficient[:, 3:7], axis = 1 )
+    delta_r3 = np.linalg.norm(delta_drag_coefficient[:, 0:3], axis=1)
+    delta_v3 = np.linalg.norm(delta_drag_coefficient[:, 3:7], axis=1)
 
     # Plot deviations of position
     plt.figure(figsize=(17, 5))
+    plt.title('Trajectory deviation (position only) in response to indicated parameter variation')
     plt.grid()
     plt.plot(time_hours, delta_r1, color='tomato', label='variation initial state')
     plt.plot(time_hours, delta_r2, color='orange', label='variation grav. parameter (Earth)')
     plt.plot(time_hours, delta_r3, color='cyan', label='variation drag coefficient')
     plt.yscale('log')
     plt.xlabel('Time [hr]')
-    plt.ylabel('$\Delta r (t_1)$ [m]')
+    plt.ylabel('$\Delta r$ [m]')
     plt.xlim([min(time_hours), max(time_hours)])
     plt.legend()
 
     # Plot deviations of speed
     plt.figure(figsize=(17, 5))
+    plt.title('Trajectory deviation (velocity only) in response to indicated parameter variation.')
     plt.grid()
     plt.plot(time_hours, delta_v1, color='tomato', label='variation initial state')
     plt.plot(time_hours, delta_v2, color='orange', label='variation grav. parameter (Earth)')
     plt.plot(time_hours, delta_v3, color='cyan', label='variation drag coefficient')
     plt.yscale('log')
     plt.xlabel('Time [hr]')
-    plt.ylabel('$\Delta v (t_1)$ [m/s]')
+    plt.ylabel('$\Delta v$ [m/s]')
     plt.xlim([min(time_hours), max(time_hours)])
     plt.legend()
 
