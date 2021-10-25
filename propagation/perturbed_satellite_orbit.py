@@ -9,7 +9,33 @@ a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
 TUDATPY EXAMPLE APPLICATION: Perturbed Satellite Orbit
+FOCUS:                       Working with extensive acceleration models including
+                             various acceleration types from natural perturbers.
 """
+
+###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Perturbed Satellite Orbit           ############
+###############################################################################
+
+""" ABSTRACT.
+
+This example demonstrates the propagation of a (quasi-massless) body dominated 
+ by a central point-mass attractor, but also including multiple perturbing 
+ accelerations exerted by the central body as well as third bodies. 
+The example showcases the ease with which a simulation environment can be extended 
+ to a multi-body system. It also demonstrates the wide variety of acceleration 
+ types that can be modelled using the propagation_setup.acceleration module, 
+ including accelerations from non-conservative forces such as drag and radiation
+ pressure. Note that the modelling of these acceleration types requires special
+ environment interfaces (implemented via add_aerodynamic_coefficient_interface(),
+ add_radiation_pressure_interface()) of the body undergoing the accelerations.
+It also demonstrates and motivates the usage of dependent variables. By keeping
+ track of such variables throughout the propagation, valuable insight, such as
+ contributions of individual acceleration types, ground tracks or the evolution
+ of Kepler elements, can be derived in the post-propagation analysis. 
+
+"""
+
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
@@ -88,26 +114,21 @@ def main():
 
     # Define accelerations acting on Delfi-C3 by Sun and Earth.
     accelerations_settings_delfi_c3 = dict(
-        Sun=
-        [
+        Sun=[
             propagation_setup.acceleration.cannonball_radiation_pressure(),
             propagation_setup.acceleration.point_mass_gravity()
         ],
-        Earth=
-        [
+        Earth=[
             propagation_setup.acceleration.spherical_harmonic_gravity(5, 5),
             propagation_setup.acceleration.aerodynamic()
         ],
-        Moon=
-        [
+        Moon=[
             propagation_setup.acceleration.point_mass_gravity()
         ],
-        Mars=
-        [
+        Mars=[
             propagation_setup.acceleration.point_mass_gravity()
         ],
-        Venus=
-        [
+        Venus=[
             propagation_setup.acceleration.point_mass_gravity()
         ]
     )
@@ -128,7 +149,7 @@ def main():
 
     # Set initial conditions for the Asterix satellite that will be
     # propagated in this simulation. The initial conditions are given in
-    # Keplerian elements and later on converted to Cartesian elements.
+    # Kepler elements and later on converted to Cartesian elements.
     earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
     initial_state = element_conversion.keplerian_to_cartesian_elementwise(
         gravitational_parameter=earth_gravitational_parameter,
@@ -200,6 +221,15 @@ def main():
     # PLOT RESULTS    #########################################################
     ###########################################################################
 
+    # By use of the dependent variable history, we can infer some interesting
+    #  insight into the role that the various acceleration types play during
+    #  the propagation, how the perturbers affect the kepler elements and what
+    #  the ground track of Delfi-C3 would look like!
+
+    import matplotlib as mpl
+    mpl.use('macOSX')  # choose your preferred mpl backend
+    from matplotlib import pyplot as plt
+
     time = dependent_variables.keys()
     time_hours = [t / 3600 for t in time]
 
@@ -208,6 +238,7 @@ def main():
     # Plot total acceleration as function of time
     total_acceleration_norm = np.linalg.norm(dependent_variable_list[:, 0:3], axis=1)
     plt.figure(figsize=(17, 5))
+    plt.title("Total acceleration norm on Delfi-C3 over the course of propagation.")
     plt.plot(time_hours, total_acceleration_norm)
     plt.xlabel('Time [hr]')
     plt.ylabel('Total Acceleration [m/s$^2$]')
@@ -222,6 +253,7 @@ def main():
     latitude = np.rad2deg(latitude[0: subset])
     longitude = np.rad2deg(longitude[0: subset])
     plt.figure(figsize=(17, 5))
+    plt.title("3 hour ground track of Delfi-C3")
     plt.scatter(longitude, latitude, s=1)
     plt.xlabel('Longitude [deg]')
     plt.ylabel('Latitude [deg]')
@@ -232,6 +264,7 @@ def main():
     # Plot Kepler elements as a function of time
     kepler_elements = dependent_variable_list[:, 3:9]
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(20, 17))
+    fig.suptitle('Evolution of Kepler elements over the course of the propagation.')
 
     # Semi-major Axis
     semi_major_axis = [element / 1000 for element in kepler_elements[:, 0]]
@@ -302,6 +335,7 @@ def main():
 
     plt.grid()
 
+    plt.title("Accelerations norms on Delfi-C3, distinguished by type and origin, over the course of propagation.")
     plt.xlim([min(time_hours), max(time_hours)])
     plt.xlabel('Time [hr]')
     plt.ylabel('Acceleration Norm [m/s$^2$]')
