@@ -8,12 +8,18 @@ under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
-TUDATPY EXAMPLE APPLICATION: Earth-Moon Transfer
+TUDATPY EXAMPLE APPLICATION: Thrust in Earth-Moon system
+FOCUS:                       Implementing thrust acceleration / basic guidance
 """
 
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
+import matplotlib as mpl
+mpl.use('macOSX') #choose your preferred mpl backend
+from matplotlib import pyplot as plt
+
+
 import numpy as np
 from tudatpy.util import result2array
 from tudatpy.kernel import constants, numerical_simulation
@@ -35,7 +41,7 @@ simulation_start_epoch = 1.0e7
 fixed_step_size = 3600.0
 
 # Set simulation end epoch.
-simulation_end_epoch = 1.0e7 + 5.0 * constants.JULIAN_YEAR
+simulation_end_epoch = 1.0e7 + 10.0 * constants.JULIAN_DAY
 
 # Set vehicle mass.
 vehicle_mass = 5.0e3
@@ -109,15 +115,13 @@ acceleration_models = propagation_setup.create_acceleration_models(
     body_system=system_of_bodies,
     selected_acceleration_per_body=acceleration_dict,
     bodies_to_propagate=bodies_to_propagate,
-    central_bodies=central_bodies,
+    central_bodies=central_bodies
 )
 
 ################################################################################
 # SETUP PROPAGATION : PROPAGATION SETTINGS #####################################
 ################################################################################
 
-# Get gravitational parameter of Earth for initial state.
-# gravitational_parameter = system_of_bodies["Earth"].gravity_field_model.get_gravitational_parameter()
 
 # Get system initial state.
 system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
@@ -163,5 +167,39 @@ result = dynamics_simulator.state_history
 # VISUALISATION / OUTPUT / PRELIMINARY ANALYSIS ################################
 ################################################################################
 
-array = result2array(result)
-print(array)
+# retrieve moon trajectory over vehicle propagation epochs from spice
+
+moon_states_from_spice = dict()
+for epoch in list(result):
+    moon_states_from_spice[epoch] = \
+        spice_interface.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
+
+
+
+# convert state dictionaries to arrays for easier analysis
+vehicle_array = result2array(result)
+moon_array = result2array(moon_states_from_spice)
+
+
+fig1 = plt.figure(figsize=(8, 6))
+ax1 = fig1.add_subplot(111, projection='3d')
+ax1.set_title(f'System state evolution in 3D')
+
+ax1.plot(vehicle_array[:, 1], vehicle_array[:, 2], vehicle_array[:, 3], label="Vehicle", linestyle='-.')
+ax1.plot(moon_array[:, 1], moon_array[:, 2], moon_array[:, 3], label="Moon", linestyle='-')
+ax1.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+
+
+ax1.legend()
+
+ax1.set_xlim([-3E8, 3E8])
+ax1.set_ylim([-3E8, 3E8])    
+ax1.set_zlim([-3E8, 3E8])
+
+ax1.set_xlabel('x [m]')
+ax1.set_ylabel('y [m]')
+ax1.set_zlabel('z [m]')
+
+plt.show()
+
+print(vehicle_array)
