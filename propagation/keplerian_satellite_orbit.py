@@ -9,13 +9,34 @@ a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
 TUDATPY EXAMPLE APPLICATION: Keplerian Orbit (two-body problem)
+FOCUS:                       Basic propagation of vehicle in classic two-body problem
 """
+
+###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Keplerian Orbit (two-body problem)  ############
+###############################################################################
+
+""" ABSTRACT.
+
+This example demonstrates the basic propagation of a (quasi-massless) body under
+ the influence of a central point-mass attractor. It therefore resembles the 
+ classic two-body problem. Due to the quasi-massless nature of the propagated body, 
+ no accelerations have to be modelled on the central body, which is therefore not 
+ propagated. As one expects from this setup, the trajetory of the propagated 
+ quasi-massless body describes a Keplerian orbit. 
+Amongst others, the example showcases the creation of bodies using properties from
+ standard SPICE data (get_default_body_settings()) as well as the element conversion 
+ functionalities (keplerian_to_cartesian_elementwise()) of tudat.
+It also demonstrates how the results of the propagation can be accessed and processed.
+
+"""
+
 
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
-import math
 import numpy as np
+from tudatpy.util import result2array
 from tudatpy.kernel import constants
 from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.astro import element_conversion
@@ -45,7 +66,7 @@ def main():
     global_frame_origin = "Earth"
     global_frame_orientation = "J2000"
     body_settings = environment_setup.get_default_body_settings(
-        bodies_to_create, global_frame_origin, global_frame_orientation )
+        bodies_to_create, global_frame_origin, global_frame_orientation)
 
     # Create system of bodies (in this case only Earth)
     bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -119,6 +140,7 @@ def main():
         bodies, integrator_settings, propagator_settings, True
     )
     states = dynamics_simulator.state_history
+    states_array = result2array(states)
 
     ###########################################################################
     # PRINT INITIAL AND FINAL STATES ##########################################
@@ -138,6 +160,31 @@ And the velocity vector of Delfi-C3 is [km]: \n{
         """
     )
 
+
+    ###########################################################################
+    # VISUALISE TRAJECTORY ####################################################
+    ###########################################################################
+
+    import matplotlib as mpl
+    mpl.use('macOSX')  # choose your preferred mpl backend
+    from matplotlib import pyplot as plt
+
+
+    fig1 = plt.figure(figsize=(8, 6))
+    ax1 = fig1.add_subplot(111, projection='3d')
+    ax1.set_title(f'System state evolution in 3D')
+
+    ax1.plot(states_array[:, 1], states_array[:, 2], states_array[:, 3], label=bodies_to_propagate[0], linestyle='-.')
+    ax1.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
+
+    ax1.legend()
+
+    ax1.set_xlabel('x [m]')
+    ax1.set_ylabel('y [m]')
+    ax1.set_zlabel('z [m]')
+
+    plt.show()
+
     ###########################################################################
     # SAVE RESULTS ############################################################
     ###########################################################################
@@ -154,4 +201,3 @@ And the velocity vector of Delfi-C3 is [km]: \n{
 
 if __name__ == "__main__":
     main()
-
