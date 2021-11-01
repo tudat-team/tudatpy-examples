@@ -227,7 +227,6 @@ def main():
     #  the ground track of Delfi-C3 would look like!
 
     import matplotlib as mpl
-    mpl.use('macOSX')  # choose your preferred mpl backend
     from matplotlib import pyplot as plt
 
     time = dependent_variables.keys()

@@ -224,7 +224,6 @@ def main():
     #  of system parameters is plotted as a function of time.
 
     import matplotlib as mpl
-    mpl.use('macOSX')  # choose your preferred mpl backend
     from matplotlib import pyplot as plt
 
     font_size = 20

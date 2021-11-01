@@ -170,7 +170,6 @@ And the velocity vector of Delfi-C3 is [km]: \n{
     #  plot the propagated trajectory of Delfi-C3 around Earth.
 
     import matplotlib as mpl
-    mpl.use('macOSX')  # choose your preferred mpl backend
     from matplotlib import pyplot as plt
 
     fig1 = plt.figure(figsize=(8, 6))

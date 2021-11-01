@@ -180,7 +180,6 @@ for propagation_variant in ["barycentric", "hierarchical"]:
 #  are therefore split over multiple figures.
 
 import matplotlib as mpl
-mpl.use('macOSX')  # choose your preferred mpl backend
 from matplotlib import pyplot as plt
 
 

@@ -16,7 +16,6 @@ FOCUS:                       Implementing thrust acceleration / basic guidance
 # IMPORT STATEMENTS ############################################################
 ################################################################################
 import matplotlib as mpl
-mpl.use('macOSX') #choose your preferred mpl backend
 from matplotlib import pyplot as plt
 
 
