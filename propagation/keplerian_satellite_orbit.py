@@ -47,7 +47,6 @@ from tudatpy.kernel import __version__
 
 
 def main():
-
     # Load spice kernels.
     spice_interface.load_standard_kernels()
 

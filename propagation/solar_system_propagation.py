@@ -35,7 +35,8 @@ The example showcases the versatility with which the propagation_setup module
  implement a hierarchical propagation scheme. 
 
 """
-
+import sys
+sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
@@ -179,7 +180,6 @@ for propagation_variant in ["barycentric", "hierarchical"]:
 #  defined w.r.t different bodies. The results of the hierarchical propagation
 #  are therefore split over multiple figures.
 
-import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 

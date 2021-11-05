@@ -15,9 +15,6 @@ FOCUS:                       Implementing thrust acceleration / basic guidance
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
-import matplotlib as mpl
-from matplotlib import pyplot as plt
-
 
 import numpy as np
 from tudatpy.util import result2array
@@ -25,6 +22,7 @@ from tudatpy.kernel import constants, numerical_simulation
 from tudatpy.kernel.interface import spice_interface
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
+from matplotlib import pyplot as plt
 
 ################################################################################
 # GENERAL SIMULATION SETUP #####################################################
@@ -37,16 +35,16 @@ spice_interface.load_standard_kernels()
 simulation_start_epoch = 1.0e7
 
 # Set numerical integration fixed step size.
-fixed_step_size = 3600.0
+fixed_step_size = 10.0
 
 # Set simulation end epoch.
-simulation_end_epoch = 1.0e7 + 10.0 * constants.JULIAN_DAY
+simulation_end_epoch = 1.0e7 + 30.0 * constants.JULIAN_DAY
 
 # Set vehicle mass.
 vehicle_mass = 5.0e3
 
-# Set vehicle thrust magnitude.
-thrust_magnitude = 25.0
+# Set vehicle thrust magnitude (in Newton).
+thrust_magnitude = 10.0
 
 # Set vehicle specific impulse.
 specific_impulse = 5.0e3
@@ -77,15 +75,11 @@ thrust_direction_settings = (
     propagation_setup.thrust.thrust_direction_from_state_guidance(
         central_body="Earth",
         is_colinear_with_velocity=True,
-        direction_is_opposite_to_vector=False,
-    )
-)
+        direction_is_opposite_to_vector=False ) )
 
 thrust_magnitude_settings = (
     propagation_setup.thrust.constant_thrust_magnitude(
-        thrust_magnitude=thrust_magnitude, specific_impulse=specific_impulse
-    )
-)
+        thrust_magnitude=thrust_magnitude, specific_impulse=specific_impulse ) )
 
 ################################################################################
 # SETUP PROPAGATION : CREATE ACCELERATION MODELS ###############################
@@ -100,7 +94,7 @@ acceleration_on_vehicle = dict(
     ],
     Earth=[propagation_setup.acceleration.point_mass_gravity()],
     Moon=[propagation_setup.acceleration.point_mass_gravity()],
-    Sun=[propagation_setup.acceleration.point_mass_gravity()],
+    Sun=[propagation_setup.acceleration.point_mass_gravity()]
 )
 
 bodies_to_propagate = ["Vehicle"]
@@ -124,31 +118,49 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 # Get system initial state.
 system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
-# system_initial_state = elements.keplerian2cartesian(
-#     mu=gravitational_parameter,
-#     sma=8.0E6,
-#     ecc=0.1,
-#     inc=np.deg2rad(0.05),
-#     raan=np.deg2rad(0.1),
-#     argp=np.deg2rad(0.1),
-#     theta=np.deg2rad(0.1)
-# )
 
 # Create termination settings.
-termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
+termination_distance_settings = propagation_setup.propagator.dependent_variable_termination(
+        dependent_variable_settings = propagation_setup.dependent_variable.relative_distance( "Vehicle", "Earth" ),
+        limit_value = 100E6,
+        use_as_lower_limit = False)
+
+termination_mass_settings = propagation_setup.propagator.dependent_variable_termination(
+        dependent_variable_settings = propagation_setup.dependent_variable.body_mass( "Vehicle" ),
+        limit_value = 4000.0,
+        use_as_lower_limit = True)
+
+termination_time_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
+termination_settings_list = [termination_distance_settings, termination_mass_settings, termination_time_settings ]
+termination_condition = propagation_setup.propagator.hybrid_termination( termination_settings_list, fulfill_single_condition = True )
 
 # Create propagation settings.
-propagator_settings = propagation_setup.propagator.translational(
+translational_propagator_settings = propagation_setup.propagator.translational(
     central_bodies,
     acceleration_models,
     bodies_to_propagate,
     system_initial_state,
     termination_condition
 )
-# Create numerical integrator settings.
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
+
+mass_rate_settings = dict(Vehicle=[propagation_setup.mass_rate.from_thrust()])
+mass_rate_models = propagation_setup.create_mass_rate_models(
+    system_of_bodies,
+    mass_rate_settings,
+    acceleration_models
 )
+
+mass_propagator_settings = propagation_setup.propagator.mass(
+    bodies_to_propagate, mass_rate_models, [vehicle_mass], termination_condition )
+
+propagator_settings = propagation_setup.propagator.multitype(
+    [translational_propagator_settings,mass_propagator_settings], termination_condition)
+
+# Create numerical integrator settings.
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    simulation_start_epoch, fixed_step_size, propagation_setup.integrator.rkf_78, 0.0, 86400.0, 1.0E-10, 1.0E-10 )
 
 ################################################################################
 # PROPAGATE ####################################################################
@@ -160,23 +172,35 @@ dynamics_simulator = numerical_simulation.SingleArcSimulator(
 )
 
 # Propagate and store results to outer loop results dictionary.
-result = dynamics_simulator.state_history
+state_history = dynamics_simulator.state_history
 
 ################################################################################
 # VISUALISATION / OUTPUT / PRELIMINARY ANALYSIS ################################
 ################################################################################
 
+# <<<<<<< HEAD
+# time = state_history.keys()
+# time_hours = [t / 3600 for t in time]
+# state_history_list = np.vstack(list(state_history.values()))
+#
+# plt.figure(figsize=(17, 5))
+# plt.plot(state_history_list[:, 0],state_history_list[:, 1])
+#
+# plt.figure(figsize=(17, 5))
+# plt.plot(time_hours,state_history_list[:, 6])
+# plt.show()
+# =======
 # retrieve moon trajectory over vehicle propagation epochs from spice
 
 moon_states_from_spice = dict()
-for epoch in list(result):
+for epoch in list(state_history):
     moon_states_from_spice[epoch] = \
         spice_interface.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
 
 
 
 # convert state dictionaries to arrays for easier analysis
-vehicle_array = result2array(result)
+vehicle_array = result2array(state_history)
 moon_array = result2array(moon_states_from_spice)
 
 
@@ -201,4 +225,5 @@ ax1.set_zlabel('z [m]')
 
 plt.show()
 
-print(vehicle_array)
+# print(vehicle_array)
+# >>>>>>> 0612349a3f4a41bf93243fc499a1a67bae52f06f
