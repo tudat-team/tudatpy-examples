@@ -35,8 +35,7 @@ The example showcases the versatility with which the propagation_setup module
  implement a hierarchical propagation scheme. 
 
 """
-import sys
-sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
+
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################
@@ -56,9 +55,6 @@ spice_interface.load_standard_kernels()
 
 # Set simulation start epoch.
 simulation_start_epoch = 1.0e7
-
-# Set numerical integration fixed step size.
-fixed_step_size = 3600.0
 
 # Set simulation end epoch.
 simulation_end_epoch = 1.0e7 + 5.0 * constants.JULIAN_YEAR
@@ -149,6 +145,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
         termination_condition,
     )
     # Create numerical integrator settings.
+    fixed_step_size = 3600.0
     integrator_settings = propagation_setup.integrator.runge_kutta_4(
         simulation_start_epoch, fixed_step_size
     )
