@@ -98,7 +98,6 @@ for propagation_variant in ["barycentric", "hierarchical"]:
                     propagation_setup.acceleration.point_mass_gravity()
                 ]
         acceleration_dict[body_i] = current_accelerations
-    central_bodies = []
 
     # Barycentric propagation.
     if propagation_variant == "barycentric":
@@ -106,6 +105,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
 
     # Hierarchical parent body propagation.
     elif propagation_variant == "hierarchical":
+        central_bodies = []
         for body_name in bodies_to_create:
             if body_name == "Moon":
                 central_bodies.append("Earth")
