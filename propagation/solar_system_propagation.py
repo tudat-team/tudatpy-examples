@@ -156,13 +156,10 @@ for propagation_variant in ["barycentric", "hierarchical"]:
 
     # Instantiate the dynamics simulator.
     dynamics_simulator = numerical_simulation.SingleArcSimulator(
-        body_system, integrator_settings, propagator_settings, True
-    )
+        body_system, integrator_settings, propagator_settings)
 
     # Propagate and store results to outer loop results dictionary.
-    results[
-        propagation_variant
-    ] = dynamics_simulator.state_history
+    results[propagation_variant] = dynamics_simulator.state_history
 
 
 
