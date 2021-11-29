@@ -182,58 +182,55 @@ def plot_multi_body_system_state_history(system_state_history_array, propagated_
 
     if hierarchical:
 
-        fig1 = plt.figure(figsize=plt.figaspect(0.3))
-        ax1 = fig1.add_subplot(131, projection='3d')
-        ax1.set_title(f'System state evolution w.r.t Sun')
+        fig1 = plt.figure(figsize=(8, 24))  #figsize=plt.figaspect(3))
+        ax1 = fig1.add_subplot(311, projection='3d')
+        ax1.set_title(f'Trajectory of the Sun w.r.t SSB')
         ax1.scatter(0, 0, 0, marker='x', label="Sun")
 
-        ax2 = fig1.add_subplot(132, projection='3d')
-        ax2.set_title(f'Trajectory of the Sun w.r.t SSB')
+        ax2 = fig1.add_subplot(312, projection='3d')
+        ax2.set_title(f'System state evolution w.r.t Sun')
         ax2.scatter(0, 0, 0, marker='x', label="SSB")
 
-        ax3 = fig1.add_subplot(133, projection='3d')
+        ax3 = fig1.add_subplot(313, projection='3d')
         ax3.set_title(f'Trajectory of the Moon w.r.t Earth')
         ax3.scatter(0, 0, 0, marker='x', label="Earth")
 
 
 
         for i, body in enumerate(propagated_bodies):
-            if body != "Sun" and body != "Moon":
+
+            if body == "Sun":
                 ax1.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
                          system_state_history_array[:, 6 * i + 3],
                          label=body)
 
-            elif body == "Sun":
+            elif body != "Sun" and body != "Moon":
                 ax2.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
                          system_state_history_array[:, 6 * i + 3],
                          label=body)
-
 
             elif body == "Moon":
                 ax3.plot(system_state_history_array[:, 6 * i + 1], system_state_history_array[:, 6 * i + 2],
                          system_state_history_array[:, 6 * i + 3],
                          label=body)
 
+        axs = [ax1, ax2, ax3]
+        ax_lims = [[-2.0E9, 2.0E9], [-2.5E11, 2.5E11], [-4.0E8, 4.0E8]]  # equal axis limit per subplot, [m]
 
-        ax1.legend()
-        ax1.set_xlabel('x [m]')
-        ax1.set_ylabel('y [m]')
-        ax1.set_zlabel('z [m]')
+        for ax, ax_lim in zip(axs, ax_lims):
+            ax.legend()
+            ax.set_xlabel('x [m]')
+            ax.set_xlim(ax_lim)
+            ax.set_ylabel('y [m]')
+            ax.set_ylim(ax_lim)
+            ax.set_zlabel('z [m]')
+            ax.set_zlim(ax_lim)
 
-        ax2.legend()
-        ax2.set_xlabel('x [m]')
-        ax2.set_ylabel('y [m]')
-        ax2.set_zlabel('z [m]')
-
-        ax3.legend()
-        ax3.set_xlabel('x [m]')
-        ax3.set_ylabel('y [m]')
-        ax3.set_zlabel('z [m]')
 
 
     else:
 
-        fig1 = plt.figure(figsize=(8, 6))
+        fig1 = plt.figure(figsize=(8, 8))
         ax1 = fig1.add_subplot(111, projection='3d')
         ax1.set_title(f'System state evolution of all bodies w.r.t SSB.')
 
@@ -249,8 +246,11 @@ def plot_multi_body_system_state_history(system_state_history_array, propagated_
         ax1.scatter(0, 0, 0, marker='x', label="SSB", color='black')
         ax1.legend()
         ax1.set_xlabel('x [m]')
+        ax1.set_xlim([-2.5E11, 2.5E11])
         ax1.set_ylabel('y [m]')
+        ax1.set_ylim([-2.5E11, 2.5E11])
         ax1.set_zlabel('z [m]')
+        ax1.set_zlim([-2.5E11, 2.5E11])
 
     return fig1
 
@@ -263,3 +263,6 @@ figA = plot_multi_body_system_state_history(barycentric_system_state_array, bodi
 figB = plot_multi_body_system_state_history(hierarchical_system_state_array, bodies_to_propagate, hierarchical=True)
 plt.tight_layout()
 plt.show()
+
+figA.savefig('output/multi_body_barycentric', dpi=400)
+figB.savefig('output/multi_body_hierarchical', dpi=400)
