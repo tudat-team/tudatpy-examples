@@ -17,12 +17,13 @@ from tudatpy.kernel.astro import element_conversion
 import matplotlib.pyplot as plt
 
 def main():
+
     # Load spice kernels.
     spice_interface.load_standard_kernels()
 
     # Set simulation start and end epochs.
     simulation_start_epoch = 0.0
-    simulation_end_epoch = constants.JULIAN_DAY
+    simulation_end_epoch = 7.0 * constants.JULIAN_DAY
 
     ###########################################################################
     # CREATE ENVIRONMENT ######################################################
@@ -42,14 +43,15 @@ def main():
     # Create system of selected celestial bodies
     bodies = environment_setup.create_system_of_bodies(body_settings)
 #    print( bodies.get_body('Mars').state_in_base_frame_from_ephemeris( 0.0 ) )
-    print( bodies.get_body('Moon').gravitational_parameter )
 
+    station_altitude = 0.0
+    delft_latitude =  np.deg2rad( 52.00667 )
+    delft_longitude = np.deg2rad( 4.35556 )
     environment_setup.add_ground_station(
-        bodies.get_body('Earth'),'Station1',[0.0,1.25,0.0],element_conversion.geodetic_position_type)
-    environment_setup.add_ground_station(
-        bodies.get_body('Earth'),'Station2',[0.0,-1.55,2.0],element_conversion.geodetic_position_type)
-    environment_setup.add_ground_station(
-        bodies.get_body('Earth'),'Station3',[0.0,0.8,4.0],element_conversion.geodetic_position_type)
+        bodies.get_body('Earth'),
+        'TrackingStation',
+        [station_altitude, delft_latitude, delft_longitude],
+        element_conversion.geodetic_position_type)
 
     ###########################################################################
     # CREATE VEHICLE ##########################################################
@@ -154,16 +156,12 @@ def main():
         simulation_start_epoch, 40.0, propagation_setup.integrator.rkf_78, 40.0, 40.0, 1.0, 1.0
     )
 
-    # Create list of parameters for which the variational equations are to be
-    # propagated
+    # Create list of parameters that are to be estimated
     parameter_settings = estimation_setup.parameter.initial_states(
         propagator_settings, bodies)
-    parameter_settings.append(
-        estimation_setup.parameter.gravitational_parameter("Earth"))
-    parameter_settings.append(
-        estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
-    parameter_settings.append(
-        estimation_setup.parameter.radiation_pressure_coefficient("Delfi-C3"))
+    parameter_settings.append( estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
+    parameter_settings.append( estimation_setup.parameter.radiation_pressure_coefficient("Delfi-C3"))
+    # parameter_settings.append( estimation_setup.parameter.ground_station_position( "Earth", "TrackingStation"))
 
     parameter_set = estimation_setup.create_parameters_to_estimate( parameter_settings, bodies )
 
@@ -171,92 +169,123 @@ def main():
     # DEFINE LINKS ############################################################
     ###########################################################################
 
-    receiver_link_ends = list()
-    transmitter_link_ends = list()
-
-    # Define up- and downlink link ends for one-way observable
-    for i in range(3):
-        linkEnds = dict()
-        linkEnds[observations.transmitter ] = ( 'Earth', 'Station' + str(i+1))
-        linkEnds[observations.receiver ] = ( 'Delfi-C3', '' )
-        transmitter_link_ends.append( linkEnds )
-
-        linkEnds.clear( )
-        linkEnds[observations.receiver ] = ( 'Earth', 'Station' + str(i+1))
-        linkEnds[observations.transmitter ] = ( 'Delfi-C3', '' )
-        receiver_link_ends.append( linkEnds )
-
-    # Set (semi-random) combination of link ends for obsevables
-    link_ends_per_observable = dict()
-    link_ends_per_observable[ observations.one_way_range_type ] = list()
-    link_ends_per_observable[ observations.one_way_range_type ].append( receiver_link_ends[ 0 ] )
-    link_ends_per_observable[ observations.one_way_range_type ].append( transmitter_link_ends[ 0 ] )
-    link_ends_per_observable[ observations.one_way_range_type ].append( receiver_link_ends[ 1 ] )
+    # Define upink link ends for one-way observable
+    link_ends = dict()
+    link_ends[ observations.transmitter ] = ( 'Earth', 'TrackingStation')
+    link_ends[ observations.receiver ] = ( 'Delfi-C3', '' )
 
     # Create observation settings for each link/observable
-    observation_settings_list = list()
-
-    # Iterate over all observables
-    for observable_key in link_ends_per_observable:
-        current_link_ends = link_ends_per_observable[ observable_key ]
-        # Iterate over all link ends
-        for i in range( len(current_link_ends) ):
-            # Create observation settings
-            if( observable_key ==observations.one_way_range_type ):
-                observation_settings_list.append( observations.one_way_range( current_link_ends[i] ) )
+    observation_settings_list = [ observations.one_way_open_loop_doppler(link_ends) ]
 
     ###########################################################################
     # CREATE ESTIMATION OBJECT ################################################
     ###########################################################################
 
-    orbit_determination_manager = numerical_simulation.Estimator(
-        bodies,parameter_set,observation_settings_list,integrator_settings,propagator_settings)
+    estimator = numerical_simulation.Estimator(
+        bodies, parameter_set, observation_settings_list, integrator_settings,
+        propagator_settings )
+    variational_equations_simulator = estimator.variational_solver
+    print(variational_equations_simulator)
+
+    dynamics_simulator = variational_equations_simulator.dynamics_simulator
+    print(dynamics_simulator)
 
     ###########################################################################
     # SIMULATE OBSERVATIONS ###################################################
     ###########################################################################
 
-    # Simulate observations
-    single_arc_observation_times = np.arange( 0.0, 10000, 20 )
-    total_observation_times = single_arc_observation_times
-    # total_observation_times = np.concatenate(
-    #     [ single_arc_observation_times, single_arc_observation_times + 86400.0, single_arc_observation_times + 2.0 * 86400.0 ] )
-
     # Define observation simulation times for each link
-    observation_simulation_settings = observations.create_tabulated_simulation_settings( link_ends_per_observable,total_observation_times )
+    observation_times = np.arange( simulation_start_epoch, simulation_end_epoch, 60.0 )
+    observation_simulation_settings = observations.tabulated_simulation_settings(
+        observations.one_way_doppler_type,
+        link_ends,
+        observation_times
+    )
+
+    # Add noise levels
+    noise_level = 1.0E-3 / constants.SPEED_OF_LIGHT
+    observations.add_gaussian_noise_to_settings(
+        [ observation_simulation_settings ],
+        noise_level,
+        observations.one_way_doppler_type
+    )
+
+    # Create viability settings
+    viability_setting = observations.elevation_angle_viability( ["Earth", "TrackingStation"], np.deg2rad( 15 ) )
+    observations.add_viability_check_to_settings(
+        [ observation_simulation_settings ],
+        [ viability_setting ]
+    )
 
     # Simulate required observation
     simulated_observations = observations.simulate_observations(
-        observation_simulation_settings,
-        orbit_determination_manager.observation_simulators,
+        [ observation_simulation_settings ],
+        estimator.observation_simulators,
         bodies )
 
     # Perturb initial positio  by 1 m in each direction
-    initial_parameter_deviation = np.zeros( 9 )
-    initial_parameter_deviation[ 0 ] = 1.0
-    initial_parameter_deviation[ 1 ] = 1.0
-    initial_parameter_deviation[ 2 ] = 1.0
+    initial_parameter_deviation = np.zeros( parameter_set.parameter_set_size )
+    initial_parameter_deviation[ 0 ] = 100.0
+    initial_parameter_deviation[ 1 ] = 100.0
+    initial_parameter_deviation[ 2 ] = 100.0
+    initial_parameter_deviation[ 3 ] = 0.1
+    initial_parameter_deviation[ 4 ] = 0.1
+    initial_parameter_deviation[ 5 ] = 0.1
+
+    truth_parameters = parameter_set.parameter_vector
 
     # Create unput for estimation
     pod_input = estimation.PodInput(
         simulated_observations, parameter_set.parameter_set_size,
-        apriori_parameter_correction = initial_parameter_deviation  )
+        apriori_parameter_correction = initial_parameter_deviation )
     pod_input.define_estimation_settings(
         reintegrate_variational_equations = False )
 
-    # Define weigh
-    weights_per_observable = dict()
-    weights_per_observable[ estimation_setup.observations.one_way_range_type ] = 1.0 / ( 0.1*0.1 )
-    pod_input.set_constant_weight_per_observable(
-        weights_per_observable)
+    # Define weights
+    weights_per_observable = \
+        { estimation_setup.observations.one_way_doppler_type: noise_level ** -2 }
+    pod_input.set_constant_weight_per_observable(  weights_per_observable )
 
     # Perform estimation
-    pod_output = orbit_determination_manager.perform_estimation( pod_input )
+    pod_output = estimator.perform_estimation( pod_input )
     print(pod_output.formal_errors)
+    print(truth_parameters - parameter_set.parameter_vector )
 
     # Save some figures to files as test
-    plt.imshow(pod_output.correlations, aspect='auto', interpolation='none')
+    plt.imshow(np.abs(pod_output.correlations), aspect='auto', interpolation='none')
+    plt.colorbar()
     plt.show()
+
+    observation_times = np.array( simulated_observations.concatenated_times )
+    observations_list = np.array( simulated_observations.concatenated_observations )
+
+    plt.figure(figsize=(17, 5))
+    plt.title("Observations as a function of time.")
+    plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
+    plt.xlabel('Time [hr]')
+    plt.ylabel('Range rate [m/s]')
+    plt.grid()
+    plt.show()
+
+    residual_history = pod_output.residual_history
+    subplots_list = list()
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(20, 17))
+    subplots_list.append(ax1)
+    subplots_list.append(ax2)
+    subplots_list.append(ax3)
+    subplots_list.append(ax4)
+    subplots_list.append(ax5)
+
+    for i in range(5):
+        subplots_list[ i ].scatter(observation_times, residual_history[:,i])
+    plt.show()
+
+    final_residuals = pod_output.final_residuals
+    plt.figure(figsize=(17, 5))
+    plt.hist(final_residuals,25)
+    plt.show()
+
+    print(pod_output.formal_errors/(truth_parameters - parameter_set.parameter_vector ) )
 
     # Final statement (not required, though good practice in a __main__).
     return 0
