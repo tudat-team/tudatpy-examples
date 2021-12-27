@@ -119,7 +119,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
         body_system=body_system,
         selected_acceleration_per_body=acceleration_dict,
         bodies_to_propagate=bodies_to_propagate,
-        central_bodies=central_bodies,
+        central_bodies=central_bodies
     )
 
     ############################################################################
