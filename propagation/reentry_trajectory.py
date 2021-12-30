@@ -127,8 +127,8 @@ def main():
 
     # Create vehicle object.
     force_coefficient_files = dict()
-    force_coefficient_files[ 0 ] = '/home/dominic/Software/tudat-bundle/tudat-bundle/tudatpy/examples/propagation/STS_CD.dat'
-    force_coefficient_files[ 2 ] = '/home/dominic/Software/tudat-bundle/tudat-bundle/tudatpy/examples/propagation/STS_CL.dat'
+    force_coefficient_files[ 0 ] = 'input/STS_CD.dat'
+    force_coefficient_files[ 2 ] = 'input/STS_CL.dat'
 
 
     # Add predefined aerodynamic coefficient database to the body
