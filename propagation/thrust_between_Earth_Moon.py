@@ -12,6 +12,29 @@ TUDATPY EXAMPLE APPLICATION: Thrust in Earth-Moon system
 FOCUS:                       Implementing thrust acceleration / basic guidance
 """
 
+###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Basic thrust guidance in Earth-Moon  ###########
+###############################################################################
+
+""" ABSTRACT.
+
+This example demonstrates the a basic use of thrust in the Earth-Moon system.
+Thrust is implemented to be of constant magnitude, and be co-linear with velocity,
+pushing the simulated vehicle from behind.
+In addition to the acceleration from the thrust, a basic model is setup, consisting
+of the acceleration of the Earth, Moon, and Sun, only considering them as Point Masses.
+The mass of the vehicle is also propagated, using a mass rate model made to be
+consistent with the rocket thrust used.
+How to setup dependent variables to save the mass and altitude of the vehicle 
+over time is also demonstrated.
+Termination settings based on the minimum mass of the vehicle and its maximum altitude
+are also shown.
+Finally, how to plot the trajectory of the vehicle and of the Moon in 3D is demonstrated.
+For this, this example also shows how to extract the position of the Moon over time
+from SPICE.
+
+"""
+
 ################################################################################
 # IMPORT STATEMENTS ############################################################
 ################################################################################

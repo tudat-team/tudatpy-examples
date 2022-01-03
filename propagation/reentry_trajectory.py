@@ -12,6 +12,29 @@ TUDATPY EXAMPLE APPLICATION: Re-entry trajectory
 """
 
 ###############################################################################
+# TUDATPY EXAMPLE APPLICATION: Re-entry trajectory with aerodynamic guidance  #
+###############################################################################
+
+""" ABSTRACT.
+
+This examples focuses on the application of aerodynamic guidance in the context
+of a re-entry trajectory of the Space Transportation System (STS).
+The aerodynamic guidance updates the angle of attack and the bank angle of the
+vehicle based on its flight conditions.
+The angle of attack is set to 40deg for a Mach number above 12, to 10deg for a
+Mach number below 6, and varies linearly between them.
+The bank angle is computed such that the derivative of the flight path angle
+over time equals 0, and the flight path angle is then constant.
+To do so, this example also showcases how to extract and use the flight condition
+and body properties during the simulation.
+The initial state of the STS is most notably its initial altitude of 120km, velocity
+of 7.4km/s, and its flight path angle of -1.65deg.
+A high number of dependent variable are also propagated in this example. All of them
+are then plotted at the end of this script.
+
+"""
+
+###############################################################################
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
 
