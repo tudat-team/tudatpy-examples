@@ -218,8 +218,8 @@ def main():
         radial_distance=initial_radial_distance,
         latitude=np.deg2rad(20),
         longitude=np.deg2rad(140),
-        speed=7.4e3,
-        flight_path_angle=np.deg2rad(-1.65),
+        speed=7.5e3,
+        flight_path_angle=np.deg2rad(-0.6),
         heading_angle=np.deg2rad(15),
     )
 
