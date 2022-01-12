@@ -1,8 +1,6 @@
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
-import sys
-sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
 
 import numpy as np
 from tudatpy.kernel import constants
@@ -23,7 +21,7 @@ def main():
 
     # Set simulation start and end epochs.
     simulation_start_epoch = 0.0
-    simulation_end_epoch = 7.0 * constants.JULIAN_DAY
+    simulation_end_epoch = 3.0 * constants.JULIAN_DAY
 
     ###########################################################################
     # CREATE ENVIRONMENT ######################################################
@@ -153,7 +151,7 @@ def main():
     )
     # Create numerical integrator settings.
     integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-        simulation_start_epoch, 40.0, propagation_setup.integrator.rkf_78, 40.0, 40.0, 1.0, 1.0
+        simulation_start_epoch, 60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
     )
 
     # Create list of parameters that are to be estimated
@@ -161,7 +159,6 @@ def main():
         propagator_settings, bodies)
     parameter_settings.append( estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
     parameter_settings.append( estimation_setup.parameter.radiation_pressure_coefficient("Delfi-C3"))
-    # parameter_settings.append( estimation_setup.parameter.ground_station_position( "Earth", "TrackingStation"))
 
     parameter_set = estimation_setup.create_parameters_to_estimate( parameter_settings, bodies )
 
@@ -185,10 +182,8 @@ def main():
         bodies, parameter_set, observation_settings_list, integrator_settings,
         propagator_settings )
     variational_equations_simulator = estimator.variational_solver
-    print(variational_equations_simulator)
 
     dynamics_simulator = variational_equations_simulator.dynamics_simulator
-    print(dynamics_simulator)
 
     ###########################################################################
     # SIMULATE OBSERVATIONS ###################################################
