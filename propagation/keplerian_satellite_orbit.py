@@ -1,5 +1,5 @@
 """
-Copyright (c) 2010-2021, Delft University of Technology
+Copyright (c) 2010-2022, Delft University of Technology
 All rights reserved
 
 This file is part of the Tudat. Redistribution and use in source and
