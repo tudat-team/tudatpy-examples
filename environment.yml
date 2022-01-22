@@ -4,6 +4,6 @@ channels:
   - tudat-team
 dependencies:
   - matplotlib
-  - numpy
+  - scipy
   - tudatpy
   - pandas
