@@ -22,7 +22,7 @@ This example demonstrates the basic propagation of a (quasi-massless) body under
  the influence of a central point-mass attractor. It therefore resembles the 
  classic two-body problem. Due to the quasi-massless nature of the propagated body, 
  no accelerations have to be modelled on the central body, which is therefore not 
- propagated. As one expects from this setup, the trajetory of the propagated 
+ propagated. As one expects from this setup, the trajectory of the propagated 
  quasi-massless body describes a Keplerian orbit. 
 Amongst others, the example showcases the creation of bodies using properties from
  standard SPICE data (get_default_body_settings()) as well as the element conversion 
@@ -43,7 +43,6 @@ from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel.interface import spice_interface
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel import __version__
 
 
 def main():
@@ -166,9 +165,8 @@ And the velocity vector of Delfi-C3 is [km]: \n{
     ###########################################################################
 
     # In order to gain some more intuitive insight into the simulation we will
-    #  plot the propagated trajectory of Delfi-C3 around Earth.
+    # plot the propagated trajectory of Delfi-C3 around Earth.
 
-    import matplotlib as mpl
     from matplotlib import pyplot as plt
 
     fig1 = plt.figure(figsize=(8, 6))
@@ -184,16 +182,6 @@ And the velocity vector of Delfi-C3 is [km]: \n{
     ax1.set_zlabel('z [m]')
 
     plt.show()
-
-    ###########################################################################
-    # SAVE RESULTS ############################################################
-    ###########################################################################
-    #
-    # io.save2txt(
-    #     solution=result,
-    #     filename="singleSatellitePropagationHistory.dat",
-    #     directory="./tutorial_1",
-    # )
 
     # Final statement (not required, though good practice in a __main__).
     return 0
