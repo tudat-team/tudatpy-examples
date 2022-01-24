@@ -10,17 +10,36 @@ The examples are available as both Jupyter Notebooks and raw ``.py`` scripts.
 
 ### MyBinder
 
-We set up a repository on [MyBinder](mybinder.org): this way, you can explore and run the examples online, without 
-having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
+We set up a repository on [MyBinder]([mybinder.org](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
 launch the examples on ``mybinder``:
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)
 
+### Jupyter Notebook
+You can alternatively run the Jupyter notebooks directly on your computer.
+To do so, first create the `tudatpy-examples` conda environment to install `tudatpy`, `jupyter notebook`, and `pygmo`.
+
+This can be done by running the following command:
+````
+conda env create -f environment.yml
+````
+
+Then, the `tudatpy-examples` environment has to be added to the Jupyter kernel, running the following:
+
+````
+python -m ipykernel install --user --name=tudatpy-examples
+````
+
+Finally, run the following command to start the Jupyter notebooks:
+````
+jupyter notebook
+````
+
 ### Static code
 
-Otherwise, you can clone this repository, open the examples on your favorite IDE, and install the ``tudatpy`` conda 
-environment. All the instructions to do so are reported in our guides hosted on the  
-[Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
+Otherwise, you can clone this repository, open the examples on your favorite IDE, and install the `tudatpy-examples` conda environment.
+
+More instructions are reported in the guides hosted on [Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
 
 ## Content
 
