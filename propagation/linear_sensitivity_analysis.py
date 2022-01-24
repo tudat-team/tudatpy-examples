@@ -145,7 +145,7 @@ def main():
     # CREATE PROPAGATION SETTINGS #############################################
     ###########################################################################
 
-    # Set initial conditions for the Asterix satellite that will be
+    # Set initial conditions for the satellite that will be
     # propagated in this simulation. The initial conditions are given in
     # Keplerian elements and later on converted to Cartesian elements.
     earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
@@ -222,13 +222,6 @@ def main():
 
     # The system response (i.e. change of vehicle trajectory) to the variations
     #  of system parameters is plotted as a function of time.
-
-    import matplotlib as mpl
-    from matplotlib import pyplot as plt
-
-    font_size = 20
-    plt.rcParams.update({'font.size': font_size})
-
     time = state_transition_matrices.keys()
     time_hours = [t / 3600 for t in time]
 
