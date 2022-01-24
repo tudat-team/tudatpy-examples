@@ -38,3 +38,7 @@ rever/
 __pycache__/*
 __pycache__*
 .DS_Store
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/*
+*/.ipynb_checkpoints/*

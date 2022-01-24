@@ -7,3 +7,5 @@ dependencies:
   - scipy
   - tudatpy
   - pandas
+  - notebook
+  - pygmo
