@@ -17,17 +17,29 @@ launch the examples on ``mybinder``:
 
 ### Jupyter Notebook
 You can alternatively run the Jupyter notebooks directly on your computer.
-To do so, first create the `tudatpy-examples` conda environment to install `tudatpy`, `jupyter notebook`, and `pygmo`.
+To do so, first create the `tudat-space` conda environment to install `tudatpy` and its required depedencies.
 
-This can be done by running the following command:
+A detailed guide on how to do this can be found in the [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/installation.html).
+
+Then, make sure that the `tudat-space` environment is activated:
 ````
-conda env create -f environment.yml
+conda activate tudat-space
 ````
 
-Then, the `tudatpy-examples` environment has to be added to the Jupyter kernel, running the following:
+Two packages then need to be added to this environment. First, the `notebook` package is needed to run the Jupyter notebooks:
+````
+conda install notebook
+````
+
+Then, if you wish to be able to run the `Pygmo` examples, this package also need to be installed:
+````
+conda install pygmo
+````
+
+The `tudat-space` environment has to be added to the Jupyter kernel, running the following:
 
 ````
-python -m ipykernel install --user --name=tudatpy-examples
+python -m ipykernel install --user --name=tudat-space
 ````
 
 Finally, run the following command to start the Jupyter notebooks:
@@ -37,7 +49,7 @@ jupyter notebook
 
 ### Static code
 
-Otherwise, you can clone this repository, open the examples on your favorite IDE, and install the `tudatpy-examples` conda environment.
+Otherwise, you can clone this repository, open the examples on your favorite IDE, and install the `tudat-space` conda environment.
 
 More instructions are reported in the guides hosted on [Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
 
