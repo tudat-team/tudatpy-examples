@@ -10,7 +10,7 @@ The examples are available as both Jupyter Notebooks and raw ``.py`` scripts.
 
 ### MyBinder
 
-We set up a repository on [MyBinder]([mybinder.org](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
+We set up a repository on [MyBinder](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
 launch the examples on ``mybinder``:
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)
