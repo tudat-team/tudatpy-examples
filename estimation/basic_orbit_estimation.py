@@ -35,20 +35,19 @@ This example implements the following:
 
 import numpy as np
 from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice_interface
+from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation_setup
-from tudatpy.kernel.numerical_simulation import estimation
-from tudatpy.kernel.numerical_simulation.estimation_setup import observations
+from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
+from tudatpy.kernel.numerical_simulation.estimation_setup import observation
 from tudatpy.kernel.astro import element_conversion
 import matplotlib.pyplot as plt
 
 
 def main():
     # Load spice kernels.
-    spice_interface.load_standard_kernels()
+    spice.load_standard_kernels()
 
     # Set simulation start and end epochs.
     simulation_start_epoch = 0.0
@@ -99,7 +98,7 @@ def main():
         are_coefficients_in_negative_axis_direction=True
     )
     environment_setup.add_aerodynamic_coefficient_interface(
-        bodies, "Delfi-C3", aero_coefficient_settings);
+        bodies, "Delfi-C3", aero_coefficient_settings)
 
     # Create radiation pressure settings, and add to vehicle
     reference_area_radiation = 4.0
@@ -110,7 +109,6 @@ def main():
     )
     environment_setup.add_radiation_pressure_interface(
         bodies, "Delfi-C3", radiation_pressure_settings)
-    environment_setup.add_empty_tabulated_ephemeris(bodies, "Delfi-C3")
 
     ###########################################################################
     # CREATE ACCELERATIONS ####################################################
@@ -197,13 +195,13 @@ def main():
     # DEFINE LINKS ############################################################
     ###########################################################################
 
-    # Define upink link ends for one-way observable
+    # Define uplink link ends for one-way observable
     link_ends = dict()
-    link_ends[observations.transmitter] = ('Earth', 'TrackingStation')
-    link_ends[observations.receiver] = ('Delfi-C3', '')
+    link_ends[observation.transmitter] = ('Earth', 'TrackingStation')
+    link_ends[observation.receiver] = ('Delfi-C3', '')
 
     # Create observation settings for each link/observable
-    observation_settings_list = [observations.one_way_open_loop_doppler(link_ends)]
+    observation_settings_list = [observation.one_way_open_loop_doppler(link_ends)]
 
     ###########################################################################
     # CREATE ESTIMATION OBJECT ################################################
@@ -212,9 +210,6 @@ def main():
     estimator = numerical_simulation.Estimator(
         bodies, parameter_set, observation_settings_list, integrator_settings,
         propagator_settings)
-    variational_equations_simulator = estimator.variational_solver
-
-    dynamics_simulator = variational_equations_simulator.dynamics_simulator
 
     ###########################################################################
     # SIMULATE OBSERVATIONS ###################################################
@@ -222,45 +217,41 @@ def main():
 
     # Define observation simulation times for each link
     observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
-    observation_simulation_settings = observations.tabulated_simulation_settings(
-        observations.one_way_doppler_type,
+    observation_simulation_settings = observation.tabulated_simulation_settings(
+        observation.one_way_doppler_type,
         link_ends,
         observation_times
     )
 
     # Add noise levels
     noise_level = 1.0E-3 / constants.SPEED_OF_LIGHT
-    observations.add_gaussian_noise_to_settings(
+    observation.add_gaussian_noise_to_settings(
         [observation_simulation_settings],
         noise_level,
-        observations.one_way_doppler_type
+        observation.one_way_doppler_type
     )
 
     # Create viability settings
-    viability_setting = observations.elevation_angle_viability(["Earth", "TrackingStation"], np.deg2rad(15))
-    observations.add_viability_check_to_settings(
+    viability_setting = observation.elevation_angle_viability(["Earth", "TrackingStation"], np.deg2rad(15))
+    observation.add_viability_check_to_settings(
         [observation_simulation_settings],
         [viability_setting]
     )
 
     # Simulate required observation
-    simulated_observations = observations.simulate_observations(
+    simulated_observations = observation.simulate_observations(
         [observation_simulation_settings],
         estimator.observation_simulators,
         bodies)
 
     # Perturb initial positio  by 1 m in each direction
     initial_parameter_deviation = np.zeros(parameter_set.parameter_set_size)
-    initial_parameter_deviation[0] = 100.0
-    initial_parameter_deviation[1] = 100.0
-    initial_parameter_deviation[2] = 100.0
-    initial_parameter_deviation[3] = 0.1
-    initial_parameter_deviation[4] = 0.1
-    initial_parameter_deviation[5] = 0.1
+    initial_parameter_deviation[0:3] = 100.0
+    initial_parameter_deviation[3:6] = 0.1
 
     truth_parameters = parameter_set.parameter_vector
 
-    # Create unput for estimation
+    # Create input for estimation
     pod_input = estimation.PodInput(
         simulated_observations, parameter_set.parameter_set_size,
         apriori_parameter_correction=initial_parameter_deviation)
@@ -269,7 +260,7 @@ def main():
 
     # Define weights
     weights_per_observable = \
-        {estimation_setup.observations.one_way_doppler_type: noise_level ** -2}
+        {estimation_setup.observation.one_way_doppler_type: noise_level ** -2}
     pod_input.set_constant_weight_per_observable(weights_per_observable)
 
     # Perform estimation
