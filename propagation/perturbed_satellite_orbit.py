@@ -46,7 +46,6 @@ from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel.interface import spice_interface
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import propagation
 from matplotlib import pyplot as plt
 
 
@@ -300,9 +299,9 @@ def main():
         ax.set_xlabel('Time [hr]')
         ax.set_xlim([min(time_hours), max(time_hours)])
         ax.grid()
-    plt.figure(figsize=(17, 5))
 
     # Plot accelerations as a function of time
+    plt.figure(figsize=(17, 5))
 
     # Point Mass Gravity Acceleration Sun
     acceleration_norm_pm_sun = dependent_variable_list[:, 11]
