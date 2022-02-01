@@ -16,16 +16,13 @@ FOCUS:                       orbit estimation of a satellite in MEO
 # TUDATPY EXAMPLE APPLICATION: Keplerian Orbit (two-body problem)  ############
 ###############################################################################
 
-# TODO: review abstract and inline comments
 """ ABSTRACT.
 
-This example implements the following:
-- Simulate the orbit of a spacecraft
-- Create a tracking station on Earth
-- Simulate Doppler data at 1 mm/s every 60 seconds, during periods where the spacecraft is at an elevation angle >15 
-  degrees, as viewed from the station.
-- Perturb the initial state a 100 m (position components) and 0.1 m/s (velocity components)
-- Use the simulated data to estimate the spacecraft initial state, drag coefficient and radiation pressure coefficient
+This example implements the following aspects of orbit estimation:
+- Simulation of a spacecraft orbit.
+- Modelling of a tracking station on Earth.
+- Simulation of Doppler data at 1 mm/s every 60 seconds, during periods where the spacecraft is at an elevation angle above 15deg, as viewed from the station.
+- Use of the simulated data to estimate the spacecraft initial state, drag coefficient and radiation pressure coefficient.
 
 """
 
@@ -33,7 +30,11 @@ This example implements the following:
 # IMPORT STATEMENTS ###########################################################
 ###############################################################################
 
+# Load standard modules
 import numpy as np
+from matplotlib import pyplot as plt
+
+# Load tudatpy modules
 from tudatpy.kernel import constants
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
@@ -42,7 +43,6 @@ from tudatpy.kernel.numerical_simulation import propagation_setup
 from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
 from tudatpy.kernel.numerical_simulation.estimation_setup import observation
 from tudatpy.kernel.astro import element_conversion
-import matplotlib.pyplot as plt
 
 
 def main():
@@ -70,16 +70,6 @@ def main():
 
     # Create system of selected celestial bodies
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    #    print( bodies.get_body('Mars').state_in_base_frame_from_ephemeris( 0.0 ) )
-
-    station_altitude = 0.0
-    delft_latitude = np.deg2rad(52.00667)
-    delft_longitude = np.deg2rad(4.35556)
-    environment_setup.add_ground_station(
-        bodies.get_body('Earth'),
-        'TrackingStation',
-        [station_altitude, delft_latitude, delft_longitude],
-        element_conversion.geodetic_position_type)
 
     ###########################################################################
     # CREATE VEHICLE ##########################################################
@@ -155,7 +145,7 @@ def main():
     # CREATE PROPAGATION SETTINGS #############################################
     ###########################################################################
 
-    # Set initial conditions for the Asterix satellite that will be
+    # Set initial conditions for the satellite that will be
     # propagated in this simulation. The initial conditions are given in
     # Keplerian elements and later on converted to Cartesian elements.
     earth_gravitational_parameter = bodies.get_body("Earth").gravitational_parameter
@@ -169,8 +159,10 @@ def main():
         true_anomaly=np.deg2rad(139.87)
     )
 
-    # Create propagation settings.
+    # Create termination settings
     termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
+    # Create propagation settings
     propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
@@ -178,18 +170,27 @@ def main():
         initial_state,
         termination_condition
     )
+
     # Create numerical integrator settings.
     integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
         simulation_start_epoch, 60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
     )
 
-    # Create list of parameters that are to be estimated
-    parameter_settings = estimation_setup.parameter.initial_states(
-        propagator_settings, bodies)
-    parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
-    parameter_settings.append(estimation_setup.parameter.radiation_pressure_coefficient("Delfi-C3"))
+    ###########################################################################
+    # OBSERVATION SETUP #######################################################
+    ###########################################################################
 
-    parameter_set = estimation_setup.create_parameters_to_estimate(parameter_settings, bodies)
+    # Define the position of the ground station on Earth
+    station_altitude = 0.0
+    delft_latitude = np.deg2rad(52.00667)
+    delft_longitude = np.deg2rad(4.35556)
+
+    # Add the ground station to the environment
+    environment_setup.add_ground_station(
+        bodies.get_body("Earth"),
+        "TrackingStation",
+        [station_altitude, delft_latitude, delft_longitude],
+        element_conversion.geodetic_position_type)
 
     ###########################################################################
     # DEFINE LINKS ############################################################
@@ -204,18 +205,10 @@ def main():
     observation_settings_list = [observation.one_way_open_loop_doppler(link_ends)]
 
     ###########################################################################
-    # CREATE ESTIMATION OBJECT ################################################
+    # DEFINE OBSERVATION SIMULATION SETTINGS ##################################
     ###########################################################################
 
-    estimator = numerical_simulation.Estimator(
-        bodies, parameter_set, observation_settings_list, integrator_settings,
-        propagator_settings)
-
-    ###########################################################################
-    # SIMULATE OBSERVATIONS ###################################################
-    ###########################################################################
-
-    # Define observation simulation times for each link
+    # Define observation simulation times for each link (separated by steps of 1 minute)
     observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
     observation_simulation_settings = observation.tabulated_simulation_settings(
         observation.one_way_doppler_type,
@@ -223,7 +216,7 @@ def main():
         observation_times
     )
 
-    # Add noise levels
+    # Add noise levels of roughly 3.3E-12 [s/m] and add this as Gaussian noise to the observation
     noise_level = 1.0E-3 / constants.SPEED_OF_LIGHT
     observation.add_gaussian_noise_to_settings(
         [observation_simulation_settings],
@@ -238,71 +231,99 @@ def main():
         [viability_setting]
     )
 
+    ###########################################################################
+    # ESTIMATION SETUP ########################################################
+    ###########################################################################
+
+    # Setup parameters settings to propagate the state transition matrix
+    parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
+
+    # Add estimated parameters to the sensitivity matrix that will be propagated
+    parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
+    parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
+
+    # Create the parameters that will be estimated
+    parameters_to_estimate = estimation_setup.create_parameters_to_estimate(parameter_settings, bodies)
+
+    # Create the estimation object
+    estimator = numerical_simulation.Estimator(
+        bodies,
+        parameters_to_estimate,
+        observation_settings_list,
+        integrator_settings,
+        propagator_settings)
+
     # Simulate required observation
     simulated_observations = observation.simulate_observations(
         [observation_simulation_settings],
         estimator.observation_simulators,
         bodies)
 
-    # Perturb initial positio  by 1 m in each direction
-    initial_parameter_deviation = np.zeros(parameter_set.parameter_set_size)
-    initial_parameter_deviation[0:3] = 100.0
-    initial_parameter_deviation[3:6] = 0.1
+    ###########################################################################
+    # ESTIMATE THE PARAMETERS #################################################
+    ###########################################################################
 
-    truth_parameters = parameter_set.parameter_vector
+    # Save the true parameters to later analyse the error
+    truth_parameters = parameters_to_estimate.parameter_vector
 
-    # Create input for estimation
+    # Create input object for estimation, adding observations and parameter set information
     pod_input = estimation.PodInput(
-        simulated_observations, parameter_set.parameter_set_size,
-        apriori_parameter_correction=initial_parameter_deviation)
+        simulated_observations, parameters_to_estimate.parameter_set_size)
+
+    # set methodological options
     pod_input.define_estimation_settings(
         reintegrate_variational_equations=False)
 
-    # Define weights
+    # define weighting of the observations in the inversion
     weights_per_observable = \
         {estimation_setup.observation.one_way_doppler_type: noise_level ** -2}
     pod_input.set_constant_weight_per_observable(weights_per_observable)
 
-    # Perform estimation
+    # Perform estimation (this also prints the residuals and partials)
     pod_output = estimator.perform_estimation(pod_input)
-    print(pod_output.formal_errors)
-    print(truth_parameters - parameter_set.parameter_vector)
 
-    # Save some figures to files as test
+    # Print the estimation error
+    print(pod_output.formal_errors)
+    print(truth_parameters - parameters_to_estimate.parameter_vector)
+
+    ###########################################################################
+    # RESULTS POST-PROCESSING #################################################
+    ###########################################################################
+
+    # Plot the correlation between the outputs of the estimation
     plt.imshow(np.abs(pod_output.correlations), aspect='auto', interpolation='none')
     plt.colorbar()
     plt.show()
 
+    # Plot of the observations range rate over time
     observation_times = np.array(simulated_observations.concatenated_times)
     observations_list = np.array(simulated_observations.concatenated_observations)
 
     plt.figure(figsize=(17, 5))
     plt.title("Observations as a function of time.")
     plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
-    plt.xlabel('Time [hr]')
-    plt.ylabel('Range rate [m/s]')
+    plt.xlabel("Time [hr]")
+    plt.ylabel("Range rate [m/s]")
     plt.grid()
     plt.show()
 
+    # Plot the residuals history
     residual_history = pod_output.residual_history
-    subplots_list = list()
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(20, 17))
-    subplots_list.append(ax1)
-    subplots_list.append(ax2)
-    subplots_list.append(ax3)
-    subplots_list.append(ax4)
-    subplots_list.append(ax5)
+    subplots_list = [ax1, ax2, ax3, ax4, ax5]
+
 
     for i in range(5):
         subplots_list[i].scatter(observation_times, residual_history[:, i])
     plt.show()
 
+    # Print and plot the final residuals
+    print(pod_output.formal_errors / (truth_parameters - parameters_to_estimate.parameter_vector))
     final_residuals = pod_output.final_residuals
+
     plt.figure(figsize=(17, 5))
     plt.hist(final_residuals, 25)
     plt.show()
-
-    print(pod_output.formal_errors / (truth_parameters - parameter_set.parameter_vector))
 
     # Final statement (not required, though good practice in a __main__).
     return 0
