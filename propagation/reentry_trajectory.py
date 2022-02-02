@@ -28,7 +28,7 @@ over time equals 0, and the flight path angle is then constant.
 To do so, this example also showcases how to extract and use the flight condition
 and body properties during the simulation.
 The initial state of the STS is most notably its initial altitude of 120km, velocity
-of 7.4km/s, and its flight path angle of -1.65deg.
+of 7.5km/s, and its flight path angle of -0.6deg.
 A high number of dependent variable are also propagated in this example. All of them
 are then plotted at the end of this script.
 
@@ -269,7 +269,7 @@ def main():
     )
 
     ###########################################################################
-    # PROPAGATE ORBIT #########################################################
+    # PROPAGATE TRAJECTORY ####################################################
     ###########################################################################
 
     # Create the simulation objects and propagate the dynamics
@@ -353,7 +353,9 @@ def main():
     plt.figure(figsize=(10, 6))
     plt.plot(time_min[0:-1], np.rad2deg(flight_path_angle_derivative))
     plt.xlabel("Time [min]"), plt.ylabel("Absolute flight-path angle rate [deg/s]")
-    plt.yscale("log"), plt.grid(), plt.tight_layout()
+    plt.yscale("log")
+    plt.yticks(10**np.arange(-12, 0.1, 1))
+    plt.grid(), plt.tight_layout()
 
     # Show all the plots
     plt.show()
