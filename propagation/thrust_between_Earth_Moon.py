@@ -42,7 +42,7 @@ from SPICE.
 import numpy as np
 from tudatpy.util import result2array
 from tudatpy.kernel import constants, numerical_simulation
-from tudatpy.kernel.interface import spice_interface
+from tudatpy.kernel.interface import spice
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
 from matplotlib import pyplot as plt
@@ -52,7 +52,7 @@ from matplotlib import pyplot as plt
 ################################################################################
 
 # Load spice kernels.
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
 
 # Set simulation start and end epochs (total simulation time of 30 days).
 simulation_start_epoch = 1.0e7
@@ -244,7 +244,7 @@ dependent_variable_history = dynamics_simulator.dependent_variable_history
 
 # Retrieve the Moon trajectory over vehicle propagation epochs from spice
 moon_states_from_spice = {
-    epoch:spice_interface.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
+    epoch:spice.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
     for epoch in list(state_history)
 }
 
