@@ -42,8 +42,8 @@ The example showcases the versatility with which the propagation_setup module
 from tudatpy.util import result2array
 from tudatpy.kernel import constants
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.numerical_simulation import environment_setup, environment
+from tudatpy.kernel.interface import spice
+from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
 
 ################################################################################
@@ -51,7 +51,7 @@ from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
 ################################################################################
 
 # Load spice kernels.
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
 
 # Set simulation start epoch.
 simulation_start_epoch = 1.0e7
