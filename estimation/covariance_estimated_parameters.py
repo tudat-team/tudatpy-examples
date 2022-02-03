@@ -8,7 +8,7 @@ under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
-TUDATPY EXAMPLE APPLICATION: Basic Orbit Estimation
+TUDATPY EXAMPLE APPLICATION: Covariance analysis of estimated parameters
 FOCUS:                       orbit estimation of a satellite in MEO
 """
 
