@@ -23,8 +23,6 @@ https://esa.github.io/pygmo/index.html; as you can see, they can easily be confu
 
 PyGMO is the Python counterpart of PAGMO: https://esa.github.io/pagmo2/index.html.
 """
-import sys
-sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy')
 
 ###############################################################################
 # IMPORT STATEMENTS ###########################################################
@@ -525,7 +523,8 @@ class AsteroidOrbitProblem:
         dynamics_simulator = numerical_simulation.SingleArcSimulator(current_bodies,
                                                                           integrator_settings,
                                                                           propagator_settings,
-                                                                          print_dependent_variable_data=False)
+                                                                          print_dependent_variable_data=False,
+                                                                          print_state_data=False)
         # Update dynamics simulator function
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
@@ -666,7 +665,7 @@ def main():
     population_size = 48
     pop = pg.population(prob, size=population_size, seed=fixed_seed)
     # Set the number of evolutions
-    number_of_evolutions = 50
+    number_of_evolutions = 25
     # Initialize containers
     fitness_list = []
     population_list = []
