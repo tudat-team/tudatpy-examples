@@ -1,97 +1,103 @@
+# Asteroid orbit optimization with PyGMO
 """
-Copyright (c) 2010-2021, Delft University of Technology
-All rights reserved
-This file is part of the Tudat. Redistribution and use in source and
-binary forms, with or without modification, are permitted exclusively
-under the terms of the Modified BSD license. You should have received
-a copy of the license with this file. If not, please or visit:
-http://tudat.tudelft.nl/LICENSE.
-
-This aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with
-tudatpy. The problem describes the orbit design around a small body (asteroid Itokawa). The design variables are
-the initial values of semi-major axis, eccentricity, inclination, and longitude of node. The objectives are good
-coverage (this is now quantified by maximizing the mean value of the absolute longitude w.r.t. Itokawa
-over the full propagation) and being close to the asteroid (the mean value of the distance should be minimized).
-The constraints are set on the altitude: all the sets of design variables leading to an orbit
-
-It is assumed that the reader of this tutorial is already familiar with the content of this basic PyGMO tutorial:
-https://tudat-space.readthedocs.io/en/latest/_src_intermediate/pygmo.html.
-
-The full PyGMO documentation is available here: https://esa.github.io/pygmo2/index.html. Be careful to read the
-correct the documentation webpage (there is also a similar one for previous yet now outdated versions:
-https://esa.github.io/pygmo/index.html; as you can see, they can easily be confused).
-
-PyGMO is the Python counterpart of PAGMO: https://esa.github.io/pagmo2/index.html.
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-###############################################################################
-# IMPORT STATEMENTS ###########################################################
-###############################################################################
 
-# General imports
-import numpy as np
-import matplotlib
-from matplotlib import pyplot as plt
-from typing import List, Dict, Tuple
+## Context
+"""
+This aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with tudatpy. The problem describes the orbit design around a small body, the [Itokawa asteroid](https://en.wikipedia.org/wiki/25143_Itokawa).
+
+The 4 design variables are:
+ - initial values of the semi-major axis.
+ - initial eccentricity.
+ - initial inclination.
+ - initial longitude of the ascending node.
+ 
+The 2 objectives are:
+ - good coverage (maximizing the mean value of the absolute longitude w.r.t. Itokawa over the full propagation).
+ - being close to the asteroid (the mean value of the distance should be minimized).
+ 
+The constraints are set on the altitude: all the sets of design variables leading to an orbit.
+
+It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_resources/pygmo_basics.html).
+
+The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
+correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
+
+PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
+"""
+
+## Import statements
+"""
+The required import statements are made here, at the very beginning.
+
+Some standard modules are first loaded. These are `os`, `numpy` and `matplotlib.pyplot`.
+
+Then, the different modules of `tudatpy` that will be used are imported.
+
+Finally, in this example, we also need to import the `pygmo` library.
+"""
+
+# Load standard modules
 import os
+import numpy as np
+from matplotlib import pyplot as plt
 
-# Pygmo import
-import pygmo as pg
-
-# Tudatpy imports
-import tudatpy
+# Load tudatpy modules
 from tudatpy.io import save2txt
 from tudatpy.kernel import constants
 from tudatpy.kernel.interface import spice
+from tudatpy.kernel.astro import element_conversion
+from tudatpy.kernel.astro import frame_conversion
 from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.astro import element_conversion
-from tudatpy.kernel.astro import frame_conversion
+from tudatpy.util import pareto_optimums
+
+# Load pygmo library
+import pygmo as pg
 
 
-###############################################################################
-# DEFINITION OF HELPER FUNCTIONS ##############################################
-###############################################################################
+## Helpers
+"""
+First of all, let's define a series of helper functions, which will later be used troughout this example.
+"""
 
-def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
-        tudatpy.kernel.numerical_simulation.environment_setup.rotation_model.RotationModelSettings:
-    """
-    Defines the Itokawa rotation settings by using a constant angular velocity.
 
-    To do this, the initial orientation in the inertial frame is needed. This is expressed through the orientation
-    of the pole. The angular velocity is also needed.
+### Itokawa rotation settings
+"""
+The first helper function that is setup is `get_itokawa_rotation_settings()`. This function can be called to get Itokawa rotation settings, of type [environment_setup.rotation_model.RotationModelSettings](https://tudatpy.readthedocs.io/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.RotationModelSettings), using a constant angular velocity.
 
-    Parameters
-    ----------
-    itokawa_body_frame_name : str
-        Name of the Itokawa body-fixed frame.
+This function only take the name of the body frame of Itokawa as an input.
+In addition, some fixed parameters are defined in this function:
+ - The orientation of Itokawa pole, as:
+     - The pole declination of -66.3 deg.
+     - The pole right ascension 90.53 deg.
+     - The meridian fixed at 0 deg.
+ - The rotation rate of Itokawa of 712.143 deg/Earth day.
+"""
 
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.environment_setup.rotation_model.RotationalModelSettings
-        Rotational model settings object for Itokawa.
-    """
-
+def get_itokawa_rotation_settings(itokawa_body_frame_name):
     # Definition of initial Itokawa orientation conditions through the pole orientation
-    # Declination
-    pole_declination = np.deg2rad(-66.30)
-    # Right ascension
-    pole_right_ascension = np.deg2rad(90.53)
-    # Meridian
-    meridian_at_epoch = 0.0
+    pole_declination = np.deg2rad(-66.30)     # Declination
+    pole_right_ascension = np.deg2rad(90.53)  # Right ascension
+    meridian_at_epoch = 0.0                   # Meridian
 
     # Define initial Itokawa orientation in inertial frame (equatorial plane)
     initial_orientation_j2000 = frame_conversion.inertial_to_body_fixed_rotation_matrix(
         pole_declination, pole_right_ascension, meridian_at_epoch)
+    
     # Get initial Itokawa orientation in inertial frame but in the Ecliptic plane
     initial_orientation_eclipj2000 = np.matmul(spice.compute_rotation_matrix_between_frames(
         "ECLIPJ2000", "J2000", 0.0), initial_orientation_j2000)
 
     # Manually check the results, if desired
-    # np.set_printoptions(precision=100)
-    # print(initial_orientation_j2000)
-    # print(initial_orientation_eclipj2000)
+    check_results = False
+    if check_results:
+        np.set_printoptions(precision=100)
+        print(initial_orientation_j2000)
+        print(initial_orientation_eclipj2000)
 
     # Compute rotation rate
     rotation_rate = np.deg2rad(712.143) / constants.JULIAN_DAY
@@ -101,24 +107,23 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name) -> \
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
 
-def get_itokawa_ephemeris_settings(sun_gravitational_parameter) -> \
-        tudatpy.kernel.numerical_simulation.environment_setup.ephemeris.KeplerEphemerisSettings:
-    """
-    Sets the Itokawa ephemeris.
+### Itokawa ephemeris settings
+"""
+The next helper function defined, `get_itokawa_ephemeris_settings()`, that can be used to set the ephemeris of Itokawa.
 
-    The ephemeris for Itokawa are set using a Keplerian orbit around the Sun. To do this, the initial position at a
-    certain epoch is needed.
+The ephemeris for Itokawa are set using a Keplerian orbit around the Sun. To do this, the initial position at a certain epoch is needed. This position is defined inside the function by the following kepler elements:
+- Semi-major axis of $\approx$ 1.324 Astronomical Units ($\approx$ 1.98E+8 km).
+- Eccentricity of $\approx$ 0.28.
+- Inclination of $\approx$ 1.62 deg.
+- Inclination of $\approx$ 1.62 deg.
+- Argument of periapsis of $\approx$ 162.8 deg.
+- Longitude of ascending node of $\approx$ 69.1 deg.
+- Mean anomaly of $\approx$ 187.6 deg.
 
-    Parameters
-    ----------
-    itokawa_gravitational_parameter : float
-        Sun gravitational parameter.
+The only input that this function takes is the gravitational parameter of the Sun, which can be obtained using `spice.get_body_gravitational_parameter("Sun")`.
+"""
 
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.environment_setup.ephemeris.KeplerEphemerisSettings
-        The ephemeris settings object for Itokawa.
-    """
+def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
     # Define Itokawa initial Kepler elements
     itokawa_kepler_elements = np.array([
         1.324118017407799 * constants.ASTRONOMICAL_UNIT,
@@ -127,15 +132,18 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter) -> \
         np.deg2rad(162.8147699851312),
         np.deg2rad(69.0803904880264),
         np.deg2rad(187.6327516838828)])
+    
     # Convert mean anomaly to true anomaly
     itokawa_kepler_elements[5] = element_conversion.mean_to_true_anomaly(
         eccentricity=itokawa_kepler_elements[1],
         mean_anomaly=itokawa_kepler_elements[5])
+    
     # Get epoch of initial Kepler elements (in Julian Days)
     kepler_elements_reference_julian_day = 2459000.5
+    
     # Sets new reference epoch for Itokawa ephemerides (different from J2000)
-    kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000) \
-                                      * constants.JULIAN_DAY
+    kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000)                                       * constants.JULIAN_DAY
+    
     # Sets the ephemeris model
     return environment_setup.ephemeris.keplerian(
         itokawa_kepler_elements,
@@ -145,27 +153,14 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter) -> \
         "ECLIPJ2000")
 
 
-def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame: str,
-                                       itokawa_radius: float) -> \
-        tudatpy.kernel.numerical_simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings:
-    """
-    Defines the Itokawa gravity field model.
+### Itokawa gravity field settings
+"""
+The `get_itokawa_gravity_field_settings()` helper function can be used to get the gravity field settings of Itokawa.
 
-    It creates a Spherical Harmonics gravity field model expanded up to order 4 and degree 4. Normalized coefficients
-    are hardcoded, as well as the gravitational parameter and the reference radius.
+It creates a Spherical Harmonics gravity field model expanded up to order 4 and degree 4. Normalized coefficients are hardcoded (see `normalized_cosine_coefficients` and `normalized_sine_coefficients`), as well as the gravitational parameter (2.36). The reference radius and the Itokawa body fixed frame are to be given as inputs to this function.
+"""
 
-    Parameters
-    ----------
-    itokawa_body_fixed_frame : str
-        Name of the body-fixed reference frame.
-    itokawa_radius : float
-        Reference radius of the asteroid.
-
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.environment_setup.gravity_field.SphericalHarmonicsGravityFieldSettings
-        The gravity field settings object for Itokawa.
-    """
+def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius):
     itokawa_gravitational_parameter = 2.36
     normalized_cosine_coefficients = np.array([
         [1.0, 0.0, 0.0, 0.0, 0.0],
@@ -185,41 +180,24 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame: str,
         associated_reference_frame=itokawa_body_fixed_frame)
 
 
-def get_itokawa_shape_settings(itokawa_radius: float) -> \
-        tudatpy.kernel.numerical_simulation.environment_setup.shape.SphericalBodyShapeSettings:
-    """
-    Defines the shape settings object for Itokawa.
+### Itokawa shape settings
+"""
+The next helper function defined, `get_itokawa_shape_settings()` return the shape settings object for Itokawa. It uses a simple spherical model, and take the radius of Itokawa as input.
+"""
 
-    It uses a spherical model.
-
-    Parameters
-    ----------
-    itokawa_radius : float
-        Reference radius of the asteroid.
-
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.environment_setup.shape.SphericalBodyShapeSettings
-        The spherical shape settings object for Itokawa.
-    """
+def get_itokawa_shape_settings(itokawa_radius):
     # Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
 
 
-def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.numerical_simulation.environment.SystemOfBodies:
-    """
-    It creates all the body settings and body objects required by the simulation.
+### Simulation bodies
+"""
+Next, the `create_simulation_bodies()` function is setup, that returns an [environment.SystemOfBodies](https://tudatpy.readthedocs.io/en/latest/environment.html#tudatpy.numerical_simulation.environment.SystemOfBodies) object. This object contains all the body settings and body objects required by the simulation. Only one input is required to this function: the radius of Itokawa.
 
-    Parameters
-    ----------
-    itokawa_radius : float
-        Radius of Itokawa, assuming a spherical shape.
+Moreover, in the system of bodies that is returned, a `Spacecraft` body is included, with a mass of 400kg, and a radiation pressure interface. This body is the one for which an orbit is to be optimised around Itokawa.
+"""
 
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.environment.SystemOfBodies
-        System of bodies to be used in the simulation.
-    """
+def create_simulation_bodies(itokawa_radius):
     ### CELESTIAL BODIES ###
     # Define Itokawa body frame name
     itokawa_body_frame_name = "Itokawa_Frame"
@@ -272,57 +250,26 @@ def create_simulation_bodies(itokawa_radius: float) -> tudatpy.kernel.numerical_
     return bodies
 
 
-def get_acceleration_models(bodies_to_propagate: List[str],
-                            central_bodies: List[str],
-                            bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies) -> \
-        Dict[str, Dict[str, List[tudatpy.kernel.numerical_simulation.propagation.AccelerationModel]]]:
-    """
-    Creates the acceleration models for the simulation.
+### Acceleration models
+"""
+The `get_acceleration_models()` helper function returns the acceleration models to be used during the astrodynamic simulation. The following accelerations are included:
+ - Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
+ - Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
+ - Radiatio pressure from the Sun using a simplified canonnball model.
 
-    The accelerations acting on the Spacecraft currently considered are the spherical harmonic gravity of Itokawa,
-    the point mass gravity of the Sun, Jupiter, Saturn, Mars, the Earth, and the solar radiation pressure.
+This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
+"""
 
-    Parameters
-    ----------
-    bodies_to_propagate : List[str]
-        List of bodies to be numerically propagated.
-    central_bodies: List[str]
-        List of central bodies related to the propagated bodies.
-    bodies : bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies
-        System of bodies object
-
-    Returns
-    -------
-    Dict[str, Dict[str, List[tudatpy.kernel.numerical_simulation.propagation.fundamentals.AccelerationModel]]]
-        Acceleration settings object.
-    """
+def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     # Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
-        Sun=
-        [
-            propagation_setup.acceleration.cannonball_radiation_pressure(),
-            propagation_setup.acceleration.point_mass_gravity()
-        ],
-        Itokawa=
-        [
-            propagation_setup.acceleration.spherical_harmonic_gravity(4, 4)
-        ],
-        Jupiter=
-        [
-            propagation_setup.acceleration.point_mass_gravity()
-        ],
-        Saturn=
-        [
-            propagation_setup.acceleration.point_mass_gravity()
-        ],
-        Mars=
-        [
-            propagation_setup.acceleration.point_mass_gravity()
-        ],
-        Earth=
-        [
-            propagation_setup.acceleration.point_mass_gravity()
-        ]
+        Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
+                    propagation_setup.acceleration.point_mass_gravity() ],
+        Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(4, 4) ],
+        Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
+        Saturn =  [ propagation_setup.acceleration.point_mass_gravity() ],
+        Mars =    [ propagation_setup.acceleration.point_mass_gravity() ],
+        Earth =   [ propagation_setup.acceleration.point_mass_gravity() ]
     )
 
     # Create global accelerations settings dictionary
@@ -336,43 +283,32 @@ def get_acceleration_models(bodies_to_propagate: List[str],
         central_bodies)
 
 
-def get_termination_settings(mission_initial_time: float,
-                             mission_duration: float,
-                             minimum_distance_from_com: float,
-                             maximum_distance_from_com: float):
-    """
-    Defines the termination settings for the simulation.
+### Termination settings
+"""
+The termination settings for the simulation are defined by the `get_termination_settings()` helper.
 
-    Nominally, the simulation terminates when a final epoch is reached. However, this can happen in advance if the
-    spacecraft breaks out of the predefined altitude range.
+Nominally, the simulation terminates when a final epoch is reached. However, this can happen in advance if the
+spacecraft breaks out of the predefined altitude range.
+This is defined by the four inputs that this helper function takes, related to the mission timing and the mission altitude range.
+"""
 
-    Parameters
-    ----------
-    mission_initial_time : float
-        Initial time from the reference epoch when initial kepler elements are defined.
-    mission_duration : float
-        Length of the simulation.
-    minimum_distance_from_com : float
-        Minimum distance Itokawa's center of mass.
-    maximum_distance_from_com : float
-        Maximum distance Itokawa's center of mass.
-
-    Returns
-    -------
-    tudatpy.kernel.numerical_simulation.propagation_setup.propagator.PropagationTerminationSettings
-        Termination settings object.
-    """
+def get_termination_settings(mission_initial_time, 
+                             mission_duration,
+                             minimum_distance_from_com,
+                             maximum_distance_from_com):
+    # Mission duration
     time_termination_settings = propagation_setup.propagator.time_termination(
         mission_initial_time + mission_duration,
         terminate_exactly_on_final_condition=False
     )
-    # Altitude
+    # Upper altitude
     upper_altitude_termination_settings = propagation_setup.propagator.dependent_variable_termination(
         dependent_variable_settings=propagation_setup.dependent_variable.relative_distance('Spacecraft', 'Itokawa'),
         limit_value=maximum_distance_from_com,
         use_as_lower_limit=False,
         terminate_exactly_on_final_condition=False
     )
+    # Lower altitude
     lower_altitude_termination_settings = propagation_setup.propagator.dependent_variable_termination(
         dependent_variable_settings=propagation_setup.dependent_variable.altitude('Spacecraft', 'Itokawa'),
         limit_value=minimum_distance_from_com,
@@ -389,21 +325,12 @@ def get_termination_settings(mission_initial_time: float,
                                                            fulfill_single_condition=True)
 
 
+### Dependent variables to save
+"""
+Finally, the `get_dependent_variables_to_save()` helper function returns a pre-defined list of dependent variables to save during the propagation, alongside the propagated state. This function can be expanded, but contains by default only the position of the spacecraft with respect to the Itokawa asteroid expressed in spherical coordinates.
+"""
+
 def get_dependent_variables_to_save():
-    """
-    Selects the dependent variables to be saved.
-
-    Currently, these are the relative distance from Itokawa and the position of the spacecraft with respect to the
-    asteroid expressed in spherical coordinates.
-
-    Parameters
-    ----------
-    none
-
-    Returns
-    -------
-    List[tudatpy.kernel.numerical_simulation.propagation_setup.dependent_variable.tp::SingleDependentVariableSaveSettings
-    """
     dependent_variables_to_save = [
         propagation_setup.dependent_variable.central_body_fixed_spherical_position(
             "Spacecraft", "Itokawa"
@@ -412,49 +339,41 @@ def get_dependent_variables_to_save():
     return dependent_variables_to_save
 
 
-###########################################################################
-# CREATE PYGMO-COMPATIBLE USER-DEFINED PROBLEM CLASS ######################
-###########################################################################
+## Optimisation problem
+"""
+The optimisation problem can now be defined. This has to be done in a class that is compatible to what the PyGMO library can expect from this User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/problem.html#pygmo.problem) from the PyGMO documentation as a reference. In this example, this class is called `AsteroidOrbitProblem`.
+
+The `AsteroidOrbitProblem.__init__()` method is used to setup the problem. Most importantly, many problem-related objects are saved trough it: the system of bodie, the integrator settings, the propagator settings, the parameters that will later be used for the termination settings, and the design variables boundaries.
+
+Then, the `AsteroidOrbitProblem.get_bounds()` function is used by PyGMO to define the search space. This function returns the boundaries of each design variable, as defined in the [pygmo.problem.get_bounds](https://esa.github.io/pygmo2/problem.html#pygmo.problem.get_bounds) documentation.
+
+The `AsteroidOrbitProblem.get_nobj()` function is also used by PyGMO. It returns the number of objectives in the problem, in this case 2.
+
+The last function used by PyGMO is `AsteroidOrbitProblem.fitness()`. As mentioned in the [pygmo.problem.fitness](https://esa.github.io/pygmo2/problem.html#pygmo.problem.fitness) documentation, PyGMO will input a given set of design variable to this function, that is expected to return a score associated with them. This is thus the cost function of the problem. In this case, this `AsteroidOrbitProblem.fitness()` runs a simulation using TudatPy based on the orbital elements that PyGMO inputs as design variables. Then, the score relative to the two optimisation objectives is computed and returned. Note that, in PyGMO, this fitness function will always be **minimised**. To **maximise** objectives instead, the fitness that is returned will have to be for instance inversed. This is why, because we want to maximise the coverage, the fitness for this objective is computed as the inverse of the mean latitudes. If the mean of the latitudes is high, the coverage is high, which is closer to the optimum. Because this better value is higher than worse values, we return the fitness as the inverse of the mean latitudes.
+
+One more function is included, `AsteroidOrbitProblem.get_last_run_dynamics_simulator()`. This allows to get the dynamic simulator of the last simulation that was run in the problem.
+"""
 
 class AsteroidOrbitProblem:
-    """
-    This class creates a PyGMO-compatible User Defined Problem (UDP).
-
-    Attributes
-    ----------
-
-
-    Methods
-    -------
-    """
-
+    
     def __init__(self,
-                 bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+                 bodies,
                  integrator_settings,
                  propagator_settings,
-                 mission_initial_time: float,
-                 mission_duration: float,
-                 design_variable_lower_boundaries: Tuple[float],
-                 design_variable_upper_boundaries: Tuple[float]):
-        """
-        Constructor for the AsteroidOrbitProblem class.
-
-        Parameters
-        ----------
-        bodies : tudatpy.kernel.numerical_simulation.environment.SystemOfBodies:
-            System of bodies.
-        integrator_settings :
-            Integrator settings object.
-        propagator_settings :
-            Propagator settings object.
-        """
+                 mission_initial_time,
+                 mission_duration,
+                 design_variable_lower_boundaries,
+                 design_variable_upper_boundaries):
+        
         # Sets input arguments as lambda function attributes
         # NOTE: this is done so that the class is "pickable", i.e., can be serialized by pygmo
         self.bodies_function = lambda: bodies
         self.integrator_settings_function = lambda: integrator_settings
         self.propagator_settings_function = lambda: propagator_settings
+        
         # Initialize empty dynamics simulator
         self.dynamics_simulator_function = lambda: None
+        
         # Set other input arguments as regular attributes
         self.mission_initial_time = mission_initial_time
         self.mission_duration = mission_duration
@@ -462,47 +381,20 @@ class AsteroidOrbitProblem:
         self.design_variable_lower_boundaries = design_variable_lower_boundaries
         self.design_variable_upper_boundaries = design_variable_upper_boundaries
 
-    def get_bounds(self) -> Tuple[List[float], List[float]]:
-        """
-        Defines the search space.
-
-        Parameters
-        ----------
-        none
-
-        Returns
-        -------
-        Tuple[List[float], List[float]]
-            Two lists of size n (for this problem, n=4), defining respectively the lower and upper
-            boundaries of each variable.
-        """
+    def get_bounds(self):
         return (list(self.design_variable_lower_boundaries), list(self.design_variable_upper_boundaries))
 
-    def get_nobj(self) -> int:
-        """
-        Returns the number of objectives p (for this problem, p = 2).
-        """
+    def get_nobj(self):
         return 2
 
     def fitness(self,
-                orbit_parameters: List[float]) -> List[float]:
-        """
-        Computes the fitness value for the problem.
-
-        Parameters
-        ----------
-        orbit_parameters : List[float]
-            Vector of decision variables of size n (for this problem, n = 4).
-
-        Returns
-        -------
-        List[float]
-            List of size p with the values for each objective (for this multi-objective optimization problem, p=2).
-        """
+                orbit_parameters):
         # Retrieves system of bodies
         current_bodies = self.bodies_function()
+        
         # Retrieves Itokawa gravitational parameter
         itokawa_gravitational_parameter = current_bodies.get("Itokawa").gravitational_parameter
+        
         # Reset the initial state from the decision variable vector
         new_initial_state = element_conversion.keplerian_to_cartesian_elementwise(
             gravitational_parameter=itokawa_gravitational_parameter,
@@ -512,29 +404,34 @@ class AsteroidOrbitProblem:
             argument_of_periapsis=np.deg2rad(235.7),
             longitude_of_ascending_node=np.deg2rad(orbit_parameters[3]),
             true_anomaly=np.deg2rad(139.87))
+        
         # Retrieves propagator settings object
         propagator_settings = self.propagator_settings_function()
+        
         # Retrieves integrator settings object
         integrator_settings = self.integrator_settings_function()
+        
         # Reset the initial state
         propagator_settings.initial_states = new_initial_state
 
         # Propagate orbit
-        dynamics_simulator = numerical_simulation.SingleArcSimulator(current_bodies,
-                                                                          integrator_settings,
-                                                                          propagator_settings,
-                                                                          print_dependent_variable_data=False,
-                                                                          print_state_data=False)
+        dynamics_simulator = numerical_simulation.SingleArcSimulator(   current_bodies,
+                                                                        integrator_settings,
+                                                                        propagator_settings,
+                                                                        print_dependent_variable_data=False,
+                                                                        print_state_data=False)
         # Update dynamics simulator function
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
         dependent_variables = dynamics_simulator.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
+        
         # Retrieve distance
         distance = dependent_variables_list[:, 0]
         # Retrieve latitude
         latitudes = dependent_variables_list[:, 1]
+        
         # Compute mean latitude
         mean_latitude = np.mean(np.absolute(latitudes))
         # Computes fitness as mean latitude
@@ -543,334 +440,438 @@ class AsteroidOrbitProblem:
         # Exaggerate fitness value if the spacecraft has broken out of the selected distance range
         current_penalty = 0.0
         if (max(dynamics_simulator.dependent_variable_history.keys()) < self.mission_final_time):
-            current_penalty += 1.0E4
+            current_penalty = 1.0E2
 
         return [current_fitness + current_penalty, np.mean(distance) + current_penalty * 1.0E3]
 
     def get_last_run_dynamics_simulator(self):
-        """
-        Returns the dynamics simulator lambda function.
-        """
         return self.dynamics_simulator_function()
 
 
-def main():
-    """
-    The problem describes the orbit design around a small body (asteroid Itokawa).
+## Setup orbital simulation
+"""
+Before running the optimisation, some aspect of the orbital simulation around Itokawa still need to be setup.
+Most importantly, the simulation bodies, acceleration models, integrator settings, and propagator settings, all have to be defined. To do so, the helpers that were defined above are used.
+"""
 
-    DYNAMICAL MODEL
-    Itokawa spherical harmonics, cannonball radiation pressure from Sun, point-mass third-body
-    from Sun, Jupiter, Saturn, Earth, Mars
 
-    PROPAGATION TIME
-    5 days
+### Simulation settings
+"""
+The simulation settings are first defined.
 
-    INTEGRATOR
-    RKF7(8) with tolerances 1E-8
+The SPICE kernels are loaded, so that we can acess the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
 
-    TERMINATION CONDITIONS
-    In addition to 5 day time, minimum distance from Itokaw's center of mass: 150 m (no crashing),
-    maximum distance from center of mass: 5 km (no escaping)
+The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
 
-    DESIGN VARIABLES
-    Initial values of semi-major axis, eccentricity, inclination, and longitude of node
+Follows the definition of the design variable range, that PyGMO will use during the optimisation. This range is as follows:
+ - Initial semi-major axis between 300 and 2000 meters.
+ - Initial eccentricity between 0 and 0.3.
+ - Initial inclination between 0 and 180 deg.
+ - Initial longitude of the ascending node between 0 and 360 deg.
+ 
+The system of bodies is then setup using the `create_simulation_bodies()` helper, and a radius for Itokawa of 161.915 meters.
 
-    OBJECTIVES
-    1. good coverage: the mean value of the absolute longitude w.r.t. Itokawa over the full propagation should be
-       maximized;
-    2. close orbit: the mean value of the distance should be minimized.
-    """
-    ###########################################################################
-    # CREATE SIMULATION SETTINGS ##############################################
-    ###########################################################################
+Finally, the acceleration models are setup using the `get_acceleration_models()` helper.
+"""
 
-    # Load spice kernels
-    spice.load_standard_kernels()
+# Load spice kernels
+spice.load_standard_kernels()
 
-    # Define Itokawa radius
-    itokawa_radius = 161.915
+# Set simulation start and end epochs
+mission_initial_time = 0.0
+mission_duration = 5.0 * constants.JULIAN_DAY
 
-    # Set simulation start and end epochs
-    mission_initial_time = 0.0
-    mission_duration = 5.0 * 86400.0
+# Define Itokawa radius
+itokawa_radius = 161.915
 
-    # Set boundaries on the design variables
-    design_variable_lb = (300, 0.0, 0.0, 0.0)
-    design_variable_ub = (2000, 0.3, 180, 360)
+# Set altitude termination conditions
+minimum_distance_from_com = 150.0 + itokawa_radius
+maximum_distance_from_com = 5.0E3 + itokawa_radius
 
-    # Set termination conditions
-    minimum_distance_from_com = 150.0 + itokawa_radius
-    maximum_distance_from_com = 5.0E3 + itokawa_radius
+# Set boundaries on the design variables
+design_variable_lb = (300, 0.0, 0.0, 0.0)
+design_variable_ub = (2000, 0.3, 180, 360)
 
-    # Create simulation bodies
-    bodies = create_simulation_bodies(itokawa_radius)
+# Create simulation bodies
+bodies = create_simulation_bodies(itokawa_radius)
 
-    ###########################################################################
-    # CREATE ACCELERATIONS ####################################################
-    ###########################################################################
+# Define bodies to propagate and central bodies
+bodies_to_propagate = ["Spacecraft"]
+central_bodies = ["Itokawa"]
 
-    bodies_to_propagate = ["Spacecraft"]
-    central_bodies = ["Itokawa"]
+# Create acceleration models
+acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
-    # Create acceleration models.
-    acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
-    # Create numerical integrator settings.
-    integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-        mission_initial_time, 1.0, propagation_setup.integrator.RKCoefficientSets.rkf_78,
-        1.0E-6, 86400.0, 1.0E-8, 1.0E-8)
+### Integrator settings
+"""
+Let's now define the integrator settings. In this case, a variable step integration scheme is used, with the followings:
+ - RKF7(8) coefficient set.
+ - Initial time step of 1 sec.
+ - Minimum and maximum time steps of 1E-6 sec and 1 Earth day.
+ - Relative and absolute error tolerances of 1E-8.
+"""
 
-    ###########################################################################
-    # CREATE PROPAGATION SETTINGS #############################################
-    ###########################################################################
+# Create numerical integrator settings
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    initial_time=mission_initial_time,
+    initial_time_step=1.0,
+    coefficient_set=propagation_setup.integrator.RKCoefficientSets.rkf_78,
+    minimum_step_size=1.0E-6,
+    maximum_step_size=constants.JULIAN_DAY,
+    relative_error_tolerance=1.0E-8,
+    absolute_error_tolerance=1.0E-8)
 
-    # Define list of dependent variables to save
-    dependent_variables_to_save = get_dependent_variables_to_save()
 
-    # Create propagation settings
-    termination_settings = get_termination_settings(
-        mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
+### Propagator settings
+"""
+To define the propagator settings, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the the dependent variables and termination settings.
 
-    # Define (Cowell) propagator settings with mock initial state
-    propagator_settings = propagation_setup.propagator.translational(
-        central_bodies,
-        acceleration_models,
-        bodies_to_propagate,
-        np.zeros(6),
-        termination_settings,
-        output_variables=dependent_variables_to_save
-    )
+Then, we define pure translational propagation settings with a Cowel propagator. The initial state is set to 0 for both the position and the velocity. This is because the initial state will later be changed in the `AsteroidOrbitProblem.fitness()` function during the optimisation.
+"""
 
-    ###########################################################################
-    # OPTIMIZE ORBIT WITH PYGMO ###############################################
-    ###########################################################################
+# Define list of dependent variables to save
+dependent_variables_to_save = get_dependent_variables_to_save()
 
-    # Fix seed for reproducibility
-    fixed_seed = 17031861
+# Create propagation settings
+termination_settings = get_termination_settings(
+    mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
 
-    # Instantiate orbit problem
-    orbitProblem = AsteroidOrbitProblem(bodies,
-                                        integrator_settings,
-                                        propagator_settings,
-                                        mission_initial_time,
-                                        mission_duration,
-                                        design_variable_lb,
-                                        design_variable_ub)
+# Define (Cowell) propagator settings with mock initial state
+propagator_settings = propagation_setup.propagator.translational(
+    central_bodies,
+    acceleration_models,
+    bodies_to_propagate,
+    np.zeros(6),
+    termination_settings,
+    output_variables=dependent_variables_to_save    
+)
 
-    # Select Moead algorithm from pygmo, with one generation
-    algo = pg.algorithm(pg.nsga2(gen=1, seed=fixed_seed))
-    # Create pygmo problem using the UDP instantiated above
-    prob = pg.problem(orbitProblem)
-    # Initialize pygmo population with 48 individuals
-    population_size = 48
-    pop = pg.population(prob, size=population_size, seed=fixed_seed)
-    # Set the number of evolutions
-    number_of_evolutions = 25
-    # Initialize containers
-    fitness_list = []
-    population_list = []
-    # Evolve the population recursively
-    for gen in range(number_of_evolutions):
-        print('Evolving population; at generation ' + str(gen))
-        # Evolve the population
-        pop = algo.evolve(pop)
-        # Store the fitness values and design variables for all individuals
-        fitness_list.append(pop.get_f())
-        population_list.append(pop.get_x())
 
-    ###########################################################################
-    # ANALYZE FIRST AND LAST GENERATIONS ######################################
-    ###########################################################################
+## Optimisation run
+"""
+With the optimistation problem and the simulation setup, let's now run our optimisation using PyGMO.
+"""
 
-    dump_results_to_file = False
 
-    # Get output path
-    output_path = os.getcwd() + '/PygmoExampleSimulationOutput/'
+### Algorithm and problem definition
+"""
+First, we define a fixed seed that PyGMO will use to generate random numbers. This ensures that the results can be reproduced. 
 
-    # Retrieve first and last generations for further analysis
-    pops_to_analyze = {0: 'initial',
-                       number_of_evolutions - 1: 'final'}
-    # Initialize containers
-    simulation_output = dict()
-    # Loop over first and last generations
-    for population_index, population_name in pops_to_analyze.items():
-        current_population = population_list[population_index]
-        # Save fitness and population members
-        if dump_results_to_file:
-            # Create directory
-            if not os.path.isdir(output_path):
-                os.mkdir(output_path)
-            np.savetxt(output_path + 'Fitness_' + population_name + '.dat', fitness_list[population_index])
-            np.savetxt(output_path + 'Population_' + population_name + '.dat', population_list[population_index])
-        # Current generation's dictionary
-        generation_output = dict()
-        # Loop over all individuals of the populations
-        for individual in range(population_size):
-            # Retrieve orbital parameters
-            current_orbit_parameters = current_population[individual]
-            # Propagate orbit and compute fitness
-            orbitProblem.fitness(current_orbit_parameters)
-            # Retrieve state and dependent variable history
-            current_states = orbitProblem.get_last_run_dynamics_simulator().state_history
-            current_dependent_variables = orbitProblem.get_last_run_dynamics_simulator().dependent_variable_history
-            # Save results to dict
-            generation_output[individual] = [current_states, current_dependent_variables]
-            # Write data to files
-            if dump_results_to_file:
-                save2txt(current_dependent_variables,
-                         population_name + '_dependent_variables' + str(individual) + '.dat',
-                         output_path)
-                save2txt(current_states,
-                         population_name + '_states' + str(individual) + '.dat',
-                         output_path)
-        # Append to global dictionary
-        simulation_output[population_index] = [generation_output,
-                                               fitness_list[population_index],
-                                               population_list[population_index]]
+Then, the optimisation problem is defined using the `AsteroidOrbitProblem` class initiated with the values that have already been defined. This User Defined Problem (UDP) is then given to PyGMO trough the `pg.problem()` method.
 
-    ###########################################################################
-    # ANALYZE RESULTS #########################################################
-    ###########################################################################
+Finally, the optimiser is selected to be the Multi-objective EA vith Decomposition (MOAD) algorithm that is implemented in PyGMO. See [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.moead) for its documentation.
+"""
 
-    # Set font size for plots
-    font = {'size': 12}
-    matplotlib.rc('font', **font)
+# Fix seed for reproducibility
+fixed_seed = 112987
 
-    # Create dictionaries
-    decision_variable_names = {0: 'Semi-major axis [m]',
-                               1: 'Eccentricity',
-                               2: 'Inclination [deg]',
-                               3: 'Longitude of the node [deg]'}
-    decision_variable_range = {0: [800.0, 1300.0],
-                               1: [0.10, 0.17],
-                               2: [90.0, 95.0],
-                               3: [250.0, 270.0]}
-    decision_variable_symbols = {0: r'$a$',
-                                 1: r'$e$',
-                                 2: r'$i$',
-                                 3: r'$\Omega$'}
-    decision_variable_units = {0: r' m',
-                               1: r' ',
-                               2: r' deg',
-                               3: r' deg'}
-    # Loop over populations
-    for population_index in simulation_output.keys():
-        # Retrieve current population
-        current_generation = simulation_output[population_index]
-        # Plot Pareto fronts for all design variables
-        fig, axs = plt.subplots(2, 2, figsize=(14, 8))
-        fig.suptitle('Generation ' + str(population_index), fontweight='bold', y=0.95)
-        current_fitness = current_generation[1]
-        current_population = current_generation[2]
-        for ax_index, ax in enumerate(axs.flatten()):
-            cs = ax.scatter(np.deg2rad(current_fitness[:, 0]),
-                            current_fitness[:, 1],
-                            40,
-                            current_population[:, ax_index],
-                            marker='.')
-            cbar = fig.colorbar(cs, ax=ax)
-            cbar.ax.set_ylabel(decision_variable_names[ax_index])
-            ax.grid('major')
-            if ax_index > 1:
-                ax.set_xlabel(r'Objective 1: coverage [$deg^{-1}$] ')
-            if ax_index == 0 or ax_index == 2:
-                ax.set_ylabel(r'Objective 2: proximity [$m$]')
-        # Save figure
-        fig.savefig('pareto_generation_' + str(population_index) + '.png', bbox_inches='tight')
+# Instantiate orbit problem
+orbitProblem = AsteroidOrbitProblem(bodies,
+                                    integrator_settings,
+                                    propagator_settings,
+                                    mission_initial_time,
+                                    mission_duration,
+                                    design_variable_lb,
+                                    design_variable_ub)
 
-    # Plot histogram for last generation, semi-major axis
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle('Final orbits by decision variable', fontweight='bold', y=0.95)
-    last_pop = simulation_output[number_of_evolutions - 1][2]
-    for ax_index, ax in enumerate(axs.flatten()):
-        ax.hist(last_pop[:, ax_index], bins=30)
-        # Prettify
-        ax.set_xlabel(decision_variable_names[ax_index])
-        if ax_index % 2 == 0:
-            ax.set_ylabel('Occurrences in the population')
-    # Save figure
-    fig.savefig('histograms_final_generation.png', bbox_inches='tight')
+# Create pygmo problem using the UDP instantiated above
+prob = pg.problem(orbitProblem)
 
-    # Plot orbits of initial and final generation
-    fig = plt.figure(figsize=(12, 6))
-    fig.suptitle('Initial and final orbit bundle', fontweight='bold', y=0.95)
-    title = {0: 'Initial orbit bundle',
-             1: 'Final orbit bundle'}
-    # Loop over populations
-    for ax_index, population_index in enumerate(simulation_output.keys()):
-        current_ax = fig.add_subplot(1, 2, 1 + ax_index, projection='3d')
-        # Retrieve current population
-        current_generation = simulation_output[population_index]
-        current_population = current_generation[2]
-        # Loop over individuals
-        for ind_index, individual in enumerate(current_population):
-            # Plot orbit
-            state_history = list(current_generation[0][ind_index][0].values())
-            state_history = np.vstack(state_history)
-            current_ax.plot(state_history[:, 0],
-                            state_history[:, 1],
-                            state_history[:, 2],
-                            linewidth=0.5)
-        # Prettify
-        current_ax.set_xlabel('X [m]')
-        current_ax.set_ylabel('Y [m]')
-        current_ax.set_zlabel('Z [m]')
-        current_ax.set_title(title[ax_index], y=1.0, pad=15)
-    # Save figure
-    fig.savefig('orbit_bundles_initial_final_gen.png', bbox_inches='tight')
+# Select Moead algorithm from pygmo, with one generation
+algo = pg.algorithm(pg.nsga2(gen=1, seed=fixed_seed))
 
-    # Plot orbits of final generation divided by parameters
-    fig = plt.figure(figsize=(12, 8))
-    fig.suptitle('Final orbit bundle by decision variable', fontweight='bold', y=0.95)
+
+### Initial population
+"""
+An initial population is now going to be generated by PyGMO, of a size of 48 individuals. This means that 48 orbital simulations will be run, and the fitness corresponding to the 48 individuals will be computed using the UDP.
+"""
+
+# Initialize pygmo population with 48 individuals
+population_size = 48
+pop = pg.population(prob, size=population_size, seed=fixed_seed)
+
+
+### Evolve population
+"""
+We now want to make this population evolve, as to (hopefully) get closer to optimum solutions.
+
+In a loop, we thus call `algo.evolve(pop)` 25 times to make the population evolve 25 times. During each generation, we also save the list of fitness and of design variables.
+"""
+
+# Set the number of evolutions
+number_of_evolutions = 25
+
+# Initialize containers
+fitness_list = []
+population_list = []
+
+# Evolve the population recursively
+for gen in range(number_of_evolutions):
+    print("Evolving population; at generation %i/%i" % (gen, number_of_evolutions-1), end="\r")
+    
+    # Evolve the population
+    pop = algo.evolve(pop)
+    
+    # Store the fitness values and design variables for all individuals
+    fitness_list.append(pop.get_f())
+    population_list.append(pop.get_x())
+    
+print("Evolving population is finished.        ")
+
+
+## Results analysis
+"""
+With the population evolved, the optimisation is finished. We can now analyse the results to see how our optimisation was carried, and what our optimum solutions are.
+"""
+
+
+### Extract results
+"""
+First of, we want to save the state and dependent variable history of the orbital simulations that were carried in the first and last generations. To do so, we extract the design variables of all the member of a given population, and we run the orbital simulation again, calling the `orbitProblem.fitness()` function. Then, we can extract the state and dependent variable history by calling the `orbitProblem.get_last_run_dynamics_simulator()` function.
+"""
+
+# Retrieve first and last generations for further analysis
+pops_to_analyze = {0: 'initial',
+                   number_of_evolutions - 1 : 'final'}
+
+# Initialize containers
+simulation_output = dict()
+
+# Loop over first and last generations
+for population_index, population_name in pops_to_analyze.items():
+    
+    # Get population individuals from the given generation
+    current_population = population_list[population_index]
+    
+    # Current generation's dictionary
+    generation_output = dict()
+    
+    # Loop over all individuals of the populations
+    for individual in range(population_size):
+
+        # Retrieve orbital parameters
+        current_orbit_parameters = current_population[individual]
+        
+        # Propagate orbit and compute fitness
+        orbitProblem.fitness(current_orbit_parameters)
+        
+        # Retrieve state and dependent variable history
+        current_states = orbitProblem.get_last_run_dynamics_simulator().state_history
+        current_dependent_variables = orbitProblem.get_last_run_dynamics_simulator().dependent_variable_history
+        
+        # Save results to dict
+        generation_output[individual] = [current_states, current_dependent_variables]
+        
+    # Append to global dictionary
+    simulation_output[population_index] = [generation_output,
+                                           fitness_list[population_index],
+                                           population_list[population_index]]
+
+
+### Pareto fronts
+"""
+As a first analysis of the optimisation results, let's plot the Pareto fronts, to represent the optimums.
+
+This is done for the first and last generation, plotting the score of the two objectives for all of the population members. A colormap is also used to represent the value of the design variables selected by the optimiser. Finally, the Pareto front is plotted in green, showing the limit of the attainable optimum solutions. 
+
+
+These Pareto fronts show that both of the objectives were sucessfully improved after 25 generations, attaining lower values for both of them.
+
+We can also notice that the population is packed closer to the Pareto front after 25 generations. At the opposite, the population was covering a higher area of the design space for the first generation.
+"""
+
+# Create dictionaries defining the design variables
+design_variable_names = {0: 'Semi-major axis [m]',
+                           1: 'Eccentricity',
+                           2: 'Inclination [deg]',
+                           3: 'Longitude of the node [deg]'}
+design_variable_range = {0: [800.0, 1300.0],
+                           1: [0.10, 0.17],
+                           2: [90.0, 95.0],
+                           3: [250.0, 270.0]}
+design_variable_symbols = {0: r'$a$',
+                             1: r'$e$',
+                             2: r'$i$',
+                             3: r'$\Omega$'}
+design_variable_units = {0: r' m',
+                           1: r' ',
+                           2: r' deg',
+                           3: r' deg'}
+
+# Loop over populations
+for population_index in simulation_output.keys():
+    
     # Retrieve current population
-    current_generation = simulation_output[number_of_evolutions - 1]
+    current_generation = simulation_output[population_index]
+    
     # Plot Pareto fronts for all design variables
+    fig, axs = plt.subplots(2, 2, figsize=(9, 5))
+    fig.suptitle('Generation ' + str(population_index), fontweight='bold', y=0.95)
+    current_fitness = current_generation[1]
     current_population = current_generation[2]
-    # Loop over decision variables
-    for var in range(4):
-        # Create axis
-        current_ax = fig.add_subplot(2, 2, 1 + var, projection='3d')
-        # Loop over individuals
-        for ind_index, individual in enumerate(current_population):
-            # Set plot color according to boundaries
-            if individual[var] < decision_variable_range[var][0]:
-                plt_color = 'r'
-                label = decision_variable_symbols[var] + ' < ' + str(decision_variable_range[var][0]) + \
-                        decision_variable_units[var]
-            elif decision_variable_range[var][0] < individual[var] < decision_variable_range[var][1]:
-                plt_color = 'b'
-                label = str(decision_variable_range[var][0]) + ' < ' + \
-                        decision_variable_symbols[var] + \
-                        ' < ' + str(decision_variable_range[var][1]) + decision_variable_units[var]
-            else:
-                plt_color = 'g'
-                label = decision_variable_symbols[var] + ' > ' + str(decision_variable_range[var][1]) + \
-                        decision_variable_units[var]
-
-            # Plot orbit
-            state_history = list(current_generation[0][ind_index][0].values())
-            state_history = np.vstack(state_history)
-            current_ax.plot(state_history[:, 0],
-                            state_history[:, 1],
-                            state_history[:, 2],
-                            color=plt_color,
-                            linewidth=0.5,
-                            label=label)
-        # Prettify
-        current_ax.set_xlabel('X [m]')
-        current_ax.set_ylabel('Y [m]')
-        current_ax.set_zlabel('Z [m]')
-        current_ax.set_title(decision_variable_names[var], y=1.0, pad=10)
-        handles, decision_variable_legend = current_ax.get_legend_handles_labels()
-        decision_variable_legend, ids = np.unique(decision_variable_legend, return_index=True)
-        handles = [handles[i] for i in ids]
-        current_ax.legend(handles, decision_variable_legend, loc='lower right', bbox_to_anchor=(0.3, 0.6))
-    # Save figure
-    fig.savefig('orbit_bundle_final_gen_by_variable.png', bbox_inches='tight')
-
-    # Show plot
-    plt.show()
+    for ax_index, ax in enumerate(axs.flatten()):
+        # Plot all the population at given generation
+        cs = ax.scatter(np.deg2rad(current_fitness[:, 0]),
+                        current_fitness[:, 1],
+                        s=100,
+                        c=current_population[:, ax_index],
+                        marker='.',
+                        cmap="plasma",
+                        alpha=0.65)
+        
+        # Plot the design variable using a colormap
+        cbar = fig.colorbar(cs, ax=ax)
+        cbar.ax.set_ylabel(design_variable_names[ax_index])
+        
+        # Add a label only on the left-most and bottom-most axes
+        ax.grid('major')
+        if ax_index > 1:
+            ax.set_xlabel(r'Objective 1: coverage [$deg^{-1}$]')
+        if ax_index == 0 or ax_index == 2:
+            ax.set_ylabel(r'Objective 2: proximity [$m$]')
+            
+        # Add the Pareto fron itself in green
+        optimum_mask = pareto_optimums(np.array([np.deg2rad(current_fitness[:, 0]), current_fitness[:, 1]]).T)
+        ax.step(
+            sorted(np.deg2rad(current_fitness[:, 0])[optimum_mask], reverse=True),
+            sorted(current_fitness[:, 1][optimum_mask], reverse=False),
+            color="#418F3E",
+            linewidth=2,
+            alpha=0.75)
+        
+# Show the figure
+plt.tight_layout()
+plt.show()
 
 
-if __name__ == "__main__":
-    main()
+### Design variables histogram
+"""
+Plotting the histogram of the design variables for the final generation gives insights into what set of orbital parameters lead to optimum solutions. Possible optimum design variables values can then be detected by looking at the number of population members that use them. A high number of occurences in the final generation **could** indicate a better design variable. At least, this offers some leads into what to investigate further.
+"""
+
+# Plot histogram for last generation, semi-major axis
+fig, axs = plt.subplots(2, 2, figsize=(9, 5))
+fig.suptitle('Final orbits by design variable', fontweight='bold', y=0.95)
+last_pop = simulation_output[number_of_evolutions - 1][2]
+
+for ax_index, ax in enumerate(axs.flatten()):
+    ax.hist(last_pop[:, ax_index], bins=30)
+    
+    # Prettify
+    ax.set_xlabel(design_variable_names[ax_index])
+    if ax_index % 2 == 0:
+        ax.set_ylabel('Occurrences in the population')
+        
+# Show the figure
+plt.tight_layout()
+plt.show()
+
+
+### Initial and final orbits visualisation
+"""
+One may now want to see how much better the optimised orbits are compared to the ones of the random initial population. This can be done by plotting the orbit bundles from the initial and final generations.
+
+The resulting 3D plot show the chaotic nature of the initial random population, where the last generation appears to use a handfull of variations of the similar design variables.
+"""
+
+# Plot orbits of initial and final generation
+fig = plt.figure(figsize=(9, 5))
+fig.suptitle('Initial and final orbit bundle', fontweight='bold', y=0.95)
+title = {0: 'Initial orbit bundle',
+         1: 'Final orbit bundle'}
+
+# Loop over populations
+for ax_index, population_index in enumerate(simulation_output.keys()):
+    current_ax = fig.add_subplot(1, 2, 1 + ax_index, projection='3d')
+    
+    # Retrieve current population
+    current_generation = simulation_output[population_index]
+    current_population = current_generation[2]
+    
+    # Loop over individuals
+    for ind_index, individual in enumerate(current_population):
+        
+        # Plot orbit
+        state_history = list(current_generation[0][ind_index][0].values())
+        state_history = np.vstack(state_history)
+        current_ax.plot(state_history[:, 0],
+                        state_history[:, 1],
+                        state_history[:, 2],
+                        linewidth=0.5)
+        
+    # Prettify
+    current_ax.set_xlabel('X [m]')
+    current_ax.set_ylabel('Y [m]')
+    current_ax.set_zlabel('Z [m]')
+    current_ax.set_title(title[ax_index], y=1.0, pad=15)
+
+# Show the figure
+plt.tight_layout()
+plt.show()
+
+
+### Orbits visualisation by design variable
+"""
+Finally, we can visualise what range of design variables lead to which type of orbits. This is done by plotting the bundle of orbits for the last generation.
+
+This plot one again shows that the orbits from the final population can be sub-categorised into disctinct orbital configurations.
+"""
+
+# Plot orbits of final generation divided by parameters
+fig = plt.figure(figsize=(9, 5))
+fig.suptitle('Final orbit bundle by decision variable', fontweight='bold', y=0.95)
+
+# Retrieve current population
+current_generation = simulation_output[number_of_evolutions - 1]
+
+# Plot Pareto fronts for all design variables
+current_population = current_generation[2]
+
+# Loop over decision variables
+for var in range(4):
+    
+    # Create axis
+    current_ax = fig.add_subplot(2, 2, 1 + var, projection='3d')
+    
+    # Loop over individuals
+    for ind_index, individual in enumerate(current_population):
+        
+        # Set plot color according to boundaries
+        if individual[var] < design_variable_range[var][0]:
+            plt_color = 'r'
+            label = design_variable_symbols[var] + ' < ' + str(design_variable_range[var][0]) +                     design_variable_units[var]
+        elif design_variable_range[var][0] < individual[var] < design_variable_range[var][1]:
+            plt_color = 'b'
+            label = str(design_variable_range[var][0]) + ' < ' +                     design_variable_symbols[var] +                     ' < ' + str(design_variable_range[var][1]) + design_variable_units[var]
+        else:
+            plt_color = 'g'
+            label = design_variable_symbols[var] + ' > ' + str(design_variable_range[var][1]) +                     design_variable_units[var]
+
+        # Plot orbit
+        state_history = list(current_generation[0][ind_index][0].values())
+        state_history = np.vstack(state_history)
+        current_ax.plot(state_history[:, 0],
+                        state_history[:, 1],
+                        state_history[:, 2],
+                        color=plt_color,
+                        linewidth=0.5,
+                        label=label)
+        
+    # Prettify
+    current_ax.set_xlabel('X [m]')
+    current_ax.set_ylabel('Y [m]')
+    current_ax.set_zlabel('Z [m]')
+    current_ax.set_title(design_variable_names[var], y=1.0, pad=10)
+    handles, design_variable_legend = current_ax.get_legend_handles_labels()
+    design_variable_legend, ids = np.unique(design_variable_legend, return_index=True)
+    handles = [handles[i] for i in ids]
+    current_ax.legend(handles, design_variable_legend, loc='lower right', bbox_to_anchor=(0.3, 0.6))
+    
+# Show the figure
+plt.tight_layout()
+plt.show()
+
+
+
+
