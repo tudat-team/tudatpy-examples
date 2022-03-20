@@ -53,6 +53,11 @@ Otherwise, you can clone this repository, open the examples on your favorite IDE
 
 More instructions are reported in the guides hosted on [Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
 
+All of the examples, provided as `.py` files, can then be run and edited as you see fit.
+
+Please note that these `.py` files were generated from the Jupyter Notebooks.
+The clarity and format of the code may suffer from this, and we advise to run the notebooks for a simpler user experience.
+
 ## Content
 
 The examples are organized in different categories.
