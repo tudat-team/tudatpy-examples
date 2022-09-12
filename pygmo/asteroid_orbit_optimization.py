@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
+
 # Asteroid orbit optimization with PyGMO
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
@@ -164,10 +167,12 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
     itokawa_gravitational_parameter = 2.36
     normalized_cosine_coefficients = np.array([
         [1.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
         [-0.145216, 0.0, 0.219420, 0.0, 0.0],
         [0.036115, -0.028139, -0.046894, 0.069022, 0.0],
         [0.087852, 0.034069, -0.123263, -0.030673, 0.150282]])
     normalized_sine_coefficients = np.array([
+        [0.0, 0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0, 0.0],
         [0.0, -0.006137, -0.046894, 0.033976, 0.0],
@@ -516,7 +521,7 @@ Let's now define the integrator settings. In this case, a variable step integrat
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     initial_time=mission_initial_time,
     initial_time_step=1.0,
-    coefficient_set=propagation_setup.integrator.RKCoefficientSets.rkf_78,
+    coefficient_set=propagation_setup.integrator.CoefficientSets.rkf_78,
     minimum_step_size=1.0E-6,
     maximum_step_size=constants.JULIAN_DAY,
     relative_error_tolerance=1.0E-8,
