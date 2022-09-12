@@ -130,47 +130,6 @@ def create_rocket_section(section_name, wet_mass):
 create_rocket_section("Section 1", 370.0)
 
 
-# To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
-# - A constant drag coefficient of 0.85.
-# - No sideslip coefficient (equal to 0).
-# - A lift coefficient of 0.4.
-# - A reference area of 0.25m$^2$.
-# - No moment coefficient.
-
-# Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
-def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
-    # Create aerodynamic coefficient interface settings
-    aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-        ref_area,
-        [CD, 0, CL]
-    )
-    # Add the aerodynamic coefficient interface settings to the environment, linked to the rocket section
-    environment_setup.add_aerodynamic_coefficient_interface(
-        bodies,
-        section_name,
-        aero_coefficient_settings
-    )
-
-# Create an aerodynamic coefficient interface for the first rocket section
-add_aero_coefficients("Section 1", 0.85, 0.4)
-
-
-### Propagation setup
-"""
-Now that the environment is created, the propagation setup is defined.
-
-First, the bodies to be propagated and the central bodies will be defined.
-Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
-
-The body to be propagated in the first part of this example is the first rocket section.
-"""
-
-# Define bodies that are propagated
-bodies_to_propagate = ["Section 1"]
-
-# Define central bodies of propagation
-central_bodies = ["Mars"]
-
 
 #### Thrust model
 """
@@ -217,6 +176,8 @@ class thrust_model:
 
     def get_thrust_magnitude(self, time):
         # If we are in the 15 first seconds, return 1.75 times the magnitude
+        if( not self.is_thrust_on( time ) ):
+            return 0.0
         if self.t0 is None:
             self.t0 = time
         if time - self.t0 < 15:
@@ -230,15 +191,15 @@ class thrust_model:
     def get_thrust_direction(self, time):
         # Get aerodynamic angle calculator
         aerodynamic_angle_calculator = self.propagated_body.flight_conditions.aerodynamic_angle_calculator
-        
+
         # Set thrust in vertical frame and transpose it
         thrust_direction_vertical_frame = np.array([[0, np.sin(self.vertical_angle), - np.cos(self.vertical_angle)]]).T
-        
+
         # Retrieve rotation matrix from vertical to inertial frame from the aerodynamic angle calculator
         vertical_to_inertial_frame = aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
             environment.AerodynamicsReferenceFrames.vertical_frame,
             environment.AerodynamicsReferenceFrames.inertial_frame)
-        
+
         # Compute the thrust in the inertial frame
         thrust_inertial_frame = np.dot(vertical_to_inertial_frame,
                                     thrust_direction_vertical_frame)
@@ -258,30 +219,73 @@ For this first section, the following parameters are used for the thrust:
 """
 
 # Define a function to create acceleration settings based on the direction and magnitude from the custom thrust class
-def create_thrust_acceleration_from_thrust_model(current_thrust_model):
-    # Define the thrust direction settings for the first section from the custom direction function
-    thrust_direction_settings = propagation_setup.thrust.custom_thrust_direction(
-        current_thrust_model.get_thrust_direction
+def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
+
+    # Define body rotation model according to the required thrust direction settings
+    rotation_model_settings = environment_setup.rotation_model.custom_inertial_direction_based(
+        current_thrust_model.get_thrust_direction,
+        "J2000", "VehicleFixed"
     )
+    environment_setup.add_rotation_model( bodies, body_name, rotation_model_settings )
 
     # Define the thrust magnitude settings for the first section from the custom functions
     thrust_magnitude_settings = propagation_setup.thrust.custom_thrust_magnitude(
         current_thrust_model.get_thrust_magnitude,
         current_thrust_model.get_specific_impulse,
-        current_thrust_model.is_thrust_on
     )
-    
-    # Return acceleration settings based on the thrust direction and magnitude
-    return propagation_setup.acceleration.thrust_from_direction_and_magnitude(
-        thrust_direction_settings,
-        thrust_magnitude_settings
-    )
+
+    environment_setup.add_engine_model(
+        body_name,
+        "MainEngine",
+        thrust_magnitude_settings,
+        bodies )
 
 # Setup the thrust model for the first section
 current_thrust_model = thrust_model(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185)
+create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
-# Create acceleration settings for the first section
-thrust_acceleration = create_thrust_acceleration_from_thrust_model(current_thrust_model)
+
+# To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
+# - A constant drag coefficient of 0.85.
+# - No sideslip coefficient (equal to 0).
+# - A lift coefficient of 0.4.
+# - A reference area of 0.25m$^2$.
+# - No moment coefficient.
+
+# Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
+def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
+    # Create aerodynamic coefficient interface settings
+    aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
+        ref_area,
+        [CD, 0, CL]
+    )
+    # Add the aerodynamic coefficient interface settings to the environment, linked to the rocket section
+    environment_setup.add_aerodynamic_coefficient_interface(
+        bodies,
+        section_name,
+        aero_coefficient_settings
+    )
+
+# Create an aerodynamic coefficient interface for the first rocket section
+add_aero_coefficients("Section 1", 0.85, 0.4)
+
+
+### Propagation setup
+"""
+Now that the environment is created, the propagation setup is defined.
+
+First, the bodies to be propagated and the central bodies will be defined.
+Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
+
+The body to be propagated in the first part of this example is the first rocket section.
+"""
+
+# Define bodies that are propagated
+bodies_to_propagate = ["Section 1"]
+
+# Define central bodies of propagation
+central_bodies = ["Mars"]
+
 
 
 #### Create the accelerations model
@@ -297,12 +301,17 @@ The acceleration settings defined are then applied to the rocket section, and ac
 """
 
 # Define a function to create acceleration models for a given rocket section, containing the thrust
-def create_section_accelerations(section_name, thrust_acceleration):
+def create_section_accelerations(section_name):
     # Duplicate the environmental accelerations (use copy to avoiding keeping the same dict linked to both sections)
-    accelerations_on_rocket = accelerations_environment.copy()
-
-    # Add the thrust acceleration to the given section
-    accelerations_on_rocket[section_name] = [ thrust_acceleration ]
+    accelerations_on_rocket = {
+        "Mars": [
+            propagation_setup.acceleration.spherical_harmonic_gravity(4, 4),
+            propagation_setup.acceleration.aerodynamic()
+        ],
+        section_name: [
+            propagation_setup.acceleration.thrust_from_all_engines( )
+        ]       
+    }
 
     # Create acceleration models for the given section
     return propagation_setup.create_acceleration_models(
@@ -313,40 +322,32 @@ def create_section_accelerations(section_name, thrust_acceleration):
     )
     
 
-# Define environmental acceleration
-accelerations_environment = {
-    "Mars": [
-        propagation_setup.acceleration.spherical_harmonic_gravity(4, 4),
-        propagation_setup.acceleration.aerodynamic()
-    ]
-}
-
 # Define the acceleration models for the first rocket section
-acceleration_models = create_section_accelerations("Section 1", thrust_acceleration)
+acceleration_models = create_section_accelerations("Section 1")
 
-
-#### Aerodynamic model
-"""
-A very basic aerodynamic model is now defined, to update the angle of attack of our vehicle as a function of time.
-It is encouraged for this model to be improved. For now, it ensures some slight variation in the aerodynamic acceleration over time, since it varies the angle of attack between -2 deg and 2 deg, using the following equation for the angle of attack $\alpha$ in radians over the time $t$ in seconds:
-$$
-\alpha(t) = \frac{2*\pi}{180} \cdot \sin \left( \frac{t \cdot \pi}{750} \right)
-$$
-"""
-
-class AeroGuidance(propagation.AerodynamicGuidance):
-
-    def __init__(self):
-        # Call the base class constructor
-        propagation.AerodynamicGuidance.__init__(self)
-
-    def updateGuidance(self, current_time):
-        # Update angle of attack as a function of time
-        self.angle_of_attack = np.deg2rad(2) * np.sin(current_time*np.pi/750)
-        
-# Set the aerodynamic guidance of the first section
-guidance_object = AeroGuidance()
-environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 1"), silence_warnings=True)
+#
+# #### Aerodynamic model
+# """
+# A very basic aerodynamic model is now defined, to update the angle of attack of our vehicle as a function of time.
+# It is encouraged for this model to be improved. For now, it ensures some slight variation in the aerodynamic acceleration over time, since it varies the angle of attack between -2 deg and 2 deg, using the following equation for the angle of attack $\alpha$ in radians over the time $t$ in seconds:
+# $$
+# \alpha(t) = \frac{2*\pi}{180} \cdot \sin \left( \frac{t \cdot \pi}{750} \right)
+# $$
+# """
+#
+# class AeroGuidance(propagation.AerodynamicGuidance):
+#
+#     def __init__(self):
+#         # Call the base class constructor
+#         propagation.AerodynamicGuidance.__init__(self)
+#
+#     def updateGuidance(self, current_time):
+#         # Update angle of attack as a function of time
+#         self.angle_of_attack = np.deg2rad(2) * np.sin(current_time*np.pi/750)
+#
+# # Set the aerodynamic guidance of the first section
+# guidance_object = AeroGuidance()
+# environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 1"), silence_warnings=True)
 
 
 ### Define the initial state
@@ -562,6 +563,9 @@ bodies = create_bodies()
 
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
+# Setup the thrust model for the first section
+current_thrust_model = thrust_model(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
 add_aero_coefficients("Section 2", 0.55, 0.25)
@@ -579,24 +583,18 @@ The second section has a constant thrust orientation of 90 degrees from the vert
 Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
 """
 
-# Setup the thrust model for the second section
-current_thrust_model = thrust_model(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
-
-# Create acceleration settings for the second section
-thrust_acceleration = create_thrust_acceleration_from_thrust_model(current_thrust_model)
-
 # Define the acceleration models for the second rocket section
-acceleration_models = create_section_accelerations("Section 2", thrust_acceleration)
+acceleration_models = create_section_accelerations("Section 2")
 
-
-### Add aerodynamic model
-"""
-The same aerodynamic model as for the first section is used for the second section, ensuring some variation in the angle of attack.
-"""
-
-guidance_object = AeroGuidance()
-environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 2"), silence_warnings=True)
-
+#
+# ### Add aerodynamic model
+# """
+# The same aerodynamic model as for the first section is used for the second section, ensuring some variation in the angle of attack.
+# """
+#
+# guidance_object = AeroGuidance()
+# environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 2"), silence_warnings=True)
+#
 
 ### Define dependent variables
 """

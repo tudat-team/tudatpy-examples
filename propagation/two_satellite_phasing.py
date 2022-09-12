@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
+
 # Separation of satellites via differential drag
 """
 
@@ -371,7 +374,7 @@ tolerance = 1.0E-10
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     simulation_start_epoch,
     initial_step_size,
-    propagation_setup.integrator.RKCoefficientSets.rkf_78,
+    propagation_setup.integrator.CoefficientSets.rkf_78,
     minimum_step_size,
     maximum_step_size,
     tolerance,
