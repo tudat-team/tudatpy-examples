@@ -175,6 +175,18 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     else:
         system_initial_state_hierarchical = system_initial_state
 
+### Create the integrator settings
+"""
+Set up the integrator that will be used.
+
+In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
+"""
+
+# Create numerical integrator settings
+fixed_step_size = 3600.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(
+    fixed_step_size
+)
 
 ### Create the propagator settings
 """
@@ -197,30 +209,24 @@ for propagation_variant in ["barycentric", "hierarchical"]:
             acceleration_models_barycentric,
             bodies_to_propagate,
             system_initial_state_barycentric,
+            simulation_start_epoch,
+            integrator_settings,
             termination_condition
         )
+        propagator_settings_barycentric.print_settings.enable_all_printing()
+
     else:
         propagator_settings_hierarchical = propagation_setup.propagator.translational(
             central_bodies_hierarchical,
             acceleration_models_hierarchical,
             bodies_to_propagate,
             system_initial_state_hierarchical,
+            simulation_start_epoch,
+            integrator_settings,
             termination_condition
         )
+        propagator_settings_hierarchical.print_settings.enable_all_printing()
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used, with a fixed step size of 1 hour.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 3600.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
 
 
 ## Propagate the bodies
@@ -238,11 +244,15 @@ This history takes the form of a dictionary. The keys are the simulated epochs, 
 for propagation_variant in ["barycentric", "hierarchical"]:
     
     if propagation_variant == "barycentric":
-        results_barycentric = numerical_simulation.SingleArcSimulator(
-            body_system, integrator_settings, propagator_settings_barycentric).state_history
+        dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+            body_system, propagator_settings_barycentric)
+        propagation_results = dynamics_simulator.propagation_results
+        results_barycentric = propagation_results.state_history
     else:
-        results_hierarchical = numerical_simulation.SingleArcSimulator(
-            body_system, integrator_settings, propagator_settings_hierarchical).state_history
+        dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+            body_system, propagator_settings_hierarchical)
+        propagation_results = dynamics_simulator.propagation_results
+        results_barycentric = propagation_results.state_history
 
 
 ## Post-process the propagation results

@@ -333,6 +333,19 @@ dependent_variables_to_save = [
     propagation_setup.dependent_variable.mach_number("STS", "Earth")
 ]
 
+### Create the integrator settings
+"""
+Set up the integrator that will be used.
+
+In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
+"""
+
+# Create numerical integrator settings
+fixed_step_size = 0.5
+integrator_settings = propagation_setup.integrator.runge_kutta_4(
+    fixed_step_size
+)
+
 
 ### Create the propagator settings
 """
@@ -364,23 +377,16 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     combined_termination_settings,
     output_variables=dependent_variables_to_save
 )
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 0.5
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
+propagator_settings.print_settings.print_state_indices = True
+propagator_settings.print_settings.print_dependent_variable_indices = True
+propagator_settings.print_settings.print_initial_and_final_conditions = True
+propagator_settings.print_settings.print_termination_reason = True
 
 
 ## Propagate the trajectory
@@ -398,12 +404,13 @@ In this example, we are not interested in analysing the state history. This can 
 """
 
 # Create the simulation objects and propagate the dynamics
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings
-)
+# Create simulation object and propagate the dynamics
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings )
+propagation_results = dynamics_simulator.propagation_results
 
 # Extract the resulting simulation dependent variables
-dependent_variables = dynamics_simulator.dependent_variable_history
+dependent_variables = propagation_results.dependent_variable_history
 # Convert the dependent variables from a dictionary to a numpy array
 dependent_variables_array = result2array(dependent_variables)
 

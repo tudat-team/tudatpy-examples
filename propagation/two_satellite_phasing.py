@@ -207,6 +207,25 @@ dependent_variables_to_save = [
     ),
 ]
 
+## Creation of integration settings
+"""
+
+We use a variable step size Runge-Kutta-Fehlberg 7(8) integrator with relative and absolute tolerances equal to
+$10^{-10}$.
+"""
+
+# Create numerical integrator settings
+initial_step_size = 10.0
+maximum_step_size = 100.0
+minimum_step_size = 1.0
+tolerance = 1.0E-10
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    initial_step_size,
+    propagation_setup.integrator.CoefficientSets.rkf_78,
+    minimum_step_size,
+    maximum_step_size,
+    tolerance,
+    tolerance)
 
 ### Define termination settings
 """
@@ -354,32 +373,14 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_states,
+    simulation_start_epoch,
+    integrator_settings,
     hybrid_termination,
     output_variables=dependent_variables_to_save
 )
 
-
-## Creation of integration settings
-"""
-
-We use a variable step size Runge-Kutta-Fehlberg 7(8) integrator with relative and absolute tolerances equal to
-$10^{-10}$.
-"""
-
-# Create numerical integrator settings
-initial_step_size = 10.0
-maximum_step_size = 100.0
-minimum_step_size = 1.0
-tolerance = 1.0E-10
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch,
-    initial_step_size,
-    propagation_setup.integrator.CoefficientSets.rkf_78,
-    minimum_step_size,
-    maximum_step_size,
-    tolerance,
-    tolerance)
-
+propagator_settings.print_settings.enable_all_printing( )
+propagator_settings.print_settings.state_print_interval =  10.0 * 86400.0
 
 ## Execute simulation
 """
@@ -387,10 +388,11 @@ With these commands, we execute the simulation and retrieve the output.
 """
 
 # Create simulation object and propagate dynamics.
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings)
-states = dynamics_simulator.state_history
-dependent_variables = dynamics_simulator.dependent_variable_history
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings )
+propagation_results = dynamics_simulator.propagation_results
+states = propagation_results.state_history
+dependent_variables = propagation_results.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)

@@ -251,6 +251,19 @@ dependent_variables_to_save = [
     )
 ]
 
+### Create the integrator settings
+"""
+Set up the integrator that will be used.
+
+In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
+"""
+
+# Create numerical integrator settings
+fixed_step_size = 10.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(
+    fixed_step_size
+)
+
 
 ### Create the propagator settings
 """
@@ -270,23 +283,13 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition,
     output_variables=dependent_variables_to_save
 )
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 10 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
+propagator_settings.print_settings.enable_all_printing( )
 
 
 ## Propagate the orbit
@@ -307,14 +310,15 @@ Do mind that converting to an ndarray using the `result2array()` utility will sh
 """
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings
-)
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings )
+propagation_results = dynamics_simulator.propagation_results
+
 
 # Extract the resulting state and depedent variable history and convert it to an ndarray
-states = dynamics_simulator.state_history
+states = propagation_results.state_history
 states_array = result2array(states)
-dep_vars = dynamics_simulator.dependent_variable_history
+dep_vars = propagation_results.dependent_variable_history
 dep_vars_array = result2array(dep_vars)
 
 

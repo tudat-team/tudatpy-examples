@@ -160,6 +160,20 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
 )
 
 
+### Create the integrator settings
+"""
+Set up the integrator that will be used.
+
+In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
+"""
+
+# Create numerical integrator settings
+fixed_step_size = 10.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(
+    fixed_step_size
+)
+
+
 ### Create the propagator settings
 """
 The propagator is finally setup.
@@ -178,26 +192,16 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
-    termination_condition
-)
+    simulation_start_epoch,
+    integrator_settings,
+    termination_condition )
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 10 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
-
+propagator_settings.print_settings.print_initial_and_final_conditions = True
+propagator_settings.print_settings.print_state_indices = True
+propagator_settings.print_settings.state_print_interval = 40000.0
 
 ## Propagate the orbit
-"""
+"""zzzz
 The orbit is now ready to be propagated.
 
 This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.
@@ -211,39 +215,13 @@ This history, taking the form of a dictionary, is then converted to an array con
 """
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings
-)
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings )
+propagation_results = dynamics_simulator.propagation_results
 
 # Extract the resulting state history and convert it to an ndarray
-states = dynamics_simulator.state_history
+states = propagation_results.state_history
 states_array = result2array(states)
-
-
-## Post-process the propagation results
-"""
-The results of the propagation are then processed to a more user-friendly form.
-"""
-
-
-### Print initial and final states
-"""
-First, let's print the initial and final position and velocity vector of `Delfi-C3`.
-"""
-
-print(
-    f"""
-Single Earth-Orbiting Satellite Example.
-The initial position vector of Delfi-C3 is [km]: \n{
-    states[simulation_start_epoch][:3] / 1E3} 
-The initial velocity vector of Delfi-C3 is [km/s]: \n{
-    states[simulation_start_epoch][3:] / 1E3}
-\nAfter {simulation_end_epoch} seconds the position vector of Delfi-C3 is [km]: \n{
-    states[simulation_end_epoch][:3] / 1E3}
-And the velocity vector of Delfi-C3 is [km/s]: \n{
-    states[simulation_start_epoch][3:] / 1E3}
-    """
-)
 
 
 ### Visualise the trajectory
