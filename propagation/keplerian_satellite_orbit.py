@@ -201,7 +201,7 @@ propagator_settings.print_settings.print_state_indices = True
 propagator_settings.print_settings.state_print_interval = 40000.0
 
 ## Propagate the orbit
-"""zzzz
+"""
 The orbit is now ready to be propagated.
 
 This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.

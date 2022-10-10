@@ -536,7 +536,7 @@ states_array_section_1 = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
-
+print(len(states_array_section_1))
 ### Save section 1 final state
 """
 Because we now want to simulate the second section from our rocket, we need to save what was the last state from the first section. This way, we can start a new propagation, simulating the remaining ascent of the second section (being the second stage) only, starting from where the first section ended.

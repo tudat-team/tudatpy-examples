@@ -234,6 +234,29 @@ termination_condition = propagation_setup.propagator.hybrid_termination(
     fulfill_single_condition = True)
 
 
+### Create the integrator settings
+"""
+Set up the integrator that will be used.
+
+In this case, a RKF7(8) variable step integrator is used, which has a tolerance of $10^{-10}$, can take steps from 0.01s to 1 day, and starts at an initial step size of 10s.
+"""
+
+# Setup the variable step integrator time step sizes
+initial_time_step = 10.0
+minimum_time_step = 0.01
+maximum_time_step = 86400
+# Setup the tolerance of the variable step integrator
+tolerance = 1e-10
+
+# Create numerical integrator settings (using a RKF7(8) coefficient set)
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    initial_time_step,
+    propagation_setup.integrator.rkf_78,
+    minimum_time_step,
+    maximum_time_step,
+    relative_error_tolerance=tolerance,
+    absolute_error_tolerance=tolerance)
+
 ### Create the propagator settings
 """
 The propagator settings are now defined.
@@ -251,6 +274,8 @@ translational_propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     system_initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition,
     propagation_setup.propagator.cowell,
     output_variables=[vehicle_altitude_dep_var, vehicle_mass_dep_var]
@@ -268,38 +293,17 @@ mass_propagator_settings = propagation_setup.propagator.mass(
     bodies_to_propagate,
     mass_rate_models,
     [5e3], # initial vehicle mass
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition )
 
 # Combine the translational and mass propagator settings
 propagator_settings = propagation_setup.propagator.multitype(
     [translational_propagator_settings, mass_propagator_settings],
+    integrator_settings,
+    simulation_start_epoch,
     termination_condition,
     [vehicle_altitude_dep_var, vehicle_mass_dep_var])
-
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RKF7(8) variable step integrator is used, which has a tolerance of $10^{-10}$, can take steps from 0.01s to 1 day, and starts at an initial step size of 10s.
-"""
-
-# Setup the variable step integrator time step sizes
-initial_time_step = 10.0
-minimum_time_step = 0.01
-maximum_time_step = 86400
-# Setup the tolerance of the variable step integrator
-tolerance = 1e-10
-
-# Create numerical integrator settings (using a RKF7(8) coefficient set)
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch,
-    initial_time_step,
-    propagation_setup.integrator.rkf_78,
-    minimum_time_step,
-    maximum_time_step,
-    relative_error_tolerance=tolerance,
-    absolute_error_tolerance=tolerance)
 
 
 ## Propagate the orbit
@@ -320,13 +324,13 @@ Do mind that converting to an ndarray using the `result2array()` utility will sh
 """
 
 # Instantiate the dynamics simulator and run the simulation
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    system_of_bodies, integrator_settings, propagator_settings, print_dependent_variable_data=True
-)
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    system_of_bodies, propagator_settings )
+propagation_results = dynamics_simulator.propagation_results
 
 # Extract the state and dependent variable history
-state_history = dynamics_simulator.state_history
-dependent_variable_history = dynamics_simulator.dependent_variable_history
+state_history = propagation_results.state_history
+dependent_variable_history = propagation_results.dependent_variable_history
 
 # Convert the dictionaries to multi-dimensional arrays
 vehicle_array = result2array(state_history)

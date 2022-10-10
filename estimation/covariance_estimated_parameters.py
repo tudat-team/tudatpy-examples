@@ -204,6 +204,18 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
 )
 
 
+### Create the integrator settings
+"""
+Define the integrator settings
+
+In this case, a RKF78 integrator is used with a step fixed at 60 seconds (this is done by setting both the minimum and maximum step size to 60 seconds, and the tolerance to 1).
+"""
+
+# Create numerical integrator settings
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
+)
+
 ### Create the propagator settings
 """
 The propagator is finally setup.
@@ -222,20 +234,9 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition
-)
-
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RKF78 integrator is used with a step fixed at 60 seconds (this is done by setting both the minimum and maximum step size to 60 seconds, and the tolerance to 1).
-"""
-
-# Create numerical integrator settings
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch, 60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
 )
 
 
@@ -278,9 +279,10 @@ In more advanced use-cases this observation model settings object can also inclu
 """
 
 # Define the uplink link ends for one-way observable
-link_ends = dict()
-link_ends[observation.transmitter] = ("Earth", "TrackingStation")
-link_ends[observation.receiver] = ("Delfi-C3", "")
+link_ends_dict = dict()
+link_ends_dict[observation.transmitter] = ("Earth", "TrackingStation")
+link_ends_dict[observation.receiver] = ("Delfi-C3", "")
+link_ends = observation.LinkDefinition( link_ends_dict )
 
 # Create observation settings for each link/observable
 observation_settings_list = [observation.one_way_open_loop_doppler(link_ends)]
