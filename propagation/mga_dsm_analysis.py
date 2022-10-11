@@ -1,6 +1,3 @@
-import sys
-sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
-
 # Multiple Gravity Assist trajectories & DSM
 """
 
