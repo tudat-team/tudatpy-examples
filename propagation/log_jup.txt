@@ -1,0 +1,29 @@
+[I 2022-10-11 12:38:22.393 ServerApp] jupyterlab | extension was successfully linked.
+[I 2022-10-11 12:38:22.402 ServerApp] nbclassic | extension was successfully linked.
+[I 2022-10-11 12:38:22.738 ServerApp] notebook_shim | extension was successfully linked.
+[I 2022-10-11 12:38:22.782 ServerApp] notebook_shim | extension was successfully loaded.
+[I 2022-10-11 12:38:22.783 LabApp] JupyterLab extension loaded from /Users/kevin/opt/miniconda3/envs/tudat-space/lib/python3.9/site-packages/jupyterlab
+[I 2022-10-11 12:38:22.783 LabApp] JupyterLab application directory is /Users/kevin/opt/miniconda3/envs/tudat-space/share/jupyter/lab
+[I 2022-10-11 12:38:22.786 ServerApp] jupyterlab | extension was successfully loaded.
+[I 2022-10-11 12:38:22.795 ServerApp] nbclassic | extension was successfully loaded.
+[I 2022-10-11 12:38:22.796 ServerApp] Serving notebooks from local directory: /Users/kevin/Dropbox (Personal)/tudelft/software_code/tudatpy-examples/propagation
+[I 2022-10-11 12:38:22.796 ServerApp] Jupyter Server 1.18.1 is running at:
+[I 2022-10-11 12:38:22.796 ServerApp] http://localhost:8888/lab?token=f0e991df1944019b181bf2b22a2235f7ff54001d2835cfc2
+[I 2022-10-11 12:38:22.796 ServerApp]  or http://127.0.0.1:8888/lab?token=f0e991df1944019b181bf2b22a2235f7ff54001d2835cfc2
+[I 2022-10-11 12:38:22.796 ServerApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 2022-10-11 12:38:22.803 ServerApp] 
+    
+    To access the server, open this file in a browser:
+        file:///Users/kevin/Library/Jupyter/runtime/jpserver-5857-open.html
+    Or copy and paste one of these URLs:
+        http://localhost:8888/lab?token=f0e991df1944019b181bf2b22a2235f7ff54001d2835cfc2
+     or http://127.0.0.1:8888/lab?token=f0e991df1944019b181bf2b22a2235f7ff54001d2835cfc2
+[W 2022-10-11 12:38:25.619 LabApp] Could not determine jupyterlab build status without nodejs
+[W 2022-10-11 12:38:26.782 ServerApp] Notebook reentry_trajectory_outputfile.ipynb is not trusted
+[I 2022-10-11 12:38:35.755 ServerApp] Kernel started: 6b2fc98a-3aa9-4616-af9c-d25cb1da2316
+[W 2022-10-11 12:38:36.447 ServerApp] Got events for closed stream <zmq.eventloop.zmqstream.ZMQStream object at 0x10fab74c0>
+[I 2022-10-11 12:40:28.123 ServerApp] Saving file at /reentry_trajectory_outputfile.ipynb
+[I 2022-10-11 12:41:36.099 ServerApp] Kernel shutdown: 6b2fc98a-3aa9-4616-af9c-d25cb1da2316
+[I 2022-10-11 12:41:36.436 ServerApp] Shutting down on /api/shutdown request.
+[I 2022-10-11 12:41:36.437 ServerApp] Shutting down 3 extensions
+[I 2022-10-11 12:41:36.437 ServerApp] Shutting down 0 terminals
