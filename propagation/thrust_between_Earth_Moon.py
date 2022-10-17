@@ -95,6 +95,30 @@ Let's now create the 5000kg Vehicle for which the trajectory bewteen the Earth a
 system_of_bodies.create_empty_body("Vehicle")
 system_of_bodies.get_body("Vehicle").set_constant_mass(5e3)
 
+### Define the thrust guidance settings
+"""
+Let's now define the aspects of the body related to thrust: its orientation and its engine
+
+First, the `thrust_direction_settings` are setup so that the thrust is always acting aligned with the velocity vector of the vehicle, making sure that the orbit is continuously raised.
+
+Then, the `thrust_magnitude_settings` are setup to indicate that a constant thrust of 10N is used.
+"""
+
+
+rotation_model_settings = environment_setup.rotation_model.orbital_state_direction_based(
+        central_body="Earth",
+        is_colinear_with_velocity=True,
+        direction_is_opposite_to_vector=False,
+        base_frame = "",
+        target_frame = "VehicleFixed" )
+environment_setup.add_rotation_model( system_of_bodies, 'Vehicle', rotation_model_settings )
+
+thrust_magnitude_settings = (
+    propagation_setup.thrust.constant_thrust_magnitude(
+        thrust_magnitude=10.0, specific_impulse=5e3 ) )
+environment_setup.add_engine_model(
+    'Vehicle', 'MainEngine', thrust_magnitude_settings, system_of_bodies )
+
 
 ## Propagation setup
 """
@@ -109,29 +133,6 @@ bodies_to_propagate = ["Vehicle"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
-
-
-### Define the thrust guidance settings
-"""
-Let's now define the thrust guidance settings for our Vehicle.
-
-First, the `thrust_direction_settings` are setup so that the thrust is always acting aligned with the velocity vector of the vehicle, making sure that the orbit is continuously raised.
-
-Then, the `thrust_magnitude_settings` are setup to indicate that a constant thrust of 10N is used.
-"""
-
-# Define the direction of the thrust as colinear with the velocity of the orbiting vehicle, pushing it from behind
-thrust_direction_settings = (
-    propagation_setup.thrust.thrust_direction_from_state_guidance(
-        central_body="Earth",
-        is_colinear_with_velocity=True,
-        direction_is_opposite_to_vector=False ) )
-
-# Define the thrust magnitude as constant
-thrust_magnitude_settings = (
-    propagation_setup.thrust.constant_thrust_magnitude(
-        thrust_magnitude=10.0, specific_impulse=5e3 ) )
-
 
 ### Create the acceleration model
 """
@@ -149,10 +150,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 acceleration_on_vehicle = dict(
     Vehicle=[
         # Define the thrust acceleration from its direction and magnitude
-        propagation_setup.acceleration.thrust_from_direction_and_magnitude(
-            thrust_direction_settings=thrust_direction_settings,
-            thrust_magnitude_settings=thrust_magnitude_settings,
-        )
+        propagation_setup.acceleration.thrust_from_engine( 'MainEngine')
     ],
     # Define the acceleration due to the Earth, Moon, and Sun as Point Mass
     Earth=[propagation_setup.acceleration.point_mass_gravity()],

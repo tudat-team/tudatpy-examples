@@ -28,6 +28,7 @@ Then, the different modules of `tudatpy` that will be used are imported.
 """
 
 # Load standard modules
+import math
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -69,82 +70,92 @@ In this equation, $\chi$ and $\delta$ are the heading and latitude angles. $L$, 
 """
 
 # Create a class for the aerodynamic guidance of the STS, inheriting from 'propagation.AerodynamicGuidance'
-class STSAerodynamicGuidance(propagation.AerodynamicGuidance):
+class STSAerodynamicGuidance:
 
     def __init__(self, bodies: environment.SystemOfBodies):
-        # Call the base class constructor
-        propagation.AerodynamicGuidance.__init__(self)
 
         # Extract the STS and Earth bodies
         self.vehicle = bodies.get_body("STS")
         self.earth = bodies.get_body("Earth")
 
         # Extract the STS flight conditions, angle calculator, and aerodynamic coefficient interface
+        environment_setup.add_flight_conditions( bodies, 'STS', 'Earth' )
         self.vehicle_flight_conditions = bodies.get_body("STS").flight_conditions
         self.aerodynamic_angle_calculator = self.vehicle_flight_conditions.aerodynamic_angle_calculator
         self.aerodynamic_coefficient_interface = self.vehicle_flight_conditions.aerodynamic_coefficient_interface
 
+        self.current_time = float("NaN")
+
+    def getAerodynamicAngles(self, current_time: float):
+        self.updateGuidance( current_time )
+        return np.array([self.angle_of_attack, 0.0, self.bank_angle])
+
     # Function that is called at each simulation time step to update the ideal bank angle of the vehicle
     def updateGuidance(self, current_time: float):
-        # Get the (constant) angular velocity of the Earth body
-        earth_angular_velocity = np.linalg.norm(self.earth.body_fixed_angular_velocity)
-        # Get the distance between the vehicle and the Earth bodies
-        earth_distance = np.linalg.norm(self.vehicle.position)
-        # Get the (constant) mass of the vehicle body
-        body_mass = self.vehicle.mass
 
-        # Extract the current Mach number, airspeed, and air density from the flight conditions
-        mach_number = self.vehicle_flight_conditions.mach_number
-        airspeed = self.vehicle_flight_conditions.airspeed
-        density = self.vehicle_flight_conditions.density
+        if( math.isnan( current_time ) ):
+            self.current_time = float("NaN")
+        elif( current_time != self.current_time ):
+            # Get the (constant) angular velocity of the Earth body
+            earth_angular_velocity = np.linalg.norm(self.earth.body_fixed_angular_velocity)
+            # Get the distance between the vehicle and the Earth bodies
+            earth_distance = np.linalg.norm(self.vehicle.position)
+            # Get the (constant) mass of the vehicle body
+            body_mass = self.vehicle.mass
 
-        # Set the current Angle of Attack (AoA). The following line enforces the followings:
-        # * the AoA is constant at 40deg when the Mach number is above 12
-        # * the AoA is constant at 10deg when the Mach number is below 6
-        # * the AoA varies close to linearly when the Mach number is between 12 and 6
-        # * a Logistic relation is used so that the transition in AoA between M=12 and M=6 is smoother
-        self.angle_of_attack = np.deg2rad(30 / (1 + np.exp(-2*(mach_number-9))) + 10)
+            # Extract the current Mach number, airspeed, and air density from the flight conditions
+            mach_number = self.vehicle_flight_conditions.mach_number
+            airspeed = self.vehicle_flight_conditions.airspeed
+            density = self.vehicle_flight_conditions.density
 
-        # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
-        current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
-        # Update the aerodynamic coefficients
-        self.aerodynamic_coefficient_interface.update_coefficients(
-            current_aerodynamics_independent_variables, current_time)
+            # Set the current Angle of Attack (AoA). The following line enforces the followings:
+            # * the AoA is constant at 40deg when the Mach number is above 12
+            # * the AoA is constant at 10deg when the Mach number is below 6
+            # * the AoA varies close to linearly when the Mach number is between 12 and 6
+            # * a Logistic relation is used so that the transition in AoA between M=12 and M=6 is smoother
+            self.angle_of_attack = np.deg2rad(30 / (1 + np.exp(-2*(mach_number-9))) + 10)
 
-        # Extract the current force coefficients (in order: C_D, C_S, C_L)
-        current_force_coefficients = self.aerodynamic_coefficient_interface.current_force_coefficients
-        # Extract the (constant) reference area of the vehicle
-        aerodynamic_reference_area = self.aerodynamic_coefficient_interface.reference_area
+            # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
+            current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
+            # Update the aerodynamic coefficients
+            self.aerodynamic_coefficient_interface.update_coefficients(
+                current_aerodynamics_independent_variables, current_time)
 
-        # Get the heading, flight path, and latitude angles from the aerodynamic angle calculator
-        heading = self.aerodynamic_angle_calculator.get_angle(environment.heading_angle)
-        flight_path_angle = self.aerodynamic_angle_calculator.get_angle(environment.flight_path_angle)
-        latitude = self.aerodynamic_angle_calculator.get_angle(environment.latitude_angle)
+            # Extract the current force coefficients (in order: C_D, C_S, C_L)
+            current_force_coefficients = self.aerodynamic_coefficient_interface.current_force_coefficients
+            # Extract the (constant) reference area of the vehicle
+            aerodynamic_reference_area = self.aerodynamic_coefficient_interface.reference_area
 
-        # Compute the acceleration caused by Lift
-        lift_acceleration = 0.5 * density * airspeed ** 2 * aerodynamic_reference_area * current_force_coefficients[2] / body_mass
-        # Compute the gravitational acceleration
-        downward_gravitational_acceleration = self.earth.gravitational_parameter / (earth_distance ** 2)
-        # Compute the centrifugal acceleration
-        spacecraft_centrifugal_acceleration = airspeed ** 2 / earth_distance
-        # Compute the Coriolis acceleration
-        coriolis_acceleration = 2 * earth_angular_velocity * airspeed * np.cos(latitude) * np.sin(heading)
-        # Compute the centrifugal acceleration from the Earth
-        earth_centrifugal_acceleration = earth_angular_velocity ** 2 * earth_distance * np.cos(latitude) *             (np.cos(latitude) * np.cos(flight_path_angle) + np.sin(flight_path_angle) * np.sin(latitude) * np.cos(heading))
-        
-        # Compute the cosine of the ideal bank angle
-        cosine_of_bank_angle = ((downward_gravitational_acceleration - spacecraft_centrifugal_acceleration) * np.cos(flight_path_angle) - coriolis_acceleration - earth_centrifugal_acceleration) / lift_acceleration
-        # If the cosine lead to a value out of the [-1, 1] range, set to bank angle to 0deg or 180deg
-        if (cosine_of_bank_angle < -1):
-            self.bank_angle = np.pi
-        elif (cosine_of_bank_angle > 1):
-            self.bank_angle = 0.0
-        else:
-            # If the cos is in the correct range, return the computed bank angle
-            self.bank_angle = np.arccos(cosine_of_bank_angle)
+            # Get the heading, flight path, and latitude angles from the aerodynamic angle calculator
+            heading = self.aerodynamic_angle_calculator.get_angle(environment.heading_angle)
+            flight_path_angle = self.aerodynamic_angle_calculator.get_angle(environment.flight_path_angle)
+            latitude = self.aerodynamic_angle_calculator.get_angle(environment.latitude_angle)
+
+            # Compute the acceleration caused by Lift
+            lift_acceleration = 0.5 * density * airspeed ** 2 * aerodynamic_reference_area * current_force_coefficients[2] / body_mass
+            # Compute the gravitational acceleration
+            downward_gravitational_acceleration = self.earth.gravitational_parameter / (earth_distance ** 2)
+            # Compute the centrifugal acceleration
+            spacecraft_centrifugal_acceleration = airspeed ** 2 / earth_distance
+            # Compute the Coriolis acceleration
+            coriolis_acceleration = 2 * earth_angular_velocity * airspeed * np.cos(latitude) * np.sin(heading)
+            # Compute the centrifugal acceleration from the Earth
+            earth_centrifugal_acceleration = earth_angular_velocity ** 2 * earth_distance * np.cos(latitude) *             (np.cos(latitude) * np.cos(flight_path_angle) + np.sin(flight_path_angle) * np.sin(latitude) * np.cos(heading))
+
+            # Compute the cosine of the ideal bank angle
+            cosine_of_bank_angle = ((downward_gravitational_acceleration - spacecraft_centrifugal_acceleration) * np.cos(flight_path_angle) - coriolis_acceleration - earth_centrifugal_acceleration) / lift_acceleration
+            # If the cosine lead to a value out of the [-1, 1] range, set to bank angle to 0deg or 180deg
+            if (cosine_of_bank_angle < -1):
+                self.bank_angle = np.pi
+            elif (cosine_of_bank_angle > 1):
+                self.bank_angle = 0.0
+            else:
+                # If the cos is in the correct range, return the computed bank angle
+                self.bank_angle = np.arccos(cosine_of_bank_angle)
+            self.current_time = current_time
 
 
-## Configuration
+        ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
@@ -201,7 +212,6 @@ Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be 
 bodies.create_empty_body("STS")
 bodies.get_body( "STS" ).set_constant_mass(5.0e3)
 
-
 ### Add an aerodynamic coefficient interface
 """
 An aerodynamic coefficient interface is now added to the STS vehicle. These coefficients are interpolated from files that tabulate them as a function of angle of attack and Mach number.
@@ -222,6 +232,13 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 # Add predefined aerodynamic coefficients database to the body
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
+### Add rotation model based on aerodynamic guidance
+
+# Create the aerodynamic guidance object
+aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
+rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
+    'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
+environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
 
 ## Propagation setup
 """
@@ -262,21 +279,6 @@ acceleration_settings = {"STS": accelerations_settings_STS}
 acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
-
-
-### Incorporate aerodynamic guidance
-"""
-The aerodynamic guidance class `STSAerodynamicGuidance` that has been defined earlier now nees to be linked to the `STS` vehicle in the environment setup.
-
-Do note that, while this is part of the environment setup, the aerodynamic acceleration on the vehicle first needs to be setup (as above), so that the aerodynamic interface is initialised.
-"""
-
-# Create the aerodynamic guidance object
-guidance_object = STSAerodynamicGuidance(bodies)
-
-# Set aerodynamic guidance (this line links the STSAerodynamicGuidance settings with the propagation)
-environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get_body("STS"))
-
 
 ### Define the initial state
 """
