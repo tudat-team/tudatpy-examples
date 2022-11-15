@@ -326,28 +326,30 @@ def create_section_accelerations(section_name):
 acceleration_models = create_section_accelerations("Section 1")
 
 #
-# #### Aerodynamic model
-# """
-# A very basic aerodynamic model is now defined, to update the angle of attack of our vehicle as a function of time.
-# It is encouraged for this model to be improved. For now, it ensures some slight variation in the aerodynamic acceleration over time, since it varies the angle of attack between -2 deg and 2 deg, using the following equation for the angle of attack $\alpha$ in radians over the time $t$ in seconds:
-# $$
-# \alpha(t) = \frac{2*\pi}{180} \cdot \sin \left( \frac{t \cdot \pi}{750} \right)
-# $$
-# """
+#### Aerodynamic model
+"""
+"""
+A very basic aerodynamic model is now defined, to update the angle of attack of our vehicle as a function of time.
+It is encouraged for this model to be improved. For now, it ensures some slight variation in the aerodynamic acceleration over time, since it varies the angle of attack between -2 deg and 2 deg, using the following equation for the angle of attack $\alpha$ in radians over the time $t$ in seconds:
+$$
+\alpha(t) = \frac{2*\pi}{180} \cdot \sin \left( \frac{t \cdot \pi}{750} \right)
+$$
+"""
 #
-# class AeroGuidance(propagation.AerodynamicGuidance):
+class AeroGuidance(propagation.AerodynamicGuidance):
 #
-#     def __init__(self):
-#         # Call the base class constructor
-#         propagation.AerodynamicGuidance.__init__(self)
+    def __init__(self):
+        # Call the base class constructor
+        propagation.AerodynamicGuidance.__init__(self)
 #
-#     def updateGuidance(self, current_time):
-#         # Update angle of attack as a function of time
-#         self.angle_of_attack = np.deg2rad(2) * np.sin(current_time*np.pi/750)
+    def updateGuidance(self, current_time):
+        # Update angle of attack as a function of time
+        self.angle_of_attack = np.deg2rad(2) * np.sin(current_time*np.pi/750)
 #
-# # Set the aerodynamic guidance of the first section
-# guidance_object = AeroGuidance()
-# environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 1"), silence_warnings=True)
+# Set the aerodynamic guidance of the first section
+guidance_object = AeroGuidance()
+environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 1"), silence_warnings=True)
+"""
 
 
 ### Define the initial state
@@ -587,14 +589,16 @@ Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant
 acceleration_models = create_section_accelerations("Section 2")
 
 #
-# ### Add aerodynamic model
-# """
-# The same aerodynamic model as for the first section is used for the second section, ensuring some variation in the angle of attack.
-# """
+### Add aerodynamic model
+"""
+"""
+The same aerodynamic model as for the first section is used for the second section, ensuring some variation in the angle of attack.
+"""
 #
-# guidance_object = AeroGuidance()
-# environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 2"), silence_warnings=True)
+guidance_object = AeroGuidance()
+environment_setup.set_aerodynamic_guidance(guidance_object, bodies.get("Section 2"), silence_warnings=True)
 #
+"""
 
 ### Define dependent variables
 """
