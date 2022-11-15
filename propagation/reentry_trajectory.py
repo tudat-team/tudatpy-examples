@@ -1,11 +1,16 @@
+import sys
+sys.path.insert(0, '/home/dominic/Software/tudat-bundle/build-tudat-bundle-Desktop-Default/tudatpy/')
+
+
 # Re-entry trajectory
 """
+
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-
 ## Context
 """
+
 This examples focuses on the application of aerodynamic guidance in the context of a re-entry trajectory of the Space Transportation System (STS).
 
 The aerodynamic guidance updates the angle of attack and the bank angle of the vehicle based on its flight conditions.
@@ -20,6 +25,7 @@ A high number of dependent variable are also propagated in this example. All of 
 
 ## Import statements
 """
+
 The required import statements are made here, at the very beginning.
 
 Some standard modules are first loaded. These are `numpy` and `matplotlib.pyplot`.
@@ -31,6 +37,7 @@ Then, the different modules of `tudatpy` that will be used are imported.
 import math
 import numpy as np
 from matplotlib import pyplot as plt
+
 
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
@@ -44,6 +51,7 @@ from tudatpy.util import result2array
 
 ## Aerodynamic guidance class
 """
+
 First of all, let's  create a class that contains the aerodynamic guidance. This class needs to be inherited from `propagation.AerodynamicGuidance`.
 
 During the initialisation of this class, the current system of simulated bodies will have to be input.
@@ -155,8 +163,9 @@ class STSAerodynamicGuidance:
             self.current_time = current_time
 
 
-        ## Configuration
+## Configuration
 """
+
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
 Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
@@ -167,7 +176,7 @@ Please refer to the API documentation of the `time_conversion module` [here](htt
 spice.load_standard_kernels()
 
 # Set simulation start epoch
-simulation_start_epoch = 0.0
+simulation_start_epoch = 6000.0
 
 # Set the maximum simulation time (avoid very long skipping re-entry)
 max_simulation_time = 3*constants.JULIAN_DAY
@@ -175,12 +184,15 @@ max_simulation_time = 3*constants.JULIAN_DAY
 
 ## Environment setup
 """
+
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
+
 """
 
 
 ### Create the bodies
 """
+
 Bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
@@ -205,6 +217,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Create the vehicle
 """
+
 Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be simulated.
 """
 
@@ -212,8 +225,10 @@ Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be 
 bodies.create_empty_body("STS")
 bodies.get_body( "STS" ).set_constant_mass(5.0e3)
 
+
 ### Add an aerodynamic coefficient interface
 """
+
 An aerodynamic coefficient interface is now added to the STS vehicle. These coefficients are interpolated from files that tabulate them as a function of angle of attack and Mach number.
 """
 
@@ -232,7 +247,8 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 # Add predefined aerodynamic coefficients database to the body
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
-### Add rotation model based on aerodynamic guidance
+
+# ### Add rotation model based on aerodynamic guidance
 
 # Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
@@ -240,8 +256,10 @@ rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_bas
     'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
 environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
 
+
 ## Propagation setup
 """
+
 Now that the environment is created, the propagation setup is defined.
 
 First, the bodies to be propagated and the central bodies will be defined.
@@ -257,6 +275,7 @@ central_bodies = ["Earth"]
 
 ### Create the acceleration model
 """
+
 The acceleration settings that act on the `STS` vehicle are now defined.
 In this case, these simply consist in the Earth gravitational effect modelled as a point mass and of the aerodynamic acceleration of the Earth atmosphere.
 
@@ -280,8 +299,10 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
 
+
 ### Define the initial state
 """
+
 The initial state of the vehicle that will be propagated is now defined. Most importantly, the `STS` vehicle starts 120km above Earth, at a velocity og 7500m/s, and a flight path angle of -0.6 deg (from the horizon).
 
 This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
@@ -313,6 +334,7 @@ initial_state = environment.transform_to_inertial_orientation(
 
 ### Define the dependent variables to save
 """
+
 In this example, we are interested in saving not only the propagated state of the vehicle over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
 [This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
@@ -333,6 +355,7 @@ dependent_variables_to_save = [
 
 ### Create the propagator settings
 """
+
 The propagator is finally setup.
 
 First, a termination condition is defined so that the propagation as soon as one of these conditions is fulfilled:
@@ -368,6 +391,7 @@ propagator_settings = propagation_setup.propagator.translational(
 
 ### Create the integrator settings
 """
+
 The last step before starting the simulation is to setup the integrator that will be used.
 
 In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
@@ -382,6 +406,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_4(
 
 ## Propagate the trajectory
 """
+
 The re-entry trajectory is now ready to be propagated.
 
 This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.
@@ -407,12 +432,13 @@ dependent_variables_array = result2array(dependent_variables)
 
 ## Post-process the propagation results
 """
+
 The results of the propagation are then processed to a more user-friendly form.
 """
 
-
 ### Altitude over time
 """
+
 First, let's plot the altitude of the `STS` vehicle over time.
 """
 
@@ -434,6 +460,7 @@ plt.show()
 
 ### Airspeed vs altitude
 """
+
 Let's now plot the altitude of the vehicle as a function of its airspeed. This gives insights into how the vehicle decelerates.
 """
 
@@ -448,6 +475,7 @@ plt.show()
 
 ### g-load over time
 """
+
 The following plot then shows the total acceleration on the vehicle in `g` (Earth's gravitational acceleration at sea level).
 """
 
@@ -462,6 +490,7 @@ plt.show()
 
 ### Aerodynamic coefficient over time
 """
+
 Plotting the aerodynamic coefficients over time can also give a good set of insights into what happens during re-entry.
 """
 
@@ -480,6 +509,7 @@ plt.show()
 
 ### Angles over time
 """
+
 Plotting the angle of attack and bank angle over time allows to check if the aerodynamic guidance behaves as expected. Moreover, plotting the flight path angle over time allows to check how efficient the guidance was at keeping it constant.
 """
 
@@ -497,6 +527,7 @@ plt.show()
 
 ### Angle of attack vs Mach number
 """
+
 Plotting the angle of attack as a function of the Mach number allows to check that it indeed is of 10deg below Mach 6, of 40deg above Mach 12, and that it varies more or less linearly (and smoothly) in-between.
 """
 
@@ -513,6 +544,7 @@ plt.show()
 
 ### Derivative of flight path angle over time
 """
+
 Plotting the derivative of the flight path angle over time finally allows to analyse how constant the flight path angle really was.
 """
 
@@ -530,7 +562,4 @@ plt.yticks(10**np.arange(-12, 0.1, 1))
 plt.grid()
 plt.tight_layout()
 plt.show()
-
-
-
 
