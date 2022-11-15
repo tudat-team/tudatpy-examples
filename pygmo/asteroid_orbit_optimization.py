@@ -42,7 +42,11 @@ Finally, in this example, we also need to import the `pygmo` library.
 # Load standard modules
 import os
 import numpy as np
+# Uncomment the following to make plots interactive
+# %matplotlib widget
 from matplotlib import pyplot as plt
+from itertools import combinations as comb
+
 
 # Load tudatpy modules
 from tudatpy.io import save2txt
@@ -57,6 +61,8 @@ from tudatpy.util import pareto_optimums
 
 # Load pygmo library
 import pygmo as pg
+
+current_dir = os.path.abspath('')
 
 
 ## Helpers
@@ -97,6 +103,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     if check_results:
         np.set_printoptions(precision=100)
         print(initial_orientation_j2000)
+    
         print(initial_orientation_eclipj2000)
 
     # Compute rotation rate
@@ -142,7 +149,8 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
     kepler_elements_reference_julian_day = 2459000.5
     
     # Sets new reference epoch for Itokawa ephemerides (different from J2000)
-    kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000)                                       * constants.JULIAN_DAY
+    kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000) \
+                                      * constants.JULIAN_DAY
     
     # Sets the ephemeris model
     return environment_setup.ephemeris.keplerian(
@@ -267,7 +275,7 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     accelerations_settings_spacecraft = dict(
         Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
                     propagation_setup.acceleration.point_mass_gravity() ],
-        Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(4, 4) ],
+        Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(3, 3) ],
         Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
         Saturn =  [ propagation_setup.acceleration.point_mass_gravity() ],
         Mars =    [ propagation_setup.acceleration.point_mass_gravity() ],
@@ -341,7 +349,12 @@ def get_dependent_variables_to_save():
     return dependent_variables_to_save
 
 
-## Optimisation problem
+## Optimisation
+"""
+Now that the helper functions have been defined for the specific problem at hand, the simulation can be setup. First the problem object will be defined in a way that is compatible with PyGMO, second the orbital simulation will be setup, third a design space exploration will be done and finally the actual optimisation will be performed.
+"""
+
+### Optimisation problem formulation 
 """
 The optimisation problem can now be defined. This has to be done in a class that is compatible to what the PyGMO library can expect from this User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/problem.html#pygmo.problem) from the PyGMO documentation as a reference. In this example, this class is called `AsteroidOrbitProblem`.
 
@@ -397,7 +410,7 @@ class AsteroidOrbitProblem:
         # Retrieves Itokawa gravitational parameter
         itokawa_gravitational_parameter = current_bodies.get("Itokawa").gravitational_parameter
         
-        # Reset the initial state from the decision variable vector
+        # Reset the initial state from the design variable vector
         new_initial_state = element_conversion.keplerian_to_cartesian_elementwise(
             gravitational_parameter=itokawa_gravitational_parameter,
             semi_major_axis=orbit_parameters[0],
@@ -450,14 +463,14 @@ class AsteroidOrbitProblem:
         return self.dynamics_simulator_function()
 
 
-## Setup orbital simulation
+#### Setup orbital simulation
 """
 Before running the optimisation, some aspect of the orbital simulation around Itokawa still need to be setup.
 Most importantly, the simulation bodies, acceleration models, integrator settings, and propagator settings, all have to be defined. To do so, the helpers that were defined above are used.
 """
 
 
-### Simulation settings
+##### Simulation settings
 """
 The simulation settings are first defined.
 
@@ -505,13 +518,35 @@ central_bodies = ["Itokawa"]
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
 
-### Integrator settings
+##### Dependent variables, termination settings, and orbit parameters
+"""
+To define the propagator settings in the subsequent sections, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the dependent variables and termination settings.
+
+The `orbit_parameters` list is defined from a `final_population.dat` file from the optimization. This is not crucial, but the choice of value will help in the Design Space Exploration below; one should have a feasible set of orbit parameters if the variation is only done one-by-one. If all parameters are changed simultaneously, which is also useful for different reasons, then the initial state is of no matter.
+"""
+
+# Define list of dependent variables to save
+dependent_variables_to_save = get_dependent_variables_to_save()
+
+# Create propagation settings
+termination_settings = get_termination_settings(
+    mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
+
+orbit_parameters = [5.583550664266383592e+02, # these parameters came from the final_Population.dat of asteroid example
+                        2.277775134218668063e-01, 
+                        1.088190920952768010e+02,
+                        6.596503208981977195e+01]
+
+
+##### Integrator and Propagator settings
 """
 Let's now define the integrator settings. In this case, a variable step integration scheme is used, with the followings:
  - RKF7(8) coefficient set.
  - Initial time step of 1 sec.
  - Minimum and maximum time steps of 1E-6 sec and 1 Earth day.
  - Relative and absolute error tolerances of 1E-8.
+
+Then, we define pure translational propagation settings with a Cowell propagator. The initial state is set to 0 for both the position and the velocity. This is because the initial state will later be changed in the `AsteroidOrbitProblem.fitness()` function during the optimisation.
 """
 
 # Create numerical integrator settings
@@ -524,39 +559,814 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     relative_error_tolerance=1.0E-8,
     absolute_error_tolerance=1.0E-8)
 
-
-### Propagator settings
-"""
-To define the propagator settings, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the the dependent variables and termination settings.
-
-Then, we define pure translational propagation settings with a Cowel propagator. The initial state is set to 0 for both the position and the velocity. This is because the initial state will later be changed in the `AsteroidOrbitProblem.fitness()` function during the optimisation.
-"""
-
-# Define list of dependent variables to save
-dependent_variables_to_save = get_dependent_variables_to_save()
-
-# Create propagation settings
-termination_settings = get_termination_settings(
-    mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
-
-# Define (Cowell) propagator settings with mock initial state
-propagator_settings = propagation_setup.propagator.translational(
-    central_bodies,
-    acceleration_models,
-    bodies_to_propagate,
-    np.zeros(6),
-    termination_settings,
-    output_variables=dependent_variables_to_save    
-)
+# Get current propagator, and define translational state propagation settings
+propagator = propagation_setup.propagator.cowell
+# Define propagation settings
+initial_state = np.zeros(6)
+propagator_settings = propagation_setup.propagator.translational(central_bodies,
+                                                                         acceleration_models,
+                                                                         bodies_to_propagate,
+                                                                         initial_state,
+                                                                         termination_settings,
+                                                                         propagator,
+                                                                         dependent_variables_to_save)
 
 
-## Optimisation run
-"""
-With the optimistation problem and the simulation setup, let's now run our optimisation using PyGMO.
+# ---
+### NOTE
 """
 
+From here on out a number of code modules are presented. The 'Design Space Exploration' section is divided into three modular pieces of code, after which the 'Optimisation' is a final module. This means that one can interchange the various sections of code below (using the code presented above) to make a separate file for one analysis only.
 
-### Algorithm and problem definition
+---
+"""
+
+### Design Space Exploration
+"""
+Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimalisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimalisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
+
+- Monte Carlo Analysis
+- Fractional Factorial Design
+- Factorial Design
+"""
+
+#### Monte Carlo Analysis
+"""
+Starting with the method that requires the least amount of thinking; a Monte Carlo Analysis. By varying input parameters randomly, and propagating many trajectories, one can discover trends; how the semi-major axis influences the mean latitude objective, for example. The difficulty arises in that the results are not conclusive; design variables can be coupled by definition.
+"""
+
+##### Variable Definitions
+"""
+
+A number of variables have to be defined. The number of runs per design variable, this quantity is a trade-off between resolution of your results and time spent. The seed is defined for reproducibility of the results. A number of arrays are defined for saving the data relevant for post-processing. 
+"""
+
+no_of_runs = 500
+random_seed = 42
+
+np.random.seed(random_seed)
+
+orbit_param_names = ['Semi-major Axis', 'Eccentricity', 'Inclination', 'Longitude of the Node']
+mean_latitude_all_param = np.zeros((no_of_runs, len(orbit_param_names)))
+mean_distance_all_param = np.zeros((no_of_runs, len(orbit_param_names)))
+max_distance = np.zeros((no_of_runs, len(orbit_param_names)))
+min_distance = np.zeros((no_of_runs, len(orbit_param_names)))
+constraint_values = np.zeros((no_of_runs, len(orbit_param_names)))
+parameters = np.zeros((no_of_runs, len(orbit_param_names)))
+
+
+##### Monte Carlo loop
+"""
+
+The Monte Carlo variation is made with two nested loops; one for the various orbit parameters that will be changed, and one for each run. As explained before, only one parameter is changed per run, so for each parameter, a set of random numbers is produced equal to the number of simulations. This new combination is throughput into the fitness function of the `AsteroidOrbitProblem` class. Regarding that `AsteroidOrbitProblem` class, for the sake of consistency, the (UDP) Problem class from PyGMO is used. This class is by no means necessary for running the analysis. After the fitness is evaluated, a number of relevant quantities are saved to the previously defined arrays.
+"""
+
+for i in range(len(orbit_parameters)): 
+
+    #print('Monte Carlo design variable :', orbit_param_names[i])
+    parameter_all_runs = np.random.uniform(design_variable_lb[i], design_variable_ub[i], no_of_runs)
+    parameters[:, i] = parameter_all_runs
+
+
+    for j in range(no_of_runs):
+        #print('Monte Carlo Run :', str(j))
+
+        initial_state[i] = parameter_all_runs[j]
+        orbit_parameters[i] = parameter_all_runs[j]
+
+        # Create Asteroid Orbit Problem object
+        current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                                      integrator_settings,
+                                                                      propagator_settings,
+                                                                      mission_initial_time,
+                                                                      mission_duration,
+                                                                      design_variable_lb,
+                                                                      design_variable_ub
+                                                                      )
+
+        # Update thrust settings and evaluate fitness
+        current_asteroid_orbit_problem.fitness(orbit_parameters)
+
+        ### OUTPUT OF THE SIMULATION ###
+        # Retrieve propagated state and dependent variables
+        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
+        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+
+        # Get the number of function evaluations (for comparison of different integrators)
+        dynamics_simulator = current_asteroid_orbit_problem.get_last_run_dynamics_simulator()
+        function_evaluation_dict = dynamics_simulator.cumulative_number_of_function_evaluations
+        number_of_function_evaluations = list(function_evaluation_dict.values())[-1]
+
+        dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
+        # Retrieve distance
+        distance = dependent_variables_list[:, 0]
+        # Retrieve latitude
+        latitudes = dependent_variables_list[:, 1]
+        # Compute mean latitude
+        mean_latitude = np.mean(np.absolute(latitudes))
+        # Compute mean distance
+        mean_distance = np.mean(distance)  
+
+        # Objectives
+        mean_latitude_all_param[j, i] = mean_latitude
+        mean_distance_all_param[j, i] = mean_distance
+
+        max_dist = np.max(distance)
+        min_dist = np.min(distance)
+
+        
+        dist_to_max = maximum_distance_from_com - max_dist
+        dist_to_min = minimum_distance_from_com - min_dist
+
+        if np.abs(dist_to_max) > np.abs(dist_to_min):
+            constraint_val = np.abs(dist_to_min)
+            maxmin = 'min'
+        else:
+            constraint_val = np.abs(dist_to_max)
+            maxmin = 'max'
+        constraint_values[j, i] = constraint_val
+
+
+#####  Monte Carlo Post-processing
+"""
+A few dictionaries are defined for labelling purposes and the parameters are scattered against the objective values. A color map is used to indicate how close the solutions are to the distance constraint value. Many results are made, but only the semi-major axis variation data is plotted. Remove `break` in the nested loop below to obtain all results.
+"""
+
+# Create dictionaries defining the design variables
+design_variable_names = {0: 'Semi-major axis [m]',
+                           1: 'Eccentricity',
+                           2: 'Inclination [deg]',
+                           3: 'Longitude of the node [deg]'}
+design_variable_range = {0: [800.0, 1300.0],
+                           1: [0.10, 0.17],
+                           2: [90.0, 95.0],
+                           3: [250.0, 270.0]}
+design_variable_symbols = {0: r'$a$',
+                             1: r'$e$',
+                             2: r'$i$',
+                             3: r'$\Omega$'}
+design_variable_units = {0: r' m',
+                           1: r' ',
+                           2: r' deg',
+                           3: r' deg'}
+
+
+obj_arrays = [mean_latitude_all_param, mean_distance_all_param]
+objective_names = ['Latitude', 'Distance']
+for obj in range(2): #number of objectives
+
+    for i in range(len(orbit_param_names)):
+        fig, axs = plt.subplots(2, 2, figsize=(14, 8))
+        plt.subplots_adjust(wspace=0.5, hspace=0.5)
+        fig.suptitle('Monte Carlo - one-by-one - Objective: %s - Scaling: Constrained Distance'%(objective_names[obj]))
+        for ax_index, ax in enumerate(axs.flatten()):
+            cs = ax.scatter(parameters[:, ax_index], obj_arrays[obj][:, ax_index], s=2, c=constraint_values[:,i])
+            cbar = fig.colorbar(cs, ax=ax)
+            cbar.ax.set_ylabel('Distance constraint value')
+            ax.set_ylabel('%s [rad]'%(objective_names[obj]))
+            ax.set_xlabel(design_variable_names[ax_index])
+        
+        #For more verbose results, remove the 'break' below.
+        break
+
+
+#### Fractional Factorial Design
+"""
+The Fractional Factorial Design (FFD) method has a number of pros and cons relative to the Monte Carlo method. The concept is based on orthogonality of a design matrix, with which you can extract information efficiently without running a ton of simulations. In other words, a selection of corners of the design space hypercube are explored. The advantage of the orthogonal array, based on Latin Squares, is that it is computationally very light, thereby of course sacrificing knowledge about your design space. The information per run is high with FFD.
+"""
+
+##### Orthogonal Array
+"""
+
+A function is defined that calculates the orthogonal array depending on the number of levels (2 or 3) and number of factors (design variables) that any specific problem has. The algorithm is based on the Latin Square and the array is systematically built from there. If you print the array that rolls out, you can get a feel for the structure of the method and the reason why it is efficient.
+"""
+
+def orth_arrays(nfact : int, nlevels : int) -> tuple((np.array, int)):
+    """ 
+    Create orthogonal arrays from Latin Square in 4 successive steps:
+    
+    0) Take the column from the smaller array to create 2 new
+       columns and 2x new rows,
+    1) block 1 (1/2 rows): take old values 2x for new columns,
+    2) block 2 (1/2 rows): take old values, use Latin-Square for new
+       columns,
+    3) column 1: divide experiments into groups of 1,2.
+    """
+
+    ierror = 0
+    icount = 0
+
+    row_number = lambda icount, nlevels : nlevels**(icount+1)
+    col_number = lambda row_number : row_number-1
+
+    if nlevels == 2:
+
+        if nfact >= 2 and nfact <= 3:
+                icount = 1
+        elif nfact >= 4 and nfact <= 7:
+                icount = 2
+        elif nfact >= 8 and nfact <= 15:
+                icount = 3
+        elif nfact >= 16 and nfact <= 31:
+                icount = 4
+        elif nfact >= 32 and nfact <= 63:
+                icount = 5
+        elif nfact >= 64 and nfact <= 127:
+                icount = 6
+        elif nfact >= 128 and nfact <= 255:
+                icount = 7
+        else:
+                ierror = 1
+                Lx = np.zeros(1)
+                return Lx, ierror
+
+        Lxrow = row_number(icount, nlevels)
+        Lxcol = col_number(Lxrow)
+        Lx = np.zeros((Lxrow,Lxcol))
+        iaux = Lx.copy()
+        
+        ### Define the 2-level Latin Square ###
+        
+        index_list = [0, 1]
+        two_level = [-1, 1]
+        LS = np.zeros((2,2))
+        LS[0,0] = -1
+        LS[0,1] =  1
+        LS[1,0] =  1
+        LS[1,1] = -1
+        
+        # In case of only one factor, copy the first Latin Square and leave the subroutine.
+        
+        if icount == 0:
+                Lx[0,0] = LS[0,1]
+                Lx[1,0] = LS[0,1]
+                return Lx, ierror
+        
+        iaux[0,0] = -1
+        iaux[1,0] =  1
+        irow = 2
+        icol = 1
+
+        # Algorithm in Matlab starts from index 1
+        Lx = np.hstack((np.zeros((len(Lx), 1)), Lx))
+        Lx = np.vstack((np.zeros((1, len(Lx[0,:]))), Lx))
+        iaux = np.hstack((np.zeros((len(iaux), 1)), iaux))
+        iaux = np.vstack((np.zeros((1, len(iaux[0,:]))), iaux))
+        
+        ### Fill in orthogonal array ###
+
+        for i1 in range(1, icount + 1):
+                for i2 in range(1, irow + 1):
+                        for i3 in range(1, icol + 1):
+                                for p in range(2):
+                                        for q in range(2):
+                                                for r in range(2):
+
+                                                        #Block 1.
+                                                        if iaux[i2,i3] == two_level[q] and p == 0:
+                                                                Lx[i2,i3*2 + index_list[r]] = two_level[q] 
+
+                                                        #Block 2
+                                                        if iaux[i2,i3] == two_level[q] and p == 1:
+                                                                Lx[i2 + irow,i3*2 + index_list[r]] = LS[index_list[q], index_list[r]]
+
+
+                                        Lx[i2 + irow*p,1] = two_level[p]
+
+                if i1 == icount:
+                        # Deleting extra row from Matlab artifact
+                        Lx = np.delete(Lx, 0, 0)
+                        Lx = np.delete(Lx, 0, 1)
+                        return Lx, ierror
+                irow = 2*irow
+                icol = 2*icol+1
+                for i2 in range(1, irow + 1):
+                        for i3 in range(1, icol + 1):
+                                iaux[i2,i3] = Lx[i2,i3]
+
+    elif nlevels == 3:
+
+        if nfact >= 2 and nfact <= 4:
+                icount = 1
+        elif nfact >= 5 and nfact <= 13:
+                icount = 2
+        elif nfact >= 14 and nfact <= 40:
+                icount = 3
+        elif nfact >= 41 and nfact <= 121:
+                icount = 4
+        else:
+                ierror = 1
+                Lx = np.zeros(1)
+                return Lx, ierror
+
+        #Lxrow = 3**(icount+1)
+        #Lxcol = (Lxrow - 1) // 2 # why // 2 -> check
+        Lxrow = row_number(icount, nlevels)
+        Lxcol = col_number(Lxrow) // 2
+        Lx = np.zeros((Lxrow,Lxcol))
+        iaux = Lx.copy()
+
+
+        
+        ### Define the two three-level Latin Squares. Latin Square 1 ###
+        index_list = [0, 1, 2]
+        
+        LS1 = np.zeros((3,3))
+        three_level = [-1, 0, 1]
+        for i in range(3):
+                for j in range(3):
+                                LS1[i,index_list[j]] = three_level[(j+i)%3];
+                                
+         
+        ### ... and Latin Square 2. ###
+         
+        LS2 = np.zeros((3,3))
+        three_level_2 = [-1, 1, 0]
+        for i in range(3):
+                for j in range(3):
+                        LS2[i, index_list[j]] = three_level_2[j-i]
+         
+        ### In case of only one factor, copy the first Latin Square and leave the subroutine. ###
+         
+        if icount == 0:
+           Lx[0,0] = LS1[0,0];
+           Lx[1,0] = LS1[0,1];
+           Lx[2,0] = LS1[0,2];
+           return Lx, ierror
+
+        ### Define iaux for loops ###
+        iaux[0,0] = -1
+        iaux[1,0] = 0
+        iaux[2,0] =  1
+        irow = 3
+        icol = 1
+
+        #Algorithm in Matlab starts from index 1
+        Lx = np.hstack((np.zeros((len(Lx), 1)), Lx))
+        Lx = np.vstack((np.zeros((1, len(Lx[0,:]))), Lx))
+        iaux = np.hstack((np.zeros((len(iaux), 1)), iaux))
+        iaux = np.vstack((np.zeros((1, len(iaux[0,:]))), iaux))
+        
+        ### Filling in Lx ###
+        for i1 in range(1, icount + 1):
+                for i2 in range(1, irow + 1):
+                        for i3 in range(1, icol + 1):
+                                for p in range(3):
+                                        for q in range(3):
+                                                for r in range(3):
+
+                                                        #Block 1.
+
+                                                        if iaux[i2,i3] == three_level[q] and p == 0:
+                                                                Lx[i2 + irow*p,i3*3 + three_level[r]] = three_level[q] 
+
+                                                        #Block 2.
+
+                                                        if iaux[i2,i3] == three_level[q] and p == 1:
+                                                                Lx[i2 + irow*p,i3*3 + three_level[r]] = LS1[index_list[q], index_list[r]]
+
+                                                        #Block 3.
+
+                                                        if iaux[i2,i3] == three_level[q] and p == 2:
+                                                                Lx[i2 + irow*p,i3*3 + three_level[r]] = LS2[index_list[q], index_list[r]]
+
+                                        Lx[i2 + irow*p,1] = three_level[p]
+
+                if i1 == icount:
+                        # Deleting extra row from Matlab artifact
+                        Lx = np.delete(Lx, 0, 0)
+                        Lx = np.delete(Lx, 0, 1)
+                        return Lx, ierror
+                irow = 3*irow
+                icol = 3*icol+1
+                for i2 in range(1, irow + 1):
+                        for i3 in range(1, icol + 1):
+                                iaux[i2,i3] = Lx[i2,i3]
+    else:
+        print('These levels are not implemented yet. (You may wonder whether you need them)')
+
+
+##### Fractional Factorial Design Loop 
+"""
+
+The FFD module is similar to that of the Monte Carlo in that there are two loops including one that changes the design variables and one that loops over the various runs. Within the two loops the `AsteroidOrbitProblem` is defined again and the objective values are extracted after evaluating the fitness function.
+
+The difference is in how the orbit parameters are assigned. Instead of creating vectors of random numbers, the values in the orthogonal array, -1 and 1 for 2-level analysis, map to minimum and maximum orbit parameter values respectively.
+"""
+
+no_of_factors = 4 # This leads to an 8x7 orthogonal array. Meaning 7 contribution percentages will be given in the ANOVA.
+no_of_levels = 2
+
+FFD_array, ierror = orth_arrays(no_of_factors, no_of_levels)
+mean_dependent_variables_list = np.zeros((len(FFD_array), 2)) # the second argument is the number of objectives
+
+for i in range(len(FFD_array)):
+    for j in range(len(orbit_parameters)):
+        
+        if FFD_array[i,j] == -1:
+            orbit_parameters[j] = design_variable_lb[j]
+        else: # if two level orthogonal array
+            orbit_parameters[j] = design_variable_ub[j]
+
+    # Create Asteroid Orbit Problem object
+    current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
+                                                  propagator_settings,
+                                                  mission_initial_time,
+                                                  mission_duration,
+                                                  design_variable_lb,
+                                                  design_variable_ub
+                                                  )
+    # Update orbital parameters and evaluate fitness
+    current_asteroid_orbit_problem.fitness(orbit_parameters)
+
+    ### OUTPUT OF THE SIMULATION ###
+    # Retrieve propagated state and dependent variables
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+
+    dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
+    # Retrieve distance
+    distance = dependent_variables_list[:, 0]
+    # Retrieve latitude
+    latitudes = dependent_variables_list[:, 1]
+    # Compute mean latitude
+    mean_latitude = np.mean(np.absolute(latitudes))
+    # Compute mean distance
+    mean_distance = np.mean(distance)
+
+    mean_dependent_variables_list[i, 0] = mean_distance
+    mean_dependent_variables_list[i, 1] = mean_latitude
+
+
+##### Post-processing FFD
+"""
+As not many runs are done, plotting any data is not sensible. An Analysis of Variance (ANOVA) can be done to determine percentage contributions of each parameter. For example, one would find that the eccentricity—one of the design variables—has a x% contribution to the distance objective.
+
+This ANOVA analysis can also be done on the Factorial Design method discussed below, and so in the interest of space it is only applied there.
+"""
+
+#### Factorial Design
+"""
+
+Factorial design (FD) is another systematic approach to exploring the design space. It can be very useful as far fewer assumptions are made, all corners—and potentially intermediate points—of the hypercube are tested. Whereas with FFD an orthogonal array was created with Latin Squares, here the array is built using Yates algorithm. Some information can be found [here](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35i.htm).
+"""
+
+##### Yates Array
+"""
+Yates array also utilized the two level approach where the array is filled with -1 and 1 corresponding to a maximum value or minimum value. This array has many more rows, because each possible combination of - and + is used.
+
+"""
+
+def yates_array(no_of_levels : int, no_of_factors : int) -> np.array:
+    """
+    Function that creates a yates array according to yates algorithm
+
+    no_of_levels : The number of levels a factor can attain
+
+    no_of_factors : The number of design variables in the problem
+
+    Return : np.array (no_of_levels**no_of_factors, no_of_factors)
+
+    """
+    if no_of_levels == 2: #for the ANOVA analysis with interactions
+        levels = [-1, 1]
+    elif no_of_levels == 7: #for the response surfaces
+        levels = [-3, -2, -1, 0, 1, 2, 3]
+    else:
+        print("The number of levels you have requested is not implemented yet")
+
+    n_rows = no_of_levels**no_of_factors
+    n_cols = no_of_factors
+    yates_array = np.zeros((n_rows, n_cols), dtype='int')
+
+    row_seg = n_rows
+    for col in range(n_cols):
+        repetition_amount = no_of_levels**col # Number of times to repeat the row segment to fill the array
+        row_seg = row_seg // no_of_levels # Get row segment divided by number of levels
+        for j in range(repetition_amount):
+            for it, level in enumerate(levels):
+                # fill in from position i to position i + no_of_levels
+                yates_array[(it*row_seg + j*row_seg*no_of_levels):((it+1)*row_seg +
+                j*row_seg*no_of_levels), col] = levels[it] 
+    return yates_array 
+
+
+##### Anova Analysis
+"""
+
+Now that yates array (an orthogonal array) has been created and the objective values have been obtained, these two pieces of data can be combined to calculate what the contribution is of a certain variable or interaction to an objective. Individual, linear, and quadratic effects are can be taken into account when determining the contributions.
+"""
+
+def anova_analysis(objective_values, 
+                   factorial_design_array : np.array, 
+                   no_of_factors=4, 
+                   no_of_levels=2,
+                   level_of_interactions=2):
+    """
+    Function that performs an ANOVA for 2 levels and n factors. After some definitions, we iterate
+    through yates array, depending on the value being -1 or 1, we add the occurrence to a certain
+    container. Later the amount of items in the container determines the contribution of that
+    specific variable to an objective value. This iteration is done for individual, linear, and
+    quadratic effects, thereby determing the contribution of all interactions.
+
+    objective_values : list of objective function values following from the factorial design array
+
+    factorial_design_array : np.array from yates_array function
+
+    level_of_interactions : Integer either 2 or 3, depending on what interactions you want to
+    include
+
+    Return : This analysis returns the contributions of all parameters/interactions to the
+    specified objective. Specifically, it returns 4 elements: Pi, Pij, Pijk, and Pe. These are lists
+    that contain percentage contributions to the objective. Pi are the individual parameters, Pij
+    are linear interactions, and Pijk are the quadratic interactions. Pe are errors.
+
+    """
+
+    assert len(objective_values) == len(factorial_design_array) # Quick check for validity of data
+
+    number_of_simulations = no_of_levels ** no_of_factors
+
+    #########################
+    ### Array definitions ###
+    #########################
+
+    # Lambda function to determine number of interaction columns
+    interactions = lambda iterable, k : [i for i in comb(range(iterable), k)]
+    no_of_interactions_2 = interactions(no_of_factors, 2) # number of 2-level interactions
+    no_of_interactions_3 = interactions(no_of_factors, 3) # number of 3-level interactions
+
+    # Arrays for individual, 2, and 3 level interactions - sum of squares
+    sum_of_squares_i = np.zeros(no_of_factors)
+    sum_of_squares_ij = np.zeros(len(no_of_interactions_2))
+    sum_of_squares_ijk = np.zeros(len(no_of_interactions_3))
+
+    #Arrays for individual, 2, and 3 level interactions - percentage contribution
+    percentage_contribution_i = np.zeros(no_of_factors)
+    percentage_contribution_ij = np.zeros(len(no_of_interactions_2))
+    percentage_contribution_ijk = np.zeros(len(no_of_interactions_3))
+
+    # Sum of objective values and mean of parameters
+    sum_of_objective = np.sum(objective_values)
+    mean_of_param = sum_of_objective/number_of_simulations
+
+    # Variance and standard deviation of data
+    variance_per_run = np.zeros(number_of_simulations)
+    objective_values_squared = np.zeros(number_of_simulations)
+    for i in range(len(factorial_design_array)):
+        variance_per_run[i] = (objective_values[i] - mean_of_param)**2 / (number_of_simulations-1)
+        objective_values_squared[i] = objective_values[i]**2
+    variance = np.sum(variance_per_run)
+    standard_deviation = np.sqrt(variance)
+    
+    # Square of sums
+    CF = sum_of_objective * mean_of_param
+    # Difference square of sums and sum of squares
+    sum_of_deviation = np.sum(objective_values_squared) - CF
+
+    #####################################
+    ### Iterations through yates array ###
+    #####################################
+
+    ### Linear effects ###
+    # Container for appearance of minimum/maximum value
+    Saux = np.zeros((no_of_factors, no_of_levels))
+    number_of_appearanes = number_of_simulations/no_of_levels
+    for j in range(number_of_simulations):
+        for i in range(no_of_factors):
+            if factorial_design_array[j,i] == -1:
+                Saux[i, 0] += objective_values[j]
+            else:
+                Saux[i, 1] += objective_values[j]
+
+
+    if sum_of_deviation > 1e-6: # If there is a deviation, then there is a contribution.
+        for i in range(no_of_factors):
+            sum_of_squares_i[i] = (1/2)*(Saux[i, 1] - Saux[i, 0])**2/number_of_appearanes
+            percentage_contribution_i[i] = 100 * sum_of_squares_i[i]/sum_of_deviation
+
+    ### 2-level interaction ###
+    # Container for appearance of minimum/maximum value
+    Saux = np.zeros((len(no_of_interactions_2), no_of_levels))
+    for j in range(number_of_simulations):
+        for i in range(len(no_of_interactions_2)):
+            # Interaction sequence of all possible 2-level interactions is created by multiplying the
+            # two respective elements from yates array
+            interaction = factorial_design_array[j, no_of_interactions_2[i][0]] * \
+                            factorial_design_array[j, no_of_interactions_2[i][1]]
+            if interaction == -1:
+                Saux[i, 0] += objective_values[j]
+            else:
+                Saux[i, 1] += objective_values[j]
+
+    if sum_of_deviation > 1e-6: # If there is a deviation, then there is a contribution.
+        for i in range(len(no_of_interactions_2)):
+            sum_of_squares_ij[i] = (1/2)*(Saux[i, 1] - Saux[i, 0])**2/number_of_appearanes
+            percentage_contribution_ij[i] = 100 * sum_of_squares_ij[i]/sum_of_deviation
+
+    ### 3-level interaction ###
+    # Container for appearance of minimum/maximum value
+    Saux = np.zeros((len(no_of_interactions_3), no_of_levels))
+    for j in range(number_of_simulations):
+        for i in range(len(no_of_interactions_3)):
+            # Interaction sequence of all possible 3-level interactions is created by multiplying the
+            # three respective elements from yates array
+            interaction = factorial_design_array[j, no_of_interactions_3[i][0]] * \
+                            factorial_design_array[j, no_of_interactions_3[i][1]] * \
+                              factorial_design_array[j, no_of_interactions_3[i][2]]
+            if interaction == -1:
+                Saux[i, 0] += objective_values[j]
+            else:
+                Saux[i, 1] += objective_values[j]
+
+    if sum_of_deviation > 1e-6: # If there is a deviation, then there is a contribution.
+        for i in range(len(no_of_interactions_3)):
+            sum_of_squares_ijk[i] = (1/2)*(Saux[i, 1] - Saux[i, 0])**2/number_of_appearanes
+            percentage_contribution_ijk[i] = 100 * sum_of_squares_ijk[i]/sum_of_deviation
+
+    ### Error contribution ###
+    sum_of_squares_error = sum_of_deviation - np.sum(sum_of_squares_i) - \
+    np.sum(sum_of_squares_ij) - np.sum(sum_of_squares_ijk)
+
+    percentage_contribution_error = 0
+    if sum_of_deviation > 1e-6: # If there is a deviation, then there is a contribution.
+        percentage_contribution_error = 100 * sum_of_squares_error / sum_of_deviation
+
+    """
+    Because the function returns 4 separate variables, this is how data can be saved from this
+    function:
+
+    percentage_contribution_i, percentage_contribution_ij, percentage_contribution_ijk,
+    percentage_contribution_e = Util.anova_analysis(<objectives>, <yates_array>)
+    """
+
+    return percentage_contribution_i, percentage_contribution_ij, \
+    percentage_contribution_ijk, percentage_contribution_error 
+
+
+
+##### FD loop
+"""
+The orbit parameters are now assigned using the input from Yates array discussed before. Otherwise the structure is the same as Monte Carlo and FFD.
+"""
+
+no_of_levels = 7 # make 7 for the response surfaces
+no_of_factors = len(orbit_parameters)
+
+#Function to create Yates array
+yates_array = yates_array(no_of_levels, no_of_factors)
+no_of_sims = len(yates_array)
+
+design_variable_arr = np.zeros((no_of_levels, no_of_factors))
+for par in range(no_of_factors):
+    design_variable_arr[:, par] = np.linspace(design_variable_lb[par], design_variable_ub[par], no_of_levels, endpoint=True)
+
+param_arr = np.zeros((len(yates_array),len(orbit_parameters)))
+objective_arr = np.zeros((len(yates_array),2))
+
+mean_distances = np.zeros(no_of_sims) 
+mean_latitudes = np.zeros(no_of_sims)
+for i in range(len(yates_array)): # Run through yates array
+    level_combination = yates_array[i, :]
+    for it, j in enumerate(level_combination): #Run through the row of levels from 0 to no_of_levels
+        if no_of_levels == 7:
+            orbit_parameters[it] = design_variable_arr[j+3, it]
+        else:
+            if j == -1:
+                orbit_parameters[it] = design_variable_arr[0, it]
+            if j == 1:
+                orbit_parameters[it] = design_variable_arr[1, it]
+    orbit_param_copy = orbit_parameters.copy()
+    param_arr[i,:] = orbit_param_copy
+
+
+    # Create Asteroid Orbit Problem object
+    current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
+                                                  propagator_settings,
+                                                  mission_initial_time,
+                                                  mission_duration,
+                                                  design_variable_lb,
+                                                  design_variable_ub
+                                                  )
+    # Update orbital parameters and evaluate fitness
+    current_asteroid_orbit_problem.fitness(orbit_parameters)
+
+    ### OUTPUT OF THE SIMULATION ###
+    # Retrieve propagated state and dependent variables
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+
+    dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
+    # Retrieve distance
+    distance = dependent_variables_list[:, 0]
+    # Retrieve latitude
+    latitudes = dependent_variables_list[:, 1]
+    # Compute mean latitude
+    mean_latitude = np.mean(np.absolute(latitudes))
+    # Compute mean distance
+    mean_distance = np.mean(distance)
+
+    objective_arr[i,:] = np.array([mean_distance, mean_latitude])
+    mean_distances[i] = mean_distance
+    mean_latitudes[i] = mean_latitude
+
+# Anova analysis
+i, ij, ijk, err = anova_analysis(mean_distances, #can also be mean_latitudes
+            yates_array,
+            no_of_factors,
+            no_of_levels,
+            level_of_interactions=2)
+
+
+##### ANOVA Results
+"""
+In the tables below, the individual, linear, and quadratic contributions to the distance objective can be found in percentages, which follows from the anova_analysis function. NOTE: These results were made with the 2-level yates array, because the  interaction columns are calculated with -1 and 1. This doesn't work with 7 levels.
+
+|    |  Semi-major Axis  |Eccentricity|Inclination|Longitude of the Node|
+|----|----|----|----|----|
+|Individual Contribution [%]|99.7|0.101|0.037|1.38e-4|
+
+|    |Sma-Ecc|Sma-Inc|Sma-Lon|Ecc-Inc|Ecc-Lon|Inc-Lon|
+|----|----|----|----|----|----|----|
+|Linear Interaction [%]|6.06e-5|0.037|1.38e-4|2.51e-2|3.55e-4|2.28e-4|
+
+|    |  Sma-Ecc-Inc  |Sma-Ecc-Lon|Sma-Inc-Lon|Ecc-Inc-Lon|
+|----|----|----|----|----|
+|Quadratic Contribution [%]|2.51e-2|3.55e-4|2.28e-4|6.42e-5|
+"""
+
+##### Response Surface Post-processing
+"""
+With factorial design, a response surface can also be plotted. These surfaces are generally only useful if the resolution is higher than 2, as you can only see linear trends with two levels. The problem can easily be too large (too many design variables) to run the problem with 7 levels, but for this problem it is doable. The following results are thus created by setting the no_of_levels to 7.
+
+As plotting all the data obtained with the FD is rather verbose, and probably not the best way, each combination of two variables is plotted for the trajectories where the other two parameters are at their minimum—the 0th index.
+
+A few lists are created for labelling, and the iterators for each response surface plot are set to 0. The 6 combinations with their conditions as explained before are implemented, after which the 49 points are plotted (`no_of_levels**2`).
+
+"""
+
+it1, it2, it3, it4, it5, it6 = 0, 0, 0, 0, 0, 0
+combi_list = ['sma_ecc', 'sma_inc', 'sma_lon', 'ecc_inc', 'ecc_lon', 'inc_lon']
+xlabel_list = ['Semi-major Axis [m]','Semi-major Axis [m]', 'Semi-major Axis [m]', 'Eccentricity [-]', 'Eccentricity [-]', 'Inclination [rad]']
+ylabel_list = ['Eccentricity [-]', 'Inclination [rad]', 'Longitude of the Node [rad]', 'Inclination [rad]', 'Longitude of the Node [rad]', 'Longitude of the Node [rad]']
+title_list = ['inc = 0 & lon = 0', 'ecc = 0 & lon = 0', 'ecc = 0 & inc = 0', 'sma = 300 & lon = 0', 'sma = 300 & inc = 0', 'sma = 300 & ecc = 0']
+
+objectives = {}
+params = {}
+for i in combi_list:
+    objectives[i] = np.zeros((no_of_levels**2, 2))
+    params[i] = np.zeros((no_of_levels**2, 2))
+for i in range(len(param_arr)):
+    if param_arr[i, 2] == 0 and param_arr[i, 3] == 0:
+        objectives['sma_ecc'][it1, :] = objective_arr[i, :] 
+        params['sma_ecc'][it1, :] = param_arr[i, [0, 1]]
+        it1 += 1
+    if param_arr[i, 1] == 0 and param_arr[i, 3] == 0:
+        objectives['sma_inc'][it2, :] = objective_arr[i, :] 
+        params['sma_inc'][it2, :] = param_arr[i, [0, 2]]
+        it2 += 1
+    if param_arr[i, 1] == 0 and param_arr[i, 2] == 0:
+        objectives['sma_lon'][it3, :] = objective_arr[i, :] 
+        params['sma_lon'][it3, :] = param_arr[i, [0, 3]]
+        it3 += 1
+    if param_arr[i, 0] == 300 and param_arr[i, 3] == 0:
+        objectives['ecc_inc'][it4, :] = objective_arr[i, :] 
+        params['ecc_inc'][it4, :] = param_arr[i, [1, 2]]
+        it4 += 1
+    if param_arr[i, 0] == 300 and param_arr[i, 2] == 0:
+        objectives['ecc_lon'][it5, :] = objective_arr[i, :] 
+        params['ecc_lon'][it5, :] = param_arr[i, [1, 3]]
+        it5 += 1
+    if param_arr[i, 0] == 300 and param_arr[i, 1] == 0:
+        objectives['inc_lon'][it6, :] = objective_arr[i, :] 
+        params['inc_lon'][it6, :] = param_arr[i, [1, 3]]
+        it6 += 1
+
+fig = plt.figure(figsize=(18, 10))
+fig.suptitle('Response surfaces each combination - 0th level for other parameters', fontweight='bold', y=0.95)
+for i, combi in enumerate(combi_list):
+    ax = fig.add_subplot(2, 3, 1 + i, projection='3d')
+    plt.subplots_adjust(wspace=0.5, hspace=0.5)
+    cmap = ax.plot_surface(params[combi][:, 0].reshape(no_of_levels,
+        no_of_levels), params[combi][:, 1].reshape(no_of_levels,
+            no_of_levels), objectives[combi][:, 1].reshape(no_of_levels,
+                no_of_levels), cmap=plt.get_cmap('copper'))
+
+    ax.set_xlabel(xlabel_list[i], labelpad=5)
+    ax.set_ylabel(ylabel_list[i], labelpad=5)
+    ax.set_zlabel('Mean Latitude [rad]', labelpad=10)
+    ax.set_title('%s - %s '%(combi, title_list[i]), y=1.0, pad=10)
+    ax.view_init(10, -140)
+
+
+### Optimisation run
+"""
+With the optimistation problem and the simulation setup, and a decent understanding of how are problem behaves—how the design space relates to the objective space—let's now run our optimisation using PyGMO.
+"""
+
+#### Algorithm and problem definition
 """
 First, we define a fixed seed that PyGMO will use to generate random numbers. This ensures that the results can be reproduced. 
 
@@ -584,7 +1394,7 @@ prob = pg.problem(orbitProblem)
 algo = pg.algorithm(pg.nsga2(gen=1, seed=fixed_seed))
 
 
-### Initial population
+##### Initial population
 """
 An initial population is now going to be generated by PyGMO, of a size of 48 individuals. This means that 48 orbital simulations will be run, and the fitness corresponding to the 48 individuals will be computed using the UDP.
 """
@@ -594,7 +1404,7 @@ population_size = 48
 pop = pg.population(prob, size=population_size, seed=fixed_seed)
 
 
-### Evolve population
+##### Evolve population
 """
 We now want to make this population evolve, as to (hopefully) get closer to optimum solutions.
 
@@ -619,16 +1429,16 @@ for gen in range(number_of_evolutions):
     fitness_list.append(pop.get_f())
     population_list.append(pop.get_x())
     
-print("Evolving population is finished.        ")
+print("Evolving population is finished.")
 
 
-## Results analysis
+#### Results analysis
 """
 With the population evolved, the optimisation is finished. We can now analyse the results to see how our optimisation was carried, and what our optimum solutions are.
 """
 
 
-### Extract results
+##### Extract results
 """
 First of, we want to save the state and dependent variable history of the orbital simulations that were carried in the first and last generations. To do so, we extract the design variables of all the member of a given population, and we run the orbital simulation again, calling the `orbitProblem.fitness()` function. Then, we can extract the state and dependent variable history by calling the `orbitProblem.get_last_run_dynamics_simulator()` function.
 """
@@ -671,35 +1481,17 @@ for population_index, population_name in pops_to_analyze.items():
                                            population_list[population_index]]
 
 
-### Pareto fronts
+##### Pareto fronts
 """
 As a first analysis of the optimisation results, let's plot the Pareto fronts, to represent the optimums.
 
 This is done for the first and last generation, plotting the score of the two objectives for all of the population members. A colormap is also used to represent the value of the design variables selected by the optimiser. Finally, the Pareto front is plotted in green, showing the limit of the attainable optimum solutions. 
 
 
-These Pareto fronts show that both of the objectives were sucessfully improved after 25 generations, attaining lower values for both of them.
+These Pareto fronts show that both of the objectives were successfully improved after 25 generations, attaining lower values for both of them.
 
 We can also notice that the population is packed closer to the Pareto front after 25 generations. At the opposite, the population was covering a higher area of the design space for the first generation.
 """
-
-# Create dictionaries defining the design variables
-design_variable_names = {0: 'Semi-major axis [m]',
-                           1: 'Eccentricity',
-                           2: 'Inclination [deg]',
-                           3: 'Longitude of the node [deg]'}
-design_variable_range = {0: [800.0, 1300.0],
-                           1: [0.10, 0.17],
-                           2: [90.0, 95.0],
-                           3: [250.0, 270.0]}
-design_variable_symbols = {0: r'$a$',
-                             1: r'$e$',
-                             2: r'$i$',
-                             3: r'$\Omega$'}
-design_variable_units = {0: r' m',
-                           1: r' ',
-                           2: r' deg',
-                           3: r' deg'}
 
 # Loop over populations
 for population_index in simulation_output.keys():
@@ -747,7 +1539,7 @@ plt.tight_layout()
 plt.show()
 
 
-### Design variables histogram
+##### Design variables histogram
 """
 Plotting the histogram of the design variables for the final generation gives insights into what set of orbital parameters lead to optimum solutions. Possible optimum design variables values can then be detected by looking at the number of population members that use them. A high number of occurences in the final generation **could** indicate a better design variable. At least, this offers some leads into what to investigate further.
 """
@@ -770,7 +1562,7 @@ plt.tight_layout()
 plt.show()
 
 
-### Initial and final orbits visualisation
+##### Initial and final orbits visualisation
 """
 One may now want to see how much better the optimised orbits are compared to the ones of the random initial population. This can be done by plotting the orbit bundles from the initial and final generations.
 
@@ -813,7 +1605,7 @@ plt.tight_layout()
 plt.show()
 
 
-### Orbits visualisation by design variable
+##### Orbits visualisation by design variable
 """
 Finally, we can visualise what range of design variables lead to which type of orbits. This is done by plotting the bundle of orbits for the last generation.
 
@@ -822,7 +1614,7 @@ This plot one again shows that the orbits from the final population can be sub-c
 
 # Plot orbits of final generation divided by parameters
 fig = plt.figure(figsize=(9, 5))
-fig.suptitle('Final orbit bundle by decision variable', fontweight='bold', y=0.95)
+fig.suptitle('Final orbit bundle by design variable', fontweight='bold', y=0.95)
 
 # Retrieve current population
 current_generation = simulation_output[number_of_evolutions - 1]
@@ -830,7 +1622,7 @@ current_generation = simulation_output[number_of_evolutions - 1]
 # Plot Pareto fronts for all design variables
 current_population = current_generation[2]
 
-# Loop over decision variables
+# Loop over design variables
 for var in range(4):
     
     # Create axis
@@ -842,13 +1634,17 @@ for var in range(4):
         # Set plot color according to boundaries
         if individual[var] < design_variable_range[var][0]:
             plt_color = 'r'
-            label = design_variable_symbols[var] + ' < ' + str(design_variable_range[var][0]) +                     design_variable_units[var]
+            label = design_variable_symbols[var] + ' < ' + str(design_variable_range[var][0]) + \
+                    design_variable_units[var]
         elif design_variable_range[var][0] < individual[var] < design_variable_range[var][1]:
             plt_color = 'b'
-            label = str(design_variable_range[var][0]) + ' < ' +                     design_variable_symbols[var] +                     ' < ' + str(design_variable_range[var][1]) + design_variable_units[var]
+            label = str(design_variable_range[var][0]) + ' < ' + \
+                    design_variable_symbols[var] + \
+                    ' < ' + str(design_variable_range[var][1]) + design_variable_units[var]
         else:
             plt_color = 'g'
-            label = design_variable_symbols[var] + ' > ' + str(design_variable_range[var][1]) +                     design_variable_units[var]
+            label = design_variable_symbols[var] + ' > ' + str(design_variable_range[var][1]) + \
+                    design_variable_units[var]
 
         # Plot orbit
         state_history = list(current_generation[0][ind_index][0].values())
@@ -873,7 +1669,4 @@ for var in range(4):
 # Show the figure
 plt.tight_layout()
 plt.show()
-
-
-
 
