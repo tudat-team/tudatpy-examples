@@ -100,7 +100,7 @@ def create_bodies():
 
     # Return the system of selected celestial bodies
     return environment_setup.create_system_of_bodies(body_settings)
-    
+
 # Create the system of selected celestial bodies
 bodies = create_bodies()
 
@@ -310,7 +310,7 @@ def create_section_accelerations(section_name):
         ],
         section_name: [
             propagation_setup.acceleration.thrust_from_all_engines( )
-        ]       
+        ]
     }
 
     # Create acceleration models for the given section
@@ -320,7 +320,7 @@ def create_section_accelerations(section_name):
         bodies_to_propagate,
         central_bodies
     )
-    
+
 
 # Define the acceleration models for the first rocket section
 acceleration_models = create_section_accelerations("Section 1")
@@ -397,7 +397,7 @@ def define_dependent_variables_to_save(section_name):
         propagation_setup.dependent_variable.single_acceleration_norm(
             propagation_setup.acceleration.aerodynamic_type, section_name, "Mars")
     ]
-    
+
 # Define the dependent variables to save for the first rocket section
 dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 
@@ -412,13 +412,13 @@ In this case, for the first rocket section, two termination settings are used:
 """
 
 class vehicle_falling:
-    
+
     def __init__(self, body, initial_time):
         # Initialise the class used to compute wether a body is falling or not
         self.body = body
         self.last_h = -np.inf
         self.init_t = initial_time
-        
+
     def is_it_falling(self, time):
         # Compute the difference in altitude since this function was last called
         dh = self.body.flight_conditions.altitude - self.last_h
@@ -512,7 +512,7 @@ def create_propagator_settings(section_name, initial_state, initial_mass, termin
         termination_settings,
         dependent_variables_to_save
     )
-    
+
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, 370, combined_termination_settings)
 
@@ -773,6 +773,3 @@ Finally, the plot at the bottom shows various accelerations over time. Clearly, 
 The Martian gravitational acceleration comes second in magnitude. While it appears constant, because its magnitude is much lower than the one of the thrst, this gravitational acceleration decreases as altitude increases.
 Finally, the aerodynamic acceleration is only significant in the first 2min of the ascent. One may realise that this acceleration follows a similar shape as the dynamic pressure over time. This is because the aerodynamic acceleration relies purely on the aerodynamic coefficients (which are constant in this case), the angle of attack (that varies only between -2deg and 2deg), and the dynamic pressure.
 """
-
-
-
