@@ -13,6 +13,7 @@ http://tudat.tudelft.nl/LICENSE.
 import glob
 
 examples_list = glob.glob("*/*.py")
+examples_list += glob.glob("*/*/*.py")
 
 for example_path in examples_list:
     print("Cleaning example at %s" % example_path)
