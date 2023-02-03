@@ -35,8 +35,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
+from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, propagation
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
 
@@ -172,18 +171,23 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     else:
         system_initial_state_hierarchical = system_initial_state
 
-
 ### Create the propagator settings
 """
 The propagator settings are now defined.
 
 First, a termination setting is setup so that the propagation stops after 5 simulated years.
 
+Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 1 hour.
+
 Then, the translational propagator settings are defined seperately for both system of central bodies.
 """
 
 # Create termination settings
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
+# Create numerical integrator settings
+fixed_step_size = 3600.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
 
 # Create propagation settings
 for propagation_variant in ["barycentric", "hierarchical"]:
@@ -194,6 +198,8 @@ for propagation_variant in ["barycentric", "hierarchical"]:
             acceleration_models_barycentric,
             bodies_to_propagate,
             system_initial_state_barycentric,
+            simulation_start_epoch,
+            integrator_settings,
             termination_condition
         )
     else:
@@ -202,29 +208,16 @@ for propagation_variant in ["barycentric", "hierarchical"]:
             acceleration_models_hierarchical,
             bodies_to_propagate,
             system_initial_state_hierarchical,
+            simulation_start_epoch,
+            integrator_settings,
             termination_condition
         )
-
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used, with a fixed step size of 1 hour.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 3600.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
-
 
 ## Propagate the bodies
 """
 Each of the bodies can now be simulated.
 
-This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
 This function requires the `body_system`, `integrator_settings`, and the appropriate `propagator_settings_X` (with X being the propagation varian), that have all been defined earlier.
 
 In the same step, the history of the propagated states over time, containing both the position and velocity history, is extracted.
@@ -235,11 +228,11 @@ This history takes the form of a dictionary. The keys are the simulated epochs, 
 for propagation_variant in ["barycentric", "hierarchical"]:
     
     if propagation_variant == "barycentric":
-        results_barycentric = numerical_simulation.SingleArcSimulator(
-            body_system, integrator_settings, propagator_settings_barycentric).state_history
+        results_barycentric = numerical_simulation.create_dynamics_simulator(
+            body_system, propagator_settings_barycentric).state_history
     else:
-        results_hierarchical = numerical_simulation.SingleArcSimulator(
-            body_system, integrator_settings, propagator_settings_hierarchical).state_history
+        results_hierarchical = numerical_simulation.create_dynamics_simulator(
+            body_system, propagator_settings_hierarchical).state_history
 
 
 ## Post-process the propagation results

@@ -30,8 +30,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
+from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup
 from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
@@ -248,12 +247,13 @@ dependent_variables_to_save = [
     )
 ]
 
-
 ### Create the propagator settings
 """
 The propagator is finally setup.
 
 First, a termination condition is defined so that the propagation will stop when the end epochs that was defined is reached.
+
+Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 10 seconds.
 
 Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 """
@@ -261,37 +261,30 @@ Then, the translational propagator settings are defined. These are used to simul
 # Create termination settings
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
+# Create numerical integrator settings
+fixed_step_size = 10.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
     central_bodies,
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition,
     output_variables=dependent_variables_to_save
 )
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 10 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
 
 
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
 
-This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.
-This function requires the `bodies`, `integrator_settings`, and `propagator_settings` that have all been defined earlier.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
@@ -299,13 +292,14 @@ This history, taking the form of a dictionary, is then converted to an array con
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
 
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `SingleArcSimulator()` is called.
+The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in
+the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 """
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings
 )
 
 # Extract the resulting state and depedent variable history and convert it to an ndarray

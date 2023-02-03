@@ -235,7 +235,7 @@ def create_simulation_bodies(itokawa_radius):
 """
 """
 
-def get_acceleration_models(bodies_to_integrate, central_bodies, bodies):
+def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     # Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
         Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
@@ -254,7 +254,7 @@ def get_acceleration_models(bodies_to_integrate, central_bodies, bodies):
     return propagation_setup.create_acceleration_models(
         bodies,
         acceleration_settings,
-        bodies_to_integrate,
+        bodies_to_propagate,
         central_bodies)
 
 
@@ -435,11 +435,11 @@ design_variable_ub = (2000, 0.3, 180, 360)
 bodies = create_simulation_bodies(itokawa_radius)
 
 # Define bodies to propagate and central bodies
-bodies_to_integrate = ["Spacecraft"]
+bodies_to_propagate = ["Spacecraft"]
 central_bodies = ["Itokawa"]
 
 # Create acceleration models
-acceleration_models = get_acceleration_models(bodies_to_integrate, central_bodies, bodies)
+acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
 
 #### Dependent variables, termination settings, and orbit parameters
@@ -475,7 +475,7 @@ propagator = propagation_setup.propagator.cowell
 initial_state = np.zeros(6)
 propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          acceleration_models,
-                                                                         bodies_to_integrate,
+                                                                         bodies_to_propagate,
                                                                          initial_state,
                                                                          mission_initial_time,
                                                                          integrator_settings,
