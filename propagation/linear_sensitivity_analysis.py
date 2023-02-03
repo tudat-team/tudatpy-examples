@@ -10,7 +10,7 @@ This example is an extension of the Perturbed Satellite Orbit Application. It ad
 
 The script demonstrates how the basic numerical simulation setup (aiming to propagate the state of the system) can swiftly be extended to enable a study of the system's sensitivity.
 
-Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a SingleArcVariationalSimulator object from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
+Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a create_variational_equations_solver function from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
 
 The availability of variational equations in tudat enables many more, advanced functionalities, such as covariance analysis and precise orbit determination.
 """
@@ -31,9 +31,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation_setup
+from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, estimation_setup
 from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
@@ -125,6 +123,7 @@ environment_setup.add_radiation_pressure_interface(
 Now that the environment is created, the propagation setup is defined.
 
 First, the bodies to be propagated and the central bodies will be defined.
+Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 10 seconds.
 Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
 """
 
@@ -201,6 +200,17 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     true_anomaly=np.deg2rad(139.87)
 )
 
+### Create the integrator settings
+"""
+The last step before starting the simulation is to setup the integrator that will be used.
+
+In this case, a RK4 integrator is used with a step fixed at 10 seconds.
+"""
+
+# Create numerical integrator settings
+fixed_step_size = 10.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+
 
 ### Create the propagator settings
 """
@@ -220,6 +230,8 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition
 )
 
@@ -244,30 +256,17 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
 
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 10 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
-
 
 ## Propagate the dynamics
 """
-In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `SingleArcVariationalSimulator()` function (instead of the `SingleArcSimulator()` function that we would normally use).
+In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `SingleArcSimulator()` function that we would normally use).
 
 This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be intergrated immidiately when the function is called.
 """
 
 # Create the variational equation solver and propagate the dynamics
-variational_equations_solver = numerical_simulation.SingleArcVariationalSimulator(
-    bodies, integrator_settings, propagator_settings, parameters_to_estimate, integrate_on_creation=True
+variational_equations_solver = numerical_simulation.create_variational_equations_solver(
+    bodies, propagator_settings, parameters_to_estimate, simulate_dynamics_on_creation=True
 )
 
 # Extract the resulting state history, state transition matrix history, and sensitivity matrix history

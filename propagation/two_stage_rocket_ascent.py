@@ -35,8 +35,7 @@ from datetime import datetime
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment, environment_setup
-from tudatpy.kernel.numerical_simulation import propagation, propagation_setup
+from tudatpy.kernel.numerical_simulation import environment, environment_setup, propagation, propagation_setup
 from tudatpy.kernel.astro import element_conversion, time_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
@@ -129,6 +128,29 @@ def create_rocket_section(section_name, wet_mass):
 # Create the first rocket section body with a wet mass of 370kg
 create_rocket_section("Section 1", 370.0)
 
+# To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
+# - A constant drag coefficient of 0.85.
+# - No sideslip coefficient (equal to 0).
+# - A lift coefficient of 0.4.
+# - A reference area of 0.25m$^2$.
+# - No moment coefficient.
+
+# Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
+def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
+    # Create aerodynamic coefficient interface settings
+    aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
+        ref_area,
+        [CD, 0, CL]
+    )
+    # Add the aerodynamic coefficient interface settings to the environment, linked to the rocket section
+    environment_setup.add_aerodynamic_coefficient_interface(
+        bodies,
+        section_name,
+        aero_coefficient_settings
+    )
+
+# Create an aerodynamic coefficient interface for the first rocket section
+add_aero_coefficients("Section 1", 0.85, 0.4)
 
 
 #### Thrust model
@@ -244,30 +266,6 @@ def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
 current_thrust_model = thrust_model(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
-
-# To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
-# - A constant drag coefficient of 0.85.
-# - No sideslip coefficient (equal to 0).
-# - A lift coefficient of 0.4.
-# - A reference area of 0.25m$^2$.
-# - No moment coefficient.
-
-# Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
-def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
-    # Create aerodynamic coefficient interface settings
-    aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-        ref_area,
-        [CD, 0, CL]
-    )
-    # Add the aerodynamic coefficient interface settings to the environment, linked to the rocket section
-    environment_setup.add_aerodynamic_coefficient_interface(
-        bodies,
-        section_name,
-        aero_coefficient_settings
-    )
-
-# Create an aerodynamic coefficient interface for the first rocket section
-add_aero_coefficients("Section 1", 0.85, 0.4)
 
 
 ### Propagation setup
@@ -453,12 +451,11 @@ Let's now create integrator settings. These use a RK78 intergration scheme with 
 """
 
 # Define integrator settings with the initial integration epoch
-def define_integrator_settings(initial_epoch):
+def define_integrator_settings():
     initial_time_step = 0.25
     minimum_time_step = 1e-4
     maximum_time_step = 100
     return propagation_setup.integrator.runge_kutta_variable_step_size(
-        initial_epoch,
         initial_time_step,
         propagation_setup.integrator.rkf_78,
         minimum_time_step,
@@ -467,7 +464,7 @@ def define_integrator_settings(initial_epoch):
         absolute_error_tolerance=1e-14)
 
 # Define the integrator settings
-integrator_settings = define_integrator_settings(simulation_start_epoch)
+integrator_settings = define_integrator_settings()
 
 
 ### Create propagator settings
@@ -481,13 +478,15 @@ The translational and mass propagation settings are combined together, to propag
 """
 
 # Define a function to create translational and mass propagation settings for a given rocket section
-def create_propagator_settings(section_name, initial_state, initial_mass, termination_settings):
+def create_propagator_settings(section_name, initial_state, initial_epoch, initial_mass, termination_settings, integrator_settings):
     # Define the translational propagator settings with a Cowell propagator
     translational_propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
         bodies_to_propagate,
         initial_state,
+        initial_epoch,
+        integrator_settings,
         termination_settings,
         propagation_setup.propagator.cowell,
         output_variables=dependent_variables_to_save
@@ -504,30 +503,34 @@ def create_propagator_settings(section_name, initial_state, initial_mass, termin
         bodies_to_propagate,
         mass_rate_models,
         [initial_mass],
+        initial_epoch,
+        integrator_settings,
         termination_settings
     )
     # Return the translational and mass propagator settings combined
     return propagation_setup.propagator.multitype(
         [translational_propagator_settings, mass_propagator_settings],
+        integrator_settings,
+        initial_epoch,
         termination_settings,
         dependent_variables_to_save
     )
 
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, 370, combined_termination_settings)
+propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370,
+                                                 combined_termination_settings, integrator_settings)
 
 
 ### Run the first section ascent
 """
-With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `SingleArcSimulator()` function.
+With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `create_dynamics_simulator()` function.
 
 The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the apochs.
 """
 
 # Run the numerical simulation of the first rocket section
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies,
-    integrator_settings,
     propagator_settings
 )
 # Extract the propagated states and dependent variables and convert them to numpy arrays
@@ -609,7 +612,7 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
 """
 
-integrator_settings = define_integrator_settings(final_epoch_section_1)
+integrator_settings = define_integrator_settings()
 
 
 ### Define propagator settings
@@ -621,7 +624,8 @@ Also, the initial mass of the second section is set as 85kg for the mass propaga
 """
 
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 2", final_state_section_1, 85, termination_max_time_settings)
+propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85,
+                                                 termination_max_time_settings, integrator_settings)
 
 
 ### Run second section simulation
@@ -633,9 +637,8 @@ Note that this may take a little longer to run, since it will propagate for up t
 The state and dependent variable histories for the second section are now saved into the `states_array_section_2` and `dep_vars_array_section_2` numpy arrays.
 """
 
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies,
-    integrator_settings,
     propagator_settings
 )
 states = dynamics_simulator.state_history

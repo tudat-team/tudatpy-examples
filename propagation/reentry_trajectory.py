@@ -38,8 +38,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup, environment
-from tudatpy.kernel.numerical_simulation import propagation_setup, propagation
+from tudatpy.kernel.numerical_simulation import environment_setup, environment, propagation_setup, propagation
 from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
@@ -374,12 +373,18 @@ termination_time_settings = propagation_setup.propagator.time_termination(simula
 combined_termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_altitude_settings, termination_time_settings], fulfill_single_condition=True )
 
+# Create numerical integrator settings
+fixed_step_size = 0.5
+integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+
 # Create the propagation settings
 propagator_settings = propagation_setup.propagator.translational(
     central_bodies,
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     combined_termination_settings,
     output_variables=dependent_variables_to_save
 )
@@ -393,11 +398,6 @@ The last step before starting the simulation is to setup the integrator that wil
 In this case, a RK4 integrator is used with a step fixed at 0.5 seconds.
 """
 
-# Create numerical integrator settings
-fixed_step_size = 0.5
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    simulation_start_epoch, fixed_step_size
-)
 
 
 ## Propagate the trajectory
@@ -405,19 +405,19 @@ integrator_settings = propagation_setup.integrator.runge_kutta_4(
 
 The re-entry trajectory is now ready to be propagated.
 
-This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.
-This function requires the `bodies`, `integrator_settings`, and `propagator_settings` that have all been defined earlier.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the dependent variable history is extracted.
-The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `SingleArcSimulator()` is called.
+The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 
 In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.state_history` variable.
 """
 
 # Create the simulation objects and propagate the dynamics
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings
 )
 
 # Extract the resulting simulation dependent variables

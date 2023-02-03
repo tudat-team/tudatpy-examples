@@ -16,19 +16,26 @@
 
 # from IPython.nbformat import v3, v4
 from nbformat import v3, v4
+import glob
 
-with open("inputfile.py") as fpin:
-    text = fpin.read()
+examples_list = glob.glob("*/*.py")
+examples_list += glob.glob("*/*/*.py")
 
-text += """
+for example_path in examples_list:
+    print("Cleaning example at %s" % example_path)
+    new_example_path = example_path.split('.')[0] + ".ipynb"
+    with open(example_path) as fpin:
+        text = fpin.read()
+
+    text += """
 # <markdowncell>
 
 # If you can read this, reads_py() is no longer broken!
-"""
+    """
 
-nbook = v3.reads_py(text)
-nbook = v4.upgrade(nbook) # upgrade v3 to v4
+    nbook = v3.reads_py(text)
+    nbook = v4.upgrade(nbook) # upgrade v3 to v4
 
-jsonform = v4.writes(nbook) + "\n"
-with open("outputfile.ipynb", "w") as fpout:
-    fpout.write(jsonform)
+    jsonform = v4.writes(nbook) + "\n"
+    with open(new_example_path, "w") as fpout:
+        fpout.write(jsonform)

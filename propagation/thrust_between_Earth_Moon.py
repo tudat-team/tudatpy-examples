@@ -37,14 +37,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Load tudatpy modules
-"""
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
+from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
-"""
 
 
 ## Configuration
@@ -89,10 +86,8 @@ Finally, the system of bodies is created using the settings. This system of bodi
 bodies_to_create = ["Sun", "Earth", "Moon"]
 
 # Create bodies in simulation
-"""
 body_settings = environment_setup.get_default_body_settings(bodies_to_create)
 system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
-"""
 
 
 ### Create the vehicle
@@ -144,9 +139,7 @@ Central bodies are the bodies with respect to which the state of the respective 
 bodies_to_propagate = ["Vehicle"]
 
 # Define central bodies of propagation
-"""
 central_bodies = ["Earth"]
-"""
 
 
 ### Create the acceleration model
@@ -175,19 +168,15 @@ acceleration_on_vehicle = dict(
 )
 
 # Compile the accelerations acting on the vehicle
-"""
 acceleration_dict = dict(Vehicle=acceleration_on_vehicle)
-"""
 
 # Create the acceleration models from the acceleration mapping dictionary
-"""
 acceleration_models = propagation_setup.create_acceleration_models(
     body_system=system_of_bodies,
     selected_acceleration_per_body=acceleration_dict,
     bodies_to_propagate=bodies_to_propagate,
     central_bodies=central_bodies
 )
-"""
 
 
 ### Define the initial state
@@ -216,14 +205,10 @@ In this example, we are interested in saving not only the propagated state of th
 vehicle_altitude_dep_var = propagation_setup.dependent_variable.altitude( "Vehicle", "Earth" )
 
 # Create a dependent variable to save the mass of the vehicle over time
-"""
 vehicle_mass_dep_var = propagation_setup.dependent_variable.body_mass( "Vehicle" )
-"""
 
 # Define list of dependent variables to save
-"""
 dependent_variables_to_save = [vehicle_altitude_dep_var, vehicle_mass_dep_var]
-"""
 
 
 ### Create the termination settings
@@ -237,31 +222,50 @@ These conditions are the following:
 - Stop when the Vehicle reaches the specified end epoch (after 30 days).
 """
 
-# # Create a termination setting to stop when altitude of the vehicle is above 100e3 km
+# Create a termination setting to stop when altitude of the vehicle is above 100e3 km
 termination_distance_settings = propagation_setup.propagator.dependent_variable_termination(
         dependent_variable_settings = vehicle_altitude_dep_var,
         limit_value = 100e6,
         use_as_lower_limit = False)
 
 # Create a termination setting to stop when the vehicle has a mass below 4e3 kg
-"""
 termination_mass_settings = propagation_setup.propagator.dependent_variable_termination(
         dependent_variable_settings = vehicle_mass_dep_var,
         limit_value = 4000.0,
         use_as_lower_limit = True)
-"""
 
 # Create a termination setting to stop at the specified simulation end epoch
-"""
 termination_time_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
-"""
 
 # Setup a hybrid termination setting to stop the simulation when one of the aforementionned termination setting is reached
-"""
-termination_condition = propagation_setup.propagator.hybrid_termination(
+termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_distance_settings, termination_mass_settings, termination_time_settings],
     fulfill_single_condition = True)
+
+### Create the integrator settings
 """
+
+The last step before starting the simulation is to set up the integrator that will be used.
+
+In this case, a RKF7(8) variable step integrator is used, which has a tolerance of $10^{-10}$, can take steps from 0.01 s to 1 day, and starts at an initial step size of 10 s.
+"""
+
+# # Setup the variable step integrator time step sizes
+initial_time_step = 10.0
+minimum_time_step = 0.01
+maximum_time_step = 86400
+
+# Setup the tolerance of the variable step integrator
+tolerance = 1e-10
+
+# # Create numerical integrator settings (using a RKF7(8) coefficient set)
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    initial_time_step,
+    propagation_setup.integrator.rkf_78,
+    minimum_time_step,
+    maximum_time_step,
+    relative_error_tolerance=tolerance,
+    absolute_error_tolerance=tolerance)
 
 
 ### Create the propagator settings
@@ -282,67 +286,38 @@ translational_propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     system_initial_state,
-    termination_condition,
+    simulation_start_epoch,
+    integrator_settings,
+    termination_settings,
     propagation_setup.propagator.cowell,
     output_variables=[vehicle_altitude_dep_var, vehicle_mass_dep_var]
 )
 
 # Create a mass rate model so that the vehicle loses mass according to how much thrust acts on it
-"""
 mass_rate_settings = dict(Vehicle=[propagation_setup.mass_rate.from_thrust()])
 mass_rate_models = propagation_setup.create_mass_rate_models(
     system_of_bodies,
     mass_rate_settings,
     acceleration_models
 )
-"""
 
 # Create the mass propagation settings
-"""
 mass_propagator_settings = propagation_setup.propagator.mass(
     bodies_to_propagate,
     mass_rate_models,
-    [5e3], initial vehicle mass
-    termination_condition )
-"""
+    [5e3], #initial_vehicle_mass
+    simulation_start_epoch,
+    integrator_settings,
+    termination_settings )
 
 # Combine the translational and mass propagator settings
-"""
 propagator_settings = propagation_setup.propagator.multitype(
     [translational_propagator_settings, mass_propagator_settings],
-    termination_condition,
-    [vehicle_altitude_dep_var, vehicle_mass_dep_var])
-"""
-
-
-### Create the integrator settings
-"""
-
-The last step before starting the simulation is to set up the integrator that will be used.
-
-In this case, a RKF7(8) variable step integrator is used, which has a tolerance of $10^{-10}$, can take steps from 0.01 s to 1 day, and starts at an initial step size of 10 s.
-"""
-
-# # Setup the variable step integrator time step sizes
-initial_time_step = 10.0
-minimum_time_step = 0.01
-maximum_time_step = 86400
-
-# Setup the tolerance of the variable step integrator
-"""
-tolerance = 1e-10
-"""
-
-
-# # Create numerical integrator settings (using a RKF7(8) coefficient set)
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    integrator_settings,
     simulation_start_epoch,
-    initial_time_step,
-    propagation_setup.integrator.rkf_78,
-    minimum_time_step,
-    maximum_time_step,
-    relative_error_tolerance=tolerance,
-    absolute_error_tolerance=tolerance)
+    termination_settings,
+    [vehicle_altitude_dep_var, vehicle_mass_dep_var])
+
 
 
 ## Propagate the orbit
@@ -350,8 +325,8 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
 
 The orbit from the Earth to the Moon is now ready to be propagated.
 
-This is done by calling the `SingleArcSimulator()` function of the `numerical_simulation module`.
-This function requires the `system_of_bodies`, `integrator_settings`, and `propagator_settings` that have all been defined earlier.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
@@ -359,26 +334,22 @@ This history, taking the form of a dictionary, is then converted to an array con
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
 
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `SingleArcSimulator()` is called.
+The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do pay attention that converting to an `ndarray` using the `result2array()` utility will shift these indexes because the first column (index 0) will then be the times.
 """
 
 # # Instantiate the dynamics simulator and run the simulation
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    system_of_bodies, integrator_settings, propagator_settings, print_dependent_variable_data=True
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    system_of_bodies, propagator_settings
 )
 
 # Extract the state and dependent variable history
-"""
 state_history = dynamics_simulator.state_history
 dependent_variable_history = dynamics_simulator.dependent_variable_history
-"""
 
 # Convert the dictionaries to multi-dimensional arrays
-"""
 vehicle_array = result2array(state_history)
 dep_var_array = result2array(dependent_variable_history)
-"""
 
 
 ### Get Moon state from SPICE
@@ -393,9 +364,7 @@ moon_states_from_spice = {
     for epoch in list(state_history.keys())
 }
 # Convert the dictionary to a mutli-dimensional array
-"""
 moon_array = result2array(moon_states_from_spice)
-"""
 
 
 ## Post-process the propagation results
@@ -414,26 +383,18 @@ Let's first plot the altitude of the vehicle over time, as given in the second c
 time_days = (vehicle_array[:,0] - vehicle_array[0,0])/constants.JULIAN_DAY
 
 # Create a figure for the altitude of the vehicle above Earth
-"""
 fig1 = plt.figure(figsize=(9, 5))
 ax1 = fig1.add_subplot(111)
 ax1.set_title(f"Vehicle altitude above Earth")
-"""
 
 # Plot the altitude of the vehicle over time
-"""
 ax1.plot(time_days, dep_var_array[:,1]/1e3)
-"""
 
 # Add a grid and axis labels to the plot
-"""
 ax1.grid(), ax1.set_xlabel("Simulation time [day]"), ax1.set_ylabel("Vehicle altitude [km]")
-"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
-"""
 fig1.tight_layout()
-"""
 
 
 ### Vehicle mass over time
@@ -448,19 +409,13 @@ ax2 = fig2.add_subplot(111)
 ax2.set_title(f"Vehicle mass over time")
 
 # Plot the mass of the vehicle over time
-"""
 ax2.plot(time_days, dep_var_array[:,2])
-"""
 
 # Add a grid and axis labels to the plot
-"""
 ax2.grid(), ax2.set_xlabel("Simulation time [day]"), ax2.set_ylabel("Vehicle mass [kg]")
-"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
-"""
 fig2.tight_layout()
-"""
 
 
 ### Plot trajectories in a 3D Projection
@@ -475,23 +430,17 @@ ax3 = fig3.add_subplot(111, projection="3d")
 ax3.set_title(f"System state evolution in 3D")
 
 # Plot the vehicle and Moon positions as curve, and the Earth as a marker
-"""
 ax3.plot(vehicle_array[:,1], vehicle_array[:,2], vehicle_array[:,3], label="Vehicle", linestyle="-", color="green")
 ax3.plot(moon_array[:,1], moon_array[:,2], moon_array[:,3], label="Moon", linestyle="-", color="grey")
 ax3.scatter(0.0, 0.0, 0.0, label="Earth", marker="o", color="blue")
-"""
 
 # Add a legend, set the plot limits, and add axis labels
-"""
 ax3.legend()
 ax3.set_xlim([-3E8, 3E8]), ax3.set_ylim([-3E8, 3E8]), ax3.set_zlim([-3E8, 3E8])
 ax3.set_xlabel("x [m]"), ax3.set_ylabel("y [m]"), ax3.set_zlabel("z [m]")
-"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
-"""
 fig3.tight_layout()
-"""
 
 plt.show()
 

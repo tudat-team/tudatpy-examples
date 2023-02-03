@@ -27,15 +27,15 @@ NAIF's `SPICE` kernels are also loaded here, so that the position of various bod
 # Load standard modules
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy import interpolate
 
 # Load tudatpy modules
 from tudatpy.kernel import constants
 from tudatpy.kernel import numerical_simulation
 from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import propagation
+from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, propagation
+from tudatpy.kernel.numerical_simulation.environment import SystemOfBodies
 
 # Load spice kernels
 spice_interface.load_standard_kernels()
@@ -226,7 +226,6 @@ $$
 where $\mathbf{r_1}$ and $\mathbf{r_2}$ are the position vectors of the first and second satellites respectively.
 """
 
-from tudatpy.kernel.numerical_simulation.environment import SystemOfBodies
 
 class AngleSeparationTermination:
 
@@ -342,20 +341,6 @@ angle_termination_condition = propagation_setup.propagator.custom_termination(an
 termination_list = [time_termination_condition, angle_termination_condition]
 hybrid_termination = propagation_setup.propagator.hybrid_termination(termination_list, fulfill_single_condition=True)
 
-
-# The translational propagation settings are created here.
-
-# Create propagation settings
-propagator_settings = propagation_setup.propagator.translational(
-    central_bodies,
-    acceleration_models,
-    bodies_to_propagate,
-    initial_states,
-    hybrid_termination,
-    output_variables=dependent_variables_to_save
-)
-
-
 ## Creation of integration settings
 """
 
@@ -369,7 +354,6 @@ maximum_step_size = 100.0
 minimum_step_size = 1.0
 tolerance = 1.0E-10
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch,
     initial_step_size,
     propagation_setup.integrator.CoefficientSets.rkf_78,
     minimum_step_size,
@@ -378,14 +362,30 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     tolerance)
 
 
+# The translational propagation settings are created here.
+
+# Create propagation settings
+propagator_settings = propagation_setup.propagator.translational(
+    central_bodies,
+    acceleration_models,
+    bodies_to_propagate,
+    initial_states,
+    simulation_start_epoch,
+    integrator_settings,
+    hybrid_termination,
+    output_variables=dependent_variables_to_save
+)
+
+
+
 ## Execute simulation
 """
 With these commands, we execute the simulation and retrieve the output.
 """
 
 # Create simulation object and propagate dynamics.
-dynamics_simulator = numerical_simulation.SingleArcSimulator(
-    bodies, integrator_settings, propagator_settings)
+dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    bodies, propagator_settings)
 states = dynamics_simulator.state_history
 dependent_variables = dynamics_simulator.dependent_variable_history
 
@@ -407,9 +407,6 @@ vectors).
 Since the output is very dense, we interpolate the dependent variables to plot a more sparse
 output. We do that via the `return_sparse_output()` function below.
 """
-
-from matplotlib import pyplot as plt
-from scipy import interpolate
 
 def return_sparse_output(time_history, variable_history, datapoints=200):
     """

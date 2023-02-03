@@ -182,6 +182,8 @@ def create_time_termination_propagator_settings(central_bodies,
                                                 acceleration_models,
                                                 bodies_to_propagate,
                                                 initial_state: np.ndarray,
+                                                simulation_start_epoch,
+                                                integrator_settings,
                                                 simulation_end_epoch: float,
                                                 dependent_variables_to_save: list):
 
@@ -196,6 +198,8 @@ def create_time_termination_propagator_settings(central_bodies,
         acceleration_models,
         bodies_to_propagate,
         initial_state,
+        simulation_start_epoch,
+        integrator_settings,
         termination_settings_time,
         propagator=current_propagator,
         output_variables=dependent_variables_to_save)
@@ -207,6 +211,8 @@ def create_hybrid_termination_propagator_settings(central_bodies,
                                                   acceleration_models,
                                                   bodies_to_propagate,
                                                   initial_state: np.ndarray,
+                                                  simulation_start_epoch,
+                                                  integrator_settings,
                                                   dependent_variables_to_save: list,
                                                   name_spacecraft: str,
                                                   name_secondary: str,
@@ -263,6 +269,8 @@ def create_hybrid_termination_propagator_settings(central_bodies,
         acceleration_models,
         bodies_to_propagate,
         initial_state,
+        simulation_start_epoch,
+        integrator_settings,
         termination_settings_hybrid,
         propagator=current_propagator,
         output_variables=dependent_variables_to_save)
@@ -443,9 +451,12 @@ current_coefficient_set = propagation_setup.integrator.CoefficientSets.rkdp_87
 current_tolerance = 1e-12
 initial_time_step = 1e-6
 # Maximum step size: inf; minimum step size: eps
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch, initial_time_step, current_coefficient_set, np.finfo(float).eps, np.inf,
-    current_tolerance, current_tolerance)
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(initial_time_step,
+                                                                                  current_coefficient_set,
+                                                                                  np.finfo(float).eps, 
+                                                                                  np.inf,
+                                                                                  current_tolerance, 
+                                                                                  current_tolerance)
 
 
 # Finally, the dependent variables to save during the propagation are selected. Here, no dependent variable is saved, though the code can be modified to do so if desired.
@@ -463,7 +474,7 @@ Having defined the model to use, it is finally possible to propagate the Lagrang
 
 Next, the propagator settings are created using the `create_time_termination_propagator_settings` function: these settings define the propagation of the orbit to an exact final time (the period of the orbit). 
 
-Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `SingleArcVariationalSimulator` is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
+Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `create_variational_equations_solver` function is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
 
 After the propagation is finished, the state and STM histories with respect to the inertial frame are retrieved and converted to the body-fixed frame.
 """
@@ -476,17 +487,20 @@ state_history_lpo_inertial = convert_state_history_body_fixed_to_inertial(
     bodies, name_secondary, {simulation_start_epoch: initial_state_lpo_body_fixed})
 
 # Create propagator settings
-time_propagator_settings = create_time_termination_propagator_settings(
-    central_bodies, acceleration_models, bodies_to_propagate, state_history_lpo_inertial[simulation_start_epoch],
-    period_lpo, dependent_variables_to_save)
+time_propagator_settings = create_time_termination_propagator_settings(central_bodies, 
+                                                                       acceleration_models,
+                                                                       bodies_to_propagate,
+                                                                       state_history_lpo_inertial[simulation_start_epoch],
+                                                                       simulation_start_epoch, 
+                                                                       integrator_settings,
+                                                                       period_lpo, 
+                                                                       dependent_variables_to_save)
 
 # Propagate variational equations, propagating just the STM
 parameter_settings = estimation_setup.parameter.initial_states(time_propagator_settings, bodies)
-lpo_single_arc_solver = numerical_simulation.SingleArcVariationalSimulator(
-        bodies, integrator_settings, time_propagator_settings,
-        estimation_setup.create_parameter_set(parameter_settings, bodies),
-        integrate_on_creation=True, print_dependent_variable_data=False,
-        set_integrated_result=False)
+lpo_single_arc_solver = numerical_simulation.create_variational_equations_solver(
+        bodies, time_propagator_settings, estimation_setup.create_parameter_set(parameter_settings, bodies),
+        simulate_dynamics_on_creation=True)
 
 # Retrieve state and STM history and convert them to body-fixed frame
 state_history_lpo_inertial = lpo_single_arc_solver.state_history
@@ -532,7 +546,7 @@ state_history_lpo_body_fixed_interpolator = interpolators.create_one_dimensional
 
 # Having defined the interpolators, it is now possible to loop over the nodes of the Lagrange point orbit and determine the initial state of the unstable invariant manifold at each of them. This initial state is defined with respect to Phobos' body-fixed frame, so it needs to be converted to the inertial frame before executing the propagation.
 # 
-# Next, the propagator settings are created. Hybrid propagator settings are used, which terminate the propagation after a maximum time or maximum distance to Phobos is reached, or after the spacecraft impacts Phobos (whatever happens first). Finally, the `SingleArcSimulator` function is called to propagate each manifold.
+# Next, the propagator settings are created. Hybrid propagator settings are used, which terminate the propagation after a maximum time or maximum distance to Phobos is reached, or after the spacecraft impacts Phobos (whatever happens first). Finally, the `create_dynamics_simulator` function is called to propagate each manifold.
 # 
 # The two manifold branches (i.e. initial state of the manifold obtained by a positive or negative perturbation) of the orbit are here propagated.
 
@@ -568,15 +582,23 @@ for manifold_direction_to_propagate in [-1, 1]:
             {simulation_start_epoch: manifold_initial_state_body_fixed})
 
         # Create propagator settings
-        hybrid_propagator_settings = create_hybrid_termination_propagator_settings(
-            central_bodies, acceleration_models, bodies_to_propagate, state_history_manifold_inertial[simulation_start_epoch],
-            dependent_variables_to_save, name_spacecraft, name_secondary, gravitational_parameter_secondary,
-            volume_secondary, hybrid_termination_max_distance, hybrid_termination_max_time)
+        hybrid_propagator_settings = create_hybrid_termination_propagator_settings(central_bodies, 
+                                                                                   acceleration_models,
+                                                                                   bodies_to_propagate,
+                                                                                   state_history_manifold_inertial[simulation_start_epoch],
+                                                                                   simulation_start_epoch,
+                                                                                   integrator_settings,
+                                                                                   dependent_variables_to_save,
+                                                                                   name_spacecraft, name_secondary,
+                                                                                   gravitational_parameter_secondary,
+                                                                                   volume_secondary,
+                                                                                   hybrid_termination_max_distance,
+                                                                                   hybrid_termination_max_time)
 
         # Propagate manifold
-        manifold_single_arc_solver = numerical_simulation.SingleArcSimulator(
-            bodies, integrator_settings, hybrid_propagator_settings,
-            print_dependent_variable_data=False, set_integrated_result=False, print_state_data=False)
+        manifold_single_arc_solver = numerical_simulation.create_dynamics_simulator(bodies, 
+                                                                             hybrid_propagator_settings)
+                                                                             
 
         if manifold_direction_to_propagate == -1:
             manifold_single_arc_solvers[0].append(manifold_single_arc_solver)
@@ -660,5 +682,6 @@ ax[0].set_ylabel('y [km]')
 ax[1].set_ylabel('z [km]')
 
 
+plt.show()
 
 
