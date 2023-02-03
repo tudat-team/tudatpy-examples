@@ -42,3 +42,7 @@ __pycache__*
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/*
 */.ipynb_checkpoints/*
+**/.ipynb_checkpoints/*
+
+*/jupyter-lab.log
+jupyter-lab.log
