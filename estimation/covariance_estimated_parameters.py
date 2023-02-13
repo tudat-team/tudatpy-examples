@@ -1,3 +1,7 @@
+
+import sys
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy/")
+
 # Covariance analysis of estimated parameters
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
@@ -201,6 +205,19 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
 )
 
 
+### Create the integrator settings
+"""
+The last step before starting the simulation is to setup the integrator that will be used.
+
+In this case, a RKF78 integrator is used with a step fixed at 60 seconds (this is done by setting both the minimum and maximum step size to 60 seconds, and the tolerance to 1).
+"""
+
+# Create numerical integrator settings
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
+)
+
+
 ### Create the propagator settings
 """
 The propagator is finally setup.
@@ -219,20 +236,9 @@ propagator_settings = propagation_setup.propagator.translational(
     acceleration_models,
     bodies_to_propagate,
     initial_state,
+    simulation_start_epoch,
+    integrator_settings,
     termination_condition
-)
-
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RKF78 integrator is used with a step fixed at 60 seconds (this is done by setting both the minimum and maximum step size to 60 seconds, and the tolerance to 1).
-"""
-
-# Create numerical integrator settings
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    simulation_start_epoch, 60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
 )
 
 
@@ -276,11 +282,12 @@ In more advanced use-cases this observation model settings object can also inclu
 
 # Define the uplink link ends for one-way observable
 link_ends = dict()
-link_ends[observation.transmitter] = ("Earth", "TrackingStation")
-link_ends[observation.receiver] = ("Delfi-C3", "")
+link_ends[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", "TrackingStation")
+link_ends[observation.receiver] = observation.body_origin_link_end_id("Delfi-C3")
 
 # Create observation settings for each link/observable
-observation_settings_list = [observation.one_way_open_loop_doppler(link_ends)]
+link_definition = observation.LinkDefinition( link_ends)
+observation_settings_list = [observation.one_way_doppler_instantaneous( link_definition )]
 
 
 ### Define Observation Simulation Settings
@@ -294,22 +301,14 @@ For each observation model, the observation simulation settings set the times at
 # Define observation simulation times for each link (separated by steps of 1 minute)
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
 observation_simulation_settings = observation.tabulated_simulation_settings(
-    observation.one_way_doppler_type,
-    link_ends,
+    observation.one_way_instantaneous_doppler_type,
+    link_definition,
     observation_times
-)
-
-# Add noise levels of roughly 3.3E-12 [s/m] and add this as Gaussian noise to the observation
-noise_level = 1.0E-3 / constants.SPEED_OF_LIGHT
-observation.add_gaussian_noise_to_settings(
-    [observation_simulation_settings],
-    noise_level,
-    observation.one_way_doppler_type
 )
 
 # Create viability settings
 viability_setting = observation.elevation_angle_viability(["Earth", "TrackingStation"], np.deg2rad(15))
-observation.add_viability_check_to_settings(
+observation.add_viability_check_to_all(
     [observation_simulation_settings],
     [viability_setting]
 )
@@ -367,7 +366,6 @@ estimator = numerical_simulation.Estimator(
     bodies,
     parameters_to_estimate,
     observation_settings_list,
-    integrator_settings,
     propagator_settings)
 
 
@@ -396,20 +394,18 @@ With the simulated observations and the Estimator object, containing the Variati
 Here we collect all inputs required for the inversion in a Pod (Precise orbit determination) input object and define some basic settings of the inversion.
 """
 
-# Save the true parameters to later analyse the error
-truth_parameters = parameters_to_estimate.parameter_vector
-
 # Create input object for estimation, adding observations and parameter set information
-pod_input = estimation.PodInput(
-    simulated_observations, parameters_to_estimate.parameter_set_size)
+covariance_input = estimation.CovarianceAnalysisInput(
+    simulated_observations )
 
 # set methodological options
-pod_input.define_estimation_settings(
+covariance_input.define_covariance_settings(
     reintegrate_variational_equations=False)
 
 # define weighting of the observations in the inversion
-weights_per_observable =     {estimation_setup.observation.one_way_doppler_type: noise_level ** -2}
-pod_input.set_constant_weight_per_observable(weights_per_observable)
+noise_level = 1.0E-3 #noise of 1 mm/s
+weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
+covariance_input.set_constant_weight_per_observable(weights_per_observable)
 
 
 ### Perform the estimation
@@ -418,12 +414,11 @@ Finally, let's run the estimation itself, using the inputs that have been define
 """
 
 # Perform estimation (this also prints the residuals and partials)
-pod_output = estimator.perform_estimation(pod_input)
+covariance_output = estimator.compute_covariance(covariance_input)
 
 
 # Print the estimation error
-print(pod_output.formal_errors)
-print(truth_parameters - parameters_to_estimate.parameter_vector)
+print(covariance_output.formal_errors)
 
 
 ## Results post-processing
@@ -438,7 +433,7 @@ First, let's plot the correlation between the outputs of the estimation.
 """
 
 plt.figure(figsize=(9,5))
-plt.imshow(np.abs(pod_output.correlations), aspect='auto', interpolation='none')
+plt.imshow(np.abs(covariance_output.correlations), aspect='auto', interpolation='none')
 plt.colorbar()
 plt.tight_layout()
 plt.show()
@@ -454,42 +449,13 @@ observations_list = np.array(simulated_observations.concatenated_observations)
 
 plt.figure(figsize=(9, 5))
 plt.title("Observations as a function of time.")
-plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
+plt.scatter(observation_times / 3600.0, observations_list )
 plt.xlabel("Time [hr]")
 plt.ylabel("Range rate [m/s]")
 plt.grid()
 plt.tight_layout()
 plt.show()
 
-
-### Residuals history
-"""
-The history of residuals from the estimation can also been analysed by plotting their history.
-"""
-
-residual_history = pod_output.residual_history
-fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(9, 11))
-subplots_list = [ax1, ax2, ax3, ax4, ax5]
-
-
-for i in range(5):
-    subplots_list[i].scatter(observation_times, residual_history[:, i])
-plt.tight_layout()
-plt.show()
-
-
-### Final residuals
-"""
-Finally, we can analyse the final residuals, print them, and plot them.
-"""
-
-print(pod_output.formal_errors / (truth_parameters - parameters_to_estimate.parameter_vector))
-final_residuals = pod_output.final_residuals
-
-plt.figure(figsize=(9,5))
-plt.hist(final_residuals, 25)
-plt.tight_layout()
-plt.show()
 
 
 
