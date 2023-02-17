@@ -478,14 +478,14 @@ The translational and mass propagation settings are combined together, to propag
 """
 
 # Define a function to create translational and mass propagation settings for a given rocket section
-def create_propagator_settings(section_name, initial_state, initial_epoch, initial_mass, termination_settings, integrator_settings):
+def create_propagator_settings(section_name, initial_state, simulation_start_epoch, initial_mass, termination_settings, integrator_settings):
     # Define the translational propagator settings with a Cowell propagator
     translational_propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
         acceleration_models,
         bodies_to_propagate,
         initial_state,
-        initial_epoch,
+        simulation_start_epoch,
         integrator_settings,
         termination_settings,
         propagation_setup.propagator.cowell,
@@ -503,7 +503,7 @@ def create_propagator_settings(section_name, initial_state, initial_epoch, initi
         bodies_to_propagate,
         mass_rate_models,
         [initial_mass],
-        initial_epoch,
+        simulation_start_epoch,
         integrator_settings,
         termination_settings
     )
@@ -511,7 +511,7 @@ def create_propagator_settings(section_name, initial_state, initial_epoch, initi
     return propagation_setup.propagator.multitype(
         [translational_propagator_settings, mass_propagator_settings],
         integrator_settings,
-        initial_epoch,
+        simulation_start_epoch,
         termination_settings,
         dependent_variables_to_save
     )
@@ -676,7 +676,6 @@ total_a = dep_vars_array[:,5]
 SH_a = dep_vars_array[:,6]
 thrust_a = dep_vars_array[:,7]
 aero_a = dep_vars_array[:,8]
-
 
 ### Plot the results
 """
