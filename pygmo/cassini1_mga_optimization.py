@@ -119,7 +119,7 @@ class TransferTrajectoryProblem:
         self.legs_tof_ub = legs_tof_ub
 
         # Save the transfer trajectory object as a lambda function
-        # This is done so that the class is "pickable", i.e., can be serialized by pygmo
+        # PyGMO internally pickles its user defined objects and some objects cannot be pickled properly without using lambda functions.
         self.transfer_trajectory_function = lambda: transfer_trajectory_object
 
     def get_bounds(self) -> tuple:
@@ -379,7 +379,7 @@ plt.tight_layout()
 plt.legend()
 
 
-#### Plot the transfer
+### Plot the transfer
 """
 Finally, the position history throughout the transfer can be retrieved from the transfer trajectory object and plotted.
 """
