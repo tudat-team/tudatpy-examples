@@ -3,10 +3,10 @@ channels:
   - conda-forge
   - tudat-team
 dependencies:
-  - python=3.9
   - matplotlib
   - scipy
   - tudatpy
   - pandas
   - notebook
+  - pygmo
   - ipympl
