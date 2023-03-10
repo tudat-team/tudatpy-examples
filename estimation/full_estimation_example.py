@@ -1,4 +1,4 @@
-# DELFI-C3 - Covariance Analysis
+# DELFI-C3 - Parameter Estimation
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
@@ -6,13 +6,13 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 ## Context
 """
-This example highlights the basic steps of setting up an orbit estimation routine. In particular, note that within this example we will focus on how to set up the estimation of a covariance matrix and its propagation over the course of the spacecraft's orbit. For the full estimation of the initial state, drag coefficient, and radiation pressure coefficient of the spacecraft see TBD-LINK.
+This example highlights the basic steps of setting up an orbit estimation routine. In particular, note that within this example we will focus on how to set up and perform the full estimation of a spacecraft's initial state, drag coefficient, and radiation pressure coefficient. For the propagation of the covariance matrix over the course of the spacecraft's orbit see TBD-LINK.
 
-Have you already followed the full estimation example? Then you might want to skip the first part of this example dealing with the setup of all relevant (environment, propagation, and estimation) modules and dive straight in to the propagation of the [covariance](#covariance_section).
+Have you already followed the covariance example? Then you might want to skip the first part of this example dealing with the setup of all relevant (environment, propagation, and estimation) modules and dive straight in to the full [estimation](#estimation_section) of all chosen parameters.
 
 To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of open-loop Doppler range-rate measurements at 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
 
-FINAL TEXT COVARIANCE ANALYSIS?
+FINAL TEXT FULL ESTIMATION?
 """
 
 ## Import statements
@@ -267,7 +267,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 """
 We now have to define the times at which observations are to be simulated. To this end, we will define the settings for the simulation of the individual observations from the previously defined observation models. Bear in mind that these observation simulation settings are not to be confused with the ones to be used when setting up the estimator object, as done just above.
 
-Finally, for each observation model, the observation simulation settings set the times at which observations are simulated and defines the viability criteria and noise of the observation. Realise that the latter is technically not needed within the scope of a covariance analysis but for the sake of completeness (and with eye for the estimation example re-using this code) we have opted to nonetheless include it already.
+Finally, for each observation model, the observation simulation settings set the times at which observations are simulated and defines the viability criteria and noise of the observation.
 
 Note that the actual simulation of the observations requires `Observation Simulators`, which are created automatically by the `Estimator` object. Hence, one cannot simulate observations before the creation of an estimator.
 """
@@ -280,7 +280,7 @@ observation_simulation_settings = observation.tabulated_simulation_settings(
     observation_times
 )
 
-# Add noise levels of roughly 1.0E-3 [m/s] and add this as Gaussian noise to the observation
+# Add noise levels of roughly 3.3E-12 [s/m] and add this as Gaussian noise to the observation
 noise_level = 1.0E-3
 observation.add_gaussian_noise_to_observable(
     [observation_simulation_settings],
@@ -349,9 +349,9 @@ simulated_observations = estimation.simulate_observations(
     bodies)
 
 
-# <a id='covariance_section'></a>
+# <a id='estimation_section'></a>
 
-## Perform the covariance analysis
+## Perform the estimation
 """
 Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is entirely identical.
 """
@@ -359,43 +359,93 @@ Having simulated the observations and created the `Estimator` object - containin
 
 ### Set up the inversion
 """
-To set up the inversion of the problem, we collect all relevant inputs in the form of a covariance input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
+To set up the inversion of the problem, we collect all relevant inputs in the form of a estimation input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
 """
 
-# Create input object for covariance analysis
-covariance_input = estimation.CovarianceAnalysisInput(
+# Save the true parameters to later analyse the error
+truth_parameters = parameters_to_estimate.parameter_vector
+
+# Create input object for the estimation
+estimation_input = estimation.EstimationInput(
     simulated_observations)
 
 # Set methodological options
-covariance_input.define_covariance_settings(
+estimation_input.define_estimation_settings(
     reintegrate_variational_equations=False)
 
 # Define weighting of the observations in the inversion
 weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-covariance_input.set_constant_weight_per_observable(weights_per_observable)
+estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
 
-### Propagate the covariance matrix
+### Estimate the individual parameters
 """
-Using the just defined inputs, we can ultimately run the computation of our covariance matrix. Printing the resulting formal errors will give us the diagonal entries of the matrix - while the first six entries represent the uncertainties in the (cartesian) initial state, the seventh and eighth are the errors associated with the gravitational parameter of Earth and the aerodynamic drag coefficient, respectively.
+Using the just defined inputs, we can ultimately run the estimation of the selected parameters. After a pre-defined maximum number of iterations (the default value is set to a total of five), the least squares estimator - ideally having reached a sufficient level of convergence - will stop with the process of iterating over the problem and updating the parameters.
+
+Since we have now estimated the actual parameters - unlike when only propagating the covariance matrix over the course of the orbit - we are able to qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones. Doing this highlights the fact that the formal errors one gets as the result of a covariance analysis tend to sketch a too optimistic version of reality - typically, the true errors are by a certain factor (the true-to-formal-error rate) larger.
 """
 
 # Perform the covariance analysis
-covariance_output = estimator.compute_covariance(covariance_input)
+estimation_output = estimator.perform_estimation(estimation_input)
 
 
 # Print the covariance matrix
-print(covariance_output.formal_errors)
+print(estimation_output.formal_errors)
+print(truth_parameters - parameters_to_estimate.parameter_vector)
 
 
-### Correlation
+## Results post-processing
 """
-Finally, to further process the obtained data, we can - exemplary - plot the correlation between the individual parameters we have estimated. While a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
+Finally, to further process the obtained data, one can - exemplary - plot the behaviour of the simulated observations over time, the history of the residuals, or the statistical interpretation of the final residuals.
 """
 
-plt.figure(figsize=(9,5))
-plt.imshow(np.abs(covariance_output.correlations), aspect='auto', interpolation='none')
-plt.colorbar()
+
+### Range-rate over time
+"""
+First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizont and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
+"""
+
+observation_times = np.array(simulated_observations.concatenated_times)
+observations_list = np.array(simulated_observations.concatenated_observations)
+
+plt.figure(figsize=(9, 5))
+plt.title("Observations as a function of time.")
+plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
+plt.xlabel("Time [hr]")
+plt.ylabel("Range rate [m/s]")
+plt.grid()
 plt.tight_layout()
 plt.show()
+
+
+### Residuals history
+"""
+One might also opt to instead plot the behaviour of the residuals per iteration of the estimator. To this end, we have thus plotted the residuals of the individual observations as a function of time. Note that we can observe a seemingly equal spread around zero. As expected - since we have not defined it this way - the observation is thus not biased.
+"""
+
+residual_history = estimation_output.residual_history
+fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(9, 11))
+subplots_list = [ax1, ax2, ax3, ax4, ax5]
+
+for i in range(5):
+    subplots_list[i].scatter(observation_times, residual_history[:, i])
+plt.tight_layout()
+plt.show()
+
+
+### Final residuals
+"""
+Finally, we could also decide to analyse the final residuals. For each of the estimated parameters, we have calculated the true-to-formal-error rate, as well as plotted the distribution of the final residuals.
+"""
+
+print((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)
+final_residuals = estimation_output.final_residuals
+
+plt.figure(figsize=(9,5))
+plt.hist(final_residuals, 25)
+plt.tight_layout()
+plt.show()
+
+
+
 
