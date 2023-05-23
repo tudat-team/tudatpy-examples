@@ -91,7 +91,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     
     # Get initial Itokawa orientation in inertial frame but in the Ecliptic plane
     initial_orientation_eclipj2000 = np.matmul(spice.compute_rotation_matrix_between_frames(
-        "ECLIPJ2000", "J2000", 0.0), initial_orientation_j2000)
+        "J2000", "ECLIPJ2000", 0.0), initial_orientation_j2000)
 
     # Manually check the results, if desired
     check_results = False
