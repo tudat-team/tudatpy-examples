@@ -1,21 +1,52 @@
+# Galilean Satellites - Initial State Estimation
+"""
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+"""
+
+
+## Context
+"""
+Within this example, we will dive into using ephemeris states of celestial bodies as 'artificial' observations in order to improve their respective simulation quality over long arcs of propagation and hence counteract minor shortcomings in the implemented physical (acceleration) models. We will showcase how we can enhance the accuracy of predicted orbits of the Galilean moons based on the most current ephemerides (NOE-5) published by IMCEE.
+
+In particular, this entails simulating observations based on the ephemerides of the Galilean moons, estimating an improved initial state for all four moons (with the original a-priori state taken from the NOE-5 ephemeris), and finally inspecting the (correct) representation and stability of the Laplace resonance between the inner three moons (Io, Europa, and Ganymede).
+"""
+
+## Import Statements
+"""
+Typically - in the most pythonic way - all required modules are imported at the very beginning.
+
+Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Within this example, while no particular new functionality of `tudatpy` will be introduced, we will nevertheless explore the already known parts of the `estimation` module in more depth and how it can be applied to intricate problems.
+"""
+
 # General imports
 import math
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
+
 # tudatpy imports
 from tudatpy.kernel import constants
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.astro import time_conversion
+from tudatpy.kernel.astro import time_conversion, element_conversion
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
 from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
 
+# Problem-specific imports
+import galilean_moons_state_estimation_util as Util
 
-###########################################################################
-# DEFINE SIMULATION SETTINGS ##############################################
-###########################################################################
+
+## Orbital Simulation
+"""
+Entirely independent of the upcoming estimation-process, we first have to define the general settings of the simulation, create the environment, and define all relevant settings of the propagation.
+"""
+
+
+### Simulation Settings
+"""
+Besides importing tudat's standard kernels - which handily already include a version of the NOE-5 ephemeris, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
+"""
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -26,9 +57,10 @@ simulation_end_epoch = 35.73 * constants.JULIAN_YEAR
 simulation_duration = simulation_end_epoch - simulation_start_epoch
 
 
-###########################################################################
-# CREATE ENVIRONMENT ######################################################
-###########################################################################
+### Create the Environment
+"""
+For the problem at hand, the environment consists of the Jovian system with its four largest moons - Io, Europa, Ganymede, and Callisto - as well as Saturn and the Sun which will be relevant when creating some perturbing accelerations afterwards. While slightly altering the standard settings of the moons, such that their rotation around their own main axis resembles a synchronous rotation, we will also apply a tabulated ephemeris based on every current (standard) ephemeris to the moons' settings. While, at first glance, this does not add any value to the simulation, this step is crucial in order to later be able to simulate the moons states purely based on their ephemerides without having to propagate their states.
+"""
 
 # Create default body settings for selected celestial bodies
 jovian_moons_to_create = ['Io', 'Europa', 'Ganymede', 'Callisto']
@@ -44,29 +76,10 @@ body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
 ### Ephemeris Settings Moons ###
-# Get the original ephemeris settings
-original_io_ephemeris_settings = body_settings.get('Io').ephemeris_settings
-original_europa_ephemeris_settings = body_settings.get('Europa').ephemeris_settings
-original_ganymede_ephemeris_settings = body_settings.get('Ganymede').ephemeris_settings
-original_callisto_ephemeris_settings = body_settings.get('Callisto').ephemeris_settings
-# Apply new tabulated ephemeris settings
-body_settings.get('Io').ephemeris_settings = environment_setup.ephemeris.tabulated_from_existing(
-    original_io_ephemeris_settings,
-    simulation_start_epoch,
-    simulation_end_epoch,
-    time_step=5.0 * 60.0)
-body_settings.get('Europa').ephemeris_settings = environment_setup.ephemeris.tabulated_from_existing(
-    original_europa_ephemeris_settings,
-    simulation_start_epoch,
-    simulation_end_epoch,
-    time_step=5.0 * 60.0)
-body_settings.get('Ganymede').ephemeris_settings = environment_setup.ephemeris.tabulated_from_existing(
-    original_ganymede_ephemeris_settings,
-    simulation_start_epoch,
-    simulation_end_epoch,
-    time_step=5.0 * 60.0)
-body_settings.get('Callisto').ephemeris_settings = environment_setup.ephemeris.tabulated_from_existing(
-    original_callisto_ephemeris_settings,
+for moon in jovian_moons_to_create:
+    # Apply tabulated ephemeris settings
+    body_settings.get(moon).ephemeris_settings = environment_setup.ephemeris.tabulated_from_existing(
+    body_settings.get(moon).ephemeris_settings,
     simulation_start_epoch,
     simulation_end_epoch,
     time_step=5.0 * 60.0)
@@ -75,27 +88,22 @@ body_settings.get('Callisto').ephemeris_settings = environment_setup.ephemeris.t
 # Define overall parameters describing the synchronous rotation model
 central_body_name = "Jupiter"
 original_frame = "ECLIPJ2000"
+target_frames = ['IAU_Io', 'IAU_Europa', 'IAU_Ganymede', 'IAU_Callisto']
 # Define satellite specific parameters and change rotation model settings
-target_frame = 'IAU_IO'
-body_settings.get('Io').rotation_model_settings = environment_setup.rotation_model.synchronous(
-    central_body_name, original_frame, target_frame)
-target_frame = 'IAU_Europa'
-body_settings.get('Europa').rotation_model_settings = environment_setup.rotation_model.synchronous(
-    central_body_name, original_frame, target_frame)
-target_frame = 'IAU_Ganymede'
-body_settings.get('Ganymede').rotation_model_settings = environment_setup.rotation_model.synchronous(
-    central_body_name, original_frame, target_frame)
-target_frame = 'IAU_Callisto'
-body_settings.get('Callisto').rotation_model_settings = environment_setup.rotation_model.synchronous(
-    central_body_name, original_frame, target_frame)
+for moon_idx, moon in enumerate(jovian_moons_to_create):
+    body_settings.get(moon).rotation_model_settings = environment_setup.rotation_model.synchronous(
+        central_body_name, original_frame, target_frames[moon_idx])
 
 # Create system of selected bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
-###########################################################################
-# CREATE PROPAGATION SETTINGS #############################################
-###########################################################################
+### Create Propagator Settings
+"""
+Trivially, in order to estimate 'better' initial states for the Galilean moons we have to include all four of them in our propagation. Acceleration-wise - apart from the individual numbers - they are moreover modelled entirely identical: mutual spherical harmonic acceleration due to Jupiter, tidal dissipation on both the moons and the primary, mutual spherical harmonic acceleration due to the remaining three moons, and point mass gravity attraction by both Saturn and the Sun.
+
+The initial states of the moons are taken from the NOE-5 ephemeris and will later also serve as a-priori information and input to the estimator. We will further use a Dormand-Prince 8th order integrator (RKDP8) with a fixed step-size of 30 minutes. Note that while this example saves the Kepler elements of all four moons as dependent variables, this is not strictly necessary for the estimation as such, but purely serves as means of better post-processing visualization of the results.
+"""
 
 # Define bodies that are propagated, and their central bodies of propagation
 bodies_to_propagate = ['Io', 'Europa', 'Ganymede', 'Callisto']
@@ -133,8 +141,7 @@ acceleration_settings_io = dict(
                                                                                   True, False),
              propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
                                                                                   time_lag_jupiter_io,
-                                                                                  True, True),
-             propagation_setup.acceleration.relativistic_correction(use_schwarzschild=True)],
+                                                                                  True, True)],
     Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
@@ -153,8 +160,7 @@ acceleration_settings_europa = dict(
                                                                                   True, False),
              propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
                                                                                   time_lag_jupiter_europa,
-                                                                                  True, True),
-             propagation_setup.acceleration.relativistic_correction(use_schwarzschild=True)],
+                                                                                  True, True)],
     Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
@@ -173,8 +179,7 @@ acceleration_settings_ganymede = dict(
                                                                                   True, False),
              propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
                                                                                   time_lag_jupiter_ganymede,
-                                                                                  True, True),
-             propagation_setup.acceleration.relativistic_correction(use_schwarzschild=True)],
+                                                                                  True, True)],
     Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
@@ -193,8 +198,7 @@ acceleration_settings_callisto = dict(
                                                                                   True, False),
              propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
                                                                                   time_lag_jupiter_callisto,
-                                                                                  True, True),
-             propagation_setup.acceleration.relativistic_correction(use_schwarzschild=True)],
+                                                                                  True, True)],
     Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
     Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
@@ -220,7 +224,7 @@ for body in bodies_to_propagate:
 initial_states = np.concatenate(initial_states)
 
 ### Integrator Settings ###
-# Use fixed step-size integrator (DP8) with fixed time-step of 30 minutes
+# Use fixed step-size integrator (RKDP8) with fixed time-step of 30 minutes
 # Create integrator settings
 time_step_sec = 30.0 * 60.0
 integrator_settings = propagation_setup.integrator. \
@@ -230,6 +234,12 @@ integrator_settings = propagation_setup.integrator. \
 ### Termination Settings ###
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
+# Define Keplerian elements of the Galilean moons as dependent variables
+dependent_variables_to_save = [propagation_setup.dependent_variable.keplerian_state('Io', 'Jupiter'),
+                               propagation_setup.dependent_variable.keplerian_state('Europa', 'Jupiter'),
+                               propagation_setup.dependent_variable.keplerian_state('Ganymede', 'Jupiter'),
+                               propagation_setup.dependent_variable.keplerian_state('Callisto', 'Jupiter')]
+
 ### Propagator Settings ###
 propagator_settings = propagation_setup.propagator. \
     translational(central_bodies=central_bodies,
@@ -238,10 +248,21 @@ propagator_settings = propagation_setup.propagator. \
                   initial_states=initial_states,
                   initial_time=simulation_start_epoch,
                   integrator_settings=integrator_settings,
-                  termination_settings=termination_condition)
+                  termination_settings=termination_condition,
+                  output_variables=dependent_variables_to_save)
 
 
-### CREATE LINK ENDS FOR MOONS ###
+## Orbital Estimation
+"""
+Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required link ends for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
+"""
+
+
+### Create Link Ends for the Moons
+"""
+Since we will be using the [cartesian_position](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.cartesian_position) type of observable to simulate the ephemeris-states of the moons, we will have to define the link-ends for all four moons to be of the `observed_body` type. Finally, we will also have to create the complete set of link definitions for each moon individually.
+"""
+
 link_ends_io = dict()
 link_ends_io[estimation_setup.observation.observed_body] = estimation_setup.observation.\
     body_origin_link_end_id('Io')
@@ -262,13 +283,25 @@ link_ends_callisto[estimation_setup.observation.observed_body] = estimation_setu
     body_origin_link_end_id('Callisto')
 link_definition_callisto = estimation_setup.observation.LinkDefinition(link_ends_callisto)
 
-### OBSERVATION MODEL SETTINGS ###
+
+### Observation Model Settings
+"""
+As mentioned above, we will 'observe' the state of the moons at every epoch as being perfectly cartesian and handily available to the user. However, note that the `cartesian_position` observable is typically not realized in reality but mainly serves verification or analysis purposes.
+"""
+
 position_observation_settings = [estimation_setup.observation.cartesian_position(link_definition_io),
                                  estimation_setup.observation.cartesian_position(link_definition_europa),
                                  estimation_setup.observation.cartesian_position(link_definition_ganymede),
                                  estimation_setup.observation.cartesian_position(link_definition_callisto)]
 
-### OBSERVATIONS SIMULATION SETTINGS ###
+
+### Observation Simulation Settings
+"""
+To simulate the states of the moons at every given epochs, we will have to define the simulation settings for all moons. For the problem at hand, they will be entirely identical - we have to define the correct `observable_type` that is associated with the `cartesian_position` observable, give the above-realised `link_definition`, and finally define the epochs at which we want to take the states from the respective ephemerides.
+
+Finally, realise that the default setting for the `reference_link_end_type` argument of the [`tabulated_simulation_settings`](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings) function is set to `LinkEndType`.receiver. However, to satisfy the estimators expectation when using the `position_observable_type` the default value has to be overwritten and set to `observed_body`. This might be different on a case-by-case situation and should carefully be evaluated when using different types of observables, since the estimation will crash otherwise.
+"""
+
 # Define epochs at which the ephemerides shall be checked
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 3.0 * 3600)
 # Create the observation simulation settings per moon
@@ -298,7 +331,14 @@ observation_simulation_settings = [observation_simulation_settings_io,
                                    observation_simulation_settings_ganymede,
                                    observation_simulation_settings_callisto]
 
-### "SIMULATE" EPHEMERIS STATES OF SATELLITES ###
+
+### Simulate Ephemeris' States of Satellites
+"""
+In a nutshell, what we want to do is to check the ephemeris every three hours - as defined just above - and take the associated (cartesian) state of all four moons at that moment as our observable. However, in order to automatically satisfy all requirements in terms of inputs to the estimator, we have to manually create an `observation_simulator` object, since we explicitly do not want to use the (propagating) simulators that get created alongside the estimator.
+
+The way custom-implemented observation simulators are implemented is that they do not propagate any bodies themselves but simulate the observations based on the (tabulated) ephemerides of all involved bodies. To this end, while setting up the environment we have already set the NOE-5 ephemeris as tabulated ephemerides for all Galilean moons. Thanks to this, we can directly create the required observation simulator object and finally simulate the observations according to the above-defined settings.
+"""
+
 # Create observation simulators
 ephemeris_observation_simulators = estimation_setup.create_observation_simulators(
     position_observation_settings, bodies)
@@ -309,16 +349,27 @@ ephemeris_satellite_states = estimation.simulate_observations(
     ephemeris_observation_simulators,
     bodies)
 
-### PARAMETERS TO ESTIMATE ###
+
+### Define Estimable Parameters
+"""
+Given the problem at hand - minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations - we are mainly interested in an improved initial state of all four Galilean moons. We will thus restrict the set of estimable parameters to the moons' initial states.
+"""
+
 parameters_to_estimate_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
 parameters_to_estimate = estimation_setup.create_parameter_set(parameters_to_estimate_settings, bodies)
 original_parameter_vector = parameters_to_estimate.parameter_vector
 
-### PERFORM THE ESTIMATION ###
-# Create the estimator
+
+### Perform the Estimation
+"""
+Using the set of artificial cartesian 'observations' of the moons' ephemerides we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end we will make use of the known estimation functionality of tudat - nevertheless, note that in order to easily post-process the results we have changed the associated settings such that the moons' state histories will be saved for every iteration of the estimation. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
+"""
+
 print('Running propagation...')
 estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
                                            position_observation_settings, propagator_settings)
+
+
 # Create input object for the estimation
 estimation_input = estimation.EstimationInput(ephemeris_satellite_states)
 # Set methodological options
@@ -326,27 +377,43 @@ estimation_input.define_estimation_settings(save_state_history_per_iteration=Tru
 # Perform the estimation
 print('Performing the estimation...')
 print(f'Original initial states: {original_parameter_vector}')
+
+
 estimation_output = estimator.perform_estimation(estimation_input)
 initial_states_updated = parameters_to_estimate.parameter_vector
 print('Done with the estimation...')
 print(f'Updated initial states: {initial_states_updated}')
 
 
+## Post-Processing
+"""
+# With the initial states updated, the estimation is finished. In the following we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution.
+
+To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as 'ground-truth' solution.
+
+Finally, we will graphically compare the absolute difference of our estimated solution as well as the behaviour of the Laplace resonance between the three inner moons - Io, Europa, Ganymede - with the ephemeris-solution.
+"""
+
 ### LOAD DATA ###
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
 state_history = simulator_object.dynamics_results.state_history
+dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
+
 ### Ephemeris Kepler elements ####
 # Initialize containers
 ephemeris_state_history = dict()
+ephemeris_keplerian_states = dict()
 jupiter_gravitational_parameter = bodies.get('Jupiter').gravitational_parameter
 # Loop over the propagated states and use the IMCEE ephemeris as benchmark solution
 for epoch in state_history.keys():
     io_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
-    target_body_name='Io',
-    observer_body_name='Jupiter',
-    reference_frame_name='ECLIPJ2000',
-    aberration_corrections='none',
-    ephemeris_time=epoch)
+        target_body_name='Io',
+        observer_body_name='Jupiter',
+        reference_frame_name='ECLIPJ2000',
+        aberration_corrections='none',
+        ephemeris_time=epoch)
+    keplerian_state_io = element_conversion.cartesian_to_keplerian(io_from_ephemeris,
+                                                                   jupiter_gravitational_parameter)
 
     europa_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
         target_body_name='Europa',
@@ -354,6 +421,8 @@ for epoch in state_history.keys():
         reference_frame_name='ECLIPJ2000',
         aberration_corrections='none',
         ephemeris_time=epoch)
+    keplerian_state_europa = element_conversion.cartesian_to_keplerian(europa_from_ephemeris,
+                                                                       jupiter_gravitational_parameter)
 
     ganymede_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
         target_body_name='Ganymede',
@@ -361,6 +430,8 @@ for epoch in state_history.keys():
         reference_frame_name='ECLIPJ2000',
         aberration_corrections='none',
         ephemeris_time=epoch)
+    keplerian_state_ganymede = element_conversion.cartesian_to_keplerian(ganymede_from_ephemeris,
+                                                                         jupiter_gravitational_parameter)
 
     callisto_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
         target_body_name='Callisto',
@@ -368,18 +439,52 @@ for epoch in state_history.keys():
         reference_frame_name='ECLIPJ2000',
         aberration_corrections='none',
         ephemeris_time=epoch)
+    keplerian_state_callisto = element_conversion.cartesian_to_keplerian(callisto_from_ephemeris,
+                                                                         jupiter_gravitational_parameter)
 
     ephemeris_state = np.concatenate((io_from_ephemeris, europa_from_ephemeris,
                                       ganymede_from_ephemeris, callisto_from_ephemeris))
+    keplerian_state = np.concatenate((keplerian_state_io, keplerian_state_europa,
+                                      keplerian_state_ganymede, keplerian_state_callisto))
+
     ephemeris_state_history[epoch] = ephemeris_state
+    ephemeris_keplerian_states[epoch] = keplerian_state
 
+propagation_kepler_elements = np.vstack(list(dependent_variable_history.values()))
+ephemeris_kepler_elements = np.vstack(list(ephemeris_keplerian_states.values()))
 
+propagated_kepler_elements_dict = {'Io': propagation_kepler_elements[:, 0:6],
+                                   'Europa': propagation_kepler_elements[:, 6:12],
+                                   'Ganymede': propagation_kepler_elements[:, 12:18],
+                                   'Callisto': propagation_kepler_elements[:, 18:24]}
+ephemeris_kepler_elements_dict = {'Io': ephemeris_kepler_elements[:, 0:6],
+                                  'Europa': ephemeris_kepler_elements[:, 6:12],
+                                  'Ganymede': ephemeris_kepler_elements[:, 12:18],
+                                  'Callisto': ephemeris_kepler_elements[:, 18:24]}
 
 state_history_difference = np.vstack(list(state_history.values())) - np.vstack(list(ephemeris_state_history.values()))
 position_difference = {'Io': state_history_difference[:, 0:3],
                        'Europa': state_history_difference[:, 6:9],
                        'Ganymede': state_history_difference[:, 12:15],
                        'Callisto': state_history_difference[:, 18:21]}
+
+# Calculate propagated Laplace stability
+
+mean_longitude_dict_prop = Util.calculate_mean_longitude(propagated_kepler_elements_dict)
+
+laplace_stability_prop = mean_longitude_dict_prop['Io'] \
+                         - 3 * mean_longitude_dict_prop['Europa'] \
+                         + 2 * mean_longitude_dict_prop['Ganymede']
+laplace_stability_prop = np.mod(laplace_stability_prop, 2 * math.pi)
+
+# Calculate ephemeris Laplace stability
+
+mean_longitude_dict_ephem = Util.calculate_mean_longitude(ephemeris_kepler_elements_dict)
+
+laplace_stability_ephem = mean_longitude_dict_ephem['Io'] \
+                         - 3 * mean_longitude_dict_ephem['Europa'] \
+                         + 2 * mean_longitude_dict_ephem['Ganymede']
+laplace_stability_ephem = np.mod(laplace_stability_ephem, 2 * math.pi)
 
 ### PLOTTING ###
 time2plt = list()
@@ -388,7 +493,7 @@ for epoch in epochs_julian_seconds:
     epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
     time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
 
-fig, ax1 = plt.subplots(1, 1, figsize=(9, 6))
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6))
 
 ax1.plot(time2plt, np.linalg.norm(position_difference['Io'], axis=1) * 1E-3,
          label=r'Io ($i=1$)', c='#A50034')
@@ -398,9 +503,20 @@ ax1.plot(time2plt, np.linalg.norm(position_difference['Ganymede'], axis=1) * 1E-
          label=r'Ganymede ($i=3$)', c='#EC6842')
 ax1.plot(time2plt, np.linalg.norm(position_difference['Callisto'], axis=1) * 1E-3,
          label=r'Callisto ($i=4$)', c='#009B77')
-ax1.set_title(r'Difference in Position (C-M)')
+ax1.set_title(r'Difference in Position')
 ax1.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax1.xaxis.set_minor_locator(mdates.MonthLocator())
 ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax1.set_ylabel(r'Difference [km]')
 ax1.legend()
+
+ax2.plot(time2plt, laplace_stability_prop * 180 / math.pi, label='Propagated', c='#A50034')
+ax2.plot(time2plt, laplace_stability_ephem * 180 / math.pi, label='NOE 5 Ephemeris', c='#EC6842',
+         linestyle=(0, (5, 10)))
+ax2.set_title(r'$\Phi_L=\lambda_I-3 \lambda_E+2 \lambda_G$')
+ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
+ax2.xaxis.set_minor_locator(mdates.MonthLocator())
+ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
+ax2.set_ylabel(r'Laplace $\Phi_L$ [deg]')
+ax2.legend();
+
