@@ -193,9 +193,9 @@ For the problem at hand, we will use an RKF78 integrator with a fixed step-size 
 """
 
 # Create numerical integrator settings
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
-)
+integrator_settings = propagation_setup.integrator.\
+    runge_kutta_fixed_step_size(initial_time_step=60.0,
+                                coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
 
 
 ### Create the propagator settings
@@ -366,8 +366,10 @@ To set up the inversion of the problem, we collect all relevant inputs in the fo
 truth_parameters = parameters_to_estimate.parameter_vector
 
 # Create input object for the estimation
+convergence_checker = estimation.estimation_convergence_checker(maximum_iterations=4)
 estimation_input = estimation.EstimationInput(
-    simulated_observations)
+    simulated_observations,
+    convergence_checker=convergence_checker)
 
 # Set methodological options
 estimation_input.define_estimation_settings(
@@ -385,7 +387,7 @@ Using the just defined inputs, we can ultimately run the estimation of the selec
 Since we have now estimated the actual parameters - unlike when only propagating the covariance matrix over the course of the orbit - we are able to qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones. Doing this highlights the fact that the formal errors one gets as the result of a covariance analysis tend to sketch a too optimistic version of reality - typically, the true errors are by a certain factor (the true-to-formal-error rate) larger.
 """
 
-# Perform the covariance analysis
+# Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
 
 
@@ -409,11 +411,13 @@ observation_times = np.array(simulated_observations.concatenated_times)
 observations_list = np.array(simulated_observations.concatenated_observations)
 
 plt.figure(figsize=(9, 5))
-plt.title("Observations as a function of time.")
+plt.title("Observations as a function of time")
 plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
+
 plt.xlabel("Time [hr]")
 plt.ylabel("Range rate [m/s]")
 plt.grid()
+
 plt.tight_layout()
 plt.show()
 
@@ -424,28 +428,38 @@ One might also opt to instead plot the behaviour of the residuals per iteration 
 """
 
 residual_history = estimation_output.residual_history
-fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(9, 11))
-subplots_list = [ax1, ax2, ax3, ax4, ax5]
 
-for i in range(5):
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
+subplots_list = [ax1, ax2, ax3, ax4]
+
+for i in range(4):
     subplots_list[i].scatter(observation_times, residual_history[:, i])
+
+ax3.set_xlabel("Time since J2000 [s]")
+ax4.set_xlabel("Time since J2000 [s]")
+ax1.set_ylabel("Observation Residual [m/s]")
+ax3.set_ylabel("Observation Residual [m/s]")
+
 plt.tight_layout()
 plt.show()
 
 
 ### Final residuals
 """
-Finally, we could also decide to analyse the final residuals. For each of the estimated parameters, we have calculated the true-to-formal-error rate, as well as plotted the distribution of the final residuals.
+Finally, one can also analyse the residuals of the last iteration. Hence, for each of the estimated parameters, we have calculated the true-to-formal-error rate, as well as plotted the statistical distribution of the final residuals between the simulated observations and the estimated orbit. Ideally, given the type of observable we have used (i.e. free of any bias) as well as a statistically sufficient high number of observations, we would expect to see a Gaussian distribution with zero mean here.
 """
 
-print((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)
+print('True-to-formal-error ratio:')
+print('\nInitial state')
+print(((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)[:6])
+print('\nPhysical parameters')
+print(((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)[6:])
+
 final_residuals = estimation_output.final_residuals
 
 plt.figure(figsize=(9,5))
 plt.hist(final_residuals, 25)
+
 plt.tight_layout()
 plt.show()
-
-
-
 

@@ -193,9 +193,9 @@ For the problem at hand, we will use an RKF78 integrator with a fixed step-size 
 """
 
 # Create numerical integrator settings
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    60.0, propagation_setup.integrator.rkf_78, 60.0, 60.0, 1.0, 1.0
-)
+integrator_settings = propagation_setup.integrator.\
+    runge_kutta_fixed_step_size(initial_time_step=60.0,
+                                coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
 
 
 ### Create the propagator settings
@@ -388,14 +388,58 @@ covariance_output = estimator.compute_covariance(covariance_input)
 print(covariance_output.formal_errors)
 
 
-### Correlation
+## Results post-processing
 """
-Finally, to further process the obtained data, we can - exemplary - plot the correlation between the individual parameters we have estimated. While a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
+Finally, to further process the obtained data, one can - exemplary - plot the correlation between the individual estimated parameters, or the behaviour of the formal error over time.
 """
 
-plt.figure(figsize=(9,5))
+
+### Correlation
+"""
+When dealing with the results of covariance analyses - as a measure of how the estimated variable differs from the 'thought' true value - it is important to underline that the correlation between the parameters is another important aspect to take into consideration. In particular, correlation describes how two parameters are related with each other. Typically, a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
+"""
+
+plt.figure(figsize=(9, 6))
+
 plt.imshow(np.abs(covariance_output.correlations), aspect='auto', interpolation='none')
 plt.colorbar()
+
+plt.title("Correlation Matrix")
+plt.xlabel("Index - Estimated Parameter")
+plt.ylabel("Index - Estimated Parameter")
+
+plt.tight_layout()
+plt.show()
+
+
+### Propagated Formal Errors
+"""
+"""
+
+initial_covariance = covariance_output.covariance
+state_transition_interface = estimator.state_transition_interface
+output_times = observation_times
+
+# Propagate formal errors over the course of the orbit
+propagated_formal_errors = estimation.propagate_formal_errors_split_output(
+    initial_covariance=initial_covariance,
+    state_transition_interface=state_transition_interface,
+    output_times=output_times)
+# Split tuple into epochs and formal errors
+epochs = np.array(propagated_formal_errors[0])
+formal_errors = np.array(propagated_formal_errors[1])
+
+plt.figure(figsize=(9, 5))
+plt.title("Observations as a function of time")
+plt.plot(output_times / (24*3600), formal_errors[:, 0], label=r"$x$")
+plt.plot(output_times / (24*3600), formal_errors[:, 1], label=r"$y$")
+plt.plot(output_times / (24*3600), formal_errors[:, 2], label=r"$z$")
+
+plt.xlabel("Time [days]")
+plt.ylabel("Formal Errors in Position [m]")
+plt.legend()
+plt.grid()
+
 plt.tight_layout()
 plt.show()
 

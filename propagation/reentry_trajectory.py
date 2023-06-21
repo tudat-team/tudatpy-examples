@@ -243,7 +243,9 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
 
-# ### Add rotation model based on aerodynamic guidance
+### Add rotation model based on aerodynamic guidance
+"""
+"""
 
 # Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
