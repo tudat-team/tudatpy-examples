@@ -122,9 +122,9 @@ plt.show()
 
 ## Set Up the Observations
 """
+Having set the underlying environment model of the simulated orbit, we can define the observational model. This entails the addition all required ground stations, the definition of the observation links and types, as well as the precise simulation settings.
 """
 
-Having set the underlying environment model of the simulated orbit, we can define the observational model. This entails the addition all required ground stations, the definition of the observation links and types, as well as the precise simulation settings.
 ### Add a ground station
 """
 Following its real-world counterpart, our simulated Mars Express spacecraft will also be tracked using ESA's New Norcia (NNO) ESTRACK ground station. Located in North-East Australia, it will be set up with an altitude of 252m, 31.0482°S, 116.191°E.
@@ -433,7 +433,7 @@ ax1.plot(time2plt_normalized, (mex_prop[:, 1] - mex_sim_obs[:, 1]), label=r'$\De
 ax1.plot(time2plt_normalized, (mex_prop[:, 2] - mex_sim_obs[:, 2]), label=r'$\Delta z$')
 ax1.plot(time2plt_normalized, np.linalg.norm((mex_prop[:, 0:3] - mex_sim_obs[:, 0:3]), axis=1), label=r'$||\Delta X||$')
 
-ax1.set_title("Element-wise difference with propagated observations")
+ax1.set_title("Element-wise difference between true and estimated states")
 ax1.set_xlabel(r'$Time$ [days]')
 ax1.set_ylabel(r'$\Delta X$ [m]')
 ax1.legend()
