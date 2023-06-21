@@ -365,6 +365,14 @@ To set up the inversion of the problem, we collect all relevant inputs in the fo
 # Save the true parameters to later analyse the error
 truth_parameters = parameters_to_estimate.parameter_vector
 
+# Perturb the initial state estimate from the truth (10 m in position; 0.1 m/s in velocity)
+perturbed_parameters = truth_parameters.copy( )
+for i in range(3):
+    perturbed_parameters[i] += 10.0
+    perturbed_parameters[i+3] += 0.01
+parameters_to_estimate.parameter_vector = perturbed_parameters
+
+
 # Create input object for the estimation
 convergence_checker = estimation.estimation_convergence_checker(maximum_iterations=4)
 estimation_input = estimation.EstimationInput(
@@ -412,7 +420,7 @@ observations_list = np.array(simulated_observations.concatenated_observations)
 
 plt.figure(figsize=(9, 5))
 plt.title("Observations as a function of time")
-plt.scatter(observation_times / 3600.0, observations_list * constants.SPEED_OF_LIGHT)
+plt.scatter(observation_times / 3600.0, observations_list )
 
 plt.xlabel("Time [hr]")
 plt.ylabel("Range rate [m/s]")
@@ -429,16 +437,16 @@ One might also opt to instead plot the behaviour of the residuals per iteration 
 
 residual_history = estimation_output.residual_history
 
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(9, 6), sharex=True)
 subplots_list = [ax1, ax2, ax3, ax4]
 
 for i in range(4):
     subplots_list[i].scatter(observation_times, residual_history[:, i])
+    subplots_list[i].set_ylabel("Observation Residual [m/s]")
+    subplots_list[i].set_title("Iteration "+str(i+1))
 
 ax3.set_xlabel("Time since J2000 [s]")
 ax4.set_xlabel("Time since J2000 [s]")
-ax1.set_ylabel("Observation Residual [m/s]")
-ax3.set_ylabel("Observation Residual [m/s]")
 
 plt.tight_layout()
 plt.show()
@@ -459,7 +467,9 @@ final_residuals = estimation_output.final_residuals
 
 plt.figure(figsize=(9,5))
 plt.hist(final_residuals, 25)
-
+plt.xlabel('Final iteration range-rate residual [m/s]')
+plt.ylabel('Occurences [-]')
+plt.title('Histogram of residuals on final iteration')
 plt.tight_layout()
 plt.show()
 
