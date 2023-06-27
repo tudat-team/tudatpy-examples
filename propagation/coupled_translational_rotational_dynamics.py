@@ -83,9 +83,8 @@ spice.load_standard_kernels([])
 
 ## Auxiliary functions
 """
-"""
-
 In order to keep the main code neat and clean, several auxiliary functions will be used that need to be defined before the main code. Feel free to skip them now and come back to them when they are used in the script.
+"""
 ### Gravitational field definition
 """
 Tudat's environment defaults don't include much information about Phobos, so we will have to create it ourselves from scratch. Part of this process is assigning Phobos a gravitational field, which takes a few lines. Thus, the corresponding code will be separated from the main script into the function below. This function returns Phobos' gravity field settings.
@@ -312,13 +311,13 @@ body_settings.get('Phobos').gravity_field_settings.scaled_mean_moment_of_inertia
 # AND NOW WE CREATE THE BODIES OBJECT
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+"""
+Although both the translation and rotation of Phobos will be numerically integrated, it is advantegous to assign the body object with a-priori ephemeris and rotation models. One might want to access these attributes - for instance to retrieve an initial state - and pre-existing ephemeris and rotation models prevent potential internal inconsistencies within tudat.
 
-# Although both the translation and rotation of Phobos will be numerically integrated, it is advantegous to assign the body object with a-priori ephemeris and rotation models. One might want to access these attributes - for instance to retrieve an initial state - and pre-existing ephemeris and rotation models prevent potential internal inconsistencies within tudat.
-# 
-# If you read through the lines of the `body_settings`, you might have noticed that we are assigning the `scaled_moment_of_inertia` of Phobos to its `gravity_field_settings`, while no other mention to Phobos' inertia tensor is made when creating this environment. As it turns, there exists a relationship between the components of the inertia tensor and the degree 1 and 2 harmonic coefficients (see [reference to sections 2.2.4 of my literature study, or any of the sources I reference there]), completed by the scaled mean moment of ienrtia. When calling the function `create_system_of_bodies()`, Tudat will automatically compute the inertia tensor of Phobos using the information of its gravity field. Thus, information on the inertia tensor has been unified inside the `gravity_field_settings`.
-# 
-# Now that our environment is complete. It is time to start defining the dynamics themselves.
-# 
+If you read through the lines of the `body_settings`, you might have noticed that we are assigning the `scaled_moment_of_inertia` of Phobos to its `gravity_field_settings`, while no other mention to Phobos' inertia tensor is made when creating this environment. As it turns, there exists a relationship between the components of the inertia tensor and the degree 1 and 2 harmonic coefficients (see [reference to sections 2.2.4 of my literature study, or any of the sources I reference there]), completed by the scaled mean moment of ienrtia. When calling the function `create_system_of_bodies()`, Tudat will automatically compute the inertia tensor of Phobos using the information of its gravity field. Thus, information on the inertia tensor has been unified inside the `gravity_field_settings`.
+
+Now that our environment is complete. It is time to start defining the dynamics themselves.
+"""
 ## Coupled dynamics
 """
 If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**, and the combined translational-rotational is another example of this mult-type propagation. The way Tudat deals with these multi-type propagations is by keeping all different propagations separate and creating the appropriate "single-type" propagators for each type of dynamics, and then putting them all together at then end in this _multi-type propagator_. Thus, we will follow the same process here.
@@ -330,8 +329,6 @@ Below, we will begin by creating these common inputs and will then move on to th
 
 
 ### Common inputs
-"""
-"""
 
 # INTEGRATOR SETTINGS
 # Here, we will select an RKDP7(8) integrator working in a fixed-step regime with a step size of 5 minutes. (For example, why not.)
@@ -558,21 +555,22 @@ plt.legend()
 
 plt.show()
 
+"""
+**Note:** The third Euler angle of Phobos, $\varphi$, has been commented out of the plot. This is because it represents Phobos' rotation about its $z$ axis, and therefore it will increase secularly and overlap with $\Psi$.
 
-# **Note:** The third Euler angle of Phobos, $\varphi$, has been commented out of the plot. This is because it represents Phobos' rotation about its $z$ axis, and therefore it will increase secularly and overlap with $\Psi$.
-# 
-# Here, there are two things that immediately stand out: Mars' coordinates in Phobos' sky are a mess (i.e. Phobos' orientation is not what we expected) and the inclination of Phobos is nowhere near 0. We will start by addressing the latter. Notice that "the inclination of Phobos" is usually thought of as measured from the Martian equator. Here, however, the Euler angles of the orbit are computed with respect to inertial space, i.e. the equator of the Earth in this case. The Martian equator is inclined by about $35.5º$ with respect to that of the Earth, and that is why we see Phobos' inclination oscillate around that value rather than $0º$.
-# 
-# Explaining the orientation of Phobos is a bit lengthier. The rotational equations of motion presented at the beginning of this example, also known as Euler equations, give rise to non-trivial oscillatory solutions when their homogeneous form are solved. This means that, even when setting all torques to 0, Phobos' rotational motion will be oscillatory around all three axes. These solutions are called _proper modes_ or _normal modes_ and have a particular frequency associated to them - which is often times referred to as _normal mode_ as well - which is determined by Phobos' physical properties and the mean motion of its orbit. Although an in-depth discussion of normal modes will not be provided here - the interested reader is referred to [reference to Appendix B of my literature study] for that - the two properties that one should know about them are:
-# * They **always** vanish in the presence of damping
-# * They **never** vanish in the absence of damping.
-# 
-# Phobos is not observed to contain any normal modes in its present day rotational motion. However, in the dynamics we have modelled in this example, damping does not exist and therefore the normal modes will naturally arise. This can be very well seen in the frequency content of the longitudinal libration. A similar plot is obtained for the Fourier transform of the Euler angles. Thus, this _undamped_ dynamics os not a realistic representation of Phobos' motion. Nevertheless, the presence of these normal modes do not affect Phobos' translation in a significant way: both the semi-major axis and eccentricity oscillate around a constant value in a similar way as they would in a purely translational simulation, and the orbit's Euler angles show the expected secularity in the arguments of periapsis (fast) and the nodes (slow).
-# 
-# In any case, a representative coupled simulation needs to eliminate the normal modes of these dynamics.
-# 
-# **Note:** If you are wondering why the FFT peak at the normal mode does not *exactly* coincide with the reference line, it is because this reference line has been computed with an approximate expression.
-# 
+Here, there are two things that immediately stand out: Mars' coordinates in Phobos' sky are a mess (i.e. Phobos' orientation is not what we expected) and the inclination of Phobos is nowhere near 0. We will start by addressing the latter. Notice that "the inclination of Phobos" is usually thought of as measured from the Martian equator. Here, however, the Euler angles of the orbit are computed with respect to inertial space, i.e. the equator of the Earth in this case. The Martian equator is inclined by about $35.5º$ with respect to that of the Earth, and that is why we see Phobos' inclination oscillate around that value rather than $0º$.
+
+Explaining the orientation of Phobos is a bit lengthier. The rotational equations of motion presented at the beginning of this example, also known as Euler equations, give rise to non-trivial oscillatory solutions when their homogeneous form are solved. This means that, even when setting all torques to 0, Phobos' rotational motion will be oscillatory around all three axes. These solutions are called _proper modes_ or _normal modes_ and have a particular frequency associated to them - which is often times referred to as _normal mode_ as well - which is determined by Phobos' physical properties and the mean motion of its orbit. Although an in-depth discussion of normal modes will not be provided here - the interested reader is referred to [reference to Appendix B of my literature study] for that - the two properties that one should know about them are:
+* They **always** vanish in the presence of damping
+* They **never** vanish in the absence of damping.
+
+Phobos is not observed to contain any normal modes in its present day rotational motion. However, in the dynamics we have modelled in this example, damping does not exist and therefore the normal modes will naturally arise. This can be very well seen in the frequency content of the longitudinal libration. A similar plot is obtained for the Fourier transform of the Euler angles. Thus, this _undamped_ dynamics os not a realistic representation of Phobos' motion. Nevertheless, the presence of these normal modes do not affect Phobos' translation in a significant way: both the semi-major axis and eccentricity oscillate around a constant value in a similar way as they would in a purely translational simulation, and the orbit's Euler angles show the expected secularity in the arguments of periapsis (fast) and the nodes (slow).
+
+In any case, a representative coupled simulation needs to eliminate the normal modes of these dynamics.
+
+**Note:** If you are wondering why the FFT peak at the normal mode does not *exactly* coincide with the reference line, it is because this reference line has been computed with an approximate expression.
+
+"""
 ## Getting rid of the normal modes
 """
 As we just saw, Phobos does not quite spin the way we would expect it to due to the excitation of its normal modes. Two questions that may arise are (1) why we don't see the normal modes in real life and (2) how to we get rid of the normal modes in the simulation. The answer to both lies in **damping**. A mathematical discussion of how damping and external forcings affect normal modes is given in [reference to appendix B of my literature study]. Phobos has been spinning up there for about 4.5 thousands of millions of years (that is not a made up number). In that time, any little amount of damping that the body was subjected to - be it for structural reasons, or additional torques we are not considering - has been able to make the normal modes vanish, and that is why Phobos does not present these rotations anymore. This presents two complications in getting rid of normal modes in the simulation: we cannot really simulate all $4.5\times10^9$ years that Phobos has been orbiting Mars, and we don't really know if any of the torques that we have included in our rotational dynamics have a damping effect.
@@ -592,14 +590,14 @@ damping_results = numerical_simulation.propagation.get_zero_proper_mode_rotation
 damped_state_history = damping_results.forward_backward_states[-1][1]
 damped_dependent_variable_history = damping_results.forward_backward_dependent_variables[-1][1]
 
+"""
+As you can see, we are using the `bodies` and the `propagator_settings` that we had already created earlier. The output of this function is this `damping_results` object. It contains quite a few things, the most important of which are: \
+· **The damped initial state.** This state is of the same type and size as the one provided in the `propagator_settings`. In this case of the coupled dynamics, a 13-dimensional vector. \
+· **The forward-backward states.** It is a list of tuples. Each tuple contains the results of one iteration. In each of these tuples, there are two dictionaries: one of them is the state history of the forward propagation, i.e. with the damping torque; the other is the state history of the backward propagation, i.e. without the torque. There is one more tuple than iterations. The tuple in index 0 contains the undamped states, i.e. the histories of the forward and backward states when no torque is applied. **Note:** In this tuple, the two dictionaries are in principle the same, becuase the dynamics of both propagations are identical. The small errors that might be encountered are fully integration errors. \
+· **The forward-backward dependent variables.** It is the exact same thing as the forward-backward states, but with the dependent variables provided in the `propagator_settings`.
 
-# As you can see, we are using the `bodies` and the `propagator_settings` that we had already created earlier. The output of this function is this `damping_results` object. It contains quite a few things, the most important of which are: \
-# · **The damped initial state.** This state is of the same type and size as the one provided in the `propagator_settings`. In this case of the coupled dynamics, a 13-dimensional vector. \
-# · **The forward-backward states.** It is a list of tuples. Each tuple contains the results of one iteration. In each of these tuples, there are two dictionaries: one of them is the state history of the forward propagation, i.e. with the damping torque; the other is the state history of the backward propagation, i.e. without the torque. There is one more tuple than iterations. The tuple in index 0 contains the undamped states, i.e. the histories of the forward and backward states when no torque is applied. **Note:** In this tuple, the two dictionaries are in principle the same, becuase the dynamics of both propagations are identical. The small errors that might be encountered are fully integration errors. \
-# · **The forward-backward dependent variables.** It is the exact same thing as the forward-backward states, but with the dependent variables provided in the `propagator_settings`.
-# 
-# Notice that `dapming_results` already contains the propagated states of the "fully" damped dynamics, which means there is no need to repropagate them again with the obtained damped initial state. The damped trjectory is readily available to us, although it spans the 40960h of the final damping time. To aid in comparison with the undamped dynamics from above, we will only plot the first 30 days.
-# 
+Notice that `dapming_results` already contains the propagated states of the "fully" damped dynamics, which means there is no need to repropagate them again with the obtained damped initial state. The damped trjectory is readily available to us, although it spans the 40960h of the final damping time. To aid in comparison with the undamped dynamics from above, we will only plot the first 30 days.
+"""
 ## Let's look at plots (again)
 """
 With the new damped states and dependent variables, we can perform the same kind of post-processing that we did earlier.
@@ -696,5 +694,6 @@ plt.legend()
 
 plt.show()
 
-
-# In these new damped dynamics, Mars does oscillate periodically around $0º$ of latitude and longitude in Phobos' sky, and the Fourier transform shows that the frequency at the normal mode is gone. Note that we would see the same thing in the FFT of Phobos' Euler angles. This is now a faithful representation of Phobos' motion.
+"""
+In these new damped dynamics, Mars does oscillate periodically around $0º$ of latitude and longitude in Phobos' sky, and the Fourier transform shows that the frequency at the normal mode is gone. Note that we would see the same thing in the FFT of Phobos' Euler angles. This is now a faithful representation of Phobos' motion.
+"""
