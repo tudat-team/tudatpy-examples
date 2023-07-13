@@ -201,19 +201,19 @@ def bring_inside_bounds_scalar(original: float, lower_bound: float,
 
     center = (upper_bound + lower_bound) / 2.0
 
-    if original < lower_bound:
-        reflect = True
-    else:
-        reflect = False
-
-    if reflect: original = 2.0 * center - original
+    # if original < lower_bound:
+    #     reflect = True
+    # else:
+    #     reflect = False
+    #
+    # if reflect: original = 2.0 * center - original
 
     dividend = original - lower_bound
     divisor = upper_bound - lower_bound
     remainder = dividend % divisor
     new = lower_bound + remainder
 
-    if reflect: new = 2.0 * center - new
+    # if reflect: new = 2.0 * center - new
 
     if new == lower_bound and include == 'upper': new = upper_bound
     if new == upper_bound and include == 'lower': new = lower_bound
