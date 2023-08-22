@@ -25,6 +25,7 @@ from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
 
 # tudatpy imports
+from tudatpy import util
 from tudatpy.kernel import constants
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
@@ -32,9 +33,6 @@ from tudatpy.kernel.astro import time_conversion, element_conversion
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
 from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
-
-# Problem-specific imports
-import galilean_moons_state_estimation_util as Util
 
 
 ## Orbital Simulation
@@ -129,83 +127,40 @@ q_jupiter = love_number_jupiter / dissipation_parameter_jupiter
 tidal_frequency_io = 23.3 # rad.day-1
 spin_frequency_jupiter = math.pi/tidal_frequency_io + mean_motion_io
 
-acceleration_settings_moons = dict()
-
-### Io ###
+# Calculate all required time lags associated with the individual tides
 time_lag_io = 1 / mean_motion_io * np.arctan(1 / q_moons)
 time_lag_jupiter_io = 1/(spin_frequency_jupiter - mean_motion_io) * np.arctan(1 / q_jupiter)
-acceleration_settings_io = dict(
-    Jupiter=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(8, 0, 2, 2),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_moons,
-                                                                                  time_lag_io,
-                                                                                  True, False),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
-                                                                                  time_lag_jupiter_io,
-                                                                                  True, True)],
-    Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Sun=[propagation_setup.acceleration.point_mass_gravity()],
-    Saturn=[propagation_setup.acceleration.point_mass_gravity()]
-)
-acceleration_settings_moons['Io'] = acceleration_settings_io
-
-### Europa ###
 time_lag_europa = 1 / mean_motion_europa * np.arctan(1 / q_moons)
 time_lag_jupiter_europa = 1 / (spin_frequency_jupiter - mean_motion_europa) * np.arctan(1 / q_jupiter)
-acceleration_settings_europa = dict(
-    Jupiter=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(8, 0, 2, 2),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_moons,
-                                                                                  time_lag_europa,
-                                                                                  True, False),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
-                                                                                  time_lag_jupiter_europa,
-                                                                                  True, True)],
-    Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Sun=[propagation_setup.acceleration.point_mass_gravity()],
-    Saturn=[propagation_setup.acceleration.point_mass_gravity()]
-)
-acceleration_settings_moons['Europa'] = acceleration_settings_europa
-
-### Ganymede ###
 time_lag_ganymede = 1 / mean_motion_ganymede * np.arctan(1 / q_moons)
 time_lag_jupiter_ganymede = 1 / (spin_frequency_jupiter - mean_motion_ganymede) * np.arctan(1 / q_jupiter)
-acceleration_settings_ganymede = dict(
-    Jupiter=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(8, 0, 2, 2),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_moons,
-                                                                                  time_lag_ganymede,
-                                                                                  True, False),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
-                                                                                  time_lag_jupiter_ganymede,
-                                                                                  True, True)],
-    Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Callisto=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Sun=[propagation_setup.acceleration.point_mass_gravity()],
-    Saturn=[propagation_setup.acceleration.point_mass_gravity()]
-)
-acceleration_settings_moons['Ganymede'] = acceleration_settings_ganymede
-
-### Callisto ###
 time_lag_callisto = 1 / mean_motion_callisto * np.arctan(1 / q_moons)
 time_lag_jupiter_callisto = 1 / (spin_frequency_jupiter - mean_motion_callisto) * np.arctan(1 / q_jupiter)
-acceleration_settings_callisto = dict(
-    Jupiter=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(8, 0, 2, 2),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_moons,
-                                                                                  time_lag_callisto,
-                                                                                  True, False),
-             propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
-                                                                                  time_lag_jupiter_callisto,
-                                                                                  True, True)],
-    Io=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Europa=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Ganymede=[propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
-    Sun=[propagation_setup.acceleration.point_mass_gravity()],
-    Saturn=[propagation_setup.acceleration.point_mass_gravity()]
-)
-acceleration_settings_moons['Callisto'] = acceleration_settings_callisto
+
+time_lag_dict = {'Io': (time_lag_io, time_lag_jupiter_io),
+                 'Europa': (time_lag_europa, time_lag_jupiter_europa),
+                 'Ganymede': (time_lag_ganymede, time_lag_jupiter_ganymede),
+                 'Callisto': (time_lag_callisto, time_lag_jupiter_callisto)}
+
+acceleration_settings_moons = dict()
+
+for idx, moon in enumerate(bodies_to_propagate):
+    other_moons = np.delete(np.array(bodies_to_propagate), idx)
+    acceleration_settings_moon = {
+        'Jupiter': [propagation_setup.acceleration.mutual_spherical_harmonic_gravity(8, 0, 2, 2),
+                 propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_moons,
+                                                                                      time_lag_dict[moon][0],
+                                                                                      True, False),
+                 propagation_setup.acceleration.direct_tidal_dissipation_acceleration(love_number_jupiter,
+                                                                                      time_lag_dict[moon][1],
+                                                                                      True, True)],
+        other_moons[0]: [propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
+        other_moons[1]: [propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
+        other_moons[2]: [propagation_setup.acceleration.mutual_spherical_harmonic_gravity(2, 2, 2, 2)],
+        'Sun': [propagation_setup.acceleration.point_mass_gravity()],
+        'Saturn': [propagation_setup.acceleration.point_mass_gravity()]
+    }
+    acceleration_settings_moons[moon] = acceleration_settings_moon
 
 acceleration_settings = acceleration_settings_moons
 # Create acceleration models
@@ -283,6 +238,13 @@ link_ends_callisto[estimation_setup.observation.observed_body] = estimation_setu
     body_origin_link_end_id('Callisto')
 link_definition_callisto = estimation_setup.observation.LinkDefinition(link_ends_callisto)
 
+link_definition_dict = {
+    'Io': link_definition_io,
+    'Europa': link_definition_europa,
+    'Ganymede': link_definition_ganymede,
+    'Callisto': link_definition_callisto,
+}
+
 
 ### Observation Model Settings
 """
@@ -304,32 +266,15 @@ Finally, realise that the default setting for the `reference_link_end_type` argu
 
 # Define epochs at which the ephemerides shall be checked
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 3.0 * 3600)
+
 # Create the observation simulation settings per moon
-observation_simulation_settings_io = estimation_setup.observation.tabulated_simulation_settings(
-    estimation_setup.observation.position_observable_type,
-    link_definition_io,
-    observation_times,
-    reference_link_end_type=estimation_setup.observation.observed_body)
-observation_simulation_settings_europa = estimation_setup.observation.tabulated_simulation_settings(
-    estimation_setup.observation.position_observable_type,
-    link_definition_europa,
-    observation_times,
-    reference_link_end_type=estimation_setup.observation.observed_body)
-observation_simulation_settings_ganymede = estimation_setup.observation.tabulated_simulation_settings(
-    estimation_setup.observation.position_observable_type,
-    link_definition_ganymede,
-    observation_times,
-    reference_link_end_type=estimation_setup.observation.observed_body)
-observation_simulation_settings_callisto = estimation_setup.observation.tabulated_simulation_settings(
-    estimation_setup.observation.position_observable_type,
-    link_definition_callisto,
-    observation_times,
-    reference_link_end_type=estimation_setup.observation.observed_body)
-# Create conclusive list of observation simulation settings
-observation_simulation_settings = [observation_simulation_settings_io,
-                                   observation_simulation_settings_europa,
-                                   observation_simulation_settings_ganymede,
-                                   observation_simulation_settings_callisto]
+observation_simulation_settings = list()
+for moon in link_definition_dict.keys():
+    observation_simulation_settings.append(estimation_setup.observation.tabulated_simulation_settings(
+        estimation_setup.observation.position_observable_type,
+        link_definition_dict[moon],
+        observation_times,
+        reference_link_end_type=estimation_setup.observation.observed_body))
 
 
 ### Simulate Ephemeris' States of Satellites
@@ -366,8 +311,9 @@ Using the set of artificial cartesian 'observations' of the moons' ephemerides w
 """
 
 print('Running propagation...')
-estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
-                                           position_observation_settings, propagator_settings)
+with util.redirect_std():
+    estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
+                                               position_observation_settings, propagator_settings)
 
 
 # Create input object for the estimation
@@ -379,7 +325,8 @@ print('Performing the estimation...')
 print(f'Original initial states: {original_parameter_vector}')
 
 
-estimation_output = estimator.perform_estimation(estimation_input)
+with util.redirect_std(redirect_out=False):
+    estimation_output = estimator.perform_estimation(estimation_input)
 initial_states_updated = parameters_to_estimate.parameter_vector
 print('Done with the estimation...')
 print(f'Updated initial states: {initial_states_updated}')
@@ -387,7 +334,7 @@ print(f'Updated initial states: {initial_states_updated}')
 
 ## Post-Processing
 """
-# With the initial states updated, the estimation is finished. In the following we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution.
+With the initial states updated, the estimation is finished. In the following we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution.
 
 To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as 'ground-truth' solution.
 
@@ -406,85 +353,27 @@ ephemeris_keplerian_states = dict()
 jupiter_gravitational_parameter = bodies.get('Jupiter').gravitational_parameter
 # Loop over the propagated states and use the IMCEE ephemeris as benchmark solution
 for epoch in state_history.keys():
-    io_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
-        target_body_name='Io',
-        observer_body_name='Jupiter',
-        reference_frame_name='ECLIPJ2000',
-        aberration_corrections='none',
-        ephemeris_time=epoch)
-    keplerian_state_io = element_conversion.cartesian_to_keplerian(io_from_ephemeris,
-                                                                   jupiter_gravitational_parameter)
+    ephemeris_state = list()
+    keplerian_state = list()
+    for moon in bodies_to_propagate:
+        ephemeris_state_temp = spice.get_body_cartesian_state_at_epoch(
+            target_body_name=moon,
+            observer_body_name='Jupiter',
+            reference_frame_name='ECLIPJ2000',
+            aberration_corrections='none',
+            ephemeris_time=epoch)
+        ephemeris_state.append(ephemeris_state_temp)
+        keplerian_state.append(element_conversion.cartesian_to_keplerian(ephemeris_state_temp,
+                                                                         jupiter_gravitational_parameter))
 
-    europa_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
-        target_body_name='Europa',
-        observer_body_name='Jupiter',
-        reference_frame_name='ECLIPJ2000',
-        aberration_corrections='none',
-        ephemeris_time=epoch)
-    keplerian_state_europa = element_conversion.cartesian_to_keplerian(europa_from_ephemeris,
-                                                                       jupiter_gravitational_parameter)
-
-    ganymede_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
-        target_body_name='Ganymede',
-        observer_body_name='Jupiter',
-        reference_frame_name='ECLIPJ2000',
-        aberration_corrections='none',
-        ephemeris_time=epoch)
-    keplerian_state_ganymede = element_conversion.cartesian_to_keplerian(ganymede_from_ephemeris,
-                                                                         jupiter_gravitational_parameter)
-
-    callisto_from_ephemeris = spice.get_body_cartesian_state_at_epoch(
-        target_body_name='Callisto',
-        observer_body_name='Jupiter',
-        reference_frame_name='ECLIPJ2000',
-        aberration_corrections='none',
-        ephemeris_time=epoch)
-    keplerian_state_callisto = element_conversion.cartesian_to_keplerian(callisto_from_ephemeris,
-                                                                         jupiter_gravitational_parameter)
-
-    ephemeris_state = np.concatenate((io_from_ephemeris, europa_from_ephemeris,
-                                      ganymede_from_ephemeris, callisto_from_ephemeris))
-    keplerian_state = np.concatenate((keplerian_state_io, keplerian_state_europa,
-                                      keplerian_state_ganymede, keplerian_state_callisto))
-
-    ephemeris_state_history[epoch] = ephemeris_state
-    ephemeris_keplerian_states[epoch] = keplerian_state
-
-propagation_kepler_elements = np.vstack(list(dependent_variable_history.values()))
-ephemeris_kepler_elements = np.vstack(list(ephemeris_keplerian_states.values()))
-
-propagated_kepler_elements_dict = {'Io': propagation_kepler_elements[:, 0:6],
-                                   'Europa': propagation_kepler_elements[:, 6:12],
-                                   'Ganymede': propagation_kepler_elements[:, 12:18],
-                                   'Callisto': propagation_kepler_elements[:, 18:24]}
-ephemeris_kepler_elements_dict = {'Io': ephemeris_kepler_elements[:, 0:6],
-                                  'Europa': ephemeris_kepler_elements[:, 6:12],
-                                  'Ganymede': ephemeris_kepler_elements[:, 12:18],
-                                  'Callisto': ephemeris_kepler_elements[:, 18:24]}
+    ephemeris_state_history[epoch] = np.concatenate(np.array(ephemeris_state))
+    ephemeris_keplerian_states[epoch] = np.concatenate(np.array(keplerian_state))
 
 state_history_difference = np.vstack(list(state_history.values())) - np.vstack(list(ephemeris_state_history.values()))
 position_difference = {'Io': state_history_difference[:, 0:3],
                        'Europa': state_history_difference[:, 6:9],
                        'Ganymede': state_history_difference[:, 12:15],
                        'Callisto': state_history_difference[:, 18:21]}
-
-# Calculate propagated Laplace stability
-
-mean_longitude_dict_prop = Util.calculate_mean_longitude(propagated_kepler_elements_dict)
-
-laplace_stability_prop = mean_longitude_dict_prop['Io'] \
-                         - 3 * mean_longitude_dict_prop['Europa'] \
-                         + 2 * mean_longitude_dict_prop['Ganymede']
-laplace_stability_prop = np.mod(laplace_stability_prop, 2 * math.pi)
-
-# Calculate ephemeris Laplace stability
-
-mean_longitude_dict_ephem = Util.calculate_mean_longitude(ephemeris_kepler_elements_dict)
-
-laplace_stability_ephem = mean_longitude_dict_ephem['Io'] \
-                         - 3 * mean_longitude_dict_ephem['Europa'] \
-                         + 2 * mean_longitude_dict_ephem['Ganymede']
-laplace_stability_ephem = np.mod(laplace_stability_ephem, 2 * math.pi)
 
 ### PLOTTING ###
 time2plt = list()
@@ -493,7 +382,7 @@ for epoch in epochs_julian_seconds:
     epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
     time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6))
+fig, ax1 = plt.subplots(1, 1, figsize=(10, 6))
 
 ax1.plot(time2plt, np.linalg.norm(position_difference['Io'], axis=1) * 1E-3,
          label=r'Io ($i=1$)', c='#A50034')
@@ -508,15 +397,91 @@ ax1.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax1.xaxis.set_minor_locator(mdates.MonthLocator())
 ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax1.set_ylabel(r'Difference [km]')
+ax1.legend();
+
+
+# Overall, for the inner three moons trapped in resonance (for more details see below) the above results lie within the expected range of achievable accuracy given the rather rudimentary set-up of the environment and especially associated acceleration models. However, what is striking is that the performance of Callisto falls short compared to the other satellites. Thus, hypothetically, to enhance the estimated solution of the orbit of Callisto with respect to the underlying ephemeris, one could opt to estimate its gravity field alongside the initial state, which could lead to significantly improved results. However, this path left as an adventure to be followed and explored by the reader.
+
+def calculate_mean_longitude(kepler_elements: dict):
+    # Calculate dictionary for moon-wise longitudes
+    mean_longitude_dict = dict()
+    # Loop over every moon of interest (Io, Europa, Ganymede)
+    for moon in kepler_elements.keys():
+        mean_anomaly_per_moon = list()
+        kepler_elements_per_moon = kepler_elements[moon]
+        # For every epoch get the mean anomaly of the moon
+        for i in range(len(kepler_elements[moon])):
+            mean_anomaly_per_moon.append(element_conversion.true_to_mean_anomaly(
+                eccentricity=kepler_elements_per_moon[i, 1],
+                true_anomaly=kepler_elements_per_moon[i, 5]))
+        mean_anomaly_per_moon = np.array(mean_anomaly_per_moon)
+        mean_anomaly_per_moon[mean_anomaly_per_moon < 0] = mean_anomaly_per_moon[mean_anomaly_per_moon < 0] \
+                                                           + 2 * math.pi
+        # Calculate the mean longitude as
+        # (longitude of the ascending node) + (argument of the pericenter) + (mean anomaly)
+        longitude_of_the_ascending_node = kepler_elements_per_moon[:, 4]
+        argument_of_the_pericenter = kepler_elements_per_moon[:, 3]
+
+        mean_longitude_per_moon = longitude_of_the_ascending_node + argument_of_the_pericenter + mean_anomaly_per_moon
+        # Include epoch-wise mean longitude in dictionary
+        mean_longitude_per_moon = np.mod(mean_longitude_per_moon, 2*math.pi)
+        mean_longitude_dict[moon] = mean_longitude_per_moon
+
+    return mean_longitude_dict
+
+
+### LAPLACE STABILITY ###
+ephemeris_kepler_elements = np.vstack(list(ephemeris_keplerian_states.values()))
+propagation_kepler_elements = np.vstack(list(dependent_variable_history.values()))
+
+ephemeris_kepler_elements_dict = {'Io': ephemeris_kepler_elements[:, 0:6],
+                                  'Europa': ephemeris_kepler_elements[:, 6:12],
+                                  'Ganymede': ephemeris_kepler_elements[:, 12:18],
+                                  'Callisto': ephemeris_kepler_elements[:, 18:24]}
+
+propagated_kepler_elements_dict = {'Io': propagation_kepler_elements[:, 0:6],
+                                   'Europa': propagation_kepler_elements[:, 6:12],
+                                   'Ganymede': propagation_kepler_elements[:, 12:18],
+                                   'Callisto': propagation_kepler_elements[:, 18:24]}
+
+# Calculate propagated Laplace stability
+
+mean_longitude_dict_prop = calculate_mean_longitude(propagated_kepler_elements_dict)
+
+laplace_stability_prop = mean_longitude_dict_prop['Io'] \
+                         - 3 * mean_longitude_dict_prop['Europa'] \
+                         + 2 * mean_longitude_dict_prop['Ganymede']
+laplace_stability_prop = np.mod(laplace_stability_prop, 2 * math.pi)
+
+# Calculate ephemeris Laplace stability
+
+mean_longitude_dict_ephem = calculate_mean_longitude(ephemeris_kepler_elements_dict)
+
+laplace_stability_ephem = mean_longitude_dict_ephem['Io'] \
+                         - 3 * mean_longitude_dict_ephem['Europa'] \
+                         + 2 * mean_longitude_dict_ephem['Ganymede']
+laplace_stability_ephem = np.mod(laplace_stability_ephem, 2 * math.pi)
+
+### PLOTTING ###
+time2plt = list()
+epochs_julian_seconds = np.vstack(list(state_history.keys()))
+for epoch in epochs_julian_seconds:
+    epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
+    time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+ax1.plot(time2plt, laplace_stability_prop * 180 / math.pi, label='Propagated', c='#A50034')
+ax1.plot(time2plt, laplace_stability_ephem * 180 / math.pi, label='NOE 5 Ephemeris', c='#EC6842',
+         linestyle=(0, (5, 10)))
+ax1.set_title(r'Laplace Resonance $\Phi_L=\lambda_I-3 \lambda_E+2 \lambda_G$')
+ax1.set_ylabel(r'Laplace $\Phi_L$ [deg]')
 ax1.legend()
 
-ax2.plot(time2plt, laplace_stability_prop * 180 / math.pi, label='Propagated', c='#A50034')
-ax2.plot(time2plt, laplace_stability_ephem * 180 / math.pi, label='NOE 5 Ephemeris', c='#EC6842',
-         linestyle=(0, (5, 10)))
-ax2.set_title(r'$\Phi_L=\lambda_I-3 \lambda_E+2 \lambda_G$')
+ax2.plot(time2plt, (laplace_stability_prop - laplace_stability_ephem) * 180 / math.pi, c='#0076C2')
+ax2.set_title(r'Difference in Laplace Resonance $\Delta\Phi_L$')
 ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
-ax2.set_ylabel(r'Laplace $\Phi_L$ [deg]')
-ax2.legend();
+ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
 
