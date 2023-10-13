@@ -91,3 +91,14 @@ Examples showing how to optimize a problem modelled with Tudatpy via algorithms 
 - ``himmelblau_optimization``: finds the minimum of an analytical function to show the basic usage of Pygmo
 - ``asteroid_orbit_optimization``: simulates the orbit around the Itokawa asteroid and finds the initial state that 
   ensures optimal coverage and close approaches
+
+
+## Contribute
+
+Contributions to this repository are always welcome. However, there are some guidelines that should be followed when creating a new example application.
+Here are some points to be kept in mind.
+
+1. Any modification or addition to this set of examples should be made in a personal fork of the current repository. No changes are to be done directly on a local clone of this repo.
+2. The example should be written directly on a Jupyter notebook (.ipynb file). Then, the following command can be run from the CLI to create a .py file with the same code as the notebook file: `jupyter nbconvert --to python mynotebook.ipynb`. Make sure to change `mynotebook` to the name of the notebook file.
+3. The markdown blocks are not optimally converted. Thus, once the .py file is created as described above, the script `clean_py_notebooks.py` is to be executed. This file reformats the markdown blocks in the .py files into a more readable look. Sometimes this cleanup is not perfect, so manually check the .py file to make sure everything is fine and correct anything that is not.
+4. At this point, the example is complete. You are ready to create a pull request from your personal fork to the current repository, and the admins will take it from there.
