@@ -25,7 +25,7 @@ Thus, a total of 31 variables is optimized.
 
 The only objective function is the $\Delta V$, which is minimized.
 
-PyGMO is used in this example. It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_resources/pygmo_basics.html).
+PyGMO is used in this example. It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html#about-pygmo).
 """
 
 ## Import statements

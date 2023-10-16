@@ -17,7 +17,7 @@ The only objective function is the $\Delta V$, which is minimized.
 
 The Cassini 1 problem (among others) has been proposed and solved by ESA Advanced Concepts Team [(Vinkó et al, 2007)](https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2007-BenchmarkingDifferentGlobalOptimisationTechniques.pdf). In this and other papers, various global optimisation problems related to spacecraft trajectory design are described and solved.
 
-PyGMO is used in this example. It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_resources/pygmo_basics.html).
+PyGMO is used in this example. It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html#about-pygmo).
 """
 
 ## Import statements
