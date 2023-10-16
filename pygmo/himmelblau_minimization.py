@@ -11,7 +11,7 @@ function (Himmelblau function).
 
 Please note that thi example is thus not related to TudatPy.
 
-It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_resources/pygmo_basics.html).
+It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html#about-pygmo).
 
 The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
 correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
