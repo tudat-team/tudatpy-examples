@@ -26,9 +26,9 @@ import matplotlib.dates as mdates
 
 # tudatpy imports
 from tudatpy import util
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy.kernel import numerical_simulation
+from tudatpy import numerical_simulation
 from tudatpy.astro import time_conversion, element_conversion
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
