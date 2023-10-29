@@ -53,12 +53,12 @@ from itertools import combinations as comb
 # Load tudatpy modules
 from tudatpy.io import save2txt
 from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel.astro import element_conversion
-from tudatpy.kernel.astro import frame_conversion
+from tudatpy.interface import spice
+from tudatpy.astro import element_conversion
+from tudatpy.astro import frame_conversion
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
 import tudatpy.util as util
 
 # Load pygmo library

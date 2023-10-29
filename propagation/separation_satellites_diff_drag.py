@@ -32,10 +32,10 @@ from scipy import interpolate
 # Load tudatpy modules
 from tudatpy.kernel import constants
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.astro import element_conversion
-from tudatpy.kernel.interface import spice_interface
-from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, propagation
-from tudatpy.kernel.numerical_simulation.environment import SystemOfBodies
+from tudatpy.astro import element_conversion
+from tudatpy.interface import spice_interface
+from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
+from tudatpy.numerical_simulation.environment import SystemOfBodies
 
 # Load spice kernels
 spice_interface.load_standard_kernels()

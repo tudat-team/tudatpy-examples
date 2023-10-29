@@ -27,12 +27,12 @@ import matplotlib.dates as mdates
 # tudatpy imports
 from tudatpy import util
 from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
+from tudatpy.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.astro import time_conversion, element_conversion
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
+from tudatpy.astro import time_conversion, element_conversion
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import estimation, estimation_setup
 
 
 ## Orbital Simulation
