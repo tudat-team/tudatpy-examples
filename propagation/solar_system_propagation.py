@@ -34,9 +34,9 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy.kernel import numerical_simulation
+from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.util import result2array
 
 

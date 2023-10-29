@@ -44,7 +44,7 @@ import multiprocessing as mp
 # Tudatpy imports
 import tudatpy
 from tudatpy.util import result2array
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.trajectory_design import shape_based_thrust, transfer_trajectory
 

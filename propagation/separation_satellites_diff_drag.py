@@ -30,8 +30,8 @@ from matplotlib import pyplot as plt
 from scipy import interpolate
 
 # Load tudatpy modules
-from tudatpy.kernel import constants
-from tudatpy.kernel import numerical_simulation
+from tudatpy import constants
+from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
 from tudatpy.interface import spice_interface
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation

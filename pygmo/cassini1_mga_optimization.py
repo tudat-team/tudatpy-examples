@@ -34,7 +34,7 @@ from typing import List, Tuple
 # Tudat imports
 import tudatpy
 from tudatpy.trajectory_design import transfer_trajectory
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.util import result2array
 

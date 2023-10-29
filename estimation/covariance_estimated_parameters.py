@@ -29,9 +29,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy.kernel import numerical_simulation
+from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup

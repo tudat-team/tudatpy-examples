@@ -37,7 +37,7 @@ from matplotlib import pyplot as plt
 # Tudatpy imports
 import tudatpy
 from tudatpy.util import result2array
-from tudatpy.kernel import numerical_simulation
+from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import propagation_setup, environment_setup, estimation_setup
 from tudatpy.astro import polyhedron_utilities
 from tudatpy.math import interpolators, root_finders

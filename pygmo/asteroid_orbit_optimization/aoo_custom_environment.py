@@ -43,11 +43,11 @@ from itertools import combinations as comb
 
 # Load tudatpy modules
 from tudatpy.io import save2txt
-from tudatpy.kernel import constants
+from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
-from tudatpy.kernel import numerical_simulation
+from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.util import pareto_optimums
