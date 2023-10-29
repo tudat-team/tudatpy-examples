@@ -36,6 +36,7 @@ from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation import create_dynamics_simulator
 from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
 
 # Retrieve current directory
@@ -52,9 +53,8 @@ spice.load_standard_kernels()
 spice.load_kernel(current_directory + "/ORMM_T19_031222180906_00052.BSP")
 
 # Set simulation start (January 1st, 2004 - 00:00) and end epochs (January 11th, 2004 - 00:00)
-simulation_start_epoch = 4.0 * constants.JULIAN_YEAR + 4.0 * constants.JULIAN_DAY
-simulation_duration = 10.0 * constants.JULIAN_DAY
-simulation_end_epoch = simulation_start_epoch + simulation_duration
+simulation_start_epoch = DateTime(2004, 1,  1).epoch()
+simulation_end_epoch   = DateTime(2004, 1, 11).epoch()
 
 ### CELESTIAL BODIES ###
 # Create default body settings for "Mars", "Phobos", "Deimos", "Sun", "Jupiter", "Earth"
