@@ -70,11 +70,11 @@ from numpy import pi as PI
 from numpy.fft import rfft, rfftfreq
 from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
-from tudatpy.kernel.interface import spice
+from tudatpy.interface import spice
 from tudatpy.kernel import constants, numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup
-from tudatpy.kernel.astro.element_conversion import rotation_matrix_to_quaternion_entries
-from tudatpy.kernel.astro.frame_conversion import inertial_to_rsw_rotation_matrix
+from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entries
+from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
 TWOPI = 2.0*PI
 

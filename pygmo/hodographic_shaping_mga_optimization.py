@@ -45,8 +45,8 @@ import multiprocessing as mp
 import tudatpy
 from tudatpy.util import result2array
 from tudatpy.kernel import constants
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.trajectory_design import shape_based_thrust, transfer_trajectory
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.trajectory_design import shape_based_thrust, transfer_trajectory
 
 
 ## Helpers
@@ -201,7 +201,7 @@ class MGAHodographicShapingTrajectoryOptimizationProblem:
         # Radius of solar system bodies, used to define the swingby periapsis radius.
         #
         # The values were retrieved from SPICE, using:
-        # from tudatpy.kernel.interface import spice
+        # from tudatpy.interface import spice
         # spice.load_standard_kernels()
         # bodies_to_create = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
         # planetary_radii = {}

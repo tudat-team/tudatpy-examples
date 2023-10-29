@@ -29,14 +29,14 @@ from mpl_toolkits.mplot3d import axes3d
 
 # Load required tudatpy modules
 from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
+from tudatpy.interface import spice
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
-from tudatpy.kernel.numerical_simulation import create_dynamics_simulator
-from tudatpy.kernel.numerical_simulation.estimation_setup import observation
-from tudatpy.kernel.astro import element_conversion
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import estimation, estimation_setup
+from tudatpy.numerical_simulation import create_dynamics_simulator
+from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.astro import element_conversion
 
 # Retrieve current directory
 current_directory = os.getcwd()

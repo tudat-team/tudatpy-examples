@@ -38,9 +38,9 @@ from matplotlib import pyplot as plt
 import tudatpy
 from tudatpy.util import result2array
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import propagation_setup, environment_setup, estimation_setup
-from tudatpy.kernel.astro import polyhedron_utilities
-from tudatpy.kernel.math import interpolators, root_finders
+from tudatpy.numerical_simulation import propagation_setup, environment_setup, estimation_setup
+from tudatpy.astro import polyhedron_utilities
+from tudatpy.math import interpolators, root_finders
 
 
 ## Auxiliary Functions
