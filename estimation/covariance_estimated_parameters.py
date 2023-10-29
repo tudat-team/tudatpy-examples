@@ -28,6 +28,11 @@ Then, the different modules of `tudatpy` that will be used are imported. Most no
 import numpy as np
 from matplotlib import pyplot as plt
 
+# Use custom compiled Tudat version
+import sys
+sys.path.insert(0, '/mnt/e/studio/professional/work/2023-2024 Tudat/repos/tudat-bundle/cmake-build-release-wsl/tudatpy/')
+
+
 # Load required tudatpy modules
 from tudatpy import constants
 from tudatpy.interface import spice
@@ -36,6 +41,7 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
 
 
@@ -52,8 +58,8 @@ For more information on J2000 and the conversion between different temporal refe
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = 0.0
-simulation_end_epoch = 3 * constants.JULIAN_DAY
+simulation_start_epoch = DateTime(2000, 1, 1).epoch()
+simulation_end_epoch   = DateTime(2000, 1, 4).epoch()
 
 
 ## Set up the environment

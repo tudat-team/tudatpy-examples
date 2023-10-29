@@ -33,11 +33,11 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 
 # Load tudatpy modules
-from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment, environment_setup, propagation, propagation_setup
-from tudatpy.astro import element_conversion, time_conversion
-from tudatpy import constants
+from tudatpy.kernel.interface import spice
+from tudatpy.kernel import numerical_simulation
+from tudatpy.kernel.numerical_simulation import environment, environment_setup, propagation, propagation_setup
+from tudatpy.kernel.astro import element_conversion, time_conversion
+from tudatpy.kernel import constants
 from tudatpy.util import result2array
 
 

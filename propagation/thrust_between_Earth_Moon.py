@@ -44,6 +44,7 @@ from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import environment_setup, propagation_setup
 from tudatpy import constants
 from tudatpy.util import result2array
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Configuration
@@ -65,8 +66,8 @@ spice.load_standard_kernels()
 
 # Set simulation start and end epochs (total simulation time of 30 days)
 """
-simulation_start_epoch = 1.0e7
-simulation_end_epoch = 1.0e7 + 30.0 * constants.JULIAN_DAY
+simulation_start_epoch = DateTime(2000, 4, 25).epoch()
+simulation_end_epoch   = simulation_start_epoch + 30 * constants.JULIAN_DAY
 """
 
 

@@ -35,6 +35,7 @@ from tudatpy.numerical_simulation import environment_setup, propagation_setup, e
 from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Configuration
@@ -49,8 +50,8 @@ Please refer to the API documentation of the `time_conversion module` [here](htt
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = 0.0
-simulation_end_epoch = constants.JULIAN_DAY
+simulation_start_epoch = DateTime(2000, 1, 1).epoch()
+simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
 
 ## Environment setup

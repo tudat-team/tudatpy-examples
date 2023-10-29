@@ -72,6 +72,7 @@ from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
 from tudatpy.interface import spice
 from tudatpy import constants, numerical_simulation
+from tudatpy.astro.time_conversion import DateTime
 from tudatpy.numerical_simulation import environment_setup, propagation_setup
 from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entries
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
@@ -341,7 +342,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
                                                                                   np.inf, np.inf)
 
 # INITIAL TIME
-initial_epoch = 0.0  # This is the J2000 epoch.
+initial_epoch = DateTime(2000, 1, 1).epoch()
 
 
 # TERMINATION CONDITION
