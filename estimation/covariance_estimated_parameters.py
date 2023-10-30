@@ -28,11 +28,6 @@ Then, the different modules of `tudatpy` that will be used are imported. Most no
 import numpy as np
 from matplotlib import pyplot as plt
 
-# Use custom compiled Tudat version
-import sys
-sys.path.insert(0, '/mnt/e/studio/professional/work/2023-2024 Tudat/repos/tudat-bundle/cmake-build-release-wsl/tudatpy/')
-
-
 # Load required tudatpy modules
 from tudatpy import constants
 from tudatpy.interface import spice
