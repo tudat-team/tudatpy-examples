@@ -124,7 +124,6 @@ if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     
     [departure_epochs, arrival_epochs, ΔV] = porkchop(
         bodies,
-        global_frame_orientation,
         departure_body,
         target_body,
         earliest_departure_time,
