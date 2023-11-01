@@ -33,10 +33,11 @@ from typing import List, Tuple
 
 # Tudat imports
 import tudatpy
-from tudatpy.kernel.trajectory_design import transfer_trajectory
-from tudatpy.kernel import constants
-from tudatpy.kernel.numerical_simulation import environment_setup
+from tudatpy.trajectory_design import transfer_trajectory
+from tudatpy import constants
+from tudatpy.numerical_simulation import environment_setup
 from tudatpy.util import result2array
+from tudatpy.astro.time_conversion import DateTime
 
 # Pygmo imports
 import pygmo as pg
@@ -239,8 +240,8 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 # Before executing the optimization, it is necessary to select the bounds for the optimized parameters (departure date and time of flight per transfer leg). These are selected according to the values in the Cassini 1 problem statement [(Vinkó et al, 2007)](https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2007-BenchmarkingDifferentGlobalOptimisationTechniques.pdf).
 
 # Lower and upper bound on departure date
-departure_date_lb = -1000.5 * constants.JULIAN_DAY
-departure_date_ub = -0.5 * constants.JULIAN_DAY
+departure_date_lb = DateTime(1997,  4,  6).epoch()
+departure_date_ub = DateTime(1999, 12, 31).epoch()
 
 # List of lower and upper on time of flight for each leg
 legs_tof_lb = np.zeros(5)
