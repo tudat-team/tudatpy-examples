@@ -26,13 +26,14 @@ import matplotlib.dates as mdates
 
 # tudatpy imports
 from tudatpy import util
-from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.astro import time_conversion, element_conversion
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
+from tudatpy import constants
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.astro import time_conversion, element_conversion
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import estimation, estimation_setup
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Orbital Simulation
@@ -50,9 +51,8 @@ Besides importing tudat's standard kernels - which handily already include a ver
 spice.load_standard_kernels()
 
 # Define temporal scope of the simulation - equal to the time JUICE will spend in orbit around Jupiter
-simulation_start_epoch = 31.0 * constants.JULIAN_YEAR + 182.0 * constants.JULIAN_DAY
-simulation_end_epoch = 35.73 * constants.JULIAN_YEAR
-simulation_duration = simulation_end_epoch - simulation_start_epoch
+simulation_start_epoch = DateTime(2031, 7,  2).epoch()
+simulation_end_epoch   = DateTime(2035, 4, 20).epoch()
 
 
 ### Create the Environment

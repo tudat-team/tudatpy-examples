@@ -33,11 +33,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Load tudatpy modules
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup, propagation_setup, propagation
-from tudatpy.kernel import constants
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
+from tudatpy import constants
 from tudatpy.util import result2array
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Configuration
@@ -54,8 +55,8 @@ Please refer to the API documentation of the `time_conversion module` [here](htt
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs (total simulation time of 5 years)
-simulation_start_epoch = 1.0e7
-simulation_end_epoch = 1.0e7 + 5.0 * constants.JULIAN_YEAR
+simulation_start_epoch = DateTime(2000, 4, 25).epoch()
+simulation_end_epoch   = simulation_start_epoch + 5 * constants.JULIAN_YEAR
 
 
 ## Environment setup
