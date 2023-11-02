@@ -3,7 +3,6 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-
 ## Context
 """
 This example demonstrates the basic propagation of a (quasi-massless) body under the influence of a central point-mass attractor. It therefore resembles the classic two-body problem.
@@ -139,7 +138,7 @@ The initial state of the vehicle that will be propagated is now defined.
 
 This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
 
-Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
+In this case, let's make use of the `keplerian_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Keplerian elements, and then converted in Cartesian elements.
 """
 
 # Set initial conditions for the satellite that will be
@@ -148,12 +147,12 @@ Within this example, we will retrieve the initial state of Delfi-C3 using its Tw
 earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
 initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     gravitational_parameter=earth_gravitational_parameter,
-    semi_major_axis=7500.0e3,
-    eccentricity=0.1,
-    inclination=np.deg2rad(85.3),
-    argument_of_periapsis=np.deg2rad(235.7),
-    longitude_of_ascending_node=np.deg2rad(23.4),
-    true_anomaly=np.deg2rad(139.87),
+    semi_major_axis=6.99276221e+06,
+    eccentricity=4.03294322e-03,
+    inclination=1.71065169e+00,
+    argument_of_periapsis=1.31226971e+00,
+    longitude_of_ascending_node=3.82958313e-01,
+    true_anomaly=3.07018490e+00,
 )
 
 ### Create the propagator settings
