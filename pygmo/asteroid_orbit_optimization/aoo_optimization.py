@@ -218,7 +218,7 @@ def create_simulation_bodies(itokawa_radius):
     bodies.get("Spacecraft").set_constant_mass(400.0)
 
     # Create radiation pressure settings, and add to vehicle
-    reference_area_radiation = 4.0
+    reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
     radiation_pressure_coefficient = 1.2
     radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
         "Sun",
