@@ -30,6 +30,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment
 from tudatpy.numerical_simulation import environment_setup, propagation_setup
 from tudatpy.astro import element_conversion
 from tudatpy import constants
@@ -194,22 +195,16 @@ The initial state of the vehicle that will be propagated is now defined.
 
 This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
 
-In this case, let's make use of the `keplerian_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Keplerian elements, and then converted in Cartesian elements.
+Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
 
-# Set initial conditions for the satellite that will be
-# propagated in this simulation. The initial conditions are given in
-# Keplerian elements and later on converted to Cartesian elements
-earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
-initial_state = element_conversion.keplerian_to_cartesian_elementwise(
-    gravitational_parameter=earth_gravitational_parameter,
-    semi_major_axis=7500.0e3,
-    eccentricity=0.1,
-    inclination=np.deg2rad(85.3),
-    argument_of_periapsis=np.deg2rad(235.7),
-    longitude_of_ascending_node=np.deg2rad(23.4),
-    true_anomaly=np.deg2rad(139.87),
+# Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
+lageos_tle = environment.Tle(
+    "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
+    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
 )
+lageos_ephemeris = environment.TleEphemeris( "Earth", "J2000", lageos_tle, False )
+initial_state = lageos_ephemeris.cartesian_state( simulation_start_epoch )
 
 
 ### Define dependent variables to save
