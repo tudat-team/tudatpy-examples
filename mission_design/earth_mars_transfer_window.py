@@ -1,3 +1,4 @@
+# Earth Mars transfer window design with Porkchop Plots
 ''' 
 Copyright (c) 2010-2023, Delft University of Technology
 All rigths reserved
@@ -83,9 +84,9 @@ target_body = 'Mars'
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
 
     # Tudat imports
-    from tudatpy.kernel.interface import spice_interface
-    from tudatpy.kernel.astro.time_conversion import DateTime
-    from tudatpy.kernel.numerical_simulation import environment_setup
+    from tudatpy.interface import spice_interface
+    from tudatpy.astro.time_conversion import DateTime
+    from tudatpy.numerical_simulation import environment_setup
 
     #--------------------------------------------------------------------
     #%% PORKCHOP PARAMETERS
@@ -123,7 +124,6 @@ if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     
     [departure_epochs, arrival_epochs, ΔV] = porkchop(
         bodies,
-        global_frame_orientation,
         departure_body,
         target_body,
         earliest_departure_time,

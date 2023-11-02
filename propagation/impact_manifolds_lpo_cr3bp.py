@@ -37,10 +37,11 @@ from matplotlib import pyplot as plt
 # Tudatpy imports
 import tudatpy
 from tudatpy.util import result2array
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import propagation_setup, environment_setup, estimation_setup
-from tudatpy.kernel.astro import polyhedron_utilities
-from tudatpy.kernel.math import interpolators, root_finders
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import propagation_setup, environment_setup, estimation_setup
+from tudatpy.astro import polyhedron_utilities
+from tudatpy.math import interpolators, root_finders
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Auxiliary Functions
@@ -339,7 +340,7 @@ initial_state_lpo_body_fixed = np.array(
      -4.813620400827587031e-05, -1.486990610364946619e-03, 3.598307742062465862e-04])
 period_lpo = 3.032280964384842736e+00
 
-simulation_start_epoch = 0.0
+simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 
 manifolds_position_perturbation = 1e-6
 

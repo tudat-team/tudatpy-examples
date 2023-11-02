@@ -36,12 +36,13 @@ from matplotlib import pyplot as plt
 
 
 # Load tudatpy modules
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup, environment, propagation_setup, propagation
-from tudatpy.kernel.astro import element_conversion
-from tudatpy.kernel import constants
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment_setup, environment, propagation_setup, propagation
+from tudatpy.astro import element_conversion
+from tudatpy import constants
 from tudatpy.util import result2array
+from tudatpy.astro.time_conversion import DateTime
 
 
 ## Aerodynamic guidance class
@@ -170,8 +171,8 @@ Please refer to the API documentation of the `time_conversion module` [here](htt
 # Load spice kernels
 spice.load_standard_kernels()
 
-# Set simulation start epoch
-simulation_start_epoch = 6000.0
+# Set simulation start epoch (January the 1st, 2000 plus 6000s)
+simulation_start_epoch = DateTime(2000, 1, 1, 1, 40)
 
 # Set the maximum simulation time (avoid very long skipping re-entry)
 max_simulation_time = 3*constants.JULIAN_DAY

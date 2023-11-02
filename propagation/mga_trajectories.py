@@ -43,10 +43,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load tudatpy modules
-from tudatpy.kernel.trajectory_design import transfer_trajectory, shape_based_thrust
-from tudatpy.kernel.numerical_simulation import environment_setup
+from tudatpy.trajectory_design import transfer_trajectory, shape_based_thrust
+from tudatpy.numerical_simulation import environment_setup
 from tudatpy.util import result2array
-from tudatpy.kernel import constants
+from tudatpy import constants
 
 
 # First, let's explore an MGA transfer trajectory with no thrust applied during the transfer legs. In this case, the impulsive $\Delta$Vs are only applied during the gravity assists.
