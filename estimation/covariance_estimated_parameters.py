@@ -32,6 +32,7 @@ from matplotlib import pyplot as plt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
@@ -172,20 +173,16 @@ acceleration_models = propagation_setup.create_acceleration_models(
 """
 Realise that the initial state of the spacecraft always has to be provided as a cartesian state - i.e. in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
-Within this example, we will make use of the `keplerian_to_cartesian_elementwise()` function  - included in the `element_conversion` module - enabling us to convert an initial state from Keplerian elements to a 6x1 cartesian vector.
+Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
 
-# Set the initial state of the vehicle
-earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
-initial_state = element_conversion.keplerian_to_cartesian_elementwise(
-    gravitational_parameter=earth_gravitational_parameter,
-    semi_major_axis=7500.0E3,
-    eccentricity=0.1,
-    inclination=np.deg2rad(85.3),
-    argument_of_periapsis=np.deg2rad(235.7),
-    longitude_of_ascending_node=np.deg2rad(23.4),
-    true_anomaly=np.deg2rad(139.87)
+# Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
+delfi_tle = environment.Tle(
+    "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
+    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
 )
+delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
+initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
 
 ### Create the integrator settings
