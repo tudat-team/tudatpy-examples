@@ -94,7 +94,7 @@ Let's now create the 400kg satellite for which the perturbed orbit around Earth 
 # Create vehicle objects.
 bodies.create_empty_body("Delfi-C3")
 
-bodies.get("Delfi-C3").mass = 400.0
+bodies.get("Delfi-C3").mass = 2.2
 
 
 # To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
@@ -104,7 +104,7 @@ bodies.get("Delfi-C3").mass = 400.0
 # - No moment coefficient.
 
 # Create aerodynamic coefficient interface settings, and add to vehicle
-reference_area = 4.0
+reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
