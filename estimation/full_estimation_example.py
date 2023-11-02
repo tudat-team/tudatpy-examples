@@ -105,7 +105,7 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "Delfi-C3", aero_coefficient_settings)
 
 # Create radiation pressure settings
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(

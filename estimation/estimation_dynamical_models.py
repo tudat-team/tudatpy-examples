@@ -75,7 +75,7 @@ bodies.create_empty_body("MEX")
 bodies.get("MEX").mass = 1000.0
 
 # Create radiation pressure settings
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Mars"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(

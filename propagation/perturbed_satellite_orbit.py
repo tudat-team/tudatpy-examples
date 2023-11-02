@@ -118,7 +118,7 @@ environment_setup.add_aerodynamic_coefficient_interface(
 # To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m$^2$. This interface also accounts for the variation in pressure cause by the shadow of Earth.
 
 # Create radiation pressure settings, and add to vehicle
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
