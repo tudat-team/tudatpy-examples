@@ -94,10 +94,10 @@ When setting up the radiation pressure interface, the Earth is set as a body tha
 
 # Create vehicle objects.
 bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 400.0
+bodies.get("Delfi-C3").mass = 2.2
 
 # Create aerodynamic coefficient interface settings
-reference_area = 4.0
+reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0.0, 0.0]
