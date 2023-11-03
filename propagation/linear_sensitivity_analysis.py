@@ -31,6 +31,7 @@ from matplotlib import pyplot as plt
 # Load tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, estimation_setup
 from tudatpy.astro import element_conversion
 from tudatpy import constants
@@ -95,10 +96,10 @@ When setting up the radiation pressure interface, the Earth is set as a body tha
 
 # Create vehicle objects.
 bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 400.0
+bodies.get("Delfi-C3").mass = 2.2
 
 # Create aerodynamic coefficient interface settings
-reference_area = 4.0
+reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0.0, 0.0]
@@ -108,7 +109,7 @@ environment_setup.add_aerodynamic_coefficient_interface(
             bodies, "Delfi-C3", aero_coefficient_settings)
 
 # Create radiation pressure settings
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
@@ -186,20 +187,17 @@ The initial state of the vehicle that will be propagated is now defined.
 
 This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
 
-In this case, let's make use of the `keplerian_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Keplerian elements, and then converted in Cartesian elements.
+In this casWithin this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
 
-# Set the initial state of the vehicle
-earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
-initial_state = element_conversion.keplerian_to_cartesian_elementwise(
-    gravitational_parameter=earth_gravitational_parameter,
-    semi_major_axis=7500.0E3,
-    eccentricity=0.1,
-    inclination=np.deg2rad(85.3),
-    argument_of_periapsis=np.deg2rad(235.7),
-    longitude_of_ascending_node=np.deg2rad(23.4),
-    true_anomaly=np.deg2rad(139.87)
+# Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
+delfi_tle = environment.Tle(
+    "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
+    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
 )
+delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
+initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
+
 
 ### Create the integrator settings
 """
