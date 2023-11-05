@@ -11,11 +11,11 @@ The [Minor Planet Centre](https://www.minorplanetcenter.net/) (MPC) provides pos
 
 MPC receives and stores observations from observatories across the world. These are optical observations in a Right Ascension (RA) and Declination (DEC) format which are processed into an Earth-inertial J2000 format. Objects are all assigned a unique minor-planet designation number (see examples below), comets use a distinct designation. Larger objects are often also given a name (only about 4% have been given a name currently). Similarly, observatories are also assigned a unique 3 symbol code.
 
-The following objects will be used in the example:
+The following asteroids will be used in the example:
 
-- [1 Ceres](https://en.wikipedia.org/wiki/Ceres_(dwarf_planet))
-- [4 Vesta](https://en.wikipedia.org/wiki/4_Vesta)
-- [433 Eros](https://en.wikipedia.org/wiki/433_Eros)
+- [433 Eros](https://en.wikipedia.org/wiki/433_Eros) (also the main focus of the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example)
+- [238 Hypatia](https://en.wikipedia.org/wiki/238_Hypatia)
+- [329 Svea](https://en.wikipedia.org/wiki/329_Svea)
 """
 
 # %% [markdown]
@@ -49,10 +49,10 @@ spice.load_standard_kernels()
 # %% [markdown]
 # We initialise a `BatchMPC` object, create a list with the objects we want and use `.get_observations()` to retrieve the observations. `.get_observations()` uses [astroquery](https://astroquery.readthedocs.io/en/latest/mpc/mpc.html) to retrieve data from MPC and requires an internet connection. The observations are cached for faster retrieval in subsequent runs. The `BatchMPC` object removes duplicates if `.get_observations()` is ran twice.
 # 
-# Tudat's estimation tools allow for multiple Objects to be analysed at the same time. BatchMPC can process multiple objects into a single observation collection automatically. For now lets retrieve the observations for Ceres and Eros. BatchMPC uses MPC codes for objects and observatories. To get an overview of the batch we can use the `summary()` method. Let's also get some details on some of the observatories that retrieved the data using the `observatories_table()` method.
+# Tudat's estimation tools allow for multiple Objects to be analysed at the same time. BatchMPC can process multiple objects into a single observation collection automatically. For now lets retrieve the observations for Eros and Svea. BatchMPC uses MPC codes for objects and observatories. To get an overview of the batch we can use the `summary()` method. Let's also get some details on some of the observatories that retrieved the data using the `observatories_table()` method.
 
 # %%
-asteroid_MPC_codes = [1, 433]
+asteroid_MPC_codes = [433, 329] # Eros and Svea
 
 batch1 = BatchMPC()
 
@@ -81,10 +81,10 @@ print(obs_by_WISE)
 """
 
 # %% [markdown]
-# From the summary we can see that even Piazzi's first observations of Ceres are included. This is not ideal. We might also want to exclude some observatories. To fix this we use the `.filter()` method. Dates can be filtered using the standard seconds since J2000 TDB format or through python's datetime standard library in UTC for simplicity. Additionally, specific bands can be selected and observatories can explicitly be included or excluded. The `.filter()` method alters the original batch in place.
+# From the summary we can see that even the first observations from the 1890s are included. This is not ideal. We might also want to exclude some observatories. To fix this we use the `.filter()` method. Dates can be filtered using the standard seconds since J2000 TDB format or through python's datetime standard library in UTC for simplicity. Additionally, specific bands can be selected and observatories can explicitly be included or excluded. The `.filter()` method alters the original batch in place, an alternative is shown in the Additional Features section.
 
 # %%
-observatories_to_exlude = ["000", "C59"]
+observatories_to_exlude = ["000", "C59"] # chosen as an example
 
 print(f"Size before filter: {batch1.size}")
 batch1.filter(observatories_exclude=observatories_to_exlude, epoch_start=datetime(2018, 1, 1), epoch_end=746013855.0)
@@ -95,7 +95,7 @@ batch1.summary()
 # %% [markdown]
 ### Set up the system of bodies
 """
-Transforming the observations to a tudat compatible format requires setting up an environment. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use Earth (required to host our terrestrial observatories) and the Sun. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
+A system of bodies must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use Earth and the Sun. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
 """
 
 # %%
@@ -127,31 +127,38 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 4. Creates link definitions between each unique terrestrial observatory/ minor planet combination in the batch.
 # 5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires an addional input.
 # 6. Creates a `SingleObservationSet` object for each unique link that includes all observations for that link.
-# 7. Returns an `ObservationCollection` object and a dictionary with the unique link definitions in a dictionary with key strings "MPCPlanet_MPCobservatory". For example: the key for the link Ceres-> Fabra Observatory would be "1_006".
+# 7. Returns an `ObservationCollection` object.
 # 
-# By default, space telescopes like WISE and TESS are excluded from the `ObservationCollection`. To utilise their observations, dynamics of the satellites are required. The "Additional Features" section of this example shows a rudimental version of how this can be done. The '.to_tudat()' method does not alter the batch object itself.
+# If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `to_tudat()` method. The '.to_tudat()' method does not alter the batch object itself.
 
 # %%
-observation_collection, links_dict = batch1.to_tudat(bodies)
+observation_collection = batch1.to_tudat(bodies, included_satellites=None)
 
 # %% [markdown]
 # The names of the bodies added to the system of bodies object as well as the dates of the oldest and latest observations can be retrieved from the batch:
 
 # %%
-epoch_start = batch1.epoch_start
+epoch_start = batch1.epoch_start # in seconds since J2000 TDB (Tudat default)
 epoch_end = batch1.epoch_end
 object_names = batch1.MPC_objects
 
 # %% [markdown]
-# The `to_tudat()` method returns the links themselves, this is done to enable straightforward addition biases and corrections if necessary. For now we just keep the settings default.
+# We can now retrieve the links from the ObservationCollection we got from `to_tudat()` and we can now create settings for these links. This is where link biases would be set, for now we just keep the settings default.
 
 # %%
-# Manual method:
 observation_settings_list = list()
-for link in list(links_dict.values()):
-    # add optional bias settings
-    observation_settings_list.append(observation.angular_position(link, bias_settings = None))
 
+link_list = list(
+    observation_collection.get_link_definitions_for_observables(
+        observable_type=observation.angular_position_type
+    )
+)
+
+for link in link_list:
+    # add optional bias settings
+    observation_settings_list.append(
+        observation.angular_position(link, bias_settings=None)
+    )
 
 # %% [markdown]
 # With the `observation_collection` and `observation_settings_list` ready, we have all the observation inputs we need to perform an estimation. Next, lets verify the observations. Next, check out the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features.
@@ -174,13 +181,14 @@ Space Telescopes in Tudat are treated as bodies instead of stations. To use thei
 TESS_code = "-95"
 body_settings.add_empty_settings("TESS")
 
-# Set up the space telescope's dynamics
+# Set up the space telescope's dynamics, TESS orbits earth
 # the spice kernel can be retrieved from: https://archive.stsci.edu/missions/tess/models/
 spice.load_kernel(r"tess_20_year_long_predictive.bsp")
 body_settings.get("TESS").ephemeris_settings =  environment_setup.ephemeris.direct_spice(
-     global_frame_origin, global_frame_orientation, TESS_code)
+     "Earth", global_frame_orientation, TESS_code)
 
-# NOTE this is incorrect, we are trying to set the ephemeris directly:
+# NOTE this is incorrect, here we are trying to set the ephemeris directly:
+# Setting the ephemeris settings allows tudat to complete the relevant setup for the body. 
 # bodies.create_empty_body("TESS")
 # bodies.get("TESS").ephemeris = environment_setup.ephemeris.direct_spice(
 #      global_frame_origin, global_frame_orientation, TESS_code)
@@ -190,7 +198,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # create dictionary to link names. MPCcode:NameInTudat
 sats_dict = {"C57":"TESS"}
 
-observation_collection, links_dict = batch1.to_tudat(bodies, included_satellites=sats_dict)
+observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict)
 
 # %% [markdown]
 ### Manual retrieval from astroquery
@@ -201,8 +209,8 @@ Those familiar with astroquery (or those who have existing filitering/ retrieval
 # %%
 from astroquery.mpc import MPC
 
-mpc_code_vesta = 4
-data = MPC.get_observations(mpc_code_vesta)
+mpc_code_hypatia = 238
+data = MPC.get_observations(mpc_code_hypatia)
 
 # ...
 # Any additional filtering steps
@@ -253,16 +261,21 @@ batch1_copy2.summary()
 # %% [markdown]
 ### Plotting observations
 """
-The `.plot_observations()` method can be used to make a quick plot of the observations
+The `.plot_observations_sky()` method can be used to view a projection of the observations. Similarly, `.plot_observations_temporal()` shows the declination and right ascension of a batch's bodies over time.
 """
 
 # %%
 import matplotlib.pyplot as plt
 
 # Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
-fig = batch1.plot_observations(projection="aitoff")
-fig = batch1.plot_observations(projection=None)
+fig = batch1.plot_observations_sky(projection="aitoff")
+# specific objects can be selected for large batches:
+fig = batch1.plot_observations_sky(projection=None, objects=[329]) 
 
 plt.show()
+
+# %%
+# Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
+fig = batch1.plot_observations_temporal()
 
 
