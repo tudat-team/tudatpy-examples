@@ -2,24 +2,15 @@
 
 Welcome to the repository showcasing example applications set up with Tudatpy!
 
-If you want to know more about Tudatpy, please visit the [Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
+If you want to know more about Tudatpy, please visit the [Tudat website]([https://tudat-space.readthedocs.io/en/latest/](https://docs.tudat.space/en/latest/)).
 
 ## Format
 
 The examples are available as both Jupyter Notebooks and raw ``.py`` scripts.
 
-### MyBinder
-
-We set up a repository on [MyBinder](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
-launch the examples on ``mybinder``:
-
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)
-
 ### Jupyter Notebook
-You can alternatively run the Jupyter notebooks directly on your computer.
-To do so, first create the `tudat-space` conda environment to install `tudatpy` and its required depedencies.
 
-A detailed guide on how to do this can be found in the [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/installation.html).
+To run these examples, first create the `tudat-space` conda environment to install `tudatpy` and its required depedencies, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
 
 Then, make sure that the `tudat-space` environment is activated:
 ````
@@ -49,14 +40,11 @@ jupyter notebook
 
 ### Static code
 
-Otherwise, you can clone this repository, open the examples on your favorite IDE, and install the `tudat-space` conda environment.
-
-More instructions are reported in the guides hosted on [Tudat Space](https://tudat-space.readthedocs.io/en/latest/).
+To run the examples as regular Python files, you can clone this repository, open the examples on your favorite IDE, and install the `tudat-space` conda environment, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
 
 All of the examples, provided as `.py` files, can then be run and edited as you see fit.
 
 Please note that these `.py` files were generated from the Jupyter Notebooks.
-The clarity and format of the code may suffer from this, and we advise to run the notebooks for a simpler user experience.
 
 ## Content
 
@@ -92,6 +80,12 @@ Examples showing how to optimize a problem modelled with Tudatpy via algorithms 
 - ``asteroid_orbit_optimization``: simulates the orbit around the Itokawa asteroid and finds the initial state that 
   ensures optimal coverage and close approaches
 
+### MyBinder
+
+We set up a repository on [MyBinder](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to 
+launch the examples on ``mybinder``:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)
 
 ## Contribute
 
