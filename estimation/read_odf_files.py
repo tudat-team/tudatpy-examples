@@ -24,6 +24,7 @@ from tudatpy.io import save2txt
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
 from tudatpy.astro import time_conversion
+from tudatpy.astro import frame_conversion
 from tudatpy.astro import element_conversion
 from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup
@@ -67,12 +68,43 @@ def get_grail_odf_file_name( test_index ):
     elif test_index == 7:
         return current_directory + '/grail_data/gralugf2012_108_0450smmmv1.odf'
 
-def run_estimation( test_index ):
+def get_rsw_state_difference(
+        estimated_state_history,
+        spacecraft_name,
+        spacecraft_central_body,
+        global_frame_orientation ):
+    rsw_state_difference = dict()
+    print('Number of times ', len(estimated_state_history))
+    counter = 0
+    for time in estimated_state_history:
+        current_estimated_state = estimated_state_history[time]
+        current_spice_state = spice.get_body_cartesian_state_at_epoch(spacecraft_name, spacecraft_central_body,
+                                                                      global_frame_orientation, "None", time)
+        current_state_difference = current_estimated_state - current_spice_state
+        current_position_difference = current_state_difference[0:3]
+        current_velocity_difference = current_state_difference[3:6]
+        rotation_to_rsw = frame_conversion.inertial_to_rsw_rotation_matrix(current_estimated_state)
+        current_rsw_state_difference = np.ndarray([6])
+        current_rsw_state_difference[0:3] = rotation_to_rsw @ current_position_difference
+        current_rsw_state_difference[3:6] = rotation_to_rsw @ current_velocity_difference
+        rsw_state_difference[time] = current_rsw_state_difference
+        print(time,counter,current_rsw_state_difference)
+        counter = counter+1
+    return rsw_state_difference
 
-    with util.redirect_std( 'parallel_output_' + str( test_index ) + ".dat", True, True ):
+def run_estimation( input_index ):
 
-        run_estimation = True
-        fit_to_kernel = True
+    with util.redirect_std( 'parallel_output_' + str( input_index ) + ".dat", True, True ):
+
+        number_of_files = 8
+        test_index = input_index % number_of_files
+
+        perform_estimation = False
+        fit_to_kernel = False
+        if( input_index == test_index ):
+            perform_estimation = True
+        else:
+            fit_to_kernel = True
         # Load standard spice kernels as well as the one describing the orbit of Mars Express
         spice.load_standard_kernels()
         spice.load_kernel(current_directory + "/grail_kernels/moon_de440_200625.tf")
@@ -150,71 +182,13 @@ def run_estimation( test_index ):
         uncompressed_observations = estimation_setup.observation.split_observation_sets_into_arc(
                 estimation_setup.observation.create_odf_observed_observation_collection(
             single_odf_file_contents, list( ), [ numerical_simulation.Time( 0, np.nan ), numerical_simulation.Time( 0, np.nan ) ] ), 60.0, 10 )
-        compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
-            uncompressed_observations, 60 )
-        print('Original observations: ' )
-        print(compressed_observations.concatenated_observations.size )
+        observation_time_limits = uncompressed_observations.time_bounds
+        initial_time = observation_time_limits[0] - 3600.0
+        final_time = observation_time_limits[1] + 3600.0
+
+        print('Time in hours: ', (final_time.to_float() - initial_time.to_float()) / 3600)
 
 
-        #  Create observation model settings
-        light_time_correction_list = list( )
-        light_time_correction_list.append( estimation_setup.observation.first_order_relativistic_light_time_correction( [ "Sun" ] ) )
-
-        tropospheric_correction_files = [
-            current_directory + '/grail_data/grxlugf2012_092_2012_122.tro',
-            current_directory + '/grail_data/grxlugf2012_122_2012_153.tro' ]
-        light_time_correction_list.append( estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(
-            tropospheric_correction_files ) )
-
-        ionospheric_correction_files = [
-            current_directory + '/grail_data/gralugf2012_092_2012_122.ion',
-            current_directory + '/grail_data/gralugf2012_122_2012_153.ion' ]
-        spacecraft_name_per_id = dict()
-        spacecraft_name_per_id[ 177 ] = "GRAIL-A"
-        light_time_correction_list.append( estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(
-            ionospheric_correction_files, spacecraft_name_per_id ) )
-
-        # Create observation model settings
-        doppler_link_ends = compressed_observations.link_definitions_per_observable[ estimation_setup.observation.dsn_n_way_averaged_doppler ]
-        observation_model_settings = list( )
-        for current_link_definition in doppler_link_ends:
-            observation_model_settings.append( estimation_setup.observation.dsn_n_way_doppler_averaged(
-                current_link_definition, light_time_correction_list ) )
-
-        # Create observation simulators
-        observation_simulators = estimation_setup.create_observation_simulators( observation_model_settings, bodies )
-
-        # Create settings to simulate observations
-        observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection( compressed_observations )
-
-        # Compute simulated observations
-        simulated_observations = estimation.simulate_observations( observation_simulation_settings, observation_simulators, bodies )
-        residual_collection = estimation.create_residual_collection( compressed_observations, simulated_observations )
-
-        residual_filter_cutoff = dict()
-        residual_filter_cutoff[ observation.dsn_n_way_averaged_doppler ] = 0.01
-        filtered_compressed_observations = estimation.create_filtered_observation_collection( compressed_observations, residual_collection, residual_filter_cutoff )
-        print('Filtered observations: ')
-        print(filtered_compressed_observations.concatenated_observations.size )
-        np.savetxt('unfiltered_residual_' + str( test_index ) + '.dat', residual_collection.concatenated_observations, delimiter=',')
-        np.savetxt('unfiltered_time_' + str( test_index ) + '.dat', residual_collection.concatenated_float_times, delimiter=',')
-        np.savetxt('unfiltered_link_end_ids_' + str( test_index ) + '.dat', residual_collection.concatenated_link_definition_ids, delimiter=',')
-
-        # Create settings to simulate filtered observations
-        observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection( filtered_compressed_observations )
-
-        # Compute simulated filtered observations
-        simulated_filtered_observations = estimation.simulate_observations( observation_simulation_settings, observation_simulators, bodies )
-        residual_filtered_collection = estimation.create_residual_collection( filtered_compressed_observations, simulated_filtered_observations )
-        np.savetxt('filtered_residual_' + str( test_index ) + '.dat', residual_filtered_collection.concatenated_observations, delimiter=',')
-        np.savetxt('filtered_time_' + str( test_index ) + '.dat', residual_filtered_collection.concatenated_float_times, delimiter=',')
-        np.savetxt('filtered_link_end_ids_' + str( test_index ) + '.dat', residual_filtered_collection.concatenated_link_definition_ids, delimiter=',')
-
-        observation_time_limits = filtered_compressed_observations.time_bounds
-        initial_time = observation_time_limits[ 0 ] - 3600.0
-        final_time = observation_time_limits[ 1 ] + 3600.0
-
-        print( 'Time in hours: ', ( final_time.to_float() - initial_time.to_float()  ) /3600 )
         # Create accelerations
         accelerations_settings_spacecraft = dict(
             Sun=[
@@ -258,20 +232,129 @@ def run_estimation( test_index ):
         propagator_settings = propagation_setup.propagator.translational(
             central_bodies, acceleration_models, bodies_to_propagate, initial_state, initial_time, integrator_settings, termination_condition )
         propagator_settings.print_settings.results_print_frequency_in_steps = 3600.0 / integration_step
-        # Define parameters
-        parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
 
+        # Define parameters
         extra_parameters = [
             estimation_setup.parameter.radiation_pressure_coefficient(spacecraft_name),
             estimation_setup.parameter.full_empirical_acceleration_terms(spacecraft_name, spacecraft_central_body)
         ]
-        parameter_settings += extra_parameters
 
-        # Create the parameters that will be estimated
-        parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings)
+        if perform_estimation:
+            compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
+                uncompressed_observations, 60)
+            print('Original observations: ')
+            print(compressed_observations.concatenated_observations.size)
 
-        estimation.create_best_fit_to_ephemeris( bodies, acceleration_models, bodies_to_propagate, central_bodies, integrator_settings,
-                                      initial_time, final_time, numerical_simulation.Time( 0, 60.0 ), extra_parameters )
+            #  Create observation model settings
+            light_time_correction_list = list()
+            light_time_correction_list.append(
+                estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+
+            tropospheric_correction_files = [
+                current_directory + '/grail_data/grxlugf2012_092_2012_122.tro',
+                current_directory + '/grail_data/grxlugf2012_122_2012_153.tro']
+            light_time_correction_list.append(
+                estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(
+                    tropospheric_correction_files))
+
+            ionospheric_correction_files = [
+                current_directory + '/grail_data/gralugf2012_092_2012_122.ion',
+                current_directory + '/grail_data/gralugf2012_122_2012_153.ion']
+            spacecraft_name_per_id = dict()
+            spacecraft_name_per_id[177] = "GRAIL-A"
+            light_time_correction_list.append(
+                estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(
+                    ionospheric_correction_files, spacecraft_name_per_id))
+
+            # Create observation model settings
+            doppler_link_ends = compressed_observations.link_definitions_per_observable[
+                estimation_setup.observation.dsn_n_way_averaged_doppler]
+            observation_model_settings = list()
+            for current_link_definition in doppler_link_ends:
+                observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
+                    current_link_definition, light_time_correction_list))
+
+            # Create observation simulators
+            observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+
+            # Create settings to simulate observations
+            observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(
+                compressed_observations)
+
+            # Compute simulated observations
+            simulated_observations = estimation.simulate_observations(observation_simulation_settings,
+                                                                      observation_simulators, bodies)
+            residual_collection = estimation.create_residual_collection(compressed_observations, simulated_observations)
+
+            residual_filter_cutoff = dict()
+            residual_filter_cutoff[observation.dsn_n_way_averaged_doppler] = 0.01
+            filtered_compressed_observations = estimation.create_filtered_observation_collection(
+                compressed_observations, residual_collection, residual_filter_cutoff)
+            print('Filtered observations: ')
+            print(filtered_compressed_observations.concatenated_observations.size)
+            np.savetxt('unfiltered_residual_' + str(input_index) + '.dat', residual_collection.concatenated_observations,
+                       delimiter=',')
+            np.savetxt('unfiltered_time_' + str(input_index) + '.dat', residual_collection.concatenated_float_times,
+                       delimiter=',')
+            np.savetxt('unfiltered_link_end_ids_' + str(input_index) + '.dat',
+                       residual_collection.concatenated_link_definition_ids, delimiter=',')
+
+            # Create settings to simulate filtered observations
+            observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(
+                filtered_compressed_observations)
+
+            # Compute simulated filtered observations
+            simulated_filtered_observations = estimation.simulate_observations(observation_simulation_settings,
+                                                                               observation_simulators, bodies)
+            residual_filtered_collection = estimation.create_residual_collection(filtered_compressed_observations,
+                                                                                 simulated_filtered_observations)
+            np.savetxt('filtered_residual_' + str(input_index) + '.dat',
+                       residual_filtered_collection.concatenated_observations, delimiter=',')
+            np.savetxt('filtered_time_' + str(input_index) + '.dat',
+                       residual_filtered_collection.concatenated_float_times, delimiter=',')
+            np.savetxt('filtered_link_end_ids_' + str(input_index) + '.dat',
+                       residual_filtered_collection.concatenated_link_definition_ids, delimiter=',')
+
+            parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
+            parameter_settings += extra_parameters
+
+            parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings)
+
+            # Create estimator
+            estimator = numerical_simulation.Estimator( bodies, parameters_to_estimate, observation_model_settings, propagator_settings )
+
+            estimation_input = estimation.EstimationInput( filtered_compressed_observations, convergence_checker = estimation.estimation_convergence_checker( 2 ) )
+            estimation_input.define_estimation_settings(
+                reintegrate_equations_on_first_iteration = False,
+                reintegrate_variational_equations = False,
+                print_output_to_terminal = True,
+                save_state_history_per_iteration=True)
+            estimation_output = estimator.perform_estimation(estimation_input)
+            np.savetxt('filtered_postfit_residual_' + str(input_index) + '.dat',
+                       estimation_output.final_residuals, delimiter=',')
+            estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
+
+            print('Getting RSW difference',len(estimated_state_history),len(estimation_output.simulation_results_per_iteration))
+            rsw_state_difference = get_rsw_state_difference(
+                estimated_state_history, spacecraft_name, spacecraft_central_body, global_frame_orientation )
+            print('Gotten RSW difference')
+
+            save2txt(rsw_state_difference, 'postfit_rsw_state_difference_' + str(input_index) + '.dat',
+                     current_directory)
+
+            # Create the parameters that will be estimated
+
+        if fit_to_kernel:
+            estimation_output = estimation.create_best_fit_to_ephemeris( bodies, acceleration_models, bodies_to_propagate, central_bodies, integrator_settings,
+                                          initial_time, final_time, numerical_simulation.Time( 0, 60.0 ), extra_parameters )
+            estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
+            print('Getting RSW difference',len(estimated_state_history),len(estimation_output.simulation_results_per_iteration))
+
+            rsw_state_difference = get_rsw_state_difference(
+                estimated_state_history, spacecraft_name, spacecraft_central_body, global_frame_orientation)
+            save2txt(rsw_state_difference, 'postfit_rsw_state_difference_' + str(input_index) + '.dat',
+                     current_directory)
+
         #
         # # Create estimator
         # estimator = numerical_simulation.Estimator( bodies, parameters_to_estimate, observation_model_settings, propagator_settings )
@@ -286,7 +369,7 @@ def run_estimation( test_index ):
 if __name__ == "__main__":
     print('Start')
     inputs = []
-    for i in range(8):
+    for i in range(16):
         inputs.append(i)
     # Run parallel MC analysis
     with mp.get_context("fork").Pool(8) as pool:
