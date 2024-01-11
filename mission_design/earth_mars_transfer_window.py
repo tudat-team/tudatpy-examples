@@ -10,43 +10,23 @@ http://tudat.tudelft.nl/LICENSE.
 """
 
 
-## **Important**
-"""
-This example requires the `tudatpy.trajectory_design.porkchop` module.
-Please ensure that your version of tudatpy does include this module.
-"""
-
-
 ## Summary
 """
-This example shows how the tudatpy `porkchop` module can be used to choose
-an optimal launch and arrival date for an Earth-Mars transfer. By default,
-the porkchop module uses a Lambert arc to compute the $\Delta V$ required to
-depart from the departure body (Earth in this case) and be captured by the 
-target body (in this case Mars).
+This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
 
-Users can provide a custom function to calculate the $\Delta V$ required for any
-given transfer. This can be done by supplying a `callable` (a function)
-to the `porkchop` function via the argument
+By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
+
+Users can provide a custom function to calculate the $\Delta V$ required for any given transfer. This can be done by supplying a `callable` (a function) to the `porkchop` function via the argument
 
     function_to_calculate_delta_v
 
-This opens the possibility to calculate the $\Delta V$ required for any transfer
-accounting for course correction manoeuvres along a planned trajectory.
-"""
-
-
-### Structure
-"""
-This example consists of 3 sections:
-
-1. The imports, where we import the required modules
-2. Data management, where we define the file where the porkchop data will be saved
-3. The porkchop itself, which will only be recalculated if the user requests it
+This opens the possibility to calculate the $\Delta V$ required for any transfer; potential applications include: low-thrust transfers, perturbed transfers with course correction manoeuvres, transfers making use of Gravity Assists, and more.
 """
 
 ## Import statements
 """
+
+The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
 """
 
 # General imports
@@ -62,6 +42,8 @@ from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
 ## Environment setup
 """
+
+We proceed to set up the simulation environment, by loading the standard Spice kernels, defining the origin of the global frame and creating all necessary bodies. 
 """
 
 # Load spice kernels
@@ -81,7 +63,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ## Porkchop Plots
 """
-We proceed to define the departure and target bodies and the time window for the transfer,
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
 """
 
 departure_body = 'Earth'
@@ -93,7 +75,7 @@ latest_departure_time   = DateTime(2005, 10,   7)
 earliest_arrival_time   = DateTime(2005, 11,  16)
 latest_arrival_time     = DateTime(2006, 12,  21)
 
-# To ensure the porkchop plot is rendered with good resolution, we calculate the time resolution of the plot to be 0.5% of the smallest time window (either the arrival or the departure window):
+# To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
 # Set time resolution IN DAYS as 0.5% of the smallest window (be it departure, or arrival)
 # This will result in fairly good time resolution, at a runtime of approximately 10 seconds
@@ -104,7 +86,7 @@ time_resolution = time_resolution = min(
         latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
 
-# Generating a high-resolution plot may be time-consuming, and reusing saved data might be desirable, so we ask the user whether to reuse saved data or generate the plot from scratch.
+# Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
 
 # File
 data_file = 'porkchop.pkl'
