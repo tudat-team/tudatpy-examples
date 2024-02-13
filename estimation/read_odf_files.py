@@ -9,7 +9,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 """
 
 import sys
-sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-debug/tudatpy")
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy")
 
 # Load required standard modules
 import multiprocessing as mp
@@ -213,7 +213,8 @@ def run_estimation( arc_index ):
         print('Created bodies')
         # Load ODF file
         single_odf_file_contents = estimation_setup.observation.process_odf_data_single_file(
-            get_grail_odf_file_name( arc_index ), 'GRAIL-A', 'Antenna', True )
+            get_grail_odf_file_name( arc_index ), 'GRAIL-A', True )
+        single_odf_file_contents.define_antenna_id( 'GRAIL-A', 'Antenna' )
         estimation_setup.observation.set_odf_information_in_bodies( single_odf_file_contents, bodies )
         print('Created observations')
 
