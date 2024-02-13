@@ -120,13 +120,13 @@ environment_setup.add_aerodynamic_coefficient_interface(
 # Create radiation pressure settings, and add to vehicle
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-environment_setup.add_radiation_pressure_interface(
-    bodies, "Delfi-C3", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict[ "Sun" ] = [ "Earth" ]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
 
+environment_setup.add_radiation_pressure_target_model(
+    bodies, "Delfi-C3", vehicle_target_settings)
 
 ## Propagation setup
 """
@@ -160,7 +160,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 # Define accelerations acting on Delfi-C3 by Sun and Earth.
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Earth=[
