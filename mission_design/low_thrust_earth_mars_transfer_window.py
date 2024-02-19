@@ -868,12 +868,14 @@ def inspect_low_thrust_trajectory(
     # Show the plot
     plt.show()
 
-## Observations
+## Observations and conclusions
 """
 
 Notice that there is a change in the number of revolutions around the Sun between the two transfers: the low $\Delta V$ transfer has close to 3 revolutions around the Sun, while the high $\Delta V$ transfer greatly "stretches" its second revolution around the Sun to reach Mars. This is expected as the chosen number of revolutions (2) allows trajectories with between 2 and 3 revolutions around the Sun: thus, a discontinuity appears as trajectories approach 3 revolutions, and are from that point on forced to use 2; this is the case for the high $\Delta V$ trajectory.
-
 The thrust acceleration of the high $\Delta V$ trajectory is 2 orders of magnitude higher than that for the low $\Delta V$ trajectory. This is expected as the orbit of the spacecraft in the high $\Delta V$ trajectory is distorted considerably more than in the low $\Delta V$ case.
+
+The discontinuities observed in the $\Delta V$ porkchops are explained by a discontinuous change in the number of revolutions required for the low-thrust transfer. The porkchops generated are thus reasonable, and can be used to identify a preliminary transfer window for our low-thrust spacecraft, as well as obtain a preliminary estimate of the $\Delta V$ required for the mission.
+Next steps in mission design should be the optimization of the shaping function parameters (`radial_velocity_shaping_free_coefficients`, `normal_velocity_shaping_free_coefficients` and `axial_velocity_shaping_free_coefficients`) and number of revolutions around the Sun, which were fixed in this example, analyzing disturbing perturbations along the trajectory, analyzing the impact of navigation uncertainties on the trajectory, et cétera.
 
 """
 
@@ -890,13 +892,3 @@ inspect_low_thrust_trajectory(
     DateTime(2016,10,22),
     DateTime(2021,1,21)
 )
-
-# 
-## Conclusion
-"""
-
-The discontinuities observed in the $\Delta V$ porkchops are explained by a discontinuous change in the number of revolutions required for the low-thrust transfer. The porkchops generated are thus reasonable, and can be used to identify a preliminary transfer window for our low-thrust spacecraft, as well as obtain a preliminary estimate of the $\Delta V$ required for the mission.
-
-Next steps in mission design should be the optimization of the shaping function parameters (`radial_velocity_shaping_free_coefficients`, `normal_velocity_shaping_free_coefficients` and `axial_velocity_shaping_free_coefficients`) and number of revolutions around the Sun, which were fixed in this example, analyzing disturbing perturbations along the trajectory, analyzing the impact of navigation uncertainties on the trajectory, et cétera.
-
-"""
