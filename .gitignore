@@ -35,6 +35,8 @@ cmake-build-*/
 # Rever
 rever/
 
+.dat
+
 __pycache__/*
 __pycache__*
 .DS_Store
@@ -48,3 +50,4 @@ __pycache__*
 jupyter-lab.log
 
 **/*.pkl
+*.dat
