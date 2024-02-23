@@ -49,4 +49,5 @@ __pycache__*
 */jupyter-lab.log
 jupyter-lab.log
 
+**/*.pkl
 *.dat
