@@ -1,8 +1,8 @@
 # Perturbed satellite orbit
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -24,6 +24,7 @@ Then, the different modules of `tudatpy` that will be used are imported.
 
 # Load standard modules
 import numpy as np
+
 import matplotlib
 from matplotlib import pyplot as plt
 
@@ -36,7 +37,6 @@ from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
-
 
 ## Configuration
 """
@@ -53,12 +53,11 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
-
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-"""
 
+"""
 
 ### Create the bodies
 """
@@ -87,7 +86,6 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of selected celestial bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
 ### Create the vehicle
 """
 Let's now create the 400kg satellite for which the perturbed orbit around Earth will be propagated.
@@ -98,22 +96,20 @@ bodies.create_empty_body("Delfi-C3")
 
 bodies.get("Delfi-C3").mass = 2.2
 
-
 # To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
 # - A constant drag coefficient of 1.2.
-# - A reference area of 4m$^2$.
+# - A reference area of 0.035m$^2$.
 # - No sideslip or lift coefficient (equal to 0).
 # - No moment coefficient.
 
 # Create aerodynamic coefficient interface settings, and add to vehicle
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection
+reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
 environment_setup.add_aerodynamic_coefficient_interface(
     bodies, "Delfi-C3", aero_coefficient_settings)
-
 
 # To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m$^2$. This interface also accounts for the variation in pressure cause by the shadow of Earth.
 
@@ -124,7 +120,6 @@ occulting_bodies_dict = dict()
 occulting_bodies_dict[ "Sun" ] = [ "Earth" ]
 vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
     reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
-
 environment_setup.add_radiation_pressure_target_model(
     bodies, "Delfi-C3", vehicle_target_settings)
 
@@ -141,7 +136,6 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
-
 
 ### Create the acceleration model
 """
@@ -188,7 +182,6 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
-
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
@@ -205,7 +198,6 @@ delfi_tle = environment.Tle(
 )
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
-
 
 ### Define dependent variables to save
 """
@@ -273,13 +265,11 @@ propagator_settings = propagation_setup.propagator.translational(
     output_variables=dependent_variables_to_save
 )
 
-
-
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -288,8 +278,7 @@ This history, taking the form of a dictionary, is then converted to an array con
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
 
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in
-the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
+The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 """
 
@@ -304,12 +293,11 @@ states_array = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array = result2array(dep_vars)
 
-
 ## Post-process the propagation results
 """
 The results of the propagation are then processed to a more user-friendly form.
-"""
 
+"""
 
 ### Total acceleration over time
 """
@@ -327,8 +315,6 @@ plt.ylabel('Total Acceleration [m/s$^2$]')
 plt.xlim([min(time_hours), max(time_hours)])
 plt.grid()
 plt.tight_layout()
-plt.show()
-
 
 ### Ground track
 """
@@ -351,8 +337,6 @@ plt.xlim([min(longitude), max(longitude)])
 plt.yticks(np.arange(-90, 91, step=45))
 plt.grid()
 plt.tight_layout()
-plt.show()
-
 
 ### Kepler elements over time
 """
@@ -400,8 +384,6 @@ for ax in fig.get_axes():
     ax.set_xlim([min(time_hours), max(time_hours)])
     ax.grid()
 plt.tight_layout()
-plt.show()
-
 
 ### Accelerations over time
 """
@@ -447,4 +429,3 @@ plt.suptitle("Accelerations norms on Delfi-C3, distinguished by type and origin,
 plt.yscale('log')
 plt.grid()
 plt.tight_layout()
-plt.show()
