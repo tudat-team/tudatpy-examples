@@ -1,14 +1,13 @@
-# 
 # MRO Range Data
 """
 
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
-
 """
 
 ## Context
 """
+
 With this example, we will explore how to load tracking observations into Tudat so that they can be used for estimation purposes. We then show how to simulate the same measurements and reduce the observation residuals by adding a more accurate rotation model and relativistic corrections.
 
 The example uses range measurements from the Mars Reconnaissance Orbiter (MRO) with a variety of Deep Space Network (DSN) ground stations. The data is already corrected so that it represents the two-way light time between those ground stations and Mars system barycenter. To simulate the observations, we start from SPICE ephemerides and obtain residuals in the order of a few hundred meters.
@@ -17,6 +16,7 @@ The example uses range measurements from the Mars Reconnaissance Orbiter (MRO) w
 
 ## Prerequisites
 """
+
 To run this example, make sure to download [the data file](https://ssd.jpl.nasa.gov/dat/planets/mrorange2006-2013.txt) from the NASA JPL small-body database and store it in a subfolder called [./data](./data) (or adjust the filename below to the absolute path of your choice). If you are using a terminal, you could get the MRO data by running the follownig commands from the current directory:
 
 ```bash
@@ -25,6 +25,7 @@ mkdir data
 ```
 
 Then set the filename of the tracking data accordingly
+
 """
 
 # Set the filename of the data file
@@ -35,17 +36,21 @@ try:
     with open(TRACKING_FNAME, "r") as f:
         pass
 except FileNotFoundError:
-    print(f"FILE {TRACKING_FNAME} NOT FOUND. Make sure you have downloaded the data file and stored in the correct place.")
+    print(
+        f"FILE {TRACKING_FNAME} NOT FOUND. Make sure you have downloaded the data file and stored in the correct place."
+    )
     exit(1)
 
 
 ## Import statements
 """
+
 Typically - in the most pythonic way - all required modules are imported at the very beginning.
 
 Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`.
 
 Then, the different modules of `tudatpy` that will be used are imported. Most notably, some elements of the `observation`, `estimation` and `estimation_setup` modules will be used and demonstrated within this example.
+
 """
 
 # General imports
@@ -64,7 +69,7 @@ from tudatpy.numerical_simulation.estimation_setup import observation
 ## Read the observations
 """
 
-To investigate the observation data, we will start by reading the observations into a format that is useful for Tudat. 
+To investigate the observation data, we will start by reading the observations into a format that is useful for Tudat.
 
 After inspecting the data file, we can see that it contains columns related to the spacecraft id, the DSN stations involved with the measurement, a date in UTC format, the round-trip light time and a correction term. We can use the `read_tracking_txt_file` function to read that raw data into an intermediate format that takes care of appropriate unit conversions for known column identifiers
 
@@ -94,9 +99,10 @@ raw_datafile = data.read_tracking_txt_file(
 ### Convert to Observation Collection
 """
 
-We can then specify any required ancillary settings; in this case we use the factory function for N-way range observations, where all signals are in the X-band frequency range. Then, all the necessary information is available to create the observation collection with "Mars" as main body. Recall that the observations were made using the MRO spacecraft, but already corrected for Mars system barycenter. You could consider that there might be slightly difference between Mars itself and the system barycenter, but since both Deimos and Phobos are very small (7 and 8 orders of magnitude less massive than Mars), this difference is negligible for the example.
+We then specify any required ancillary settings; in this case we use the factory function for N-way range observations, where all signals are in the X-band frequency range. Then, all the necessary information is available to create the observation collection with "Mars" as main body. Recall that the observations were made using the MRO spacecraft, but already corrected for Mars system barycenter. You could consider that there might be slightly difference between Mars itself and the system barycenter, but since both Deimos and Phobos are very small (7 and 8 orders of magnitude less massive than Mars), this difference is negligible for the example.
 
-An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artifically create such a collection from a simiulation or from known ephemerides, which is what we will demonstrate [below](#simulation). 
+An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artifically create such a collection from a simiulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
+
 """
 
 # Create ancillary settings
@@ -108,62 +114,42 @@ observations = observation.create_tracking_txtfile_observation_collection(
 )
 
 
-# We can then extract the observation times and values and plot them for inspection. Notice that using a line plot results in seemingly erratice behaviour. This is because the concatenated observations are not ordered chronologically but rather per set of link ends (in this case there are measurements from a variety of DSN stations which are grouped together). You could sort the results if necessary but a scatter plot is sufficient.
+# Now, it is possible to extract the observation times and values and plot them for inspection. Notice that using a line plot results in seemingly erratice behaviour. This is because the concatenated observations are not ordered chronologically but rather per set of link ends (in this case there are measurements from a variety of DSN stations which are grouped together). You could sort the results if necessary but a scatter plot is sufficient.
 # 
 # The range from Earth to Mars and back oscillates between about 1.2 AU at closest approach and 5 AU when furthest apart. This is certainly within intuitive expectations for a planet at ~1.5 AU semi-major axis.
+# 
 
 observation_times = np.array(observations.concatenated_times)
 observation_vals = observations.concatenated_observations
+observation_times_year = observation_times / constants.JULIAN_YEAR + 2000
 
 
 plt.figure()
 plt.title("Observed two-way range to Mars")
-plt.plot(observation_times, observation_vals / constants.ASTRONOMICAL_UNIT, "k--", linewidth=0.3, label="line plot")
-plt.plot(observation_times, observation_vals / constants.ASTRONOMICAL_UNIT, ".", label="Scatter plot")
-plt.xlabel("Time [s]")
+plt.plot(observation_times_year, observation_vals / constants.ASTRONOMICAL_UNIT, "k--", linewidth=0.3, label="line plot")
+plt.plot(observation_times_year, observation_vals / constants.ASTRONOMICAL_UNIT, ".", label="Scatter plot")
+plt.xlabel("Time [year]")
 plt.ylabel("Two-way range [AU]")
 plt.legend()
 plt.grid("on")
 plt.show()
 
 
-# 
-
-linkdef_ids = observations.concatenated_link_definition_ids
-distinct_linkdefs = observations.get_link_definitions_for_observables(observation.n_way_range_type)
-observation_settings_list = [observation.n_way_range(linkdef) for linkdef in distinct_linkdefs]
-
-
 ## Simulation
 """
 
-We will now aim to mimic the loaded observations by calculating them from SPICE ephemerides.  
-> Elaborate
+For this example, we aim to mimic the loaded real observations by calculating them from SPICE ephemerides. To achieve that, the first step is to load the standard SPICE kernels into our program.
 
-To achieve that, the first step is to load the standard SPICE kernels into our program.
 """
 
 spice.load_standard_kernels()
 
 
-# We then continue to set up the environment by creating the relavant bodies and applying their default body settings. A global frame with origin at Solar System Barycenter (SSB) and J2000 orientation is chosen.
-
-# Create default body settings for selected celestial bodies
-bodies_to_create = ["Sun", "Earth", "Mars"]
-global_frame_origin = "SSB"
-global_frame_orientation = "J2000"
-body_settings = environment_setup.get_default_body_settings(
-    bodies_to_create, global_frame_origin, global_frame_orientation
-)
-
-# Add ground stations DSN
-body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.dsn_stations()
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
-
 ## Create Bodies
 """
-> TODO: Elaborate
+
+We then continue to set up the environment by creating the relavant bodies and applying their default body settings. A global frame with origin at Solar System Barycenter (SSB) and J2000 orientation is chosen. For this example, we want to show the influence of adding a more precise rotation model, so a simple utility function is intruduced to create the bodies.
+
 """
 
 def create_bodies(use_itrf_rotation_model: bool = False) -> environment.SystemOfBodies:
@@ -178,7 +164,7 @@ def create_bodies(use_itrf_rotation_model: bool = False) -> environment.SystemOf
     # Add ground stations DSN
     body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.dsn_stations()
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    
+
     # Rotation model
     if use_itrf_rotation_model:
         body_settings.get("Earth").rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
@@ -190,114 +176,134 @@ def create_bodies(use_itrf_rotation_model: bool = False) -> environment.SystemOf
     return bodies
 
 
-## Create Observation Simulator
+bodies = create_bodies()
+
+
+## Create Simulated observations
 """
-> From Spice
-> Elaborate
+
+To simulate observations, we need three main things:
+* observation simulators, defining which observation types need to be simulated and which linkends need to be used.
+* observation simulation settings, defining the times at which to simulate the observations.
+* The system of bodies relevant for the simulation
+Do check out the [documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#simulating-the-observations) for a more rigorous explanation of the technicalities.
+
+The system of bodies was already defined above, and all the other required information is in the collection of real observations that we already loaded. For the observation simulation settings, there is a convenience function that extracts the settings from the collection. Creating the simulators is slightly more involved, as we need to specify the correct link definition for every observation - recall that the measurements are made using a variety of ground station.
 """
 
-def create_simulated_observations(
-    bodies, link_definition_list, linkdef_ids, use_relativistic_correction=False, use_corona_correction=False
-):
+# Extract the relevant information from the real observations to mimic
+linkdef_ids = observations.concatenated_link_definition_ids
+distinct_linkdefs = observations.get_link_definitions_for_observables(observation.n_way_range_type)
 
-    #  Create light time corrections
-    light_time_correction_list = list()
+# Create the observation model settings to match those of the real observations
+observation_model_settings = [
+    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id]) for linkdef_id in linkdef_ids
+]
 
-    if use_relativistic_correction:
-        light_time_correction_list.append(
-            estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"])
-        )
-
-    if use_corona_correction:
-        light_time_correction_list.append(
-            estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction(
-                coefficients=[7.8207e-06], positive_exponents=[2.0], delay_coefficient=40.3, sun_body_name="Sun"
-            )
-        )
-
-    observation_model_settings = list()
-    for linkdef_id in linkdef_ids:
-        observation_model_settings.append(
-            estimation_setup.observation.n_way_range(link_definition_list[linkdef_id], light_time_correction_list)
-        )
-
+def create_observations(observation_model_settings, bodies):
+    # Create the observation simulators
     observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+
+    # Get the simulator settings directly from the real observations
     observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(observations)
 
-    simulated_observations = estimation.simulate_observations(
-        observation_simulation_settings, observation_simulators, bodies
-    )
+    # Simulate the observations
+    simulated_observations = estimation.simulate_observations(observation_simulation_settings, observation_simulators, bodies)
+
     return simulated_observations
 
-
-print("Simple Simulation")
-bodies = create_bodies(use_itrf_rotation_model=False)
-simulated_observations = create_simulated_observations(
-    bodies, distinct_linkdefs, linkdef_ids, use_relativistic_correction=False, use_corona_correction=False
-)
-simulated_observation_vals_simple = simulated_observations.concatenated_observations
+# Simulate the observations
+simulated_observations_simple = create_observations(observation_model_settings, bodies)
 
 
-## Adding Rotation Model
-print("Adding ITRF Rotation Model")
-bodies = create_bodies(use_itrf_rotation_model=True)
-simulated_observations = create_simulated_observations(
-    bodies, distinct_linkdefs, linkdef_ids, use_relativistic_correction=False, use_corona_correction=False
-)
-simulated_observation_vals_itrf = simulated_observations.concatenated_observations
-
-
-print("Adding Relativistic Correction")
-bodies = create_bodies(use_itrf_rotation_model=True)
-simulated_observations = create_simulated_observations(
-    bodies, distinct_linkdefs, linkdef_ids, use_relativistic_correction=True, use_corona_correction=False
-)
-simulated_observation_vals_rel = simulated_observations.concatenated_observations
-
-
-
-# # %%
-## Adding Corona Correction
+### Simple simulation
 """
-FIXME: This is not working
-> Elaborate. Don't run separately?
+For the first attempt, we don't include any corrections. This implies that the simulation will simply calculate the Euclian distance the light travels between the link ends. Plotting the difference between that and the observations a error related to the distance between Earth and Mars. The larger the distance, the more that range is underestimated by the simple simulation. Additionally, there is some spread of those residuals, that seems to be related to a phenomenon of much higher frequency.
 """
 
-# print("Adding Solar Corona Correction")
-# bodies = create_bodies(use_itrf_rotation_model=True)
-# for gs in bodies.get("Earth").ground_station_list.values():
-#     frequency_interpolator = environment.ConstantFrequencyInterpolator(7.1e9) # 8.4 GHz downlink
-#     gs.set_transmitting_frequency_calculator(frequency_interpolator)
+residuals_simple = simulated_observations_simple.concatenated_observations - observation_vals
+
+plt.figure()
+plt.plot(observation_times_year, residuals_simple, ".")
+plt.title("Most simple simulation")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
+plt.show()
 
 
-# bodies.get("Mars").system_models.set_transponder_turnaround_ratio({(observation.FrequencyBands.s_band, observation.FrequencyBands.x_band): 1.66})
-
-# simulated_observations = create_simulated_observations(
-#     bodies, linkdefs, linkdef_ids, use_relativistic_correction=True, use_corona_correction=True
-# )
-# simulated_observation_vals_corona = simulated_observations.concatenated_observations
+### Improving the rotation model
 """
+
+One reason that might come to mind for the residual spread of about 20 km in the residuals is that the position of the ground stations is not accurately modelled over time. This is indeed due to the simplifications in the default rotation model. If we create the bodies using the IAU 2006 rotation model, the spread is completely eliminated.
 """
 
-## Compare Observations to simulations
-"""
-> Elaborate
+bodies_rotation = create_bodies(use_itrf_rotation_model=True)
+simulated_observations_rotation = create_observations(observation_model_settings, bodies_rotation)
+residuals_rotation = simulated_observations_rotation.concatenated_observations - observation_vals
 
+plt.figure()
+plt.plot(observation_times_year, residuals_rotation, ".")
+plt.title("Simulation with ITRF rotation model")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
+plt.show()
+
+
+## Adding light time corrections
+"""
+
+After adjusting the rotation model, it is clear that the simulation systematically underestimates the range. This seems to behave assymptotically as the distance between Mars and Earth inicreases, but notice that there are no measurements in the most extreme regions. At those times, the Sun is in the way, preventing useful observations. This also indicates that presence of the Sun influences the travel time of the light. 
+
+To account for the relativistic effects of the Sun, we can add a light time correction to the settings of the observation model. 
+Doing this and once more plotting the residuals shows that the error signal related to the Earth-Mars synodic period is removed, leaving a residual that oscillates annually in the order a few hundreds of meters. 
+"""
+
+#  Create light time corrections
+light_time_correction_list =[
+        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"])
+]
+
+observation_model_settings_lighttime = [
+    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in linkdef_ids
+]
+
+simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
+residuals_lighttime = simulated_observations_lighttime.concatenated_observations - observation_vals
+
+# Plot the new residuals
+plt.figure()
+plt.plot(observation_times_year, residuals_lighttime, ".")
+plt.title("Simulation with light time corrections")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
+plt.show()
+
+
+## Summary Plot
+"""
+
+The following plot just summarises the observation simulation efforts of this example.
 """
 
 fig, ax = plt.subplots(4, 1, figsize=(10, 10))
 
 # Plot the observed and simulated range
 ax[0].plot(
-    observation_times / constants.JULIAN_YEAR,
+    observation_times_year,
     observation_vals / constants.ASTRONOMICAL_UNIT,
-    "<",
+    "r<",
     label="Observed Range",
 )
 ax[0].plot(
-    observation_times / constants.JULIAN_YEAR,
-    simulated_observation_vals_simple / constants.ASTRONOMICAL_UNIT,
-    ".",
+    observation_times_year,
+    simulated_observations_simple.concatenated_observations / constants.ASTRONOMICAL_UNIT,
+    "k.",
     label="Simulated Range",
 )
 ax[0].set_ylabel("2-way Range [AU]")
@@ -306,34 +312,20 @@ ax[0].set_title("Observations")
 
 # Plot the residuals
 
-residuals_simple = observation_vals - simulated_observation_vals_simple
 ax[1].set_title("Simple Simulation")
-ax[1].scatter(observation_times / constants.JULIAN_YEAR, residuals_simple, marker=".")
+ax[1].plot(observation_times_year , residuals_simple, ".")
 
-residuals_itrf = observation_vals - simulated_observation_vals_itrf
-ax[2].set_title("Adding ITRF rotation model")
-ax[2].scatter(observation_times / constants.JULIAN_YEAR, residuals_itrf, marker=".")
+ax[2].set_title("Adding accurate rotation model")
+ax[2].plot(observation_times_year, residuals_rotation, ".")
 
-residuals_rel = observation_vals - simulated_observation_vals_rel
 ax[3].set_title("Adding first order relativistic correction")
-ax[3].scatter(observation_times / constants.JULIAN_YEAR, residuals_rel, marker=".")
-
+ax[3].plot(observation_times_year, residuals_lighttime, ".")
 
 [ax_i.axhline(0, color="k", linestyle="-", zorder=0) for ax_i in ax[1:]]
 [ax_i.set_ylabel("Residual [m]") for ax_i in ax[1:]]
+[ax_i.grid("on", zorder=0) for ax_i in ax]
 ax[-1].set_xlabel("Time [yr]")
 fig.align_labels()
-
-plt.grid("on")
-plt.tight_layout()
-
-plt.show()
-
-
-## Estimate Parameters
-"""
-None
-"""
-
+fig.tight_layout()
 plt.show()
 
