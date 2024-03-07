@@ -1,7 +1,7 @@
 # MRO Range Data
 """
 
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+Copyright (c) 2010-2024, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 """
 
@@ -114,8 +114,7 @@ observations = observation.create_tracking_txtfile_observation_collection(
 )
 
 
-# Now, it is possible to extract the observation times and values and plot them for inspection. Notice that using a line plot results in seemingly erratice behaviour. This is because the concatenated observations are not ordered chronologically but rather per set of link ends (in this case there are measurements from a variety of DSN stations which are grouped together). You could sort the results if necessary but a scatter plot is sufficient.
-# 
+# Now, it is possible to extract the observation times and values and plot them for inspection. 
 # The range from Earth to Mars and back oscillates between about 1.2 AU at closest approach and 5 AU when furthest apart. This is certainly within intuitive expectations for a planet at ~1.5 AU semi-major axis.
 # 
 
@@ -126,7 +125,6 @@ observation_times_year = observation_times / constants.JULIAN_YEAR + 2000
 
 plt.figure()
 plt.title("Observed two-way range to Mars")
-plt.plot(observation_times_year, observation_vals / constants.ASTRONOMICAL_UNIT, "k--", linewidth=0.3, label="line plot")
 plt.plot(observation_times_year, observation_vals / constants.ASTRONOMICAL_UNIT, ".", label="Scatter plot")
 plt.xlabel("Time [year]")
 plt.ylabel("Two-way range [AU]")
@@ -186,9 +184,10 @@ To simulate observations, we need three main things:
 * observation simulators, defining which observation types need to be simulated and which linkends need to be used.
 * observation simulation settings, defining the times at which to simulate the observations.
 * The system of bodies relevant for the simulation
+
 Do check out the [documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#simulating-the-observations) for a more rigorous explanation of the technicalities.
 
-The system of bodies was already defined above, and all the other required information is in the collection of real observations that we already loaded. For the observation simulation settings, there is a convenience function that extracts the settings from the collection. Creating the simulators is slightly more involved, as we need to specify the correct link definition for every observation - recall that the measurements are made using a variety of ground station.
+The system of bodies was already defined above, and all the other required information is in the collection of real observations that were loaded from the data file. For the observation simulation settings, there is a convenience function that extracts the settings from the collection `observation_settings_from_collection`. Creating the simulators is slightly more involved, as we need to specify the correct link definition for every observation - recall that the measurements are made using a variety of ground station.
 """
 
 # Extract the relevant information from the real observations to mimic
@@ -218,7 +217,7 @@ simulated_observations_simple = create_observations(observation_model_settings, 
 
 ### Simple simulation
 """
-For the first attempt, we don't include any corrections. This implies that the simulation will simply calculate the Euclian distance the light travels between the link ends. Plotting the difference between that and the observations a error related to the distance between Earth and Mars. The larger the distance, the more that range is underestimated by the simple simulation. Additionally, there is some spread of those residuals, that seems to be related to a phenomenon of much higher frequency.
+For the first attempt, we don't include any corrections. This implies that the simulation will simply calculate the Euclian distance that the light travels between the link ends. Plotting the difference between that and the observations reveals an error that grows with the distance between Earth and Mars. The larger the distance, the more that range is underestimated by the simple simulation. Additionally, there is some spread of the residuals, that seems to be related to a phenomenon of much higher frequency.
 """
 
 residuals_simple = simulated_observations_simple.concatenated_observations - observation_vals
@@ -236,7 +235,7 @@ plt.show()
 ### Improving the rotation model
 """
 
-One reason that might come to mind for the residual spread of about 20 km in the residuals is that the position of the ground stations is not accurately modelled over time. This is indeed due to the simplifications in the default rotation model. If we create the bodies using the IAU 2006 rotation model, the spread is completely eliminated.
+One reason that might come to mind for the residual spread of about 20 km is that the position of the ground stations is not accurately modelled over time. This is indeed due to the simplifications in the default rotation model. If we create the bodies using the IAU 2006 rotation model, the spread is completely eliminated.
 """
 
 bodies_rotation = create_bodies(use_itrf_rotation_model=True)
@@ -256,7 +255,7 @@ plt.show()
 ## Adding light time corrections
 """
 
-After adjusting the rotation model, it is clear that the simulation systematically underestimates the range. This seems to behave assymptotically as the distance between Mars and Earth inicreases, but notice that there are no measurements in the most extreme regions. At those times, the Sun is in the way, preventing useful observations. This also indicates that presence of the Sun influences the travel time of the light. 
+After adjusting the rotation model, it is clear that the simulation systematically underestimates the range. This seems to behave assymptotically as the distance between Mars and Earth increases, but notice that there are no measurements in the most extreme regions. At those times, the Sun is in the way, preventing useful observations. This also indicates that the presence of the Sun influences the travel time of the light. 
 
 To account for the relativistic effects of the Sun, we can add a light time correction to the settings of the observation model. 
 Doing this and once more plotting the residuals shows that the error signal related to the Earth-Mars synodic period is removed, leaving a residual that oscillates annually in the order a few hundreds of meters. 
@@ -288,7 +287,7 @@ plt.show()
 ## Summary Plot
 """
 
-The following plot just summarises the observation simulation efforts of this example.
+The following plot just summarises the observation simulation efforts of this example. You could go on to reduce the residuals to several meters (see [Kuchynka et al., 2012](https://ipnpr.jpl.nasa.gov/progress_report/42-190/190C.pdf) for details), but this is not further investigated in this example.
 """
 
 fig, ax = plt.subplots(4, 1, figsize=(10, 10))
