@@ -88,7 +88,7 @@ file_columns = [
     "minute",
     "second",
     "round_trip_light_time_microseconds",
-    "light_time_measurement_delay_microseconds",
+    "time_tag_delay_microseconds",
 ]
 
 raw_datafile = data.read_tracking_txt_file(
@@ -327,4 +327,7 @@ ax[-1].set_xlabel("Time [yr]")
 fig.align_labels()
 fig.tight_layout()
 plt.show()
+
+
+
 
