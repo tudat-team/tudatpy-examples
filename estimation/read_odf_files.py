@@ -104,7 +104,7 @@ def create_bodies( initial_time_environment, final_time_environment ):
     body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.dsn_stations()
     shape_deformation_list = list()
     shape_deformation_list.append( environment_setup.shape_deformation.iers_2010_solid_body_tidal( ) )
-    # body_settings.get("Earth").shape_deformation_settings = shape_deformation_list
+    body_settings.get("Earth").shape_deformation_settings = shape_deformation_list
     # Modify Moon default settings
     body_settings.get('Moon').rotation_model_settings = environment_setup.rotation_model.spice(global_frame_orientation,
                                                                                                "MOON_PA_DE440",
