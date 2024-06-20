@@ -40,6 +40,7 @@ from numpy import random
 # Load pygmo library
 import pygmo as pg
 
+
 ## Create user-defined problem
 """
 A PyGMO-compatible problem class is now defined. This is known in PyGMO terminology as a User-Defined Problem (UDP).
@@ -77,6 +78,7 @@ class HimmelblauOptimization:
         # Return list
         return [function_value]
 
+
 ## Create problem
 """
 With the custom problem class defined, we can now setup the optimisation.
@@ -93,6 +95,7 @@ prob = pygmo.problem(udp)
 
 # Print the problem's information
 print(prob)
+
 
 ## Create algorithm
 """
@@ -118,6 +121,7 @@ algo = pygmo.algorithm(de_algo)
 # Print the algorithm's information
 print(algo)
 
+
 ## Initialise population
 """
 A population in PyGMO is essentially a container for multiple individuals. Each individual has an associated decision vector which can change (evolution), the resulting fitness vector, and an unique ID to allow their tracking. The population is initialized starting from a specific problem to ensure that all individuals are compatible with the UDP. The default population size is 0.
@@ -133,6 +137,7 @@ pop = pygmo.population(prob, size=pop_size, seed=current_seed)
 inspect_pop = False
 if inspect_pop:
     print(pop)
+
 
 ## Evolve population
 """
@@ -162,6 +167,7 @@ print('Fitness (= function) value: ', pop.champion_f)
 print('Decision variable vector: ', pop.champion_x)
 print('Number of function evaluations: ', pop.problem.get_fevals())
 print('Difference wrt the minimum: ', pop.champion_x - np.array([3,2]))
+
 
 ## Visualise optimisation
 """
@@ -204,6 +210,7 @@ plt.tight_layout()
 # Show the figure
 plt.show()
 
+
 ### Himmelblau function
 """
 Then, let's plot the Himmelblau function with the best individual of each generation.
@@ -240,6 +247,7 @@ plt.tight_layout()
 
 # Show the plot
 plt.show()
+
 
 ### Visualise vicinity of minimum
 """
@@ -280,6 +288,7 @@ plt.tight_layout()
 # Show the figure
 plt.show()
 
+
 ## Grid search
 """
 To investigate how well the Differential Evolution algorithm performed, let's now run the optimisation with a grid search of 1000x1000 nodes.
@@ -310,6 +319,7 @@ print('Best fitness with grid search (' + str(number_of_nodes) + ' points):', be
 print('Decision variable vector: ', best_x_GS)
 print('Number of function evaluations: ', number_of_nodes**2)
 print('Difference wrt the minimum: ', best_x_GS - np.array([3, 2]))
+
 
 ## Monte Carlo search
 """
@@ -346,3 +356,4 @@ print('Best fitness with grid search (' + str(number_of_points) + ' points):', b
 print('Decision variable vector: ', best_x_MC)
 print('Number of function evaluations: ', number_of_points**2)
 print('Difference wrt the minimum: ', best_x_MC - np.array([3, 2]))
+

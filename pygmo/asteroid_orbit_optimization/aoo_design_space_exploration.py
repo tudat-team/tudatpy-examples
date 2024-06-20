@@ -64,6 +64,7 @@ import pygmo as pg
 
 current_dir = os.path.abspath('')
 
+
 ## Creation of Custom Environment
 """
 """
@@ -101,6 +102,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     return environment_setup.rotation_model.simple(
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
+
 ### Itokawa ephemeris settings
 """
 def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
@@ -134,6 +136,7 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         "ECLIPJ2000")
 """
 
+
 ### Itokawa gravity field settings
 """
 def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius):
@@ -158,12 +161,14 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
         associated_reference_frame=itokawa_body_fixed_frame)
 """
 
+
 ### Itokawa shape settings
 """
 def get_itokawa_shape_settings(itokawa_radius):
     Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
 """
+
 
 ### Simulation bodies
 """
@@ -223,6 +228,7 @@ def create_simulation_bodies(itokawa_radius):
 
     return bodies
 
+
 ### Acceleration models
 """
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
@@ -247,6 +253,7 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
         acceleration_settings,
         bodies_to_propagate,
         central_bodies)
+
 
 ### Termination settings
 """
@@ -283,6 +290,7 @@ def get_termination_settings(mission_initial_time,
     return propagation_setup.propagator.hybrid_termination(termination_settings_list,
                                                            fulfill_single_condition=True)
 
+
 ### Dependent variables to save
 """
 def get_dependent_variables_to_save():
@@ -293,6 +301,7 @@ def get_dependent_variables_to_save():
     ]
     return dependent_variables_to_save
 """
+
 
 ## Optimisation problem formulation 
 """
@@ -388,6 +397,7 @@ class AsteroidOrbitProblem:
     def get_last_run_dynamics_simulator(self):
         return self.dynamics_simulator_function()
 
+
 ### Setup orbital simulation
 """
 
@@ -424,6 +434,7 @@ central_bodies = ["Itokawa"]
 # Create acceleration models
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
+
 #### Dependent variables, termination settings, and orbit parameters
 """
 # Define list of dependent variables to save
@@ -435,6 +446,7 @@ termination_settings = get_termination_settings(
     mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
 
 orbit_parameters = [1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02]
+
 
 #### Integrator and Propagator settings
 """
@@ -461,6 +473,7 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          termination_settings,
                                                                          propagator,
                                                                          dependent_variables_to_save)
+
 
 ## Design Space Exploration
 """
@@ -497,6 +510,7 @@ max_distance = np.zeros((no_of_runs, len(orbit_param_names)))
 min_distance = np.zeros((no_of_runs, len(orbit_param_names)))
 constraint_values = np.zeros((no_of_runs, len(orbit_param_names)))
 parameters = np.zeros((no_of_runs, len(orbit_param_names)))
+
 
 #### Monte Carlo loop
 """
@@ -592,6 +606,7 @@ design_variable_units = {0: r' m',
                            2: r' deg',
                            3: r' deg'}
 
+
 obj_arrays = [mean_latitude_all_param, mean_distance_all_param]
 objective_names = ['Latitude', 'Distance']
 for obj in range(2): #number of objectives
@@ -609,6 +624,7 @@ for obj in range(2): #number of objectives
         
         #For more verbose results, remove the 'break' below.
         break
+
 
 ### Fractional Factorial Design
 """
@@ -673,6 +689,7 @@ for i in range(len(FFD_array)):
 
     mean_dependent_variables_list[i, 0] = mean_distance
     mean_dependent_variables_list[i, 1] = mean_latitude
+
 
 #### Post-processing FFD
 """
@@ -759,6 +776,7 @@ for i in range(len(yates_array)): # Run through yates array
     mean_distances[i] = mean_distance
     mean_latitudes[i] = mean_latitude
 
+
 #### Anova Analysis
 """
 
@@ -771,6 +789,7 @@ i, ij, ijk, err = util.anova_analysis(mean_distances, #can also be mean_latitude
             no_of_factors,
             no_of_levels,
             level_of_interactions=2)
+
 
 #### ANOVA Results
 """

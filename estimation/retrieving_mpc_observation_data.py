@@ -55,6 +55,7 @@ print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=False
 print("Space Telescopes:")
 print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=True, include_positions=False))
 
+
 # We can also directly have a look at the the observations themselves, for example, lets take a look at the first and final observations from TESS and WISE. The table property allows for read only access to the observations in pandas dataframe format. 
 
 obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
@@ -64,6 +65,7 @@ print("Initial and Final Observations by TESS")
 print(obs_by_TESS)
 print("Initial and Final Observations by WISE")
 print(obs_by_WISE)
+
 
 ### Filtering
 """
@@ -77,6 +79,7 @@ batch1.filter(observatories_exclude=observatories_to_exlude, epoch_start=datetim
 print(f"Size after filter: {batch1.size}")
 
 batch1.summary()
+
 
 ### Set up the system of bodies
 """
@@ -93,6 +96,7 @@ body_settings = environment_setup.get_default_body_settings(
 
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ### Retrieve Observation Collection
 """
@@ -115,11 +119,13 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 observation_collection = batch1.to_tudat(bodies, included_satellites=None)
 
+
 # The names of the bodies added to the system of bodies object as well as the dates of the oldest and latest observations can be retrieved from the batch:
 
 epoch_start = batch1.epoch_start # in seconds since J2000 TDB (Tudat default)
 epoch_end = batch1.epoch_end
 object_names = batch1.MPC_objects
+
 
 # We can now retrieve the links from the ObservationCollection we got from `to_tudat()` and we can now create settings for these links. This is where link biases would be set, for now we just keep the settings default.
 
@@ -136,6 +142,7 @@ for link in link_list:
     observation_settings_list.append(
         observation.angular_position(link, bias_settings=None)
     )
+
 
 # With the `observation_collection` and `observation_settings_list` ready, we have all the observation inputs we need to perform an estimation. Next, lets verify the observations. Next, check out the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features.
 
@@ -173,6 +180,7 @@ sats_dict = {"C57":"TESS"}
 
 observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict)
 
+
 ### Manual retrieval from astroquery
 """
 Those familiar with astroquery (or those who have existing filitering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
@@ -196,6 +204,7 @@ batch2.from_astropy(data)
 
 batch2.summary()
 
+
 ### Combining batches
 """
 Batches can be combined using the `+` operator, duplicates are removed.
@@ -203,6 +212,7 @@ Batches can be combined using the `+` operator, duplicates are removed.
 
 batch3 = batch2 + batch1
 batch3.summary()
+
 
 ### Copying and non in-place filtering
 """
@@ -223,6 +233,7 @@ batch1_copy2 = batch1.filter(epoch_start=datetime(2023, 1, 1), in_place=False) #
 batch1_copy.summary()
 batch1_copy2.summary()
 
+
 ### Plotting observations
 """
 The `.plot_observations_sky()` method can be used to view a projection of the observations. Similarly, `.plot_observations_temporal()` shows the declination and right ascension of a batch's bodies over time.
@@ -237,5 +248,7 @@ fig = batch1.plot_observations_sky(projection=None, objects=[329])
 
 plt.show()
 
+
 # Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
 fig = batch1.plot_observations_temporal()
+

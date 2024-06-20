@@ -38,6 +38,7 @@ from tudatpy.astro import element_conversion, time_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
@@ -54,6 +55,7 @@ simulation_start_datetime = datetime(2031, 2, 17)
 simulation_start_JD = time_conversion.calendar_date_to_julian_day(simulation_start_datetime)
 # Convert simulation start to seconds since J2000
 simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(simulation_start_JD)
+
 
 ## Environment setup
 """
@@ -99,6 +101,7 @@ def create_bodies():
 # Create the system of selected celestial bodies
 bodies = create_bodies()
 
+
 ## First section simulation
 """
 In this example, our rocket consists of two stages. Do note that, further, the nomenclature of rocket **sections** is used, rather than rocket **stages**. The first rocket section contains both the first and the second stage. The second rocket section contains only the second stage. Section 1 is thus before stage separation, and section 2 after.
@@ -122,6 +125,7 @@ def create_rocket_section(section_name, wet_mass):
 
 # Create the first rocket section body with a wet mass of 370kg
 create_rocket_section("Section 1", 370.0)
+
 
 # To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
 # - A constant drag coefficient of 0.85.
@@ -147,6 +151,7 @@ def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
 # Create an aerodynamic coefficient interface for the first rocket section
 add_aero_coefficients("Section 1", 0.85, 0.4)
 
+
 ### Propagation setup
 """
 Now that the environment is created, the propagation setup is defined.
@@ -162,6 +167,7 @@ bodies_to_propagate = ["Section 1"]
 
 # Define central bodies of propagation
 central_bodies = ["Mars"]
+
 
 #### Thrust model
 """
@@ -235,6 +241,7 @@ class thrust_model:
                                     thrust_direction_vertical_frame)
         # Return the thrust direction in the inertial frame
         return thrust_inertial_frame
+
 
 #### Define the thrust settings
 """
@@ -340,6 +347,7 @@ initial_inertial_state = environment.transform_to_inertial_orientation(
     initial_mars_fixed_state, simulation_start_epoch, bodies.get_body("Mars").rotation_model
 )
 
+
 ### Define dependent variables to save
 """
 Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularily interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
@@ -363,6 +371,7 @@ def define_dependent_variables_to_save(section_name):
     
 # Define the dependent variables to save for the first rocket section
 dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
+
 
 ### Define termination settings
 """
@@ -404,6 +413,7 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
     fulfill_single_condition=True
 )
 
+
 ### Create integrator settings
 """
 Let's now create integrator settings. These use a RK78 intergration scheme with a variable step size. The following settings are used:
@@ -428,6 +438,7 @@ def define_integrator_settings():
 
 # Define the integrator settings
 integrator_settings = define_integrator_settings()
+
 
 ### Create propagator settings
 """
@@ -481,6 +492,7 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings, integrator_settings)
 
+
 ### Run the first section ascent
 """
 With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `create_dynamics_simulator()` function.
@@ -499,6 +511,7 @@ states_array_section_1 = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
+
 ### Save section 1 final state
 """
 Because we now want to simulate the second section from our rocket, we need to save what was the last state from the first section. This way, we can start a new propagation, simulating the remaining ascent of the second section (being the second stage) only, starting from where the first section ended.
@@ -506,6 +519,7 @@ Because we now want to simulate the second section from our rocket, we need to s
 
 final_state_section_1 = states_array_section_1[-1,1:7]
 final_epoch_section_1 = states_array_section_1[-1,0]
+
 
 ## Second section simulation
 """
@@ -555,12 +569,14 @@ The same dependent variables as for the first section are used. However, they ar
 
 dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 
+
 ### Define integrator settings
 """
 A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
 """
 
 integrator_settings = define_integrator_settings()
+
 
 ### Define propagator settings
 """
@@ -572,6 +588,7 @@ Also, the initial mass of the second section is set as 85kg for the mass propaga
 
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, termination_max_time_settings, integrator_settings)
+
 
 ### Run second section simulation
 """
@@ -591,6 +608,7 @@ states_array_section_2 = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array_section_2 = result2array(dep_vars)
 
+
 ## Results analysis
 """
 With the ascent simulation of both sections completed, we can now analyse the results. Most importantly, this consists in plotting the various dependent variables that has been saved over time.
@@ -602,6 +620,7 @@ First, let's combine the dependent variables arrays from both rocket sections to
 """
 
 dep_vars_array = np.concatenate((dep_vars_array_section_1, dep_vars_array_section_2))
+
 
 ### Extract the data
 """
@@ -619,6 +638,7 @@ total_a = dep_vars_array[:,5]
 SH_a = dep_vars_array[:,6]
 thrust_a = dep_vars_array[:,7]
 aero_a = dep_vars_array[:,8]
+
 
 ### Plot the results
 """
@@ -679,6 +699,7 @@ ax5.legend()
 # Save some space using a tight layout, and show the figure
 plt.tight_layout()
 plt.show()
+
 
 ### Results analysis
 """

@@ -37,6 +37,7 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
@@ -53,6 +54,7 @@ spice.load_standard_kernels()
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
+
 
 ## Environment setup
 """
@@ -83,6 +85,7 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of bodies (in this case only Earth)
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ### Create the vehicle
 """
 Let's now create the massless satellite for which the orbit around Earth will be propagated.
@@ -90,6 +93,7 @@ Let's now create the massless satellite for which the orbit around Earth will be
 
 # Add vehicle object to system of bodies
 bodies.create_empty_body("Delfi-C3")
+
 
 ## Propagation setup
 """
@@ -104,6 +108,7 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -127,6 +132,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
 
+
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
@@ -149,6 +155,7 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     longitude_of_ascending_node=3.82958313e-01,
     true_anomaly=3.07018490e+00,
 )
+
 
 ### Create the propagator settings
 """
@@ -179,6 +186,7 @@ propagator_settings = propagation_setup.propagator.translational(
     termination_settings
 )
 
+
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
@@ -201,6 +209,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 # Extract the resulting state history and convert it to an ndarray
 states = dynamics_simulator.state_history
 states_array = result2array(states)
+
 
 ## Post-process the propagation results
 """
@@ -227,6 +236,7 @@ And the velocity vector of Delfi-C3 is [km/s]: \n{
     """
 )
 
+
 ### Visualise the trajectory
 """
 Finally, let's plot the trajectory of `Delfi-C3` around Earth in 3D.
@@ -247,3 +257,4 @@ ax.set_xlabel('x [m]')
 ax.set_ylabel('y [m]')
 ax.set_zlabel('z [m]')
 plt.show()
+
