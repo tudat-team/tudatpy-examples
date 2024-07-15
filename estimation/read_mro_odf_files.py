@@ -15,6 +15,7 @@ sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-de
 import multiprocessing as mp
 import os
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 
@@ -68,6 +69,49 @@ def get_grail_odf_file_name( test_index ):
     elif test_index == 7:
         return current_directory + '/grail_data/gralugf2012_108_0450smmmv1.odf'
 
+
+def get_grail_panel_geometry( ):
+    # first read the panel data from input file
+    this_file_path = os.path.dirname(os.path.abspath(__file__))
+    panel_data = pd.read_csv(this_file_path + "/input/grail_macromodel.txt", delimiter=", ", engine="python")
+    material_data = pd.read_csv(this_file_path + "/input/grail_materials.txt", delimiter=", ", engine="python")
+
+    # initialize list to store all panel settings
+    all_panel_settings = []
+
+    for i, row in panel_data.iterrows():
+        # create panel geometry settings
+        # Options are: frame_fixed_panel_geometry, time_varying_panel_geometry, body_tracking_panel_geometry
+        panel_geometry_settings = environment_setup.vehicle_systems.frame_fixed_panel_geometry(
+            np.array([row["x"], row["y"], row["z"]]),  # panel position in body reference frame
+            row["area"]  # panel area
+        )
+
+        panel_material_data = material_data[material_data["material"] == row["material"]]
+
+        # create panel radiation settings (for specular and diffuse reflection)
+        specular_diffuse_body_panel_reflection_settings = environment_setup.radiation_pressure.specular_diffuse_body_panel_reflection(
+            specular_reflectivity=float(panel_material_data["Cs"].iloc[0]),
+            diffuse_reflectivity=float(panel_material_data["Cd"].iloc[0]), with_instantaneous_reradiation=True
+        )
+
+        # create settings for complete pannel (combining geometry and material properties relevant for radiation pressure calculations)
+        complete_panel_settings = environment_setup.vehicle_systems.body_panel_settings(
+            panel_geometry_settings,
+            specular_diffuse_body_panel_reflection_settings
+        )
+
+        # add panel settings to list of all panel settings
+        all_panel_settings.append(
+            complete_panel_settings
+        )
+
+    # Create settings object for complete vehicle shape
+    full_panelled_body_settings = environment_setup.vehicle_systems.full_panelled_body_settings(
+        all_panel_settings
+    )
+    return full_panelled_body_settings
+
 def get_rsw_state_difference(
         estimated_state_history,
         spacecraft_name,
@@ -92,17 +136,19 @@ def get_rsw_state_difference(
 
 def run_estimation( input_index ):
 
-    with util.redirect_std( 'parallel_output_' + str( input_index ) + ".dat", True, True ):
+    with util.redirect_std( 'estimation_output_' + str( input_index ) + ".dat", True, True ):
     # while True:
         number_of_files = 8
         test_index = input_index % number_of_files
 
-        perform_estimation = False
+        perform_estimation = True
         fit_to_kernel = False
-        if( input_index == test_index ):
-            perform_estimation = True
-        else:
-            fit_to_kernel = True
+        # perform_estimation = False
+        # fit_to_kernel = False
+        # if( input_index == test_index ):
+        #     perform_estimation = True
+        # else:
+        #     fit_to_kernel = True
         # Load standard spice kernels as well as the one describing the orbit of Mars Express
         spice.load_standard_kernels()
         spice.load_kernel(current_directory + "/grail_kernels/moon_de440_200625.tf")
@@ -151,7 +197,7 @@ def run_estimation( input_index ):
             radiation_pressure.variable_albedo_surface_radiosity(
                 radiation_pressure.predefined_spherical_harmonic_surface_property_distribution( radiation_pressure.albedo_dlam1 ), "Sun" ) ]
         body_settings.get( "Moon" ).radiation_source_settings = radiation_pressure.panelled_extended_radiation_source(
-            moon_surface_radiosity_models, [ 6, 12, 18 ] )
+            moon_surface_radiosity_models, [ 6, 12 ] )
 
         # Create vehicle properties
         spacecraft_name = "GRAIL-A"
@@ -162,13 +208,17 @@ def run_estimation( input_index ):
         body_settings.get( spacecraft_name ).rotation_model_settings = environment_setup.rotation_model.spice( global_frame_orientation, spacecraft_name + "_SPACECRAFT", "" )
         occulting_bodies = dict()
         occulting_bodies[ "Sun" ] = [ "Moon"]
-        body_settings.get( spacecraft_name ).radiation_pressure_target_settings = radiation_pressure.cannonball_radiation_target(
-            5, 1.5, occulting_bodies )
+
         body_settings.get( spacecraft_name ).constant_mass = 150;
+        body_settings.get(spacecraft_name).vehicle_shape_settings = get_grail_panel_geometry()
 
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
         bodies.get( spacecraft_name ).system_models.set_reference_point( "Antenna", np.array( [ -0.082, 0.152, -0.810 ] ) )
+        environment_setup.add_radiation_pressure_target_model(
+            bodies, spacecraft_name, radiation_pressure.cannonball_radiation_target(5, 1.5, occulting_bodies))
+        environment_setup.add_radiation_pressure_target_model(
+            bodies, spacecraft_name, radiation_pressure.panelled_radiation_target(occulting_bodies))
 
         # Load ODF file
         single_odf_file_contents = estimation_setup.observation.process_odf_data_single_file(
@@ -190,13 +240,13 @@ def run_estimation( input_index ):
         # Create accelerations
         accelerations_settings_spacecraft = dict(
             Sun=[
-                propagation_setup.acceleration.radiation_pressure(),
+                propagation_setup.acceleration.radiation_pressure( environment_setup.radiation_pressure.paneled_target ),
                 propagation_setup.acceleration.point_mass_gravity() ],
             Earth=[
                 propagation_setup.acceleration.point_mass_gravity() ],
             Moon=[
                 propagation_setup.acceleration.spherical_harmonic_gravity(256, 256 ),
-                propagation_setup.acceleration.radiation_pressure(),
+                propagation_setup.acceleration.radiation_pressure( environment_setup.radiation_pressure.cannonball_target ),
                 propagation_setup.acceleration.empirical()
                 ],
             Mars=[
@@ -232,9 +282,17 @@ def run_estimation( input_index ):
         propagator_settings.print_settings.results_print_frequency_in_steps = 3600.0 / integration_step
 
         # Define parameters
+        empirical_components = dict()
+        empirical_components[estimation_setup.parameter.along_track_empirical_acceleration_component] = list([estimation_setup.parameter.constant_empirical,estimation_setup.parameter.sine_empirical,estimation_setup.parameter.cosine_empirical])
+
+
         extra_parameters = [
-            estimation_setup.parameter.radiation_pressure_coefficient(spacecraft_name),
-            estimation_setup.parameter.full_empirical_acceleration_terms(spacecraft_name, spacecraft_central_body)
+            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name,"Sun"),
+            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(spacecraft_name,"Sun"),
+            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Moon") ,
+            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(spacecraft_name, "Moon"),
+            estimation_setup.parameter.empirical_accelerations(spacecraft_name, "Moon", empirical_components)
+
         ]
 
         if perform_estimation:
@@ -384,7 +442,7 @@ if __name__ == "__main__":
     for i in range(8):
         inputs.append(i)
     # Run parallel MC analysis
-    with mp.get_context("fork").Pool(8) as pool:
+    with mp.get_context("fork").Pool(1) as pool:
         pool.map(run_estimation,inputs)
 
 
