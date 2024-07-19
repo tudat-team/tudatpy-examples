@@ -837,6 +837,9 @@ plt.show()
 # %% [markdown]
 # That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the dynamical model and the estimation settings. Consider for example adding weights and biases on observations and links as well as improved integrator settings and perturbations. 
 # 
+# Consider checking out (https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/improved_estimation_with_mpc.html), an expanded example the compares the use of star catalog corrections, observation weights and satellite observations to see how these features change the estimation result.
+# 
 # Consider rerunning the script for some other object by changing the `target_mpc_code` variable and seeing how the results change.
+# 
 
 
