@@ -1,8 +1,8 @@
 # Galilean Satellites - Initial State Estimation
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -35,12 +35,11 @@ from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.astro.time_conversion import DateTime
 
-
 ## Orbital Simulation
 """
 Entirely independent of the upcoming estimation-process, we first have to define the general settings of the simulation, create the environment, and define all relevant settings of the propagation.
-"""
 
+"""
 
 ### Simulation Settings
 """
@@ -53,7 +52,6 @@ spice.load_standard_kernels()
 # Define temporal scope of the simulation - equal to the time JUICE will spend in orbit around Jupiter
 simulation_start_epoch = DateTime(2031, 7,  2).epoch()
 simulation_end_epoch   = DateTime(2035, 4, 20).epoch()
-
 
 ### Create the Environment
 """
@@ -94,7 +92,6 @@ for moon_idx, moon in enumerate(jovian_moons_to_create):
 
 # Create system of selected bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
-
 
 ### Create Propagator Settings
 """
@@ -206,12 +203,11 @@ propagator_settings = propagation_setup.propagator. \
                   termination_settings=termination_condition,
                   output_variables=dependent_variables_to_save)
 
-
 ## Orbital Estimation
 """
 Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required link ends for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
-"""
 
+"""
 
 ### Create Link Ends for the Moons
 """
@@ -245,7 +241,6 @@ link_definition_dict = {
     'Callisto': link_definition_callisto,
 }
 
-
 ### Observation Model Settings
 """
 As mentioned above, we will 'observe' the state of the moons at every epoch as being perfectly cartesian and handily available to the user. However, note that the `cartesian_position` observable is typically not realized in reality but mainly serves verification or analysis purposes.
@@ -255,7 +250,6 @@ position_observation_settings = [estimation_setup.observation.cartesian_position
                                  estimation_setup.observation.cartesian_position(link_definition_europa),
                                  estimation_setup.observation.cartesian_position(link_definition_ganymede),
                                  estimation_setup.observation.cartesian_position(link_definition_callisto)]
-
 
 ### Observation Simulation Settings
 """
@@ -276,7 +270,6 @@ for moon in link_definition_dict.keys():
         observation_times,
         reference_link_end_type=estimation_setup.observation.observed_body))
 
-
 ### Simulate Ephemeris' States of Satellites
 """
 In a nutshell, what we want to do is to check the ephemeris every three hours - as defined just above - and take the associated (cartesian) state of all four moons at that moment as our observable. However, in order to automatically satisfy all requirements in terms of inputs to the estimator, we have to manually create an `observation_simulator` object, since we explicitly do not want to use the (propagating) simulators that get created alongside the estimator.
@@ -294,7 +287,6 @@ ephemeris_satellite_states = estimation.simulate_observations(
     ephemeris_observation_simulators,
     bodies)
 
-
 ### Define Estimable Parameters
 """
 Given the problem at hand - minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations - we are mainly interested in an improved initial state of all four Galilean moons. We will thus restrict the set of estimable parameters to the moons' initial states.
@@ -303,7 +295,6 @@ Given the problem at hand - minimising the discrepancy between the NOE-5 ephemer
 parameters_to_estimate_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
 parameters_to_estimate = estimation_setup.create_parameter_set(parameters_to_estimate_settings, bodies)
 original_parameter_vector = parameters_to_estimate.parameter_vector
-
 
 ### Perform the Estimation
 """
@@ -315,7 +306,6 @@ with util.redirect_std():
     estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
                                                position_observation_settings, propagator_settings)
 
-
 # Create input object for the estimation
 estimation_input = estimation.EstimationInput(ephemeris_satellite_states)
 # Set methodological options
@@ -324,13 +314,11 @@ estimation_input.define_estimation_settings(save_state_history_per_iteration=Tru
 print('Performing the estimation...')
 print(f'Original initial states: {original_parameter_vector}')
 
-
 with util.redirect_std(redirect_out=False):
     estimation_output = estimator.perform_estimation(estimation_input)
 initial_states_updated = parameters_to_estimate.parameter_vector
 print('Done with the estimation...')
 print(f'Updated initial states: {initial_states_updated}')
-
 
 ## Post-Processing
 """
@@ -399,7 +387,6 @@ ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax1.set_ylabel(r'Difference [km]')
 ax1.legend();
 
-
 # Overall, for the inner three moons trapped in resonance (for more details see below) the above results lie within the expected range of achievable accuracy given the rather rudimentary set-up of the environment and especially associated acceleration models. However, what is striking is that the performance of Callisto falls short compared to the other satellites. Thus, hypothetically, to enhance the estimated solution of the orbit of Callisto with respect to the underlying ephemeris, one could opt to estimate its gravity field alongside the initial state, which could lead to significantly improved results. However, this path left as an adventure to be followed and explored by the reader.
 
 def calculate_mean_longitude(kepler_elements: dict):
@@ -428,7 +415,6 @@ def calculate_mean_longitude(kepler_elements: dict):
         mean_longitude_dict[moon] = mean_longitude_per_moon
 
     return mean_longitude_dict
-
 
 ### LAPLACE STABILITY ###
 ephemeris_kepler_elements = np.vstack(list(ephemeris_keplerian_states.values()))
@@ -484,4 +470,3 @@ ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
-

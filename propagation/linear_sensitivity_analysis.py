@@ -1,8 +1,8 @@
 # Linear sensitivity analysis of perturbed orbit
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -10,7 +10,8 @@ This example is an extension of the Perturbed Satellite Orbit Application. It ad
 
 The script demonstrates how the basic numerical simulation setup (aiming to propagate the state of the system) can swiftly be extended to enable a study of the system's sensitivity.
 
-Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a create_variational_equations_solver function from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
+Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
+
 
 The availability of variational equations in tudat enables many more, advanced functionalities, such as covariance analysis and precise orbit determination.
 """
@@ -38,7 +39,6 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
-
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth, the Sun, the Moon, Venus, or Mars, can be make known to `tudatpy`.
@@ -54,12 +54,11 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
-
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-"""
 
+"""
 
 ### Create the bodies
 """
@@ -84,7 +83,6 @@ body_settings = environment_setup.get_default_body_settings(
 # Create the system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
 ### Create the vehicle and its environment interface
 """
 Let's now create the satellite for which an orbit will be simulated.
@@ -96,7 +94,7 @@ When setting up the radiation pressure interface, the Earth is set as a body tha
 
 # Create vehicle objects.
 bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 2.2
+bodies.get("Delfi-C3").mass = 400.0
 
 # Create aerodynamic coefficient interface settings
 reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -119,13 +117,11 @@ radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
 environment_setup.add_radiation_pressure_interface(
             bodies, "Delfi-C3", radiation_pressure_settings)
 
-
 ## Propagation setup
 """
 Now that the environment is created, the propagation setup is defined.
 
 First, the bodies to be propagated and the central bodies will be defined.
-Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 10 seconds.
 Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
 """
 
@@ -134,7 +130,6 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
-
 
 ### Create the acceleration model
 """
@@ -180,14 +175,13 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
-
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
 This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
 
-In this casWithin this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
+Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
@@ -198,30 +192,23 @@ delfi_tle = environment.Tle(
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
-
-### Create the integrator settings
-"""
-The last step before starting the simulation is to setup the integrator that will be used.
-
-In this case, a RK4 integrator is used with a step fixed at 10 seconds.
-"""
-
-# Create numerical integrator settings
-fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
-
-
 ### Create the propagator settings
 """
 The propagator is finally setup.
 
 First, a termination condition is defined so that the propagation will stop when the end epochs that was defined is reached.
 
+Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 10 seconds.
+
 Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 """
 
 # Create termination settings
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+
+# Create numerical integrator settings
+fixed_step_size = 10.0
+integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -233,7 +220,6 @@ propagator_settings = propagation_setup.propagator.translational(
     integrator_settings,
     termination_condition
 )
-
 
 ### Setup the variational equations
 """
@@ -254,11 +240,9 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
-
-
 ## Propagate the dynamics
 """
-In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `SingleArcSimulator()` function that we would normally use).
+In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `create_dynamics_simulator()` function that we would normally use).
 
 This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be intergrated immidiately when the function is called.
 """
@@ -272,7 +256,6 @@ variational_equations_solver = numerical_simulation.create_variational_equations
 states = variational_equations_solver.state_history
 state_transition_matrices = variational_equations_solver.state_transition_matrix_history
 sensitivity_matrices = variational_equations_solver.sensitivity_matrix_history
-
 
 ## Perform the sensitivity analysis
 """
@@ -296,7 +279,6 @@ for epoch in state_transition_matrices:
     delta_initial_state_dict[epoch] = np.dot(state_transition_matrices[epoch], initial_state_variation)
     earth_standard_param_dict[epoch] = np.dot(sensitivity_matrices[epoch], earth_standard_param_variation)
     delta_drag_coeff_dict[epoch] = np.dot(sensitivity_matrices[epoch], drag_coeff_variation)
-
 
 ## Post-process the results
 """
@@ -324,7 +306,6 @@ delta_v2 = np.linalg.norm(delta_earth_standard_param_array[:, 4:8], axis=1)
 delta_r3 = np.linalg.norm(delta_drag_coefficient_array[:, 1:4], axis=1)
 delta_v3 = np.linalg.norm(delta_drag_coefficient_array[:, 4:8], axis=1)
 
-
 ### Plot the deviation in position
 """
 Make a plot of the deivation in position over time, in response to all parameter variations.
@@ -345,7 +326,6 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
-
 ### Plot the deviation in velocity
 """
 Make a plot of the deivation in velocity over time, in response to all parameter variations.
@@ -365,7 +345,3 @@ plt.xlim([min(time_hours), max(time_hours)])
 plt.legend()
 plt.tight_layout()
 plt.show()
-
-
-
-
