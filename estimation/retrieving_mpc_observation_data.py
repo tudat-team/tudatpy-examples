@@ -23,7 +23,7 @@ The following asteroids will be used in the example:
 
 ### Import statements
 """
-In this example we do not perform an estimation, as such we only need the batchMPC class from data, environment_setup and observation to convert our observations to Tudat and optionally datetime to filter our batch. We also load the standard SPICE kernels.
+In this example we do not perform an estimation, as such we only need the batchMPC class from data, environment_setup and observation to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the Tudat Horizons interface to compare observation ouput and load the standard SPICE kernels.
 """
 
 from tudatpy.data.mpc import BatchMPC
@@ -31,11 +31,15 @@ from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation.estimation_setup import observation
 from tudatpy.kernel.interface import spice
 
+from tudatpy.data.horizons import HorizonsQuery
+
 from datetime import datetime
+import numpy as np
+import matplotlib.pyplot as plt
+
 
 # Load spice kernels
 spice.load_standard_kernels()
-
 
 ### Retrieval
 """
@@ -144,7 +148,72 @@ for link in link_list:
     )
 
 
-# With the `observation_collection` and `observation_settings_list` ready, we have all the observation inputs we need to perform an estimation. Next, lets verify the observations. Next, check out the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features.
+# %% [markdown]
+# With the `observation_collection` and `observation_settings_list` ready, we have all the observation inputs we need to perform an estimation.
+
+# %% [markdown]
+### Comparing to JPL Horizons Interpolated RA and DEC
+"""
+The Horizons Ephemeris API provides interpolated RA and DEC values for many objects in the solar system. Tudat includes an interface for the JPL Horizons system. Please note that these are not real observations but are instead based on ephemerides. As validation, let's compare these interpolated RA and DEC to MPC's values for 329 Svea:
+"""
+
+# %%
+# Let's simplify by using only 329 Svea and removing observations from space telescopes
+target = "329"
+target_horizons = target + ";" # ; specificies minor bodies
+
+batch_eros = BatchMPC()
+batch_eros.get_observations([target])
+batch_eros.filter(
+    epoch_start=datetime(2018, 1, 1),
+    observatories_exclude=["C51", "C57", "C59"],
+)
+
+# Retrieve MPC observation times, RA and DEC
+batch_times = batch_eros.table.epochJ2000secondsTDB.to_list()
+batch_times_utc = batch_eros.table.epochUTC.to_list()
+batch_RA = batch_eros.table.RA
+batch_DEC = batch_eros.table.DEC
+
+# Create Horizons query, see Horizons Documentation for more info.
+hypatia_horizons_query = HorizonsQuery(
+    query_id=target_horizons,
+    location="500@399",  # geocenter @ Earth
+    epoch_list=batch_times,
+    extended_query=True,
+)
+
+# retrieve JPL observations
+jpl_observations = hypatia_horizons_query.interpolated_observations()
+jpl_RA = jpl_observations[:, 1]
+jpl_DEC = jpl_observations[:, 2]
+
+max_diff_RA = np.abs(jpl_RA - batch_RA).max()
+max_diff_DEC = np.abs(jpl_DEC - batch_DEC).max()
+print("Maximum difference between Interpolated Horizons data and MPC observations:")
+print(f"Right Ascension: {np.round(max_diff_RA, 10)} rad")
+print(f"Declination: {np.round(max_diff_DEC, 10)} rad")
+
+# create plot
+fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
+
+ax_ra.scatter(batch_times_utc, (jpl_RA - batch_RA), marker="+")
+ax_dec.scatter(batch_times_utc, (jpl_DEC - batch_DEC), marker="+")
+
+ax_ra.set_ylabel("Error [rad]")
+ax_dec.set_ylabel("Error [rad]")
+ax_dec.set_xlabel("Date")
+
+ax_ra.grid()
+ax_dec.grid()
+
+ax_ra.set_title("Right Ascension")
+ax_dec.set_title("Declination")
+
+plt.show()
+
+# %% [markdown]
+# That's it! Next, check out the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features of the BatchMPC interface.
 
 ## Additional Features
 """
@@ -239,6 +308,7 @@ batch1_copy2.summary()
 The `.plot_observations_sky()` method can be used to view a projection of the observations. Similarly, `.plot_observations_temporal()` shows the declination and right ascension of a batch's bodies over time.
 """
 
+
 import matplotlib.pyplot as plt
 
 # Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
@@ -251,4 +321,7 @@ plt.show()
 
 # Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
 fig = batch1.plot_observations_temporal()
+
+
+plt.show()
 
