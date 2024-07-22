@@ -1,6 +1,7 @@
 # Keplerian satellite orbit
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+
 """
 
 ## Context
@@ -36,7 +37,6 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
-
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
@@ -54,12 +54,11 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
-
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-"""
 
+"""
 
 ### Create the bodies
 """
@@ -84,7 +83,6 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of bodies (in this case only Earth)
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
 ### Create the vehicle
 """
 Let's now create the massless satellite for which the orbit around Earth will be propagated.
@@ -92,7 +90,6 @@ Let's now create the massless satellite for which the orbit around Earth will be
 
 # Add vehicle object to system of bodies
 bodies.create_empty_body("Delfi-C3")
-
 
 ## Propagation setup
 """
@@ -107,7 +104,6 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
-
 
 ### Create the acceleration model
 """
@@ -130,7 +126,6 @@ acceleration_settings = {"Delfi-C3": acceleration_settings_delfi_c3}
 acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
-
 
 ### Define the initial state
 """
@@ -184,15 +179,12 @@ propagator_settings = propagation_setup.propagator.translational(
     termination_settings
 )
 
-
-
-
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
-This function requires the `bodies` and `propagator_settings` that have been defined earlier.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
@@ -210,12 +202,11 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 states = dynamics_simulator.state_history
 states_array = result2array(states)
 
-
 ## Post-process the propagation results
 """
 The results of the propagation are then processed to a more user-friendly form.
-"""
 
+"""
 
 ### Print initial and final states
 """
@@ -235,7 +226,6 @@ And the velocity vector of Delfi-C3 is [km/s]: \n{
     states[simulation_start_epoch][3:] / 1E3}
     """
 )
-
 
 ### Visualise the trajectory
 """
@@ -257,7 +247,3 @@ ax.set_xlabel('x [m]')
 ax.set_ylabel('y [m]')
 ax.set_zlabel('z [m]')
 plt.show()
-
-
-
-

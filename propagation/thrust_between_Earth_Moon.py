@@ -39,13 +39,14 @@ from matplotlib import pyplot as plt
 """
 
 # Load tudatpy modules
+"""
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
 from tudatpy.numerical_simulation import environment_setup, propagation_setup
 from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
-
+"""
 
 ## Configuration
 """
@@ -63,13 +64,11 @@ Please refer to the API documentation of the `time_conversion module` [here](htt
 spice.load_standard_kernels()
 """
 
-
 # Set simulation start and end epochs (total simulation time of 30 days)
 """
 simulation_start_epoch = DateTime(2000, 4, 25).epoch()
 simulation_end_epoch   = simulation_start_epoch + 30 * constants.JULIAN_DAY
 """
-
 
 ## Environment setup
 """
@@ -95,9 +94,10 @@ bodies_to_create = ["Sun", "Earth", "Moon"]
 """
 
 # Create bodies in simulation
+"""
 body_settings = environment_setup.get_default_body_settings(bodies_to_create)
 system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
-
+"""
 
 ### Create the vehicle
 """
@@ -110,7 +110,6 @@ Let's now create the 5000 kg Vehicle for which the trajectory bewteen the Earth 
 system_of_bodies.create_empty_body("Vehicle")
 system_of_bodies.get_body("Vehicle").set_constant_mass(5e3)
 """
-
 
 ### Define the thrust guidance settings
 """
@@ -136,7 +135,6 @@ thrust_magnitude_settings = (
 environment_setup.add_engine_model(
     'Vehicle', 'MainEngine', thrust_magnitude_settings, system_of_bodies )
 
-
 ## Propagation setup
 """
 
@@ -152,8 +150,9 @@ bodies_to_propagate = ["Vehicle"]
 """
 
 # Define central bodies of propagation
+"""
 central_bodies = ["Earth"]
-
+"""
 
 ### Create the acceleration model
 """
@@ -183,16 +182,19 @@ acceleration_on_vehicle = dict(
 """
 
 # Compile the accelerations acting on the vehicle
+"""
 acceleration_dict = dict(Vehicle=acceleration_on_vehicle)
+"""
 
 # Create the acceleration models from the acceleration mapping dictionary
+"""
 acceleration_models = propagation_setup.create_acceleration_models(
     body_system=system_of_bodies,
     selected_acceleration_per_body=acceleration_dict,
     bodies_to_propagate=bodies_to_propagate,
     central_bodies=central_bodies
 )
-
+"""
 
 ### Define the initial state
 """
@@ -209,7 +211,6 @@ The Vehicle will thus start 8,000 km from the center of the Earth, at a velocity
 system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
 """
 
-
 ### Define dependent variables to save
 """
 
@@ -224,18 +225,21 @@ vehicle_altitude_dep_var = propagation_setup.dependent_variable.altitude( "Vehic
 """
 
 # Create a dependent variable to save the mass of the vehicle over time
+"""
 vehicle_mass_dep_var = propagation_setup.dependent_variable.body_mass( "Vehicle" )
+"""
 
 # Define list of dependent variables to save
+"""
 dependent_variables_to_save = [vehicle_altitude_dep_var, vehicle_mass_dep_var]
-
+"""
 
 ### Create the termination settings
 """
 
-Let's now define a set of termination conditions. In this setup, once any single one of them is fulfilled, the propagation stops.
+Let's now define a set of termination settings. In this setup, once any single one of them is fulfilled, the propagation stops.
 
-These conditions are the following:
+These settings are the following:
 - Stop when the altitude get above 100,000 km.
 - Stop when the Vehicle has a mass of 4,000 kg (burned 1,000 kg of propellant).
 - Stop when the Vehicle reaches the specified end epoch (after 30 days).
@@ -261,6 +265,7 @@ termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_distance_settings, termination_mass_settings, termination_time_settings],
     fulfill_single_condition = True)
 
+
 ### Create the integrator settings
 """
 
@@ -277,7 +282,9 @@ maximum_time_step = 86400
 """
 
 # Setup the tolerance of the variable step integrator
+"""
 tolerance = 1e-10
+"""
 
 # Create numerical integrator settings (using a RKF7(8) coefficient set)
 """
@@ -289,7 +296,6 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     relative_error_tolerance=tolerance,
     absolute_error_tolerance=tolerance)
 """
-
 
 ### Create the propagator settings
 """
@@ -319,38 +325,42 @@ translational_propagator_settings = propagation_setup.propagator.translational(
 """
 
 # Create a mass rate model so that the vehicle loses mass according to how much thrust acts on it
+"""
 mass_rate_settings = dict(Vehicle=[propagation_setup.mass_rate.from_thrust()])
 mass_rate_models = propagation_setup.create_mass_rate_models(
     system_of_bodies,
     mass_rate_settings,
     acceleration_models
 )
+"""
 
 # Create the mass propagation settings
+"""
 mass_propagator_settings = propagation_setup.propagator.mass(
     bodies_to_propagate,
     mass_rate_models,
-    [5e3], #initial_vehicle_mass
+    [5e3], initial vehicle mass
     simulation_start_epoch,
     integrator_settings,
     termination_settings )
+"""
 
 # Combine the translational and mass propagator settings
+"""
 propagator_settings = propagation_setup.propagator.multitype(
     [translational_propagator_settings, mass_propagator_settings],
     integrator_settings,
     simulation_start_epoch,
     termination_settings,
     [vehicle_altitude_dep_var, vehicle_mass_dep_var])
-
-
+"""
 
 ## Propagate the orbit
 """
 
 The orbit from the Earth to the Moon is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
 This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -366,18 +376,20 @@ Do pay attention that converting to an `ndarray` using the `result2array()` util
 # Instantiate the dynamics simulator and run the simulation
 """
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    system_of_bodies, propagator_settings
-)
+    system_of_bodies, propagator_settings)
 """
 
 # Extract the state and dependent variable history
+"""
 state_history = dynamics_simulator.state_history
 dependent_variable_history = dynamics_simulator.dependent_variable_history
+"""
 
 # Convert the dictionaries to multi-dimensional arrays
+"""
 vehicle_array = result2array(state_history)
 dep_var_array = result2array(dependent_variable_history)
-
+"""
 
 ### Get Moon state from SPICE
 """
@@ -392,9 +404,10 @@ moon_states_from_spice = {
     for epoch in list(state_history.keys())
 }
 Convert the dictionary to a mutli-dimensional array
+"""
 moon_array = result2array(moon_states_from_spice)
 """
-
+"""
 
 ## Post-process the propagation results
 """
@@ -414,19 +427,26 @@ time_days = (vehicle_array[:,0] - vehicle_array[0,0])/constants.JULIAN_DAY
 """
 
 # Create a figure for the altitude of the vehicle above Earth
+"""
 fig1 = plt.figure(figsize=(9, 5))
 ax1 = fig1.add_subplot(111)
 ax1.set_title(f"Vehicle altitude above Earth")
+"""
 
 # Plot the altitude of the vehicle over time
+"""
 ax1.plot(time_days, dep_var_array[:,1]/1e3)
+"""
 
 # Add a grid and axis labels to the plot
+"""
 ax1.grid(), ax1.set_xlabel("Simulation time [day]"), ax1.set_ylabel("Vehicle altitude [km]")
+"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
+"""
 fig1.tight_layout()
-
+"""
 
 ### Vehicle mass over time
 """
@@ -442,14 +462,19 @@ ax2.set_title(f"Vehicle mass over time")
 """
 
 # Plot the mass of the vehicle over time
+"""
 ax2.plot(time_days, dep_var_array[:,2])
+"""
 
 # Add a grid and axis labels to the plot
+"""
 ax2.grid(), ax2.set_xlabel("Simulation time [day]"), ax2.set_ylabel("Vehicle mass [kg]")
+"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
+"""
 fig2.tight_layout()
-
+"""
 
 ### Plot trajectories in a 3D Projection
 """
@@ -465,17 +490,22 @@ ax3.set_title(f"System state evolution in 3D")
 """
 
 # Plot the vehicle and Moon positions as curve, and the Earth as a marker
+"""
 ax3.plot(vehicle_array[:,1], vehicle_array[:,2], vehicle_array[:,3], label="Vehicle", linestyle="-", color="green")
 ax3.plot(moon_array[:,1], moon_array[:,2], moon_array[:,3], label="Moon", linestyle="-", color="grey")
 ax3.scatter(0.0, 0.0, 0.0, label="Earth", marker="o", color="blue")
+"""
 
 # Add a legend, set the plot limits, and add axis labels
+"""
 ax3.legend()
 ax3.set_xlim([-3E8, 3E8]), ax3.set_ylim([-3E8, 3E8]), ax3.set_zlim([-3E8, 3E8])
 ax3.set_xlabel("x [m]"), ax3.set_ylabel("y [m]"), ax3.set_zlabel("z [m]")
+"""
 
 # Use a tight layout for the figure (do last to avoid trimming axis)
+"""
 fig3.tight_layout()
+"""
 
 plt.show()
-

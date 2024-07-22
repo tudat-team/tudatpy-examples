@@ -1,8 +1,8 @@
 # MARS EXPRESS - Using Different Dynamical Models for the Simulation of Observations and the Estimation
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -42,7 +42,6 @@ from tudatpy.astro import element_conversion
 # Retrieve current directory
 current_directory = os.getcwd()
 
-
 ## Simulation Settings
 """
 After having defined the general configuration of our simulation (i.e. importing required `SPICE` kernels, defining start and end epoch of the simulation) we will create the main celestial bodies involved in the simulation (mainly Mars, its two moons, the two neighbouring planets, and the Sun), the spacecraft itself, and its environment interface.
@@ -75,7 +74,7 @@ bodies.create_empty_body("MEX")
 bodies.get("MEX").mass = 1000.0
 
 # Create radiation pressure settings
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Mars"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
@@ -89,7 +88,6 @@ bodies_to_propagate = ["MEX"]
 
 # Define central bodies of propagation
 central_bodies = ["Mars"]
-
 
 time2plt = np.arange(simulation_start_epoch, simulation_end_epoch, 60)
 mex2plt = list()
@@ -119,7 +117,6 @@ ax1.legend()
 plt.tight_layout()
 plt.show()
 
-
 ## Set Up the Observations
 """
 Having set the underlying environment model of the simulated orbit, we can define the observational model. This entails the addition all required ground stations, the definition of the observation links and types, as well as the precise simulation settings.
@@ -141,7 +138,6 @@ environment_setup.add_ground_station(
     "NNO",
     [station_altitude, new_norcia_latitude, new_norcia_longitude],
     element_conversion.geodetic_position_type)
-
 
 ### Define Observation Model Settings
 """
@@ -171,7 +167,6 @@ observation_settings_list.append(observation.one_way_range(
 observation_settings_list.append(observation.one_way_doppler_instantaneous(
     one_way_nno_mex_link_definition,
     light_time_correction_settings = [light_time_correction_settings]))
-
 
 ### Define Observation Simulation Settings
 """
@@ -215,7 +210,6 @@ observation.add_viability_check_to_all(
     viability_settings
 )
 
-
 ## Define the Dynamical Model(s)
 """
 Note that unlike it has usually been the case so far - be it with examples dealing with propagation or the prior estimation ones - we have always defined a mere single dynamical model. The modular structure of tudat, however, enables us to simulate the observations using a dynamical model that is (theoretically entirely) different from the one used to perform the estimation. Hence, we will now first define the model that will be used during the simulation of observations. In particular, we will consider:
@@ -249,7 +243,6 @@ accelerations_settings_mars_express_simulation = dict(
         propagation_setup.acceleration.point_mass_gravity(),
         propagation_setup.acceleration.cannonball_radiation_pressure()
     ])
-
 
 ### Perform the observations simulation
 """
@@ -310,7 +303,6 @@ mex_simulated_observations = estimation.simulate_observations(
     observation_simulators,
     bodies)
 
-
 ### Alter the Dynamical Model for Mars
 """
 We will now re-purpose the previously defined dynamical model of accelerations acting on `MEX` by altering the perceived gravitational acceleration of Mars onto the spacecraft. In particular, we will remove the gravitational pull of both of Mars' moons - Phobos and Deimos - from the acceleration settings of the spacecraft. All remaining settings, however, remain untouched.
@@ -340,7 +332,6 @@ propagator_settings_estimation = propagation_setup.propagator. \
                   initial_time=simulation_start_epoch,
                   integrator_settings=integrator_settings,
                   termination_settings=termination_settings)
-
 
 ## Perform the estimation
 """
@@ -380,7 +371,6 @@ weights_per_observable = {estimation_setup.observation.one_way_instantaneous_dop
                           estimation_setup.observation.one_way_range_type: noise_level_range ** -2}
 estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
-
 ### Estimate the individual parameters
 """
 Finally, the actual estimation can be performed - ideally having reached a sufficient level of convergence, the least squares estimator will have found the most suitable parameters for the problem at hand.
@@ -391,11 +381,9 @@ In analogy to the prior examples we will again qualitatively compare the goodnes
 # Perform the covariance analysis
 estimation_output = estimator.perform_estimation(estimation_input)
 
-
 # Print the covariance matrix
 print(estimation_output.formal_errors)
 print(truth_parameters - parameters_to_estimate.parameter_vector)
-
 
 ## Post-processing
 """
@@ -415,7 +403,6 @@ ax1.set_xlabel(r'Time [days]')
 ax1.set_ylabel(r'Final Residuals [m]')
 plt.tight_layout()
 plt.show()
-
 
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
 state_history = simulator_object.dynamics_results.state_history
@@ -440,4 +427,3 @@ ax1.legend()
 
 plt.tight_layout()
 plt.show()
-

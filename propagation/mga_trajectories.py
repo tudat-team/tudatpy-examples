@@ -6,8 +6,8 @@ binary forms, with or without modification, are permitted exclusively
 under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -48,7 +48,6 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.util import result2array
 from tudatpy import constants
 
-
 # First, let's explore an MGA transfer trajectory with no thrust applied during the transfer legs. In this case, the impulsive $\Delta$Vs are only applied during the gravity assists.
 
 ### Setup and inputs
@@ -76,13 +75,11 @@ departure_eccentricity = 0.
 arrival_semi_major_axis = 1.0895e8 / 0.02
 arrival_eccentricity = 0.98
 
-
 ### Create transfer settings and transfer object
 """
+The specified inputs can not be used directly, but they have to be translated to distinct settings, relating to either the nodes (departure, gravity assist, and arrival planets) or legs (trajectories in between planets). The fact that unpowered legs are used is indicated by the creation of unpowered and unperturbed leg settings.
+These settings are, in turn, used to create the transfer trajectory object.
 """
-
-# The specified inputs can not be used directly, but they have to be translated to distinct settings, relating to either the nodes (departure, gravity assist, and arrival planets) or legs (trajectories in between planets). The fact that unpowered legs are used is indicated by the creation of unpowered and unperturbed leg settings.
-# These settings are, in turn, used to create the transfer trajectory object.
 
 # Define the trajectory settings for both the legs and at the nodes
 transfer_leg_settings, transfer_node_settings = transfer_trajectory.mga_settings_unpowered_unperturbed_legs(
@@ -98,18 +95,15 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
     transfer_body_order,
     central_body)
 
-
 ### Define transfer parameters
 """
+Next, it is necessary to specify the parameters which define the transfer. The advantage of having a transfer trajectory object is that it allows analyzing many different sets of transfer parameters using the same transfer trajectory object.
+The definition of the parameters that need to be specified for this transfer can be printed using the `transfer_trajectory.print_parameter_definitions()` function.
 """
-
-# Next, it is necessary to specify the parameters which define the transfer. The advantage of having a transfer trajectory object is that it allows analyzing many different sets of transfer parameters using the same transfer trajectory object.
-# The definition of the parameters that need to be specified for this transfer can be printed using the `transfer_trajectory.print_parameter_definitions()` function.
 
 # Print transfer parameter definitions
 print("Transfer parameter definitions:")
 transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_node_settings)
-
 
 # For this transfer with unpowered legs, the transfer parameters only constitute the times at which the powered gravity assists are executed, i.e. at the nodes. 
 # This type of legs does not require any node free parameters or leg free parameters to be specified. Thus, they are defined as lists containing empty arrays.
@@ -134,16 +128,13 @@ node_free_parameters = list( )
 for i in transfer_node_settings:
     node_free_parameters.append( np.zeros(0))
 
-
 ### Evaluate transfer
 """
+The transfer parameters are now used to evaluate the transfer trajectory, which means that the semi-analytical methods used to determine the $\Delta$V of each leg are now applied.
 """
-
-# The transfer parameters are now used to evaluate the transfer trajectory, which means that the semi-analytical methods used to determine the $\Delta$V of each leg are now applied.
 
 # Evaluate the transfer with given parameters
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters )
-
 
 ### Extract results and plot trajectory
 """
@@ -171,7 +162,6 @@ print('Delta V per node : ')
 for i in range(len(transfer_body_order)):
     print(" - at %s: %.3f m/s" % \
         (transfer_body_order[i], transfer_trajectory_object.delta_v_per_node[i]))
-
 
 #### Plot the transfer
 """
@@ -210,12 +200,10 @@ ax.legend(bbox_to_anchor=[1.15, 1])
 plt.tight_layout()
 plt.show()
 
-
 ## MGA transfer with DSMs and manually-created settings
 """
+This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionaly, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
 """
-
-# This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionaly, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
 
 ### Setup and inputs
 """
@@ -235,7 +223,6 @@ departure_eccentricity = 0.0
 
 arrival_semi_major_axis = np.inf
 arrival_eccentricity = 0.0
-
 
 ### Create transfer settings and transfer object
 """
@@ -287,7 +274,6 @@ for i in range(len(transfer_body_order) - 2):
 # Final node: capture_node
 transfer_node_settings.append( transfer_trajectory.capture_node(arrival_semi_major_axis, arrival_eccentricity) )
 
-
 # Having created the nodes and legs settings, either manually or using the factory function, it is then possible to use them to create the transfer trajectory object.
 
 # Create the transfer calculation object
@@ -298,7 +284,6 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
     transfer_body_order,
     central_body)
 
-
 ### Define transfer parameters
 """
 
@@ -308,7 +293,6 @@ As before, it is possible to print the definition of the transfer paramaters whi
 # Print transfer parameter definitions
 print("Transfer parameter definitions:")
 transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_node_settings)
-
 
 # The legs with velocity-based DSMs require more transfer parameters than the unpowered legs. In particular, for legs with DSMs it is necessary to specify the leg free and node free parameters. 
 # 
@@ -347,7 +331,6 @@ node_free_parameters.append(np.array([3.04129845698 * 6.052e6, 1.09554368115, 0.
 node_free_parameters.append(np.array([1.10000000891 * 6.052e6, 1.34317576594, 0.0]))
 node_free_parameters.append(np.array([]))
 
-
 ### Evaluate transfer
 """
 The same approach is used to evaluate the transfer trajectory with the transfer parameters.
@@ -356,12 +339,11 @@ The same approach is used to evaluate the transfer trajectory with the transfer 
 # Evaluate the transfer with the given parameters
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters)
 
-
 ### Extract results and plot trajectory
 """
 Finally, the results are extracted and used to visualize the transfer trajectory. 
-"""
 
+"""
 
 #### Print results
 """
@@ -384,7 +366,6 @@ print('Delta V per node : ')
 for i in range(len(transfer_body_order)):
     print(" - at %s: %.3f m/s" % \
         (transfer_body_order[i], transfer_trajectory_object.delta_v_per_node[i]))
-
 
 #### Plot the transfer
 """
@@ -413,12 +394,10 @@ ax.set_aspect('equal')
 ax.legend(bbox_to_anchor=[1, 1])
 plt.show()
 
-
 ## MGA transfer with hodographic-shaping legs
 """
+This final example shows how to setup a low-thrust MGA transfer, with the thrust profile modeled using hodographic shaping. The approach is similar to the previous examples, with only some small differences when selecting the shaping functions.
 """
-
-# This final example shows how to setup a low-thrust MGA transfer, with the thrust profile modeled using hodographic shaping. The approach is similar to the previous examples, with only some small differences when selecting the shaping functions.
 
 ### Setup and inputs
 """
@@ -438,7 +417,6 @@ departure_eccentricity = 0.0
 
 arrival_semi_major_axis = np.inf
 arrival_eccentricity = 0.0
-
 
 ### Create transfer settings and transfer object
 """
@@ -515,7 +493,6 @@ for i in range(len(transfer_body_order)-1):
     normal_velocity_function_components_per_leg.append(normal_velocity_functions)
     axial_velocity_function_components_per_leg.append(axial_velocity_functions)
 
-
 # Having selected the shaping functions, it is now possible to create the legs and nodes settings and after that to create the transfer trajectory object.
 
 # Get legs and nodes settings
@@ -535,7 +512,6 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
     transfer_body_order,
     central_body)
 
-
 ### Define transfer parameters
 """
 
@@ -545,7 +521,6 @@ As before, it is possible to print the definition of the transfer paramaters whi
 # Print transfer parameter definitions
 print("Transfer parameter definitions:")
 transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_node_settings)
-
 
 # In this case, there is a much larger list of free parameters than in the previous cases. As before, the first parameters are the node times, corresponding to the times when the spacecraft encounters each planet. Next, the node free parameters are required. These include the selection of the departure velocity at the departure node (3 parameters), the arrival velocity at each swingby node (3 parameters per node), the characteristics of each swingby (3 parameters per node), and the arrival velocity at the arrival node (3 parameters). Finally, it is necessary to specify the leg free parameters. These consist of the number of revolutions of each leg (1 parameter per leg), and of two free coefficients per velocity component per leg (6 parameters per leg).
 # 
@@ -570,7 +545,6 @@ node_free_parameters.append([1183.979987813652, 0.0, 0.0, 10**5.565627663196208,
 node_free_parameters.append([3074.131807921915, 0.0, 0.0, 10**8.129202206701256, 0.0, 0.0])
 node_free_parameters.append(np.zeros(3))
 
-
 ### Evaluate transfer
 """
 Having selected the transfer parameters, it is now possible to evaluate the transfer.
@@ -579,12 +553,11 @@ Having selected the transfer parameters, it is now possible to evaluate the tran
 # Evaluate the transfer with the given parameters
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters)
 
-
 ### Extract results and plot trajectory
 """
 Finally, the results are extracted and used to analyze the transfer trajectory. 
-"""
 
+"""
 
 #### Print results
 """
@@ -607,7 +580,6 @@ print('Delta V per node : ')
 for i in range(len(transfer_body_order)):
     print(" - at %s: %.3f m/s" % \
         (transfer_body_order[i], transfer_trajectory_object.delta_v_per_node[i]))
-
 
 #### Plot the transfer
 """
@@ -636,4 +608,3 @@ ax.grid()
 ax.set_axisbelow(True)
 ax.legend(bbox_to_anchor=[1, 1])
 plt.show()
-
