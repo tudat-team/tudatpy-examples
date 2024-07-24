@@ -62,7 +62,7 @@ spice.load_standard_kernels(kernels)
 
 # Set simulation start and end epochs
 start_gco = 35.3844 * constants.JULIAN_YEAR  # beginning circular orbital phase
-end_gco = start_gco + 2.0 * constants.JULIAN_DAY # 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
+end_gco = 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
 
 # Define glabal propagation settings
 global_frame_origin = "Ganymede"
@@ -181,63 +181,26 @@ simulator = numerical_simulation.create_dynamics_simulator(bodies, propagator_se
 simulation_results = simulator.propagation_results.single_arc_results
 
 
-# # Manually define ESTRACK ground stations
-# station_names = ["New Forcia"] #, "Cebreros", "Malargue"]
-# station_coordinates = {station_names[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
-#                        # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
-#                        # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
-#
-# for station in station_names:
-#     environment_setup.add_ground_station(
-#         bodies.get_body("Earth"), station, station_coordinates[station], element_conversion.geodetic_position_type)
-
 # Manually define ESTRACK ground stations
-station_names_range = ["New Forcia1"] #, "Cebreros", "Malargue"]
-station_coordinates_range = {station_names_range[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
-                       # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
-                       # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
+station_names = ["New Forcia", "Cebreros", "Malargue"]
+station_coordinates = {station_names[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)],
+                       station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
+                       station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
 
-for station in station_names_range:
+for station in station_names:
     environment_setup.add_ground_station(
-        bodies.get_body("Earth"), station, station_coordinates_range[station], element_conversion.geodetic_position_type)
+        bodies.get_body("Earth"), station, station_coordinates[station], element_conversion.geodetic_position_type)
 
-# Manually define ESTRACK ground stations
-station_names_doppler = ["New Forcia2"] #, "Cebreros", "Malargue"]
-station_coordinates_doppler = {station_names_doppler[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
-                       # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
-                       # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
-
-for station in station_names_doppler:
-    environment_setup.add_ground_station(
-        bodies.get_body("Earth"), station, station_coordinates_doppler[station], element_conversion.geodetic_position_type)
-
-
-# # Define link ends for two-way Doppler and range observables, for each ESTRACK station
-# link_ends = []
-# for station in station_names:
-#     link_ends_per_station = dict()
-#     link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
-#     link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
-#     link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
-#     link_ends.append(link_ends_per_station)
 
 # Define link ends for two-way Doppler and range observables, for each ESTRACK station
-link_ends_range = []
-for station in station_names_range:
+link_ends = []
+for station in station_names:
     link_ends_per_station = dict()
     link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
     link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
     link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
-    link_ends_range.append(link_ends_per_station)
+    link_ends.append(link_ends_per_station)
 
-# Define link ends for two-way Doppler and range observables, for each ESTRACK station
-link_ends_doppler = []
-for station in station_names_doppler:
-    link_ends_per_station = dict()
-    link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
-    link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
-    link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
-    link_ends_doppler.append(link_ends_per_station)
 
 # Define tracking arcs (arc duration is set to 8h/day during GCO)
 # The tracking arcs are (arbitrarily) set to start 2h after the start of each propagation arc.
@@ -261,21 +224,13 @@ for i in range(nb_arcs):
     biases.append(np.array([0.0]))
 range_bias_settings = observation.arcwise_absolute_bias(tracking_arcs_start, biases, observation.receiver)
 
-# # Define observation settings list
-# observation_settings_list = []
-# for link_end in link_ends:
-#     link_definition = observation.LinkDefinition(link_end)
-#     observation_settings_list.append(observation.n_way_doppler_averaged(link_definition, [light_time_correction_settings]))
-#     observation_settings_list.append(observation.two_way_range(link_definition, [light_time_correction_settings], range_bias_settings))
-
 # Define observation settings list
 observation_settings_list = []
-for link_end in link_ends_doppler:
+for link_end in link_ends:
     link_definition = observation.LinkDefinition(link_end)
     observation_settings_list.append(observation.n_way_doppler_averaged(link_definition, [light_time_correction_settings]))
-for link_end in link_ends_range:
-    link_definition = observation.LinkDefinition(link_end)
     observation_settings_list.append(observation.two_way_range(link_definition, [light_time_correction_settings], range_bias_settings))
+
 
 # Define observation simulation times for both Doppler and range observables
 doppler_cadence = 60.0
@@ -300,23 +255,12 @@ observation_times_per_type[observation.n_way_averaged_doppler_type] = observatio
 observation_times_per_type[observation.n_way_range_type] = observation_times_range
 
 
-# # Define observation settings for both observables, and all link ends (i.e., all ESTRACK stations)
-# observation_simulation_settings = []
-# for link_end in link_ends:
-#     # Doppler
-#     observation_simulation_settings.append(observation.tabulated_simulation_settings(
-#         observation.n_way_averaged_doppler_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_averaged_doppler_type]))
-#     # Range
-#     observation_simulation_settings.append(observation.tabulated_simulation_settings(
-#         observation.n_way_range_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_range_type]))
-
 # Define observation settings for both observables, and all link ends (i.e., all ESTRACK stations)
 observation_simulation_settings = []
-for link_end in link_ends_doppler:
+for link_end in link_ends:
     # Doppler
     observation_simulation_settings.append(observation.tabulated_simulation_settings(
         observation.n_way_averaged_doppler_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_averaged_doppler_type]))
-for link_end in link_ends_range:
     # Range
     observation_simulation_settings.append(observation.tabulated_simulation_settings(
         observation.n_way_range_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_range_type]))
@@ -325,14 +269,8 @@ for link_end in link_ends_range:
 # Create viability settings which define when an observation is feasible
 viability_settings = []
 
-# # For all tracking stations, check if elevation is sufficient
-# for station in station_names:
-#     viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
 # For all tracking stations, check if elevation is sufficient
-for station in station_names_range:
-    viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
-# For all tracking stations, check if elevation is sufficient
-for station in station_names_doppler:
+for station in station_names:
     viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
 # Check whether Ganymede or Jupiter are occulting the signal
 viability_settings.append(observation.body_occultation_viability(["JUICE", ""], "Ganymede"))
@@ -367,21 +305,21 @@ acc_components = {estimation_setup.parameter.radial_empirical_acceleration_compo
                   estimation_setup.parameter.across_track_empirical_acceleration_component: [estimation_setup.parameter.constant_empirical]}
 parameter_settings.append(estimation_setup.parameter.arcwise_empirical_accelerations("JUICE", "Ganymede", acc_components, arc_start_times))
 
-# # Add ground stations' positions
-# for station in station_names:
-#     parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
+# Add ground stations' positions
+for station in station_names:
+    parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
 
 
-# Define consider parameters
-# Add arc-wise range biases as consider parameters
-consider_parameters_settings = []
-for link_end in link_ends_range:
-    consider_parameters_settings.append(estimation_setup.parameter.arcwise_absolute_observation_bias(
-        observation.LinkDefinition(link_end), observation.n_way_range_type, tracking_arcs_start, observation.receiver))
+# # Define consider parameters (COMMENTED FOR NOW BECAUSE OF OBS BIAS PARTIAL ISSUE)
+# # Add arc-wise range biases as consider parameters
+# consider_parameters_settings = []
+# for link_end in link_ends:
+#     consider_parameters_settings.append(estimation_setup.parameter.arcwise_absolute_observation_bias(
+#         observation.LinkDefinition(link_end), observation.n_way_range_type, tracking_arcs_start, observation.receiver))
 
 
 # Create parameters to estimate object
-parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings, consider_parameters_settings)
+parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings) #, consider_parameters_settings)
 estimation_setup.print_parameter_names(parameters_to_estimate)
 nb_parameters = len(parameters_to_estimate.parameter_vector)
 print("nb parameters to estimate", len(parameters_to_estimate.parameter_vector))
@@ -455,33 +393,33 @@ indices_emp_acc = parameters_to_estimate.indices_for_parameter_type((estimation_
 for i in range(indices_emp_acc[1]):
     inv_apriori[indices_emp_acc[0] + i, indices_emp_acc[0] + i] = a_priori_emp_acc ** -2
 
-# # Set a priori constraints for ground station positions
-# a_priori_station = 0.03
-# for station in station_names:
-#     indices_station_pos = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.ground_station_position_type, ("Earth", station)))[0]
-#     for i in range(indices_station_pos[1]):
-#         inv_apriori[indices_station_pos[0] + i, indices_station_pos[0] + i] = a_priori_station ** -2
+# Set a priori constraints for ground station positions
+a_priori_station = 0.03
+for station in station_names:
+    indices_station_pos = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.ground_station_position_type, ("Earth", station)))[0]
+    for i in range(indices_station_pos[1]):
+        inv_apriori[indices_station_pos[0] + i, indices_station_pos[0] + i] = a_priori_station ** -2
 
 # Retrieve full vector of a priori constraints
 apriori_constraints = np.reciprocal(np.sqrt(np.diagonal(inv_apriori)))
 # print('A priori constraints')
 # print(apriori_constraints)
 
-
-# Define consider parameters covariance
-nb_consider_parameters = nb_arcs*len(station_names_range)
-consider_parameters_covariance = np.zeros((nb_consider_parameters, nb_consider_parameters))
-
-# Set consider covariance for range biases for all three ESTRACT stations
-a_priori_biases = 2.0
-for station in station_names_range:
-    indices_biases = (0, nb_arcs*len(station_names_range))
-    for i in range(indices_biases[1]):
-        consider_parameters_covariance[indices_biases[0] + i, indices_biases[0] + i] = a_priori_biases ** 2
+# COMMENTED FOR NOW BECAUSE OF OBS BIAS PARTIAL ISSUE
+# # Define consider parameters covariance
+# nb_consider_parameters = nb_arcs*len(station_names)
+# consider_parameters_covariance = np.zeros((nb_consider_parameters, nb_consider_parameters))
+#
+# # Set consider covariance for range biases for all three ESTRACT stations
+# a_priori_biases = 2.0
+# for station in station_names:
+#     indices_biases = (0, nb_arcs*len(station_names))
+#     for i in range(indices_biases[1]):
+#         consider_parameters_covariance[indices_biases[0] + i, indices_biases[0] + i] = a_priori_biases ** 2
 
 
 # Define covariance input settings
-covariance_input = estimation.CovarianceAnalysisInput(simulated_observations, inv_apriori, consider_parameters_covariance)
+covariance_input = estimation.CovarianceAnalysisInput(simulated_observations, inv_apriori) #, consider_parameters_covariance)
 covariance_input.define_covariance_settings(reintegrate_variational_equations=False, save_design_matrix=True)
 
 # Apply weights to simulated observations
@@ -504,15 +442,16 @@ partials = covariance_output.weighted_design_matrix
 print('Formal errors')
 print(covariance_output.formal_errors)
 
-# Retrieve results with consider parameters
-consider_covariance_contribution = covariance_output.consider_covariance_contribution
-covariance_with_consider_parameters = covariance_output.unnormalized_covariance_with_consider_parameters
-formal_errors_with_consider_parameters = np.sqrt(np.diagonal(covariance_with_consider_parameters))
-# Compute correlations with consider parameters
-correlations_with_consider_parameters = covariance_with_consider_parameters
-for i in range(nb_parameters):
-    for j in range(nb_parameters):
-        correlations_with_consider_parameters[i, j] /= (formal_errors_with_consider_parameters[i] * formal_errors_with_consider_parameters[j])
+# # COMMENTED FOR NOW NO CONSIDER PARAMETERS BECAUSE OF OBS BIAS PARTIAL ISSUE
+# # Retrieve results with consider parameters
+# consider_covariance_contribution = covariance_output.consider_covariance_contribution
+# covariance_with_consider_parameters = covariance_output.unnormalized_covariance_with_consider_parameters
+# formal_errors_with_consider_parameters = np.sqrt(np.diagonal(covariance_with_consider_parameters))
+# # Compute correlations with consider parameters
+# correlations_with_consider_parameters = covariance_with_consider_parameters
+# for i in range(nb_parameters):
+#     for j in range(nb_parameters):
+#         correlations_with_consider_parameters[i, j] /= (formal_errors_with_consider_parameters[i] * formal_errors_with_consider_parameters[j])
 
 # # Propagate formal errors (TO BE FIXED, NOT YET POSSIBLE FOR MULTI-ARC)
 # output_times = np.arange(start_gco, end_gco, 3600.0)
@@ -563,17 +502,17 @@ plt.ylabel("Index - Observation")
 plt.xlabel("Index - Estimated Parameter")
 plt.tight_layout()
 
-# Plot contribution of consider parameters to formal errors
-plt.figure()
-plt.plot(apriori_constraints, label='apriori constraints')
-plt.plot(formal_errors, label='nominal errors')
-plt.plot(formal_errors_with_consider_parameters, label='errors w/ consider parameters')
-plt.grid()
-plt.yscale("log")
-plt.ylabel('Formal errors')
-plt.xlabel('Index parameter [-]')
-plt.legend()
-plt.title('Effect consider parameters')
+# # Plot contribution of consider parameters to formal errors
+# plt.figure()
+# plt.plot(apriori_constraints, label='apriori constraints')
+# plt.plot(formal_errors, label='nominal errors')
+# plt.plot(formal_errors_with_consider_parameters, label='errors w/ consider parameters')
+# plt.grid()
+# plt.yscale("log")
+# plt.ylabel('Formal errors')
+# plt.xlabel('Index parameter [-]')
+# plt.legend()
+# plt.title('Effect consider parameters')
 
 # Plot correlations (default)
 plt.figure(figsize=(9, 6))
@@ -584,14 +523,14 @@ plt.xlabel("Index - Estimated Parameter")
 plt.ylabel("Index - Estimated Parameter")
 plt.tight_layout()
 
-# Plot correlations (incl. contribution of consider parameters)
-plt.figure(figsize=(9, 6))
-plt.imshow(np.abs(correlations_with_consider_parameters), aspect='auto', interpolation='none')
-plt.colorbar()
-plt.title("Correlations w/ consider parameters")
-plt.xlabel("Index - Estimated Parameter")
-plt.ylabel("Index - Estimated Parameter")
-plt.tight_layout()
+# # Plot correlations (incl. contribution of consider parameters)
+# plt.figure(figsize=(9, 6))
+# plt.imshow(np.abs(correlations_with_consider_parameters), aspect='auto', interpolation='none')
+# plt.colorbar()
+# plt.title("Correlations w/ consider parameters")
+# plt.xlabel("Index - Estimated Parameter")
+# plt.ylabel("Index - Estimated Parameter")
+# plt.tight_layout()
 
 
 # Plot gravity field spectrum (a priori + formal errors)
