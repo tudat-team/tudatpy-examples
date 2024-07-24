@@ -62,7 +62,7 @@ spice.load_standard_kernels(kernels)
 
 # Set simulation start and end epochs
 start_gco = 35.3844 * constants.JULIAN_YEAR  # beginning circular orbital phase
-end_gco = 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
+end_gco = start_gco + 100.0 * constants.JULIAN_DAY # 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
 
 # Define glabal propagation settings
 global_frame_origin = "Ganymede"
@@ -150,7 +150,7 @@ print('nb arcs GCO', nb_arcs)
 
 
 # Define integrator settings
-time_step = 100.0
+time_step = 180.0
 integrator_moons = propagation_setup.integrator.runge_kutta_fixed_step_size(
     time_step, coefficient_set=propagation_setup.integrator.CoefficientSets.rkf_78)
 
