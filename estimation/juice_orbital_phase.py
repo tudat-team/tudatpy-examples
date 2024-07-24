@@ -18,6 +18,22 @@ from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
 from tudatpy.util import result2array
+from tudatpy.kernel.astro import gravitation
+
+
+def get_gravity_ganymede():
+
+    mu_ganymede = 9.87755557883291e12
+    radius_ganymede = 2634.0e3
+
+    cosine_coef = np.zeros((31, 31))
+    sine_coef = np.zeros((31, 31))
+
+    cosine_coef[0, 0] = 1.0
+    cosine_coef[2, 0] = -127.8e-6 / gravitation.legendre_normalization_factor(2, 0)
+    cosine_coef[2, 2] = 38.3e-6 / gravitation.legendre_normalization_factor(2, 2)
+
+    return environment_setup.gravity_field.spherical_harmonic(mu_ganymede, radius_ganymede, cosine_coef, sine_coef, "IAU_Ganymede")
 
 
 def getKaulaConstraint(kaula_constraint_multiplier, degree):
@@ -46,7 +62,7 @@ spice.load_standard_kernels(kernels)
 
 # Set simulation start and end epochs
 start_gco = 35.3844 * constants.JULIAN_YEAR  # beginning circular orbital phase
-end_gco = start_gco + 1.0 * constants.JULIAN_DAY # 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
+end_gco = start_gco + 2.0 * constants.JULIAN_DAY # 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
 
 # Define glabal propagation settings
 global_frame_origin = "Ganymede"
@@ -70,7 +86,7 @@ body_settings.get("Ganymede").rotation_model_settings = environment_setup.rotati
     "J2000", "IAU_Ganymede", initial_orientation_ganymede, start_gco, rotation_rate_ganymede)
 
 # Gravity field settings
-
+body_settings.get("Ganymede").gravity_field_settings = get_gravity_ganymede()
 
 # Create empty settings for JUICE
 body_settings.add_empty_settings("JUICE")
@@ -134,15 +150,10 @@ print('nb arcs GCO', nb_arcs)
 
 
 # Define integrator settings
-time_step = 180.0
+time_step = 100.0
 integrator_moons = propagation_setup.integrator.runge_kutta_fixed_step_size(
     time_step, coefficient_set=propagation_setup.integrator.CoefficientSets.rkf_78)
 
-
-# # Get initial state of JUICE wrt Ganymede from SPICE (JUICE's SPICE ID: -28)
-# initial_state = spice.get_body_cartesian_state_at_epoch("-28", "Ganymede", "J2000", "None", start_gco)
-# print('initial state', initial_state)
-# print('initial_altitude wrt Ganymede', (np.linalg.norm(initial_state[:3]) - bodies.get("Ganymede").shape_model.average_radius)/1e3, 'km')
 
 # Define arc-wise initial states for JUICE wrt Ganymede.
 # The initial states are extracted from JUICE's SPICE ephemeris (JUICE's SPICE ID is -28) at the start of each propagation arc.
@@ -165,54 +176,68 @@ for i in range(nb_arcs):
 # Concatenate all arc-wise propagator settings into multi-arc propagator settings
 propagator_settings = propagation_setup.propagator.multi_arc(propagator_settings_list)
 
-# # Propagate dynamics
-# simulator = numerical_simulation.create_dynamics_simulator(bodies, propagator_settings)
-# propagated_state = result2array(simulator.state_history)
-# dependent_variables = result2array(simulator.dependent_variable_history)
+# Propagate dynamics and retrieve simulation results
+simulator = numerical_simulation.create_dynamics_simulator(bodies, propagator_settings)
+simulation_results = simulator.propagation_results.single_arc_results
 
-# # # Retrieve SPICE orbit
-# # diff_spice_state_dict = dict()
-# # for i in range(len(propagated_state[:, 0])):
-# #     diff_spice_state_dict[propagated_state[i, 0]] = propagated_state[i, 1:] - spice.get_body_cartesian_state_at_epoch("-28", "Ganymede", "J2000", "None", propagated_state[i,0])
-# # diff_spice_state = result2array(diff_spice_state_dict)
+
+# # Manually define ESTRACK ground stations
+# station_names = ["New Forcia"] #, "Cebreros", "Malargue"]
+# station_coordinates = {station_names[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
+#                        # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
+#                        # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
 #
-# # # Plot trajectory
-# # fig, axs = plt.subplots(1, 2)
-# # axs[0] = plt.axes(projection='3d')
-# # axs[0].plot(propagated_state[:, 1]/1e3, propagated_state[:, 2]/1e3, propagated_state[:, 3]/1e3, color=colors["blue"])
-# # axs[0].set_xlabel('x [km]')
-# # axs[0].set_ylabel('y [km]')
-# # axs[0].set_zlabel('z [km]')
-# # axs[0].set_title('JUICE orbit')
-# # axs[0].grid()
-# #
-# # axs[1].plot(diff_spice_state[:, 0], diff_spice_state[:, 1]/1e3, color=colors["blue"])
-# # axs[1].plot(diff_spice_state[:, 0], diff_spice_state[:, 1]/1e3, color=colors["light_blue"])
-# # axs[1].plot(diff_spice_state[:, 0], diff_spice_state[:, 1]/1e3, color=colors["red"])
-# # axs[1].set_xlabel('Diff position [km]')
-# # axs[1].set_title('Diff wrt SPICE')
-# # axs[1].grid()
-# # plt.show()
+# for station in station_names:
+#     environment_setup.add_ground_station(
+#         bodies.get_body("Earth"), station, station_coordinates[station], element_conversion.geodetic_position_type)
 
 # Manually define ESTRACK ground stations
-station_names = ["New Forcia", "Cebreros", "Malargue"]
-station_coordinates = {station_names[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)],
-                       station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
-                       station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
+station_names_range = ["New Forcia1"] #, "Cebreros", "Malargue"]
+station_coordinates_range = {station_names_range[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
+                       # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
+                       # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
 
-for station in station_names:
+for station in station_names_range:
     environment_setup.add_ground_station(
-        bodies.get_body("Earth"), station, station_coordinates[station], element_conversion.geodetic_position_type)
+        bodies.get_body("Earth"), station, station_coordinates_range[station], element_conversion.geodetic_position_type)
 
+# Manually define ESTRACK ground stations
+station_names_doppler = ["New Forcia2"] #, "Cebreros", "Malargue"]
+station_coordinates_doppler = {station_names_doppler[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)]} #,
+                       # station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
+                       # station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
+
+for station in station_names_doppler:
+    environment_setup.add_ground_station(
+        bodies.get_body("Earth"), station, station_coordinates_doppler[station], element_conversion.geodetic_position_type)
+
+
+# # Define link ends for two-way Doppler and range observables, for each ESTRACK station
+# link_ends = []
+# for station in station_names:
+#     link_ends_per_station = dict()
+#     link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
+#     link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
+#     link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
+#     link_ends.append(link_ends_per_station)
 
 # Define link ends for two-way Doppler and range observables, for each ESTRACK station
-link_ends = []
-for station in station_names:
+link_ends_range = []
+for station in station_names_range:
     link_ends_per_station = dict()
     link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
     link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
     link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
-    link_ends.append(link_ends_per_station)
+    link_ends_range.append(link_ends_per_station)
+
+# Define link ends for two-way Doppler and range observables, for each ESTRACK station
+link_ends_doppler = []
+for station in station_names_doppler:
+    link_ends_per_station = dict()
+    link_ends_per_station[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", station)
+    link_ends_per_station[observation.receiver] = observation.body_reference_point_link_end_id("Earth", station)
+    link_ends_per_station[observation.reflector1] = observation.body_origin_link_end_id("JUICE")
+    link_ends_doppler.append(link_ends_per_station)
 
 # Define tracking arcs (arc duration is set to 8h/day during GCO)
 # The tracking arcs are (arbitrarily) set to start 2h after the start of each propagation arc.
@@ -236,11 +261,20 @@ for i in range(nb_arcs):
     biases.append(np.array([0.0]))
 range_bias_settings = observation.arcwise_absolute_bias(tracking_arcs_start, biases, observation.receiver)
 
+# # Define observation settings list
+# observation_settings_list = []
+# for link_end in link_ends:
+#     link_definition = observation.LinkDefinition(link_end)
+#     observation_settings_list.append(observation.n_way_doppler_averaged(link_definition, [light_time_correction_settings]))
+#     observation_settings_list.append(observation.two_way_range(link_definition, [light_time_correction_settings], range_bias_settings))
+
 # Define observation settings list
 observation_settings_list = []
-for link_end in link_ends:
+for link_end in link_ends_doppler:
     link_definition = observation.LinkDefinition(link_end)
-    observation_settings_list.append(observation.n_way_doppler_averaged(link_definition))
+    observation_settings_list.append(observation.n_way_doppler_averaged(link_definition, [light_time_correction_settings]))
+for link_end in link_ends_range:
+    link_definition = observation.LinkDefinition(link_end)
     observation_settings_list.append(observation.two_way_range(link_definition, [light_time_correction_settings], range_bias_settings))
 
 # Define observation simulation times for both Doppler and range observables
@@ -266,12 +300,23 @@ observation_times_per_type[observation.n_way_averaged_doppler_type] = observatio
 observation_times_per_type[observation.n_way_range_type] = observation_times_range
 
 
+# # Define observation settings for both observables, and all link ends (i.e., all ESTRACK stations)
+# observation_simulation_settings = []
+# for link_end in link_ends:
+#     # Doppler
+#     observation_simulation_settings.append(observation.tabulated_simulation_settings(
+#         observation.n_way_averaged_doppler_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_averaged_doppler_type]))
+#     # Range
+#     observation_simulation_settings.append(observation.tabulated_simulation_settings(
+#         observation.n_way_range_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_range_type]))
+
 # Define observation settings for both observables, and all link ends (i.e., all ESTRACK stations)
 observation_simulation_settings = []
-for link_end in link_ends:
+for link_end in link_ends_doppler:
     # Doppler
     observation_simulation_settings.append(observation.tabulated_simulation_settings(
         observation.n_way_averaged_doppler_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_averaged_doppler_type]))
+for link_end in link_ends_range:
     # Range
     observation_simulation_settings.append(observation.tabulated_simulation_settings(
         observation.n_way_range_type, observation.LinkDefinition(link_end), observation_times_per_type[observation.n_way_range_type]))
@@ -280,8 +325,14 @@ for link_end in link_ends:
 # Create viability settings which define when an observation is feasible
 viability_settings = []
 
+# # For all tracking stations, check if elevation is sufficient
+# for station in station_names:
+#     viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
 # For all tracking stations, check if elevation is sufficient
-for station in station_names:
+for station in station_names_range:
+    viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
+# For all tracking stations, check if elevation is sufficient
+for station in station_names_doppler:
     viability_settings.append(observation.elevation_angle_viability(["Earth", station], np.deg2rad(15.0)))
 # Check whether Ganymede or Jupiter are occulting the signal
 viability_settings.append(observation.body_occultation_viability(["JUICE", ""], "Ganymede"))
@@ -316,14 +367,15 @@ acc_components = {estimation_setup.parameter.radial_empirical_acceleration_compo
                   estimation_setup.parameter.across_track_empirical_acceleration_component: [estimation_setup.parameter.constant_empirical]}
 parameter_settings.append(estimation_setup.parameter.arcwise_empirical_accelerations("JUICE", "Ganymede", acc_components, arc_start_times))
 
-# Add ground stations' positions
-for station in station_names:
-    parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
+# # Add ground stations' positions
+# for station in station_names:
+#     parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
+
 
 # Define consider parameters
 # Add arc-wise range biases as consider parameters
 consider_parameters_settings = []
-for link_end in link_ends:
+for link_end in link_ends_range:
     consider_parameters_settings.append(estimation_setup.parameter.arcwise_absolute_observation_bias(
         observation.LinkDefinition(link_end), observation.n_way_range_type, tracking_arcs_start, observation.receiver))
 
@@ -381,6 +433,7 @@ inv_apriori[indices_cosine_coef[0]+1, indices_cosine_coef[0]+1] = 1.0e-12**-2
 inv_apriori[indices_sine_coef[0], indices_sine_coef[0]] = 1.0e-12**-2
 inv_apriori[indices_sine_coef[0]+1, indices_sine_coef[0]+1] = 1.0e-12**-2
 
+# Set a priori constraints for Ganymede's rotational rate
 # a_priori_rotation_rate =
 # indices_rotation_rate = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.constant_rotation_rate_type, ("Ganymede", "")))[0]
 # for i in range(indices_rotation_rate[0][1]):
@@ -402,26 +455,27 @@ indices_emp_acc = parameters_to_estimate.indices_for_parameter_type((estimation_
 for i in range(indices_emp_acc[1]):
     inv_apriori[indices_emp_acc[0] + i, indices_emp_acc[0] + i] = a_priori_emp_acc ** -2
 
-# Set a priori constraints for ground station positions
-a_priori_station = 0.03
-for station in station_names:
-    indices_station_pos = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.ground_station_position_type, ("Earth", station)))[0]
-    for i in range(indices_station_pos[1]):
-        inv_apriori[indices_station_pos[0] + i, indices_station_pos[0] + i] = a_priori_station ** -2
+# # Set a priori constraints for ground station positions
+# a_priori_station = 0.03
+# for station in station_names:
+#     indices_station_pos = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.ground_station_position_type, ("Earth", station)))[0]
+#     for i in range(indices_station_pos[1]):
+#         inv_apriori[indices_station_pos[0] + i, indices_station_pos[0] + i] = a_priori_station ** -2
 
-
-print('A priori constraints')
-print(np.reciprocal(np.sqrt(np.diagonal(inv_apriori))))
+# Retrieve full vector of a priori constraints
+apriori_constraints = np.reciprocal(np.sqrt(np.diagonal(inv_apriori)))
+# print('A priori constraints')
+# print(apriori_constraints)
 
 
 # Define consider parameters covariance
-nb_consider_parameters = nb_arcs*len(station_names)
+nb_consider_parameters = nb_arcs*len(station_names_range)
 consider_parameters_covariance = np.zeros((nb_consider_parameters, nb_consider_parameters))
 
 # Set consider covariance for range biases for all three ESTRACT stations
 a_priori_biases = 2.0
-for station in station_names:
-    indices_biases = (0, nb_arcs*len(station_names))
+for station in station_names_range:
+    indices_biases = (0, nb_arcs*len(station_names_range))
     for i in range(indices_biases[1]):
         consider_parameters_covariance[indices_biases[0] + i, indices_biases[0] + i] = a_priori_biases ** 2
 
@@ -440,59 +494,107 @@ covariance_input.set_constant_weight_per_observable(weights_per_observable)
 # Perform the covariance analysis
 covariance_output = estimator.compute_covariance(covariance_input)
 
-# # For now run full estimation to access propagation results
-# # Create estimation input settings
-# convergence_checker = estimation.estimation_convergence_checker(maximum_iterations=1)
-# estimation_input = estimation.EstimationInput(
-#     simulated_observations,
-#     inverse_apriori_covariance=inv_apriori,
-#     consider_covariance=consider_parameters_covariance,
-#     convergence_checker=convergence_checker)
-# estimation_input.set_constant_weight_per_observable(weights_per_observable)
-#
-# estimation_input.define_estimation_settings(
-#     reintegrate_variational_equations=False,
-#     save_state_history_per_iteration=True)
-#
-# # Perform the estimation
-# estimation_output = estimator.perform_estimation(estimation_input)
-#
-# # Retrieve propagation results
-# simulation_results = estimation_output.simulation_results_per_iteration[-1].single_arc_results
-# for i in range(nb_arcs):
-#     single_arc_results = simulation_results[i]
-#     propagated_state = result2array(single_arc_results.dynamics_results.state_history)
-#     dependent_variables = result2array(single_arc_results.dynamics_results.dependent_variable_history)
-#     print('extracting propagation results for arc', i)
-
 # Retrieve covariance results
 correlations = covariance_output.correlations
 covariance = covariance_output.covariance
 formal_errors = covariance_output.formal_errors
-output_times = np.arange(start_gco, end_gco, 3600.0)
-# propagated_formal_errors = estimation.propagate_formal_errors_rsw_split_output(covariance_output, estimator, output_times)
-
-test = 1
-
-# # Compute ratio estimated over a priori covariances
-# ratio_estimation_apriori_cov = np.divide()
-
-# Plot correlations
-plt.figure(figsize=(9, 6))
-plt.imshow(np.abs(correlations), aspect='auto', interpolation='none')
-plt.colorbar()
-plt.title("Correlation Matrix")
-plt.xlabel("Index - Estimated Parameter")
-plt.ylabel("Index - Estimated Parameter")
-plt.tight_layout()
-
+partials = covariance_output.weighted_design_matrix
 
 # Print the formal errors
 print('Formal errors')
 print(covariance_output.formal_errors)
 
-# Plot gravity field spectrum (a priori + formal errors)
+# Retrieve results with consider parameters
+consider_covariance_contribution = covariance_output.consider_covariance_contribution
+covariance_with_consider_parameters = covariance_output.unnormalized_covariance_with_consider_parameters
+formal_errors_with_consider_parameters = np.sqrt(np.diagonal(covariance_with_consider_parameters))
+# Compute correlations with consider parameters
+correlations_with_consider_parameters = covariance_with_consider_parameters
+for i in range(nb_parameters):
+    for j in range(nb_parameters):
+        correlations_with_consider_parameters[i, j] /= (formal_errors_with_consider_parameters[i] * formal_errors_with_consider_parameters[j])
 
+# # Propagate formal errors (TO BE FIXED, NOT YET POSSIBLE FOR MULTI-ARC)
+# output_times = np.arange(start_gco, end_gco, 3600.0)
+# propagated_formal_errors = estimation.propagate_formal_errors_rsw_split_output(covariance_output, estimator, output_times)
+
+
+## PLOTS
+
+# Get simulation results over first propagation arc
+simulation_results_first_arc = simulation_results[0]
+propagated_state_first_arc = result2array(simulation_results_first_arc.state_history)
+dependent_variables_first_arc = result2array(simulation_results_first_arc.dependent_variable_history)
+
+fig = plt.figure()
+# Plot trajectory of JUICE during first propagation arc
+ax1 = fig.add_subplot(121, projection='3d')
+ax1.plot(propagated_state_first_arc[:, 1]/1e3, propagated_state_first_arc[:, 2]/1e3, propagated_state_first_arc[:, 3]/1e3, color='blue')
+ax1.set_xlabel('x [km]')
+ax1.set_ylabel('y [km]')
+ax1.set_zlabel('z [km]')
+ax1.set_title('JUICE orbit wrt Ganymede over one day')
+ax1.grid()
+
+# Plot JUICE ground track during first propagation arc
+ax2 = fig.add_subplot(122)
+ganymede_map = '../propagation/ganymede_map.jpg'
+ax2.imshow(plt.imread(ganymede_map), extent = [0, 360, -90, 90])
+
+# Resolve 2pi ambiguity longitude
+for k in range(len(dependent_variables_first_arc)):
+    if dependent_variables_first_arc[k, 2] < 0:
+        dependent_variables_first_arc[k, 2] = dependent_variables_first_arc[k, 2] + 2.0 * np.pi
+ax2.plot(dependent_variables_first_arc[:, 2]*180/np.pi, dependent_variables_first_arc[:, 1]*180.0/np.pi, '.', markersize=2, color='blue')
+
+ax2.set_xlabel('Longitude [deg]')
+ax2.set_ylabel('Latitude [deg]')
+ax2.set_xticks(np.arange(0, 361, 40))
+ax2.set_yticks(np.arange(-90, 91, 30))
+ax2.set_title('JUICE ground track over one day')
+
+
+# Plot weighted partials
+plt.figure(figsize=(9, 6))
+plt.imshow(np.log10(np.abs(partials)), aspect='auto', interpolation='none')
+plt.colorbar()
+plt.title("Weighted partials")
+plt.ylabel("Index - Observation")
+plt.xlabel("Index - Estimated Parameter")
+plt.tight_layout()
+
+# Plot contribution of consider parameters to formal errors
+plt.figure()
+plt.plot(apriori_constraints, label='apriori constraints')
+plt.plot(formal_errors, label='nominal errors')
+plt.plot(formal_errors_with_consider_parameters, label='errors w/ consider parameters')
+plt.grid()
+plt.yscale("log")
+plt.ylabel('Formal errors')
+plt.xlabel('Index parameter [-]')
+plt.legend()
+plt.title('Effect consider parameters')
+
+# Plot correlations (default)
+plt.figure(figsize=(9, 6))
+plt.imshow(np.abs(correlations), aspect='auto', interpolation='none')
+plt.colorbar()
+plt.title("Correlations")
+plt.xlabel("Index - Estimated Parameter")
+plt.ylabel("Index - Estimated Parameter")
+plt.tight_layout()
+
+# Plot correlations (incl. contribution of consider parameters)
+plt.figure(figsize=(9, 6))
+plt.imshow(np.abs(correlations_with_consider_parameters), aspect='auto', interpolation='none')
+plt.colorbar()
+plt.title("Correlations w/ consider parameters")
+plt.xlabel("Index - Estimated Parameter")
+plt.ylabel("Index - Estimated Parameter")
+plt.tight_layout()
+
+
+# Plot gravity field spectrum (a priori + formal errors)
 # Extract a priori cosine and sine coefs
 apriori_cosine_coefs = np.reciprocal(np.sqrt(inv_apriori.diagonal()))[indices_cosine_coef[0]:indices_cosine_coef[0]+indices_cosine_coef[1]]
 apriori_sine_coefs = np.reciprocal(np.sqrt(inv_apriori.diagonal()))[indices_sine_coef[0]:indices_sine_coef[0]+indices_sine_coef[1]]
@@ -526,13 +628,13 @@ for deg in range(2, max_deg_ganymede_gravity+1):
     # Sine coefficients
     rms_apriori = 0
     rms_error = 0
-    for j in range(i):
+    for j in range(deg):
         rms_apriori += getKaulaConstraint(kaula_constraint_multiplier, deg)
         rms_error += formal_errors_sine_coefs[start_index_sine_deg+j]**2
-    start_index_sine_deg += i
+    start_index_sine_deg += deg
 
-    apriori_sine_per_deg[i-2] = np.sqrt(rms_apriori/i)
-    formal_errors_sine_per_deg[i-2] = np.sqrt(rms_error/i)
+    apriori_sine_per_deg[deg-2] = np.sqrt(rms_apriori/deg)
+    formal_errors_sine_per_deg[deg-2] = np.sqrt(rms_error/deg)
 
 
 # Plot Ganymede's gravity spectrum
@@ -543,7 +645,7 @@ plt.grid()
 plt.yscale("log")
 plt.ylabel('RMS gravity coefficients')
 plt.xlabel('Degree')
-plt.xticks(np.arange(0, max_deg_ganymede_gravity-1, 1), np.arange(2, max_deg_ganymede_gravity+1, 1)),
+plt.xticks(np.arange(0, max_deg_ganymede_gravity-1, 1), np.arange(2, max_deg_ganymede_gravity+1, 1))
 plt.title('Gravity spectrum Ganymede')
 plt.legend()
 
