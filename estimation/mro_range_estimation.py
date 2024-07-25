@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy")
 #!/usr/bin/env python
 # coding: utf-8
 
@@ -52,6 +54,7 @@ import matplotlib.pyplot as plt
 from tudatpy import data
 from tudatpy import constants
 from tudatpy.interface import spice
+from tudatpy.astro import time_conversion
 from tudatpy.numerical_simulation import environment_setup, environment
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
@@ -94,7 +97,6 @@ raw_datafile = data.read_tracking_txt_file(
 # 
 
 # In[4]:
-
 
 # Create ancillary settings
 ancillary_settings = observation.n_way_range_ancilliary_settings(frequency_bands=[observation.FrequencyBands.x_band])
@@ -256,7 +258,8 @@ plt.show()
 
 #  Create light time corrections
 light_time_correction_list =[
-        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"])
+        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]),
+        estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction( )
 ]
 
 observation_model_settings_lighttime = [
@@ -265,6 +268,20 @@ observation_model_settings_lighttime = [
 
 simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
 residuals_lighttime = simulated_observations_lighttime.concatenated_observations - observation_vals
+link_end_ids = simulated_observations_lighttime.concatenated_link_definition_ids
+link_ends_per_index = simulated_observations_lighttime.link_definition_ids
+
+corrections = list()
+time_scale_converter = time_conversion.default_time_scale_converter( )
+for i in range(len(observation_times)):
+    current_link_end = link_ends_per_index[ link_end_ids[ i ] ]
+    current_receiver = current_link_end[ observation.receiver ]
+
+    current_ground_station_position = bodies.get( 'Earth' ).get_ground_station( current_receiver.reference_point ).station_state.cartesian_positon_at_reference_epoch
+    first_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ], current_ground_station_position )
+    second_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ] - observation_vals[ i ] / 299792458., current_ground_station_position )
+    corrections.append( ( second_time_difference - first_time_difference ) * 3E8  )
+    residuals_lighttime[ i ] = residuals_lighttime[ i ] - ( second_time_difference - first_time_difference ) * 299792458.
 
 # Plot the new residuals
 plt.figure()
@@ -275,6 +292,16 @@ plt.ylabel("Residuals [m]")
 plt.grid("on")
 plt.axhline(0, color="k", zorder=0)
 plt.show()
+
+plt.figure()
+plt.plot(observation_times_year, corrections, ".")
+plt.title("Time corrections")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
+plt.show()
+
 
 # ## Summary Plot
 # 
