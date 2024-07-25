@@ -181,11 +181,9 @@ simulator = numerical_simulation.create_dynamics_simulator(bodies, propagator_se
 simulation_results = simulator.propagation_results.single_arc_results
 
 
-# Manually define ESTRACK ground stations
-station_names = ["New Forcia", "Cebreros", "Malargue"]
-station_coordinates = {station_names[0]: [252.0, np.deg2rad(-31.0), np.deg2rad(116.0)],
-                       station_names[1]: [794.1, np.deg2rad(40.0), np.deg2rad(-4.0)],
-                       station_names[2]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
+# Manually define ESTRACK ground stations (for now limited to Malargue only)
+station_names = ["Malargue"]
+station_coordinates = {station_names[0]: [1550.0, np.deg2rad(-35.0), np.deg2rad(-69.0)]}
 
 for station in station_names:
     environment_setup.add_ground_station(
@@ -308,6 +306,12 @@ parameter_settings.append(estimation_setup.parameter.arcwise_empirical_accelerat
 # Add ground stations' positions
 for station in station_names:
     parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
+
+
+# # Add arc-wise range biases as consider parameters
+# for link_end in link_ends:
+#     parameter_settings.append(estimation_setup.parameter.arcwise_absolute_observation_bias(
+#         observation.LinkDefinition(link_end), observation.n_way_range_type, tracking_arcs_start, observation.receiver))
 
 
 # # Define consider parameters (COMMENTED FOR NOW BECAUSE OF OBS BIAS PARTIAL ISSUE)
@@ -496,7 +500,8 @@ ax2.set_title('JUICE ground track over one day')
 # Plot weighted partials
 plt.figure(figsize=(9, 6))
 plt.imshow(np.log10(np.abs(partials)), aspect='auto', interpolation='none')
-plt.colorbar()
+cb = plt.colorbar()
+cb.set_label('log10(weighted partials)')
 plt.title("Weighted partials")
 plt.ylabel("Index - Observation")
 plt.xlabel("Index - Estimated Parameter")
@@ -531,6 +536,26 @@ plt.tight_layout()
 # plt.xlabel("Index - Estimated Parameter")
 # plt.ylabel("Index - Estimated Parameter")
 # plt.tight_layout()
+
+
+# Retrieve Doppler observation times for the first arc. For now only Malargue, but should eventually include all three ESTRACK stations
+sorted_observations = simulated_observations.sorted_observation_sets
+# doppler_obs_times_new_forcia_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][0][0].observation_times if t <= start_gco+arc_duration]
+# doppler_obs_times_cebreros_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][1][0].observation_times if t <= start_gco+arc_duration]
+doppler_obs_times_malargue_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][0][0].observation_times if t <= start_gco+arc_duration]
+
+
+# Plot observation times (for now only for Malargue, but designed to eventually include all three ESTRACK stations)
+plt.figure()
+# plt.plot(doppler_obs_times_new_forcia_first_arc, np.ones((len(doppler_obs_times_new_forcia_first_arc),1 )))
+# plt.plot(doppler_obs_times_cebreros_first_arc, 2.0 * np.ones((len(doppler_obs_times_cebreros_first_arc),1 )))
+plt.plot(doppler_obs_times_malargue_first_arc, 3.0 * np.ones((len(doppler_obs_times_malargue_first_arc),1 )))
+plt.xlabel('Observation times [h]')
+plt.ylabel('')
+plt.yticks([1, 2, 3], ['New Forcia', 'Cebreros', 'Malargue'])
+plt.ylim([0.5, 3.5])
+plt.title('Viable observations over first arc')
+plt.grid()
 
 
 # Plot gravity field spectrum (a priori + formal errors)
