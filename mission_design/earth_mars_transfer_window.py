@@ -40,6 +40,7 @@ from tudatpy.astro.time_conversion import DateTime
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
+
 ## Environment setup
 """
 
@@ -61,6 +62,7 @@ body_settings = environment_setup.get_default_body_settings(
 # Create environment model
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ## Porkchop Plots
 """
 The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
@@ -75,6 +77,7 @@ latest_departure_time   = DateTime(2005, 10,   7)
 earliest_arrival_time   = DateTime(2005, 11,  16)
 latest_arrival_time     = DateTime(2006, 12,  21)
 
+
 # To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
 # Set time resolution IN DAYS as 0.5% of the smallest window (be it departure, or arrival)
@@ -86,6 +89,7 @@ time_resolution = time_resolution = min(
         latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
 
+
 # Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
 
 # File
@@ -96,6 +100,7 @@ RECALCULATE_delta_v = input(
     '\n    Recalculate ΔV for porkchop plot? [y/N] '
 ).strip().lower() == 'y'
 print()
+
 
 # Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
 # 
@@ -135,6 +140,7 @@ else:
         threshold        = 15
     )
 
+
 ### Variations
 """
 The Tudat `porkchop` module allows us to
@@ -162,3 +168,4 @@ for case in cases:
         save             = False,
         **case
     )
+
