@@ -20,7 +20,7 @@ sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-de
 
 # In[1]:
 
-
+print('Start')
 # Set the filename of the data file
 TRACKING_FNAME = "./data/mrorange2006-2013.txt"
 
@@ -99,7 +99,7 @@ raw_datafile = data.read_tracking_txt_file(
 # In[4]:
 
 # Create ancillary settings
-ancillary_settings = observation.n_way_range_ancilliary_settings(frequency_bands=[observation.FrequencyBands.x_band])
+ancillary_settings = observation.n_way_range_ancilliary_settings(frequency_bands=[observation.FrequencyBands.x_band,observation.FrequencyBands.x_band])
 
 # Create the observation collection
 observations = observation.create_tracking_txtfile_observation_collection(
@@ -188,6 +188,7 @@ bodies = create_bodies()
 # Extract the relevant information from the real observations to mimic
 linkdef_ids = observations.concatenated_link_definition_ids
 distinct_linkdefs = observations.get_link_definitions_for_observables(observation.n_way_range_type)
+link_ends_per_index = observations.link_definition_ids
 
 # Create the observation model settings to match those of the real observations
 observation_model_settings = [
@@ -259,14 +260,26 @@ plt.show()
 #  Create light time corrections
 light_time_correction_list =[
         estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]),
-        estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction( )
+        estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction( [3.6E11], [2] )
 ]
+
+bias_setting = estimation_setup.observation.two_way_time_scale_range_bias( )
 
 observation_model_settings_lighttime = [
-    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in linkdef_ids
+    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list,bias_setting) for linkdef_id in link_ends_per_index
 ]
 
+bodies_rotation.get( 'Mars' ).system_models.set_default_transponder_turnaround_ratio_function( )
+
+for linkdef_id in link_ends_per_index:
+    current_link_end = link_ends_per_index[linkdef_id]
+    current_station = current_link_end[observation.receiver].reference_point
+    bodies_rotation.get('Earth').get_ground_station( current_station ).set_transmitting_frequency_calculator( environment.ConstantFrequencyInterpolator( 7.2E9 ) )
+    print( current_station )
+
+print('Pre-create', len(observation_model_settings_lighttime))
 simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
+print('Post-create')
 residuals_lighttime = simulated_observations_lighttime.concatenated_observations - observation_vals
 link_end_ids = simulated_observations_lighttime.concatenated_link_definition_ids
 link_ends_per_index = simulated_observations_lighttime.link_definition_ids
@@ -281,7 +294,7 @@ for i in range(len(observation_times)):
     first_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ], current_ground_station_position )
     second_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ] - observation_vals[ i ] / 299792458., current_ground_station_position )
     corrections.append( ( second_time_difference - first_time_difference ) * 3E8  )
-    residuals_lighttime[ i ] = residuals_lighttime[ i ] - ( second_time_difference - first_time_difference ) * 299792458.
+    # residuals_lighttime[ i ] = residuals_lighttime[ i ] - ( second_time_difference - first_time_difference ) * 299792458.
 
 # Plot the new residuals
 plt.figure()
