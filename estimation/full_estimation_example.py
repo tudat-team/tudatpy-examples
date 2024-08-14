@@ -212,7 +212,7 @@ propagator_settings = propagation_setup.propagator.translational(
     initial_state,
     simulation_start_epoch,
     integrator_settings,
-    termination_condition
+    termination_condition,
 )
 
 ## Set up the observations
@@ -278,7 +278,7 @@ observation_simulation_settings = observation.tabulated_simulation_settings(
 )
 
 # Add noise levels of roughly 3.3E-12 [s/m] and add this as Gaussian noise to the observation
-noise_level = 1.0E-3
+noise_level = 1e-3
 observation.add_gaussian_noise_to_observable(
     [observation_simulation_settings],
     noise_level,
@@ -419,29 +419,29 @@ observations_list = np.array(simulated_observations.concatenated_observations)
 The following (commented, un-toggle comment to run it) is just an example that Luigi wrote, in order to visually see 
 the linear approximation of the Confidence Region = Confidence Ellipsoid (as in Milani & Gronchi, Theory of Orbit Determination)
 """
-# # # Define the parameters
-# x_star = parameters_to_estimate.parameter_vector # Nominal solution (center of the ellipsoid)
-# # Create input object for covariance analysis
-# covariance_input = estimation.CovarianceAnalysisInput(
-#       simulated_observations)
-#
-# # # Set methodological options
-# covariance_input.define_covariance_settings(
-#      reintegrate_variational_equations=False)
-# # # Define weighting of the observations in the inversion
-# weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-# covariance_input.set_constant_weight_per_observable(weights_per_observable)
-# covariance_output = estimator.compute_covariance(covariance_input)
-# initial_covariance = covariance_output.covariance
-# print(f'Initial_covariance:\n {initial_covariance}')
-#
-# """
-# Ideally, I would want to propagate the covariance here,
-# in order to see what happens to the confidence ellipsoid along the orbit.
-# However, there is a problem with estimation.propagate_covariance, which is needed to propagate the covariance...
-#
-# >>>>> TypeError: Unregistered type : Eigen::Matrix<double, -1, -1, 0, -1, -1> <<<<<
-# """
+# # Define the parameters
+x_star = parameters_to_estimate.parameter_vector # Nominal solution (center of the ellipsoid)
+# Create input object for covariance analysis
+covariance_input = estimation.CovarianceAnalysisInput(
+      simulated_observations)
+
+# # Set methodological options
+covariance_input.define_covariance_settings(
+     reintegrate_variational_equations=False)
+# # Define weighting of the observations in the inversion
+weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
+covariance_input.set_constant_weight_per_observable(weights_per_observable)
+covariance_output = estimator.compute_covariance(covariance_input)
+initial_covariance = covariance_output.covariance
+print(f'Initial_covariance:\n {initial_covariance}')
+
+"""
+Ideally, I would want to propagate the covariance here,
+in order to see what happens to the confidence ellipsoid along the orbit.
+However, there is a problem with estimation.propagate_covariance, which is needed to propagate the covariance...
+
+>>>>> TypeError: Unregistered type : Eigen::Matrix<double, -1, -1, 0, -1, -1> <<<<<
+"""
 # # state_transition_interface = estimator.state_transition_interface
 # # print(state_transition_interface)
 # # output_times = observation_times
@@ -451,47 +451,65 @@ the linear approximation of the Confidence Region = Confidence Ellipsoid (as in 
 # #      state_transition_interface=state_transition_interface,
 # #      output_times=output_times)
 #
-# P_to_minus_one = covariance_output.inverse_covariance  # Covariance matrix
-# sigma = 1.0  # Confidence level
-# original_eigenvalues, original_eigenvectors = np.linalg.eigh(P_to_minus_one)
-# print(f'Estimated state and parameters:\n {parameters_to_estimate.parameter_vector}\n')
-# print(f'Eigenvalues of Normal Matrix ($P^-1$):\n {original_eigenvalues}\n')
-# three_lowest_eigenvalues = [item[0] for item in sorted(enumerate(original_eigenvalues), key=lambda x: x[1])][:3]
-# print(f'Three lowest eigenvalues:\n {three_lowest_eigenvalues}\n')
-# # # Select the first 3 dimensions for plotting
-# indices = [three_lowest_eigenvalues[0], three_lowest_eigenvalues[1], three_lowest_eigenvalues[2]]
-# P_to_minus_one_sub = P_to_minus_one[np.ix_(indices, indices)]  #P_^-1 restriction to eigenvalues
-# x_star_sub = x_star[indices] #Nominal solution subset
-# # Eigenvalue decomposition of the submatrix
-# eigenvalues, eigenvectors = np.linalg.eigh(P_to_minus_one_sub)
-# # Ensure eigenvalues are positive
-# if np.any(eigenvalues <= 0):
-#      raise ValueError(f"$P^-1$ submatrix is not positive definite. Eigenvalues must be positive.\n")
-# # Create the transformation matrix A = Q * sqrt(Λ)
-# A = eigenvectors @ np.diag(np.sqrt(eigenvalues))
-# # Generate points on the unit sphere
-# phi = np.linspace(0, np.pi, 50)
-# theta = np.linspace(0, 2 * np.pi, 50)
-# phi, theta = np.meshgrid(phi, theta)
-# x_sphere = np.sin(phi) * np.cos(theta)
-# y_sphere = np.sin(phi) * np.sin(theta)
-# z_sphere = np.cos(phi)
-# sphere = np.stack([x_sphere, y_sphere, z_sphere], axis=0)
-# # Transform the unit sphere to the ellipsoid
-# ellipsoid_boundary = x_star_sub[:, np.newaxis, np.newaxis] + sigma * np.tensordot(A, sphere, axes=1)
-# # Plot the ellipsoid in 3D
-# fig = plt.figure(figsize=(8, 8))
-# ax = fig.add_subplot(111, projection='3d')
-# ax.plot_surface(ellipsoid_boundary[0], ellipsoid_boundary[1], ellipsoid_boundary[2], color='cyan', alpha=0.4)
-# ax.scatter(x_star_sub[0], x_star_sub[1], x_star_sub[2], color='red', label='Nominal Solution (x*)')
-# ax.set_xlabel('x1')
-# ax.set_ylabel('x2')
-# ax.set_zlabel('x3')
-# ax.set_title('3D Confidence Ellipsoid (Reduced Dimensions)')
-# ax.set_aspect('equal')
-# plt.legend()
-# plt.show()
-#
+COV = covariance_output.covariance  # Covariance matrix
+sigma = 3  # Confidence level
+original_eigenvalues, original_eigenvectors = np.linalg.eig(COV)
+print(f'Estimated state and parameters:\n {parameters_to_estimate.parameter_vector}\n')
+print(f'Eigenvalues of Covariance Matrix:\n {original_eigenvalues}\n')
+#three_lowest_eigenvalues = [item[0] for item in sorted(enumerate(original_eigenvalues), key=lambda x: x[1])][]
+largest_eigenvalue_index = np.argmax(original_eigenvalues)
+print(f'Largest eigenvalue:\n {largest_eigenvalue_index}\n')
+# # Select the first 3 dimensions for plotting
+# Sort eigenvalues and eigenvectors in descending order
+sorted_indices = np.argsort(original_eigenvalues)[::-1]
+eigenvalues = original_eigenvalues[sorted_indices]
+eigenvectors = original_eigenvectors[:, sorted_indices]
+# Output results
+print("Eigenvalues (variances along principal axes):", eigenvalues)
+print("Eigenvectors (directions of principal axes):", eigenvectors)
+# To determine the most uncertain parameter:
+most_uncertain_axis = np.argmax(eigenvalues)
+print("Most uncertain parameter corresponds to the principal axis:", most_uncertain_axis)
+indices = [most_uncertain_axis,most_uncertain_axis+1, most_uncertain_axis+2]
+COV_sub = COV[np.ix_(indices, indices)]  #P_^-1 restriction to eigenvalues
+x_star_sub = x_star[indices] #Nominal solution subset
+# Eigenvalue decomposition of the submatrix
+eigenvalues, eigenvectors = np.linalg.eigh(COV_sub)
+#eigenvectors = eigenvectors*np.sqrt(1 / eigenvalues)
+# Ensure eigenvalues are positive
+if np.any(eigenvalues <= 0):
+     raise ValueError(f"$P^-1$ submatrix is not positive definite. Eigenvalues must be positive.\n")
+# Create the transformation matrix A = Q * sqrt(Λ)
+
+A = eigenvectors @ np.diag(np.sqrt(eigenvalues))
+# Generate points on the unit sphere
+phi = np.linspace(0, np.pi, 50)
+theta = np.linspace(0, 2 * np.pi, 50)
+phi, theta = np.meshgrid(phi, theta)
+x_sphere = np.sin(phi) * np.cos(theta)
+y_sphere = np.sin(phi) * np.sin(theta)
+z_sphere = np.cos(phi)
+sphere = np.stack([x_sphere, y_sphere, z_sphere], axis=0)
+# Transform the unit sphere to the ellipsoid
+ellipsoid_boundary_3_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 3 * np.tensordot(A, sphere, axes=1)
+ellipsoid_boundary_1_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 1 * np.tensordot(A, sphere, axes=1)
+#print(np.tensordot(A, sphere, axes=1))
+print(f'ellispoid boundary: {ellipsoid_boundary_3_sigma}')
+# Plot the ellipsoid in 3D
+fig = plt.figure(figsize=(8, 8))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], color='cyan', alpha=0.4)
+ax.plot_surface(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], color='blue', alpha=0.4)
+ax.scatter(x_star_sub[0], x_star_sub[1], x_star_sub[2], color='red', label='Nominal Solution (x*)')
+ax.set_xlabel('x1')
+ax.set_ylabel('x2')
+ax.set_zlabel('x3')
+ax.set_aspect('equal')
+ax.set_title('3D Confidence Ellipsoid (Reduced Dimensions)')
+ax.set_aspect('equal')
+plt.legend()
+plt.show()
+
 plt.figure(figsize=(9, 5))
 plt.title("Observations as a function of time")
 plt.scatter(observation_times / 3600.0, observations_list )
