@@ -20,11 +20,15 @@ from tudatpy.astro import element_conversion
 from tudatpy.util import result2array
 from tudatpy.kernel.astro import gravitation
 
-print('yooo')
+""" The function get_gravity_ganymede() models the spherical harmonic potential of Ganymede. 
+It normalizes the coefficients: J2 = -C20, and C22 by means of the legendre normalization factor
+(see: Vallado, p. 546, Eq. (8.22) and TudatPy API reference: https://py.api.tudat.space/en/latest/gravitation.html)
+NOTE: Values for the C_{l,m} coefficients are taken from Anderson et al. (1996): https://www.nature.com/articles/384541a0
+"""
 def get_gravity_ganymede():
 
-    mu_ganymede = 9.87755557883291e12
-    radius_ganymede = 2634.0e3
+    mu_ganymede = spice.get_body_properties("Ganymede", "GM", 1) #same as Sam's: 9877.5555788329
+    radius_ganymede = spice.get_body_properties("Ganymede", "RADII", 1)*(10^3) #is: 2631.2 km (spice) was: 2634 km (SAM)
 
     cosine_coef = np.zeros((31, 31))
     sine_coef = np.zeros((31, 31))
@@ -35,10 +39,20 @@ def get_gravity_ganymede():
 
     return environment_setup.gravity_field.spherical_harmonic(mu_ganymede, radius_ganymede, cosine_coef, sine_coef, "IAU_Ganymede")
 
-
+"""
+The spherical harmonics coefficients (C_{l,m}, S_{l,m}) describe the gravity field. 
+However, as the degree l increases, the number of orders m increases very rapidly. 
+This might lead to overfitting and numerical problems, which might lead some terms to "explode".
+However, since we know that, as l grows, the coefficients C and S get smaller and smaller, 
+Kaula proposed a constraint (often referred to as the Kaula power law or Kaula's rule) that provides an UPPER bound
+on the expected magnitude of these coefficients. 
+Kaula's constraints can be used as apriori information on the uncertainties in the Ganymede's C, S coefficients. 
+Kaula's values can therefore be used as a starting point in the inverse apriori covariance matrix. 
+However - as we will see later in this example - if better constraints (perhaps given in the literature) 
+are available for some degree and order (l,m)  we can decide to pick these in place of the "rough" Kaula constraint. 
+"""
 def getKaulaConstraint(kaula_constraint_multiplier, degree):
     return kaula_constraint_multiplier / degree ** 2
-
 
 def apply_kaula_constraint_a_priori(kaula_constraint_multiplier, max_deg_gravity, indices_cosine_coef, indices_sine_coef, inv_apriori):
 
@@ -339,10 +353,10 @@ simulated_observations = estimation.simulate_observations(observation_simulation
 inv_apriori = np.zeros((nb_parameters, nb_parameters))
 
 # Set a priori constraints for JUICE state(s)
-a_priori_position = 5.0e3
-a_priori_velocity = 0.5
+a_priori_position = 5.0e3 # initial a priori uncertainty on JUICE's position (m)
+a_priori_velocity = 0.5 # initial a priori uncertainty on JUICE's velocity (m/s)
 indices_states = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.arc_wise_initial_body_state_type, ("JUICE", "")))[0]
-for i in range(indices_states[1]//6):
+for i in range(indices_states[1]//6): # for loop to create the inverse apriori covariance matrix (with 1/a_priori_position^2 and 1/a_priori_velocity^2) on the diagonal
     for j in range(3):
         inv_apriori[indices_states[0]+i*6+j, indices_states[0]+i*6+j] = a_priori_position**-2  # a priori position
         inv_apriori[indices_states[0]+i*6+j+3, indices_states[0]+i*6+j+3] = a_priori_velocity**-2  # a priori velocity
