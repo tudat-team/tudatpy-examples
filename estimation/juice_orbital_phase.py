@@ -20,7 +20,7 @@ from tudatpy.astro import element_conversion
 from tudatpy.util import result2array
 from tudatpy.kernel.astro import gravitation
 
-
+print('yooo')
 def get_gravity_ganymede():
 
     mu_ganymede = 9.87755557883291e12
