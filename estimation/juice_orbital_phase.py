@@ -27,9 +27,8 @@ NOTE: Values for the C_{l,m} coefficients are taken from Anderson et al. (1996):
 """
 def get_gravity_ganymede():
 
-    mu_ganymede = spice.get_body_properties("Ganymede", "GM", 1) #same as Sam's: 9877.5555788329
-    radius_ganymede = spice.get_body_properties("Ganymede", "RADII", 1)*(10^3) #is: 2631.2 km (spice) was: 2634 km (SAM)
-
+    mu_ganymede = spice.get_body_properties("Ganymede", "GM", 1)[0] #same as Sam's: 9877.5555788329
+    radius_ganymede = spice.get_body_properties("Ganymede", "RADII", 3)[0]*10**3 #is: 2631.2 km (spice) was: 2634 km (SAM)
     cosine_coef = np.zeros((31, 31))
     sine_coef = np.zeros((31, 31))
 
@@ -74,37 +73,69 @@ path = os.path.dirname(__file__)
 kernels = [path+'/../kernels/kernel_juice.bsp', path+'/../kernels/kernel_noe.bsp']
 spice.load_standard_kernels(kernels)
 
+"""
+JUICE will perform two Ganymede's circular orbits at two different altitudes: GCO5000 at arund 5000 km (start date: 2035-01-17) 
+and FCO500 at around 500 km (start date: 2035-05-21). We are interested in GCO500, which will end after around 4 months (120 days). 
+Let's initialize the start and end epoch in the variable start_gco and end_gco, shall we?. 
+These have to be given in seconds after the 1st of January 2000. 
+The 21st of May corresponds to the 140th day of the year, or around 0.3844. 
+Therefore, the GCO500 phase will start at start_gco = 35.3844 years after the star 1 Jan 2000. 
+As for this example, we will set the end epoch after 100 days. 
+JUICE will be orbiting Ganymede, so we choose Ganymede and J2000 as origin and orientation of the global reference frame.
+"""
 # Set simulation start and end epochs
 start_gco = 35.3844 * constants.JULIAN_YEAR  # beginning circular orbital phase
 end_gco = start_gco + 100.0 * constants.JULIAN_DAY # 35.73 * constants.JULIAN_YEAR  # end circular orbital phase
-
-# Define glabal propagation settings
+# Define global propagation settings
 global_frame_origin = "Ganymede"
 global_frame_orientation = "J2000"
 body_to_propagate = ["JUICE"]
 central_body = ["Ganymede"]
 
+
+"""
+Picture it: while on the GCO phase, the gravitational forces acting on JUICE will be the ones exerted by Ganymede, Jupiter and the Sun.
+For this reason, as you will see in a bit, Ganymede, Sun and Jupiter will be the only celestial objects we will consider in our environment
+when it comes to modelling the spacecraft acceleration. Nevertheless, we will also need to create the Earth's object.  
+Why is that? Even though the Earth's gravitational pull on JUICE is negligible during the whole the GCO500 phase, 
+we will need our planet to be present in the environment because, later on, we will have to set up our observation model,
+meaning that we will have to set up a link between JUICE and, guess who? The Earth. 
+"""
 # Create default body settings
 bodies_to_create = ["Ganymede", "Jupiter", "Sun", "Earth"]
 body_settings = environment_setup.get_default_body_settings(bodies_to_create, global_frame_origin, global_frame_orientation)
 
+"""
+We want to analyze JUICE's trajectory with respect to a Ganymede-centered body frame. 
+Since Tudat propagates the trajectories with respect to a frame with inertial origin and orientation (e.g. J2000), 
+it is necessary to get the rotation matrix between these two frames In order to do that
+1) we compute the (constant) angular velocity (rotation rate) of Ganymede with respect to Jupiter, using Kepler's third law.
+   Note that, in order to do this, we first need to get the semi-major axis of Ganymede. 
+   Since spice provides us with Ganymede's cartesian state, we need to convert these into keplerian elements, thus taking the semi-major axis. 
+2) we use spice again, this time to get the rotation matrix at the start epoch: start_gco.
+"""
 # Compute rotation rate for Ganymede
 mu_jupiter = spice.get_body_properties("Jupiter", "GM", 1)[0] * 1.0e9
 initial_state_ganymede = spice.get_body_cartesian_state_at_epoch("Ganymede", "Jupiter", "J2000", "None", start_gco)
 keplerian_state_ganymede = element_conversion.cartesian_to_keplerian(initial_state_ganymede, mu_jupiter)
 rotation_rate_ganymede = np.sqrt(mu_jupiter/keplerian_state_ganymede[0]**3)
-
 # Set rotation model settings
 initial_orientation_ganymede = spice.compute_rotation_matrix_between_frames("J2000", "IAU_Ganymede", start_gco)
+
+"""
+Finally, we are ready to get Ganymede's rotation and gravity field models to the body_settings.
+"""
+# Get Rotation settings
 body_settings.get("Ganymede").rotation_model_settings = environment_setup.rotation_model.simple(
     "J2000", "IAU_Ganymede", initial_orientation_ganymede, start_gco, rotation_rate_ganymede)
-
-# Gravity field settings
+# Get Gravity field settings
 body_settings.get("Ganymede").gravity_field_settings = get_gravity_ganymede()
 
+""" 
+We also want to add empty multi-arc ephemeris for JUICE.
+"""
 # Create empty settings for JUICE
 body_settings.add_empty_settings("JUICE")
-
 # Create empty multi-arc ephemeris for JUICE
 empty_ephemeris_dict = dict()
 juice_ephemeris = environment_setup.ephemeris.tabulated(
