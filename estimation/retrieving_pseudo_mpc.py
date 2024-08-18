@@ -1,4 +1,4 @@
-# Retrieving observation data from the Minor Planet Centre
+etrieving observation data from the Minor Planet Centre
 """
 Copyright (c) 2010-2023, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
@@ -47,6 +47,50 @@ We initialise a `BatchMPC` object, create a list with the objects we want and us
 
 Tudat's estimation tools allow for multiple Objects to be analysed at the same time. BatchMPC can process multiple objects into a single observation collection automatically. For now lets retrieve the observations for Eros and Svea. BatchMPC uses MPC codes for objects and observatories. To get an overview of the batch we can use the `summary()` method. Let's also get some details on some of the observatories that retrieved the data using the `observatories_table()` method.
 """
+from astroquery.mpc import MPC
+import requests
+import re
+
+MPC.query_object = requests.get("https://www.projectpluto.com/pluto/mpecs/juice.htm#ast", "JUICE")
+#data = MPC.query_object.html()
+#print(MPC.query_object)
+#print(MPC.query_object.text)
+observations = MPC.query_object.text #use this if you want the whole html page
+from bs4 import BeautifulSoup
+
+# Example list of HTML lines (use this to test two lines only)
+html_lines = [
+    '''<a name="o001"></a><a href="#r001">     ELE0727</a> KC2023 04 14.66520310 58 56.258-09 03 31.41        x12.0 G      <a href="#stn_O75">O75</a>''',
+    '''<a name="o002"></a><a href="#r002">     ELE0728</a> KC2023 05 15.66520310 59 57.258-10 04 32.41        x13.0 G      <a href="#stn_O76">O76</a>''',
+    # Add more HTML lines as needed
+]
+
+data = []
+
+for html in html_lines:
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Extract the `name` attribute from the first <a> tag
+    name = soup.find_all('a')[0].get('name')
+
+    # Extract the `href` attribute from the second <a> tag
+    href = soup.find_all('a')[1].get('href')
+
+    # Extract the text between the second and third <a> tags
+    text_between = soup.get_text().split(soup.find_all('a')[1].get_text())[1].split(soup.find_all('a')[2].get_text())[0].strip()
+
+    # Store the data in a dictionary
+    entry = {
+        'name': name,
+        'href': href,
+        'text': text_between
+    }
+
+    data.append(entry)
+
+print(data)
+exit()
+"""start dominic's code"""
 asteroid_MPC_codes = [433, 329] # Eros and Svea
 
 batch1 = BatchMPC()
@@ -80,7 +124,7 @@ batch1.filter(observatories_exclude=observatories_to_exlude, epoch_start=datetim
 print(f"Size after filter: {batch1.size}")
 
 batch1.summary()
-
+exit()
 ### Set up the system of bodies
 """
 A system of bodies must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use Earth and the Sun. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
@@ -310,4 +354,5 @@ plt.show()
 fig = batch1.plot_observations_temporal()
 
 plt.show()
+
 
