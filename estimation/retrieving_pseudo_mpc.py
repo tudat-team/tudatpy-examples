@@ -1,4 +1,4 @@
-etrieving observation data from the Minor Planet Centre
+#Retrieving observation data from the Minor Planet Centre
 """
 Copyright (c) 2010-2023, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
@@ -50,6 +50,142 @@ Tudat's estimation tools allow for multiple Objects to be analysed at the same t
 from astroquery.mpc import MPC
 import requests
 import re
+
+from astropy.time import Time
+from astropy.table import Table, Column
+from bs4 import BeautifulSoup
+import pandas as pd
+
+# Example list of HTML lines
+html_lines = [
+    '''<a name="o001"></a><a href="#r001">     ELE0727</a> KC2023 04 14.66520310 58 56.258-09 03 31.41        x12.0 G      <a href="#stn_O75">O75</a>''',
+    '''<a name="o002"></a><a href="#r002">     ELE0728</a> KC2023 05 15.66520310 59 57.258-10 04 32.41        x13.0 G      <a href="#stn_O76">O76</a>''',
+]
+MPC.query_object = requests.get("https://www.projectpluto.com/pluto/mpecs/23053a.htm", "JUICE")
+#data = MPC.query_object.html()
+#print(MPC.query_object)
+#print(MPC.query_object.text)
+observations = MPC.query_object.text #use this if you want the whole html page
+# Find the position of the <a name="stations"></a> tag
+match = re.search(r'<a name="stations"></a>', observations)
+if match:
+    # Keep only the part of the HTML before the matched line
+    html_cleaned = observations[:match.start()]
+    #print(html_cleaned)
+match = re.search(r'<a href="https://www.projectpluto.com/mpec_xpl.htm#astrometry"> <b>Astrometry:</b> </a>', html_cleaned)
+if match:
+    # Keep only the part of the HTML before the matched line
+    html_cleaned = html_cleaned[match.end():].lstrip()
+observations = [line.strip() for line in html_cleaned.splitlines() if line.strip()]
+
+# Initialize lists to hold the extracted data
+numbers = []
+epochs = []
+RAs = []
+DECs = []
+bands = []
+observatories = []
+
+for i,observation_string in enumerate(observations):
+    soup = BeautifulSoup(observation_string, 'html.parser')
+
+    number = i+1
+    print(f'observation n. {number}')
+
+    # Extract the observation string (without the band and observatory)
+    observation_string = soup.get_text().split(soup.find_all('a')[1].get_text())[1].split(soup.find_all('a')[2].get_text())[0].strip()
+    print(observation_string[0:3])
+    if observation_string[2] == 'K' or observation_string[1] == 'B':
+        print('no can do')
+        continue
+    # Extract and parse date and time
+    if observation_string[0:2] == 'KC' or observation_string[0:2] == '0C' or observation_string[0:2] == '3C':
+        year = observation_string[2:6]  # Year (e.g., 2023)
+        month = observation_string[7:9]  # Month (e.g., 04)
+        date_part, frac_day = observation_string[10:18].split('.')
+        print(date_part, frac_day)
+        numbers.append(number)
+    elif observation_string[0] == 'C':
+        year = observation_string[1:5]  # Year (e.g., 2023)
+        month = observation_string[6:8]  # Month (e.g., 04)
+        date_part, frac_day = observation_string[9:18].split('.')
+        print(date_part, frac_day)
+        numbers.append(number)
+
+    # Calculate the time in hours, minutes, seconds
+    hours = float("0." + frac_day) * 24
+    minutes = (hours % 1) * 60
+    seconds = (minutes % 1) * 60
+    print(hours, minutes, seconds)
+    # Convert to Julian date
+    time_string = f"{date_part} {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+    epoch = f'{year}-{month}-{date_part} {int(hours):02}:{int(minutes):02}:{int(seconds):02}'
+    print(epoch)
+    dt = datetime.strptime(epoch, "%Y-%m-%d %H:%M:%S")
+    dt_jd = Time(dt).jd
+    epochs.append(dt_jd)
+
+    # Extract RA and DEC
+    ra_dec_str = observation_string[21:44]  # RA and DEC part
+    ra_part = ra_dec_str[:9].strip()  # Right Ascension
+    dec_part = ra_dec_str[10:].strip()  # Declination (considering no space if negative)
+    parts = ra_part.split()
+    degrees = float(parts[0])
+    minutes = float(parts[1]) if len(parts) > 1 else 0
+    seconds = float(parts[2]) if len(parts) > 2 else 0
+    deg_ra = degrees + minutes / 60 + seconds / 3600
+    parts_ = dec_part.split()
+    degrees_ = float(parts_[0])
+    minutes_ = float(parts_[1]) if len(parts_) > 1 else 0
+    seconds_ = float(parts_[2]) if len(parts_) > 2 else 0
+    if len(parts_[0]) == 3:
+        deg_dec = - (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
+    else:
+        deg_dec = (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
+    print(deg_ra)
+    print(deg_dec)
+    # Extract Band
+    band = observation_string[51]
+    bands.append(band)
+
+    # Extract the observatory code
+    observatory = soup.find_all('a')[2].get_text().strip()
+    observatories.append(observatory)
+
+    RAs.append(deg_ra)
+    DECs.append(deg_dec)
+# Create the table
+table = Table()
+
+print(len(epochs), len(RAs), len(numbers))
+# Add columns to the table
+table.add_column(Column(name='number', data=numbers))
+table.add_column(Column(name='epoch', data=epochs))
+table.add_column(Column(name='RA', data=RAs, unit='deg'))  # RA in degrees
+table.add_column(Column(name='DEC', data=DECs, unit='deg'))  # DEC in degrees
+table.add_column(Column(name='band', data=bands))
+table.add_column(Column(name='observatory', data=observatories))
+
+# Display the table
+print(table)
+# df = table.to_pandas()
+# # Convert RA and DEC to numeric, if they are in string format
+# df['RA'] = pd.to_numeric(df['RA'], errors='coerce')
+# df['DEC'] = pd.to_numeric(df['DEC'], errors='coerce')
+#
+# # Now apply the np.radians conversion
+# df['RA'] = np.radians(df['RA'])
+# df['DEC'] = np.radians(df['DEC'])
+#
+# print(df)
+# table = Table.from_pandas(df)
+# print(table)
+batch_luigi = BatchMPC()
+batch_luigi.from_astropy(table)
+
+
+batch_luigi.summary()
+exit()
 
 MPC.query_object = requests.get("https://www.projectpluto.com/pluto/mpecs/juice.htm#ast", "JUICE")
 #data = MPC.query_object.html()
