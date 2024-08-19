@@ -116,7 +116,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 # If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `to_tudat()` method. The '.to_tudat()' method does not alter the batch object itself.
 
-observation_collection = batch1.to_tudat(bodies, included_satellites=None)
+observation_collection = batch1.to_tudat(bodies, included_satellites=None, apply_star_catalog_debias = False)
 
 # The names of the bodies added to the system of bodies object as well as the dates of the oldest and latest observations can be retrieved from the batch:
 

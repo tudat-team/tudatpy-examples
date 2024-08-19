@@ -103,7 +103,7 @@ for i,observation_string in enumerate(observations):
     if observation_string[0:2] == 'KC' or observation_string[0:2] == '0C' or observation_string[0:2] == '3C':
         year = observation_string[2:6]  # Year (e.g., 2023)
         month = observation_string[7:9]  # Month (e.g., 04)
-        date_part, frac_day = observation_string[10:18].split('.')
+        date_part, frac_day = observation_string[10:19].split('.')
         print(f'Day:{date_part}, Fraction of Day:{frac_day}')
         numbers.append(number)
     elif observation_string[0] == 'C':
@@ -138,7 +138,7 @@ for i,observation_string in enumerate(observations):
         hours = float(parts[0])
         minutes = float(parts[1]) if len(parts) > 1 else 0
         seconds = float(parts[2]) if len(parts) > 2 else 0
-        deg_ra = 15*(hours + minutes / 60 + seconds / 3600)%360
+        deg_ra = (15*(hours + minutes / 60 + seconds / 3600))%360
 
         parts_ = dec_part.split()
         degrees_ = float(parts_[0])
