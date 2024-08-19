@@ -104,24 +104,24 @@ for i,observation_string in enumerate(observations):
         year = observation_string[2:6]  # Year (e.g., 2023)
         month = observation_string[7:9]  # Month (e.g., 04)
         date_part, frac_day = observation_string[10:18].split('.')
-        print(date_part, frac_day)
+        print(f'Day:{date_part}, Fraction of Day:{frac_day}')
         numbers.append(number)
     elif observation_string[0] == 'C':
         year = observation_string[1:5]  # Year (e.g., 2023)
         month = observation_string[6:8]  # Month (e.g., 04)
         date_part, frac_day = observation_string[9:18].split('.')
-        print(date_part, frac_day)
+        print(f'Day:{date_part}, Fraction of Day:{frac_day}')
         numbers.append(number)
 
     # Calculate the time in hours, minutes, seconds
     hours = float("0." + frac_day) * 24
     minutes = (hours % 1) * 60
     seconds = (minutes % 1) * 60
-    print(hours, minutes, seconds)
+    print(f'Hours:{hours}, Minutes:{minutes}, Seconds:{seconds}')
     # Convert to Julian date
     time_string = f"{date_part} {int(hours):02}:{int(minutes):02}:{int(seconds):02}"
     epoch = f'{year}-{month}-{date_part} {int(hours):02}:{int(minutes):02}:{int(seconds):02}'
-    print(epoch)
+    print(f'Epoch:{epoch}')
     dt = datetime.strptime(epoch, "%Y-%m-%d %H:%M:%S")
     dt_jd = Time(dt).jd
     epochs.append(dt_jd)
@@ -129,18 +129,17 @@ for i,observation_string in enumerate(observations):
     # Extract RA and DEC
     if observation_string[0:2] == 'KC' or observation_string[0:2] == '0C' or observation_string[0:2] == '3C':
         ra_dec_str = observation_string[19:45]  # RA and DEC part
-        print('ra dec str', ra_dec_str)
+        print(f'ra & dec str:{ra_dec_str}')
         ra_part = ra_dec_str[:11].strip()  # Right Ascension
-        print('ra part', ra_part)
+        print(f'ra part: {ra_part}')
         dec_part = ra_dec_str[12:].strip()  # Declination (considering no space if negative)
-        print('dec part', dec_part)
+        print(f'dec part:{dec_part}')
         parts = ra_part.split()
         hours = float(parts[0])
         minutes = float(parts[1]) if len(parts) > 1 else 0
         seconds = float(parts[2]) if len(parts) > 2 else 0
-        print(hours, minutes, seconds)
         deg_ra = 15*(hours + minutes / 60 + seconds / 3600)%360
-        print('deg_ra', deg_ra)
+
         parts_ = dec_part.split()
         degrees_ = float(parts_[0])
         minutes_ = float(parts_[1]) if len(parts_) > 1 else 0
@@ -149,8 +148,8 @@ for i,observation_string in enumerate(observations):
             deg_dec = - (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
         else:
             deg_dec = (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
-        print('deg_ra',deg_ra)
-        print('deg_dec',deg_dec)
+        print(f'deg_ra {deg_ra}')
+        print(f'deg_dec {deg_dec}')
         # Extract Band
         band = observation_string[57:58]
 
@@ -158,18 +157,17 @@ for i,observation_string in enumerate(observations):
 
     elif observation_string[0] == 'C':
         ra_dec_str = observation_string[18:45]  # RA and DEC part
-        print('ra dec str', ra_dec_str)
+        print(f'ra & dec str:{ra_dec_str}')
         ra_part = ra_dec_str[:12].strip()  # Right Ascension
-        print('ra part', ra_part)
+        print(f'ra part: {ra_part}')
         dec_part = ra_dec_str[12:].strip()  # Declination (considering no space if negative)
-        print('dec part', dec_part)
+        print(f'dec part:{dec_part}')
         parts = ra_part.split()
         hours = float(parts[0])
         minutes = float(parts[1]) if len(parts) > 1 else 0
         seconds = float(parts[2]) if len(parts) > 2 else 0
         print(hours, minutes, seconds)
         deg_ra = 15*(hours + minutes / 60 + seconds / 3600)%360
-        print('deg_ra', deg_ra)
         parts_ = dec_part.split()
         degrees_ = float(parts_[0])
         minutes_ = float(parts_[1]) if len(parts_) > 1 else 0
@@ -178,8 +176,8 @@ for i,observation_string in enumerate(observations):
             deg_dec = - (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
         else:
             deg_dec = (abs(degrees_) + minutes_ / 60 + seconds_ / 3600)
-        print('deg_ra',deg_ra)
-        print('deg_dec',deg_dec)
+        print(f'deg_ra: {deg_ra}')
+        print(f'deg_dec {deg_dec}')
         # Extract Band
         band = observation_string[57:58]
 
@@ -188,7 +186,6 @@ for i,observation_string in enumerate(observations):
 # Extract the observatory code
     observatory = soup.find_all('a')[2].get_text().strip()
     observatories.append(observatory)
-
     RAs.append(deg_ra)
     DECs.append(deg_dec)
 # Create the table
@@ -202,7 +199,7 @@ table.add_column(Column(name='band', data=bands))
 table.add_column(Column(name='observatory', data=observatories))
 
 # Display the table
-print(table)
+#print(table)
 
 batch1 = BatchMPC()
 batch1.from_astropy(table)
@@ -261,7 +258,6 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 observation_collection = batch1.to_tudat(bodies, included_satellites=None, apply_star_catalog_debias = False)
 
-
 # The names of the bodies added to the system of bodies object as well as the dates of the oldest and latest observations can be retrieved from the batch:
 
 
@@ -286,11 +282,11 @@ for link in link_list:
 
 # Retrieve MPC observation times, RA and DEC
 batch_times = batch1.table.epochJ2000secondsTDB.to_list()
-print(batch_times)
 batch_times_utc = batch1.table.epochUTC.to_list()
-print(batch_times_utc)
 batch_RA = batch1.table.RA
 batch_DEC = batch1.table.DEC
+
+print(batch_times_utc)
 
 # Create Horizons query, see Horizons Documentation for more info.
 JUICE_horizons_query = HorizonsQuery(
@@ -306,10 +302,12 @@ jpl_RA = jpl_observations[:, 1]
 jpl_DEC = jpl_observations[:, 2]
 
 #print('yoo',batch_RA)
+print(batch_RA)
 print(jpl_RA)
+print(batch_DEC)
 print(jpl_DEC)
-max_diff_RA = np.abs(jpl_RA - batch_RA).max()
-max_diff_DEC = np.abs(jpl_DEC - batch_DEC).max()
+max_diff_RA = np.abs(jpl_RA - batch_RA).min()
+max_diff_DEC = np.abs(jpl_DEC - batch_DEC).min()
 print("Maximum difference between Interpolated Horizons data and MPC observations:")
 print(f"Right Ascension: {np.round(max_diff_RA, 10)} rad")
 print(f"Declination: {np.round(max_diff_DEC, 10)} rad")
