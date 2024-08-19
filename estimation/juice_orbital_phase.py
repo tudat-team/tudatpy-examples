@@ -148,9 +148,7 @@ Using an `empty_body` as a blank canvas for the satellite, we will define a mass
 # Create empty settings for JUICE
 body_settings.add_empty_settings("JUICE")
 # Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 # Add JUICE spacecraft (mas 5000kg) to system of bodies
-bodies.get("JUICE").mass = 5.0e3
 
 # Create empty multi-arc ephemeris for JUICE
 empty_ephemeris_dict = dict()
@@ -160,7 +158,8 @@ juice_ephemeris = environment_setup.ephemeris.tabulated(
         global_frame_orientation)
 juice_ephemeris.make_multi_arc_ephemeris = True
 body_settings.get("JUICE").ephemeris_settings = juice_ephemeris
-
+bodies = environment_setup.create_system_of_bodies(body_settings)
+bodies.get("JUICE").mass = 5.0e3
 """
 Next, a reference area of 100m$^2$ is set. (JUICE has big solar panels!)
 A Solar Radiation Pressure (SRP) coefficient 1.2 is also set for JUICE. The SRP will act all over this reference area.
