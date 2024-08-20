@@ -1,4 +1,0 @@
-tudat-team/tudat-space:
-  - source: estimation/
-    dest: docs/source/_src_getting_started/_src_examples/notebooks/estimation/
-    deleteOrphaned: true
