@@ -53,6 +53,7 @@ batch1 = BatchMPC()
 
 batch1.get_observations(asteroid_MPC_codes)
 
+
 batch1.summary()
 print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=False, include_positions=False))
 print("Space Telescopes:")
@@ -60,7 +61,7 @@ print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=True,
 
 # We can also directly have a look at the the observations themselves, for example, lets take a look at the first and final observations from TESS and WISE. The table property allows for read only access to the observations in pandas dataframe format. 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_TESS = batch1.table.query("observatory == 'Z22'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
 obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
 
 print("Initial and Final Observations by TESS")
