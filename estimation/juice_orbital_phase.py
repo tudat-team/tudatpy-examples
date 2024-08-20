@@ -25,7 +25,8 @@ NOTE: Values for the C_{l,m} coefficients are taken from Anderson et al. (1996):
 """
 def get_gravity_ganymede():
 
-    mu_ganymede = spice.get_body_properties("Ganymede", "GM", 1)[0] #same as Sam's: 9877.5555788329
+    mu_ganymede = spice.get_body_properties("Ganymede", "GM", 1)[0]*10**9 #same as Sam's: 9877.5555788329
+    print(mu_ganymede)
     radius_ganymede = spice.get_body_properties("Ganymede", "RADII", 3)[0]*10**3 #is: 2631.2 km (spice) was: 2634 km (SAM)
     cosine_coef = np.zeros((31, 31))
     sine_coef = np.zeros((31, 31))
@@ -35,7 +36,6 @@ def get_gravity_ganymede():
     cosine_coef[2, 2] = 38.3e-6 / gravitation.legendre_normalization_factor(2, 2)
 
     return environment_setup.gravity_field.spherical_harmonic(mu_ganymede, radius_ganymede, cosine_coef, sine_coef, "IAU_Ganymede")
-
 """
 The spherical harmonics coefficients (C_{l,m}, S_{l,m}) describe the gravity field. 
 However, as the degree l increases, the number of orders m increases very rapidly. 
