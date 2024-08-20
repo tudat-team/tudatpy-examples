@@ -1,5 +1,3 @@
-#import sys
-#sys.path.insert(0, '/home/mfayolle/Tudat/tudat-bundle/build/tudatpy')
 
 # Load required standard modules
 import os
@@ -185,7 +183,7 @@ central_body = ["Ganymede"]
 Subsequently, all accelerations (and their settings) that act on JUCE have to be defined. 
 In particular, we will consider:
 * Gravitational acceleration using a spherical harmonic approximation up to 30th degree and order for Ganymede.
-* Empirical Acceleration For Ganymede (!!!!! EXPLAIN !!!!!!!)
+* Empirical Acceleration For Ganymede, accounting for un-modelled accelerations acting on the Moon (e.g. contributions by other Galilean moons)
 * gravitational acceleration using a spherical harmonic approximation up to 2th degree and order 0 for Jupiter.
 * gravitational acceleration of the Sun, considered as a point mass.
 * non gravitational acceleration given by the SRP.
@@ -231,7 +229,7 @@ while arc_start+arc_duration <= end_gco:
 
 # Extract total number of (propagation) arcs during GCO
 nb_arcs = len(arc_start_times)
-print('nb arcs GCO', nb_arcs)
+print(f'Total number of arcs for GCO500: {nb_arcs}')
 
 """
 For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 180 seconds. 
@@ -447,7 +445,9 @@ parameter_settings.append(estimation_setup.parameter.spherical_harmonics_s_coeff
 # parameter_settings.append(estimation_setup.parameter.rotation_pole_position("Ganymede"))
 
 """
-!!!!!!!! Add discussion of empirical accelerations!!!!!!!!
+When propagating the dynamics of the spacecraft during each arc, 
+we might want to take into account for possible errors in the accelerometer calibration of the spacecraft.
+These are modelled by introducing empirical acceleration components along each spatial dimension. 
 """
 # Add arc-wise empirical accelerations acting on the JUICE spacecraft
 acc_components = {estimation_setup.parameter.radial_empirical_acceleration_component: [estimation_setup.parameter.constant_empirical],
@@ -458,7 +458,6 @@ parameter_settings.append(estimation_setup.parameter.arcwise_empirical_accelerat
 # Add ground stations' positions
 for station in station_names:
     parameter_settings.append(estimation_setup.parameter.ground_station_position("Earth", station))
-
 
 # # Add arc-wise range biases as consider parameters
 # for link_end in link_ends:
@@ -473,20 +472,40 @@ for station in station_names:
 #     consider_parameters_settings.append(estimation_setup.parameter.arcwise_absolute_observation_bias(
 #         observation.LinkDefinition(link_end), observation.n_way_range_type, tracking_arcs_start, observation.receiver))
 
-
 # Create parameters to estimate object
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings) #, consider_parameters_settings)
 estimation_setup.print_parameter_names(parameters_to_estimate)
 nb_parameters = len(parameters_to_estimate.parameter_vector)
-print("nb parameters to estimate", len(parameters_to_estimate.parameter_vector))
+print(f'Total number of parameters to estimate: {nb_parameters}')
 
+"""
+The Estimator object consolidates all relevant information required for the estimation of any system parameter: 
+* the environment (bodies) 
+* the parameter set (parameters_to_estimate) 
+* observation models (observation_settings_list) 
+* dynamical, numerical, and integrator setup (propagator_settings)
+
+Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant 
+Observation Simulator and Variational Equations, which will subsequently be required 
+for the simulation of observations and the estimation of parameters, respectively.
+"""
 # Create the estimator
 estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate, observation_settings_list, propagator_settings)
 
 # Simulate all observations
 simulated_observations = estimation.simulate_observations(observation_simulation_settings, estimator.observation_simulators, bodies)
 
-
+"""
+As we have already mentioned above, we can make use of a priori knowledge given by previous studies and results in the literature, 
+in order to constrain our estimation. This is done by incorporating the knowledge of an a priori covariance matrix. 
+Here, we consider a priori constraints for JUICE position and velocity, 
+as well as a priori constraints on Ganymede's gravitational parameter and spherical harmonics coefficients. 
+Talking about the Spherical Harmonics coefficients, the Kaula constraints might be a conservative a priori choice.
+Nevertheless, literature results have provided better constraints for the degree 2 C-coefficients, so we will overwrite
+Kaula's rule with the updated values for the coefficients C20 and C22. 
+We will also set tight constraints on the remaining degree 2 C and S coefficients. 
+Finally, a priori knowledge for the value of the empirical acceleration acting on JUICE is set.
+"""
 # Define a priori covariance matrix
 inv_apriori = np.zeros((nb_parameters, nb_parameters))
 
@@ -542,7 +561,6 @@ inv_apriori[indices_sine_coef[0]+1, indices_sine_coef[0]+1] = 1.0e-12**-2
 #     inv_apriori[indices_rotation_pole[0]+i*2+1, indices_rotation_pole[0]+i*2+1] = a_priori_pole_dec **-2  # a priori DEC
 
 
-
 # Set a priori constraints for empirical accelerations acting on JUICE
 a_priori_emp_acc = 1.0e-7
 indices_emp_acc = parameters_to_estimate.indices_for_parameter_type((estimation_setup.parameter.arc_wise_empirical_acceleration_coefficients_type, ("JUICE", "Ganymede")))[0]
@@ -574,6 +592,17 @@ apriori_constraints = np.reciprocal(np.sqrt(np.diagonal(inv_apriori)))
 #         consider_parameters_covariance[indices_biases[0] + i, indices_biases[0] + i] = a_priori_biases ** 2
 
 
+"""
+Having defined the a priori constraints, the input covariance is created.
+We also want to define constant weights for both the doppler and range observables, 
+given by their (simulated, expected) standard deviations. 
+The weights are given by the inverse of the variances. 
+
+We are all set to compute the covariance output, and perform a covariance analysis, which involves
+* checking for correlations between parameters
+* plotting the formal errors
+* checking the weighted design matrix 
+"""
 # Define covariance input settings
 covariance_input = estimation.CovarianceAnalysisInput(simulated_observations, inv_apriori) #, consider_parameters_covariance)
 covariance_input.define_covariance_settings(reintegrate_variational_equations=False, save_design_matrix=True)
@@ -616,6 +645,11 @@ print(covariance_output.formal_errors)
 
 ## PLOTS
 
+"""
+We are now ready to get the simulated results and draw some cool plots. 
+Let's analyse results for the first propagation arc, and plot it. 
+What we are seeing here is the trajectory of JUICE over this first arc.
+"""
 # Get simulation results over first propagation arc
 simulation_results_first_arc = simulation_results[0]
 propagated_state_first_arc = result2array(simulation_results_first_arc.state_history)
@@ -630,6 +664,11 @@ ax1.set_ylabel('y [km]')
 ax1.set_zlabel('z [km]')
 ax1.set_title('JUICE orbit wrt Ganymede over one day')
 ax1.grid()
+
+"""
+If you recall, we had also chosen to save the latitude and longitude of JUICE on Ganymede along the propagation, as dependent variables.
+We can now use that information to see the ground track of JUICE on the Moon. In order to do this, we will use the ganymede_map jpg file.
+"""
 
 # Plot JUICE ground track during first propagation arc
 ax2 = fig.add_subplot(122)
@@ -648,6 +687,9 @@ ax2.set_xticks(np.arange(0, 361, 40))
 ax2.set_yticks(np.arange(-90, 91, 30))
 ax2.set_title('JUICE ground track over one day')
 
+"""
+We can also visualize the weighted partials values as a function of estimated parameter and observation.
+"""
 
 # Plot weighted partials
 plt.figure(figsize=(9, 6))
@@ -670,7 +712,9 @@ plt.tight_layout()
 # plt.xlabel('Index parameter [-]')
 # plt.legend()
 # plt.title('Effect consider parameters')
-
+"""
+Let's plot the correlation values between the estimated parameters, too.
+"""
 # Plot correlations (default)
 plt.figure(figsize=(9, 6))
 plt.imshow(np.abs(correlations), aspect='auto', interpolation='none')
@@ -689,27 +733,31 @@ plt.tight_layout()
 # plt.ylabel("Index - Estimated Parameter")
 # plt.tight_layout()
 
-
+"""
+We can also plot the doppler observations times from the Malargue station, for the first arc.
+"""
 # Retrieve Doppler observation times for the first arc. For now only Malargue, but should eventually include all three ESTRACK stations
 sorted_observations = simulated_observations.sorted_observation_sets
-# doppler_obs_times_new_forcia_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][0][0].observation_times if t <= start_gco+arc_duration]
+# doppler_obs_times_new_norcia_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][0][0].observation_times if t <= start_gco+arc_duration]
 # doppler_obs_times_cebreros_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][1][0].observation_times if t <= start_gco+arc_duration]
 doppler_obs_times_malargue_first_arc = [(t-start_gco)/3600.0 for t in sorted_observations[observation.n_way_averaged_doppler_type][0][0].observation_times if t <= start_gco+arc_duration]
 
 
 # Plot observation times (for now only for Malargue, but designed to eventually include all three ESTRACK stations)
 plt.figure()
-# plt.plot(doppler_obs_times_new_forcia_first_arc, np.ones((len(doppler_obs_times_new_forcia_first_arc),1 )))
+# plt.plot(doppler_obs_times_new_norcia_first_arc, np.ones((len(doppler_obs_times_new_norcia_first_arc),1 )))
 # plt.plot(doppler_obs_times_cebreros_first_arc, 2.0 * np.ones((len(doppler_obs_times_cebreros_first_arc),1 )))
 plt.plot(doppler_obs_times_malargue_first_arc, 3.0 * np.ones((len(doppler_obs_times_malargue_first_arc),1 )))
 plt.xlabel('Observation times [h]')
 plt.ylabel('')
-plt.yticks([1, 2, 3], ['New Forcia', 'Cebreros', 'Malargue'])
+plt.yticks([1, 2, 3], ['New Norcia', 'Cebreros', 'Malargue'])
 plt.ylim([0.5, 3.5])
 plt.title('Viable observations over first arc')
 plt.grid()
 
-
+"""
+Finally, we can plot the gravity field spectrum and compare it to the (more conservative) Kaula's rule.
+"""
 # Plot gravity field spectrum (a priori + formal errors)
 # Extract a priori cosine and sine coefs
 apriori_cosine_coefs = np.reciprocal(np.sqrt(inv_apriori.diagonal()))[indices_cosine_coef[0]:indices_cosine_coef[0]+indices_cosine_coef[1]]
