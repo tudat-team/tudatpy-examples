@@ -472,7 +472,7 @@ First, we define a fixed seed that PyGMO will use to generate random numbers. Th
 
 Then, the optimization problem is defined using the `AsteroidOrbitProblem` class initiated with the values that have already been defined. This User Defined Problem (UDP) is then given to PyGMO trough the `pg.problem()` method.
 
-Finally, the optimizer is selected to be the Multi-objective EA vith Decomposition (MOAD) algorithm that is implemented in PyGMO. See [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.moead) for its documentation.
+Finally, the optimizer is selected to be the Multi-objective EA with Decomposition (MOAD) algorithm that is implemented in PyGMO. See [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.moead) for its documentation.
 """
 
 # Fix seed for reproducibility
@@ -638,7 +638,7 @@ for population_index in simulation_output.keys():
         if ax_index == 0 or ax_index == 2:
             ax.set_ylabel(r'Objective 2: proximity [$m$]')
             
-        # Add the Pareto fron itself in green
+        # Add the Pareto front itself in green
         optimum_mask = util.pareto_optimums(np.array([np.deg2rad(current_fitness[:, 0]), current_fitness[:, 1]]).T)
         ax.step(
             sorted(np.deg2rad(current_fitness[:, 0])[optimum_mask], reverse=True),
@@ -653,7 +653,7 @@ plt.show()
 
 #### Design variables histogram
 """
-Plotting the histogram of the design variables for the final generation gives insights into what set of orbital parameters lead to optimum solutions. Possible optimum design variables values can then be detected by looking at the number of population members that use them. A high number of occurences in the final generation **could** indicate a better design variable. At least, this offers some leads into what to investigate further.
+Plotting the histogram of the design variables for the final generation gives insights into what set of orbital parameters lead to optimum solutions. Possible optimum design variables values can then be detected by looking at the number of population members that use them. A high number of occurrences in the final generation **could** indicate a better design variable. At least, this offers some leads into what to investigate further.
 """
 
 # Plot histogram for last generation, semi-major axis
@@ -719,7 +719,7 @@ plt.show()
 """
 Finally, we can visualize what range of design variables lead to which type of orbits. This is done by plotting the bundle of orbits for the last generation.
 
-This plot one again shows that the orbits from the final population can be sub-categorized into disctinct orbital configurations.
+This plot one again shows that the orbits from the final population can be sub-categorized into distinct orbital configurations.
 """
 
 # Plot orbits of final generation divided by parameters

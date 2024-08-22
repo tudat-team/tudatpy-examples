@@ -178,7 +178,7 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     longitude_of_ascending_node=np.deg2rad(23.4),
     true_anomaly=np.deg2rad(139.87)
 )
-# Both satellites have the same inital state
+# Both satellites have the same initial state
 initial_states = np.concatenate((initial_state, initial_state))
 
 ### Set dependent variables to save
@@ -241,7 +241,7 @@ class AngleSeparationTermination:
         self.bodies = bodies
         self.maximum_angular_separation = maximum_angular_separation
         # Create container to store separation angle
-        # The first element is neeeded because at the first epoch the termination settings are not checked
+        # The first element is needed because at the first epoch the termination settings are not checked
         self.separation_angle_history = [0.0]
         # Create termination reason to understand if time or angular separation triggered the termination
         self.termination_reason = "Final epoch of the propagation was reached."

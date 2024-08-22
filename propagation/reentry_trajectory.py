@@ -189,7 +189,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
@@ -292,7 +292,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 The initial state of the vehicle that will be propagated is now defined. Most importantly, the `STS` vehicle starts 120km above Earth, at a velocity og 7500m/s, and a flight path angle of -0.6 deg (from the horizon).
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 In this case, let's make use of the `spherical_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Spherical elements, and then converted in Cartesian elements.
 
@@ -323,7 +323,7 @@ initial_state = environment.transform_to_inertial_orientation(
 
 In this example, we are interested in saving not only the propagated state of the vehicle over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 # Define the list of dependent variables to save during the propagation
@@ -347,7 +347,7 @@ First, a termination condition is defined so that the propagation as soon as one
 - The altitude gets below 25km.
 - The simulation time gets above 3 days.
 
-Combinated termination settings are then needed, which can be done using the `propagation_setup.propagator.hybrid_termination()` function.
+Combined termination settings are then needed, which can be done using the `propagation_setup.propagator.hybrid_termination()` function.
 
 Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 0.5 seconds.
 
