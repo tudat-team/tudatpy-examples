@@ -106,7 +106,7 @@ reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U Cube
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
+    "Sun", reference_area, radiation_pressure_coefficient, occulting_bodies
 )
 # Add the radiation pressure interface to the environment
 environment_setup.add_radiation_pressure_interface(bodies, "Delfi-C3", radiation_pressure_settings)
