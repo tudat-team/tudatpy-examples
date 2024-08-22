@@ -39,6 +39,7 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
+from tudatpy.util import result2array
 
 
 ## Configuration
@@ -105,7 +106,7 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "Delfi-C3", aero_coefficient_settings)
 
 # Create radiation pressure settings
-reference_area_radiation = 4.0
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
@@ -202,8 +203,9 @@ By combining all of the above-defined settings we can define the settings for th
 """
 
 # Create termination settings
-termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
+termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+print(f'Initial State: {initial_state}')
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
     central_bodies,
@@ -278,7 +280,7 @@ observation_simulation_settings = observation.tabulated_simulation_settings(
 )
 
 # Add noise levels of roughly 3.3E-12 [s/m] and add this as Gaussian noise to the observation
-noise_level = 1e-3
+noise_level = 1.0E-3
 observation.add_gaussian_noise_to_observable(
     [observation_simulation_settings],
     noise_level,
@@ -394,12 +396,11 @@ Since we have now estimated the actual parameters - unlike when only propagating
 
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
-
+formal_errors = estimation_output.formal_errors
 
 # Print the covariance matrix
-print(estimation_output.formal_errors)
+print(formal_errors)
 print(truth_parameters - parameters_to_estimate.parameter_vector)
-
 
 ## Results post-processing
 """
@@ -429,12 +430,10 @@ covariance_input = estimation.CovarianceAnalysisInput(
 covariance_input.define_covariance_settings(
      reintegrate_variational_equations=False)
 # # Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
 covariance_input.set_constant_weight_per_observable(weights_per_observable)
 covariance_output = estimator.compute_covariance(covariance_input)
-initial_covariance = covariance_output.covariance
+initial_covariance = covariance_output.covariance  # Covariance matrix
 print(f'Initial_covariance:\n {initial_covariance}')
-
 """
 Ideally, I would want to propagate the covariance here,
 in order to see what happens to the confidence ellipsoid along the orbit.
@@ -442,46 +441,72 @@ However, there is a problem with estimation.propagate_covariance, which is neede
 
 >>>>> TypeError: Unregistered type : Eigen::Matrix<double, -1, -1, 0, -1, -1> <<<<<
 """
-# # state_transition_interface = estimator.state_transition_interface
-# # print(state_transition_interface)
-# # output_times = observation_times
-# # # propagated covariance
-# # propagated_covariance = estimation.propagate_covariance(
-# #     initial_covariance=initial_covariance,
-# #      state_transition_interface=state_transition_interface,
-# #      output_times=output_times)
-#
-COV = covariance_output.covariance  # Covariance matrix
+state_transition_interface = estimator.state_transition_interface
+output_times = observation_times
+
+propagated_formal_errors = estimation.propagate_formal_errors_split_output(
+    initial_covariance=initial_covariance,
+    state_transition_interface=state_transition_interface,
+    output_times=output_times)
+# Split tuple into epochs and formal errors
+epochs = np.array(propagated_formal_errors[0])
+propagated_formal_errors = np.array(propagated_formal_errors[1])
+diagonal_covariance = np.diag(formal_errors**2)
+print(f'Initial Formal errors: {diagonal_covariance}')
+
 sigma = 3  # Confidence level
-original_eigenvalues, original_eigenvectors = np.linalg.eig(COV)
+original_eigenvalues, original_eigenvectors = np.linalg.eig(initial_covariance)
+diagonal_eigenvalues, diagonal_eigenvectors = np.linalg.eig(diagonal_covariance)
 print(f'Estimated state and parameters:\n {parameters_to_estimate.parameter_vector}\n')
 print(f'Eigenvalues of Covariance Matrix:\n {original_eigenvalues}\n')
 #three_lowest_eigenvalues = [item[0] for item in sorted(enumerate(original_eigenvalues), key=lambda x: x[1])][]
 largest_eigenvalue_index = np.argmax(original_eigenvalues)
+diagonal_largest_eigenvalue_index = np.argmax(diagonal_eigenvalues)
 print(f'Largest eigenvalue:\n {largest_eigenvalue_index}\n')
+print(f'Final Largest eigenvalue:\n {diagonal_largest_eigenvalue_index}\n')
 # # Select the first 3 dimensions for plotting
 # Sort eigenvalues and eigenvectors in descending order
 sorted_indices = np.argsort(original_eigenvalues)[::-1]
+diagonal_sorted_indices = np.argsort(diagonal_eigenvalues)[::-1]
 eigenvalues = original_eigenvalues[sorted_indices]
+diagonal_eigenvalues = diagonal_eigenvalues[diagonal_sorted_indices]
 eigenvectors = original_eigenvectors[:, sorted_indices]
+diagonal_eigenvectors = diagonal_eigenvectors[:, diagonal_sorted_indices]
+
 # Output results
 print("Eigenvalues (variances along principal axes):", eigenvalues)
 print("Eigenvectors (directions of principal axes):", eigenvectors)
+print("Final Eigenvalues (variances along principal axes):", diagonal_eigenvalues)
+print("Final igenvectors (directions of principal axes):", diagonal_eigenvectors)
 # To determine the most uncertain parameter:
 most_uncertain_axis = np.argmax(eigenvalues)
+diagonal_most_uncertain_axis = np.argmax(diagonal_eigenvalues)
 print("Most uncertain parameter corresponds to the principal axis:", most_uncertain_axis)
+print("Final Most uncertain parameter corresponds to the principal axis:", diagonal_most_uncertain_axis)
+
 indices = [most_uncertain_axis,most_uncertain_axis+1, most_uncertain_axis+2]
-COV_sub = COV[np.ix_(indices, indices)]  #P_^-1 restriction to eigenvalues
+diagonal_indices = [diagonal_most_uncertain_axis,diagonal_most_uncertain_axis+1, diagonal_most_uncertain_axis+2]
+COV_sub = initial_covariance[np.ix_(indices, indices)]  #P_^-1 restriction to eigenvalues
+diagonal_COV_sub = diagonal_covariance[np.ix_(diagonal_indices, diagonal_indices)]  #P_^-1 restriction to eigenvalues
+
 x_star_sub = x_star[indices] #Nominal solution subset
+diagonal_x_star_sub = x_star_sub[diagonal_indices] #Nominal solution subset
+
 # Eigenvalue decomposition of the submatrix
 eigenvalues, eigenvectors = np.linalg.eigh(COV_sub)
+diagonal_eigenvalues, diagonal_eigenvectors = np.linalg.eigh(diagonal_COV_sub)
 #eigenvectors = eigenvectors*np.sqrt(1 / eigenvalues)
 # Ensure eigenvalues are positive
 if np.any(eigenvalues <= 0):
      raise ValueError(f"$P^-1$ submatrix is not positive definite. Eigenvalues must be positive.\n")
 # Create the transformation matrix A = Q * sqrt(Λ)
 
+if np.any(diagonal_eigenvalues <= 0):
+    raise ValueError(f"$P^-1$ submatrix is not positive definite. Eigenvalues must be positive.\n")
+# Create the transformation matrix A = Q * sqrt(Λ)
+
 A = eigenvectors @ np.diag(np.sqrt(eigenvalues))
+diagonal_A = diagonal_eigenvectors @ np.diag(np.sqrt(diagonal_eigenvalues))
 # Generate points on the unit sphere
 phi = np.linspace(0, np.pi, 50)
 theta = np.linspace(0, 2 * np.pi, 50)
@@ -491,25 +516,60 @@ y_sphere = np.sin(phi) * np.sin(theta)
 z_sphere = np.cos(phi)
 sphere = np.stack([x_sphere, y_sphere, z_sphere], axis=0)
 # Transform the unit sphere to the ellipsoid
-ellipsoid_boundary_3_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 3 * np.tensordot(A, sphere, axes=1)
-ellipsoid_boundary_1_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 1 * np.tensordot(A, sphere, axes=1)
-#print(np.tensordot(A, sphere, axes=1))
-print(f'ellispoid boundary: {ellipsoid_boundary_3_sigma}')
+ellipsoid_boundary_3_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 3 * np.tensordot(A, sphere, axes=1) - x_star_sub[:, np.newaxis, np.newaxis]
+ellipsoid_boundary_1_sigma = x_star_sub[:, np.newaxis, np.newaxis] + 1 * np.tensordot(A, sphere, axes=1) - x_star_sub[:, np.newaxis, np.newaxis]
+
+diagonal_ellipsoid_boundary_3_sigma = diagonal_x_star_sub[:, np.newaxis, np.newaxis] + 3 * np.tensordot(diagonal_A, sphere, axes=1) - diagonal_x_star_sub[:, np.newaxis, np.newaxis]
+diagonal_ellipsoid_boundary_1_sigma = diagonal_x_star_sub[:, np.newaxis, np.newaxis] + 1 * np.tensordot(diagonal_A, sphere, axes=1) - diagonal_x_star_sub[:, np.newaxis, np.newaxis]
+
 # Plot the ellipsoid in 3D
 fig = plt.figure(figsize=(8, 8))
-ax = fig.add_subplot(111, projection='3d')
-ax.plot_surface(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], color='cyan', alpha=0.4)
-ax.plot_surface(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], color='blue', alpha=0.4)
-ax.scatter(x_star_sub[0], x_star_sub[1], x_star_sub[2], color='red', label='Nominal Solution (x*)')
-ax.set_xlabel('x1')
-ax.set_ylabel('x2')
-ax.set_zlabel('x3')
+ax = fig.add_subplot(121, projection='3d')
+diagonal_ax =fig.add_subplot(122, projection='3d')
+
+ax.plot_surface(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], color='cyan', alpha=0.4, label = '3-sigma')
+ax.plot_surface(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], color='blue', alpha=0.4, label = '1-sigma')
+diagonal_ax.plot_surface(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[1], diagonal_ellipsoid_boundary_3_sigma[2], color='red', alpha=0.2, label = '3-sigma (formal errors)')
+diagonal_ax.plot_surface(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[1], diagonal_ellipsoid_boundary_1_sigma[2], color='black', alpha=0.2, label = '1-sigma (formal errors)')
+
+ax.plot(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[2], 'r+', alpha=0.1, zdir='y', zs=2*np.max(ellipsoid_boundary_3_sigma[1]))
+ax.plot(ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], 'r+',alpha=0.1, zdir='x', zs=-2*np.max(ellipsoid_boundary_3_sigma[0]))
+ax.plot(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[1], 'r+',alpha=0.1, zdir='z', zs=-2*np.max(ellipsoid_boundary_3_sigma[2]))
+
+ax.plot(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[2], 'b+', alpha=0.1, zdir='y', zs=2*np.max(ellipsoid_boundary_3_sigma[1]))
+ax.plot(ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], 'b+',alpha=0.1, zdir='x', zs=-2*np.max(ellipsoid_boundary_3_sigma[0]))
+ax.plot(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], 'b+',alpha=0.1, zdir='z', zs=-2*np.max(ellipsoid_boundary_3_sigma[2]))
+
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[2], 'r+', alpha=0.1, zdir='y', zs=2*np.max(diagonal_ellipsoid_boundary_3_sigma[1]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[1], diagonal_ellipsoid_boundary_1_sigma[2], 'r+',alpha=0.1, zdir='x', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[0]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[1], 'r+',alpha=0.1, zdir='z', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[2]))
+
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[2], 'b+', alpha=0.1, zdir='y', zs=2*np.max(diagonal_ellipsoid_boundary_3_sigma[1]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[1], diagonal_ellipsoid_boundary_3_sigma[2], 'b+',alpha=0.1, zdir='x', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[0]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[1], 'b+',alpha=0.1, zdir='z', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[2]))
+
+#ax.scatter(x_star_sub[0], x_star_sub[1], x_star_sub[2], color='red', label='Nominal Solution (x*)')
+#diagonal_ax.scatter(diagonal_x_star_sub[0], diagonal_x_star_sub[1], diagonal_x_star_sub[2], color='red', label='Nominal Solution (x*)')
+
+ax.set_xlabel('(x-x^*)')
+ax.set_ylabel('(y-y^*)')
+ax.set_zlabel('(z-z^*)')
 ax.set_aspect('equal')
-ax.set_title('3D Confidence Ellipsoid (Reduced Dimensions)')
+ax.set_title('3D Confidence Ellipsoid')
 ax.set_aspect('equal')
+ax.legend(loc = 'upper right')
+
+diagonal_ax.set_xlabel('(x-x^*)')
+diagonal_ax.set_ylabel('(z-z^*)')
+diagonal_ax.set_zlabel('(z-z^*)')
+diagonal_ax.set_aspect('equal')
+diagonal_ax.set_title('Formal Errors')
+diagonal_ax.set_aspect('equal')
+diagonal_ax.legend(loc = 'upper right')
 plt.legend()
 plt.show()
 
+exit()
 plt.figure(figsize=(9, 5))
 plt.title("Observations as a function of time")
 plt.scatter(observation_times / 3600.0, observations_list )
@@ -521,6 +581,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+exit()
 ### Residuals history
 """
 One might also opt to instead plot the behaviour of the residuals per iteration of the estimator. To this end, we have thus plotted the residuals of the individual observations as a function of time. Note that we can observe a seemingly equal spread around zero. As expected - since we have not defined it this way - the observation is thus not biased.

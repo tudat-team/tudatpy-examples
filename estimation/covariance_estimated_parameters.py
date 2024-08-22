@@ -392,11 +392,10 @@ plt.tight_layout()
 plt.show()
 
 ### Propagated Formal Errors
-"""
+
 initial_covariance = covariance_output.covariance
 state_transition_interface = estimator.state_transition_interface
 output_times = observation_times
-"""
 
 # Propagate formal errors over the course of the orbit
 propagated_formal_errors = estimation.propagate_formal_errors_split_output(
