@@ -90,7 +90,7 @@ def convert_trajectory_parameters(
 The core of the optimization process is realized by PyGMO, which requires the definition of a problem class.
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `TransferTrajectoryProblem`.
 
-There are four mandatory methods that must be implemented in the class:
+There are four mandatory methods that must be implemented in the class: 
 
 * `__init__()`: This is the constructor for the PyGMO problem class. It is used to save all the variables required to setup the evaluation of the transfer trajectory.
 * `get_number_of_parameters(self)`: Returns the number of optimized parameters. In this case, that is the same as the number of flyby bodies (i.e. 6).
@@ -105,14 +105,12 @@ There are four mandatory methods that must be implemented in the class:
 
 class TransferTrajectoryProblem:
 
-    def __init__(
-        self,
-        transfer_trajectory_object: tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory,
-        departure_date_lb: float,  # Lower bound on departure date
-        departure_date_ub: float,  # Upper bound on departure date
-        legs_tof_lb: np.ndarray,  # Lower bounds of each leg's time of flight
-        legs_tof_ub: np.ndarray,
-    ):  # Upper bounds of each leg's time of flight
+    def __init__(self,
+                 transfer_trajectory_object: tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory,
+                 departure_date_lb: float, # Lower bound on departure date
+                 departure_date_ub: float, # Upper bound on departure date
+                 legs_tof_lb: np.ndarray, # Lower bounds of each leg's time of flight
+                 legs_tof_ub: np.ndarray): # Upper bounds of each leg's time of flight
         """
         Class constructor.
         """
@@ -192,7 +190,7 @@ class TransferTrajectoryProblem:
         return [delta_v]
 
 
-## Simulation Setup 
+## Simulation Setup
 """
 Before running the optimisation, it is first necessary to setup the simulation. In this case, this consists of creating an MGA object. This object is created according to the procedure described in the [MGA trajectory example](https://docs.tudat.space/en/stable/_src_getting_started/_src_examples/notebooks/propagation/mga_dsm_analysis.html). The object is created using the central body, transfer bodies order, departure orbit, and arrival orbit specified in the Cassini 1 problem statement (presented above).
 """
@@ -314,7 +312,7 @@ population_size = 20
 pop = pg.population(prob, size=population_size, seed=optimization_seed)
 
 
-### Run Optimization 
+### Run Optimization
 """
 Finally, the optimization can be executed by successively evolving the defined population.
 

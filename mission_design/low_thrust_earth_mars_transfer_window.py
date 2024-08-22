@@ -363,7 +363,7 @@ def hodographic_low_thrust_trajectory_delta_v(
         departure_epoch: float,
         arrival_epoch: float,
         central_body: str = 'Sun') \
-    -> [tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory, float]:
+    -> list[tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory, float]:
     """
     Function to calculate the required ΔV of an Earth-Mars transfer
 
