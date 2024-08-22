@@ -42,6 +42,7 @@ from tudatpy.astro.time_conversion import DateTime
 # Pygmo imports
 import pygmo as pg
 
+
 ## Helpers
 """
 First of all, let us define a helper function which is used throughout this example.
@@ -82,12 +83,13 @@ def convert_trajectory_parameters (transfer_trajectory_object: tudatpy.kernel.tr
 
     return node_times, leg_free_parameters, node_free_parameters
 
+
 ## Optimisation problem
 """
 The core of the optimization process is realized by PyGMO, which requires the definition of a problem class.
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `TransferTrajectoryProblem`.
 
-There are four mandatory methods that must be implemented in the class: 
+There are four mandatory methods that must be implemented in the class:
 
 * `__init__()`: This is the constructor for the PyGMO problem class. It is used to save all the variables required to setup the evaluation of the transfer trajectory.
 * `get_number_of_parameters(self)`: Returns the number of optimized parameters. In this case, that is the same as the number of flyby bodies (i.e. 6).
@@ -183,6 +185,7 @@ class TransferTrajectoryProblem:
 
         return [delta_v]
 
+
 ## Simulation Setup 
 """
 Before running the optimisation, it is first necessary to setup the simulation. In this case, this consists of creating an MGA object. This object is created according to the procedure described in the [MGA trajectory example](https://docs.tudat.space/en/stable/_src_getting_started/_src_examples/notebooks/propagation/mga_dsm_analysis.html). The object is created using the central body, transfer bodies order, departure orbit, and arrival orbit specified in the Cassini 1 problem statement (presented above).
@@ -223,6 +226,7 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
     transfer_body_order,
     central_body)
 
+
 ## Optimization
 """
 """
@@ -255,6 +259,7 @@ legs_tof_ub[3] = 2000 * constants.JULIAN_DAY
 # Saturn fly-by
 legs_tof_lb[4] = 1000 * constants.JULIAN_DAY
 legs_tof_ub[4] = 6000 * constants.JULIAN_DAY
+
 
 # To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `TransferTrajectoryProblem`, is given to PyGMO trough the `pg.problem()` method.
 # 
@@ -296,6 +301,7 @@ population_size = 20
 # Create population
 pop = pg.population(prob, size=population_size, seed=optimization_seed)
 
+
 ### Run Optimization 
 """
 Finally, the optimization can be executed by successively evolving the defined population.
@@ -323,6 +329,7 @@ for i in range(number_of_evolutions):
     fitness_list.append(pop.champion_f)
 
 print('The optimization has finished')
+
 
 ## Results Analysis
 """
@@ -400,3 +407,4 @@ ax.set_ylabel('y wrt Sun [AU]')
 ax.set_aspect('equal')
 ax.legend(bbox_to_anchor=[1, 1])
 plt.show()
+

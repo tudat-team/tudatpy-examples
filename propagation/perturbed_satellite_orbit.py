@@ -38,6 +38,7 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
@@ -52,6 +53,7 @@ spice.load_standard_kernels()
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
+
 
 ## Environment setup
 """
@@ -86,6 +88,7 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of selected celestial bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ### Create the vehicle
 """
 Let's now create the 400kg satellite for which the perturbed orbit around Earth will be propagated.
@@ -95,6 +98,7 @@ Let's now create the 400kg satellite for which the perturbed orbit around Earth 
 bodies.create_empty_body("Delfi-C3")
 
 bodies.get("Delfi-C3").mass = 2.2
+
 
 # To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
 # 
@@ -112,6 +116,7 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
 environment_setup.add_aerodynamic_coefficient_interface(
     bodies, "Delfi-C3", aero_coefficient_settings)
 
+
 # To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m $^2$ . This interface also accounts for the variation in pressure cause by the shadow of Earth.
 
 # Create radiation pressure settings, and add to vehicle
@@ -123,6 +128,7 @@ vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiat
     reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
 environment_setup.add_radiation_pressure_target_model(
     bodies, "Delfi-C3", vehicle_target_settings)
+
 
 ## Propagation setup
 """
@@ -137,6 +143,7 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -184,6 +191,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
@@ -200,6 +208,7 @@ delfi_tle = environment.Tle(
 )
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
+
 
 ### Define dependent variables to save
 """
@@ -237,6 +246,7 @@ dependent_variables_to_save = [
     )
 ]
 
+
 ### Create the propagator settings
 """
 The propagator is finally setup.
@@ -267,6 +277,7 @@ propagator_settings = propagation_setup.propagator.translational(
     output_variables=dependent_variables_to_save
 )
 
+
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
@@ -296,6 +307,7 @@ states_array = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array = result2array(dep_vars)
 
+
 ## Post-process the propagation results
 """
 The results of the propagation are then processed to a more user-friendly form.
@@ -319,6 +331,7 @@ plt.xlim([min(time_hours), max(time_hours)])
 plt.grid()
 plt.tight_layout()
 
+
 ### Ground track
 """
 Let's then plot the ground track of the satellite in its first 3 hours. This makes use of the latitude and longitude dependent variables.
@@ -340,6 +353,7 @@ plt.xlim([min(longitude), max(longitude)])
 plt.yticks(np.arange(-90, 91, step=45))
 plt.grid()
 plt.tight_layout()
+
 
 ### Kepler elements over time
 """
@@ -388,6 +402,7 @@ for ax in fig.get_axes():
     ax.grid()
 plt.tight_layout()
 
+
 ### Accelerations over time
 """
 Finally, let's plot and compare each of the included accelerations.
@@ -432,3 +447,4 @@ plt.suptitle("Accelerations norms on Delfi-C3, distinguished by type and origin,
 plt.yscale('log')
 plt.grid()
 plt.tight_layout()
+

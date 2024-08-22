@@ -39,6 +39,7 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth, the Sun, the Moon, Venus, or Mars, can be make known to `tudatpy`.
@@ -53,6 +54,7 @@ spice.load_standard_kernels()
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
+
 
 ## Environment setup
 """
@@ -82,6 +84,7 @@ body_settings = environment_setup.get_default_body_settings(
 
 # Create the system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ### Create the vehicle and its environment interface
 """
@@ -117,6 +120,7 @@ radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
 environment_setup.add_radiation_pressure_interface(
             bodies, "Delfi-C3", radiation_pressure_settings)
 
+
 ## Propagation setup
 """
 Now that the environment is created, the propagation setup is defined.
@@ -130,6 +134,7 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -178,6 +183,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
@@ -194,6 +200,7 @@ delfi_tle = environment.Tle(
 )
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
+
 
 ### Create the propagator settings
 """
@@ -224,6 +231,7 @@ propagator_settings = propagation_setup.propagator.translational(
     termination_condition
 )
 
+
 ### Setup the variational equations
 """
 In addition to the state of the satellite, variation equations will also be propagated.
@@ -243,6 +251,7 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
+
 ## Propagate the dynamics
 """
 In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `create_dynamics_simulator()` function that we would normally use).
@@ -259,6 +268,7 @@ variational_equations_solver = numerical_simulation.create_variational_equations
 states = variational_equations_solver.state_history
 state_transition_matrices = variational_equations_solver.state_transition_matrix_history
 sensitivity_matrices = variational_equations_solver.sensitivity_matrix_history
+
 
 ## Perform the sensitivity analysis
 """
@@ -282,6 +292,7 @@ for epoch in state_transition_matrices:
     delta_initial_state_dict[epoch] = np.dot(state_transition_matrices[epoch], initial_state_variation)
     earth_standard_param_dict[epoch] = np.dot(sensitivity_matrices[epoch], earth_standard_param_variation)
     delta_drag_coeff_dict[epoch] = np.dot(sensitivity_matrices[epoch], drag_coeff_variation)
+
 
 ## Post-process the results
 """
@@ -309,6 +320,7 @@ delta_v2 = np.linalg.norm(delta_earth_standard_param_array[:, 4:8], axis=1)
 delta_r3 = np.linalg.norm(delta_drag_coefficient_array[:, 1:4], axis=1)
 delta_v3 = np.linalg.norm(delta_drag_coefficient_array[:, 4:8], axis=1)
 
+
 ### Plot the deviation in position
 """
 Make a plot of the deviation in position over time, in response to all parameter variations.
@@ -329,6 +341,7 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+
 ### Plot the deviation in velocity
 """
 Make a plot of the deviation in velocity over time, in response to all parameter variations.
@@ -348,3 +361,4 @@ plt.xlim([min(time_hours), max(time_hours)])
 plt.legend()
 plt.tight_layout()
 plt.show()
+
