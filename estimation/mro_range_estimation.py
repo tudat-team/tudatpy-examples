@@ -172,6 +172,7 @@ bodies = create_bodies()
 # ## Create Simulated observations
 # 
 # To simulate observations, we need three main things:
+# 
 # * Observation simulators, defining which observation types need to be simulated and which linkends need to be used.
 # * Observation simulation settings, defining the times at which to simulate the observations.
 # * The system of bodies relevant for the simulation
@@ -320,8 +321,3 @@ ax[-1].set_xlabel("Time [yr]")
 fig.align_labels()
 fig.tight_layout()
 plt.show()
-
-# In[ ]:
-
-
-
