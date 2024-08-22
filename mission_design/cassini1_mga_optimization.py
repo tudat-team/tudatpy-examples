@@ -88,6 +88,7 @@ The core of the optimization process is realized by PyGMO, which requires the de
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `TransferTrajectoryProblem`.
 
 There are four mandatory methods that must be implemented in the class: 
+
 * `__init__()`: This is the constructor for the PyGMO problem class. It is used to save all the variables required to setup the evaluation of the transfer trajectory.
 * `get_number_of_parameters(self)`: Returns the number of optimized parameters. In this case, that is the same as the number of flyby bodies (i.e. 6).
 * `get_bounds(self)`: Returns the bounds for each optimized parameter. These are provided as an input to `__init__()`. Their values are defined later in this example.
@@ -103,7 +104,7 @@ class TransferTrajectoryProblem:
     def __init__(self,
                  transfer_trajectory_object: tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory,
                  departure_date_lb: float, # Lower bound on departure date
-                 departure_date_up: float, # Upper bound on departure date
+                 departure_date_ub: float, # Upper bound on departure date
                  legs_tof_lb: np.ndarray, # Lower bounds of each leg's time of flight
                  legs_tof_ub: np.ndarray): # Upper bounds of each leg's time of flight
         """
