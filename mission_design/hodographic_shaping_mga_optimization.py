@@ -11,6 +11,7 @@ This example illustrates the usage of PyGMO to optimize a low-thrust interplanet
 The velocity directions of each hodographic-shaping leg are modeled using the recommended shaping functions and two additional shaping functions, resulting in 2 velocity-shaping free coefficients per direction per leg (i.e. 6 per leg). Some simplifications are considered when defining the departure/arrival velocity at each transfer node: the angles defining the orientation of the arrival/departure velocity and the angles defining the orbital plane of a swingby are all assumed to take the value 0. Additionally, no impulsive $\Delta V$ is considered to be applied during the swingbys.
 
 The optimized parameters vector is constituted by the following variables:
+
 * Departure date (1 variable)
 * Magnitude of the departure excess velocity from Earth (1 variable)
 * Magnitude of the arrival excess velocity at Jupiter (1 variable)

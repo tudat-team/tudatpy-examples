@@ -221,12 +221,15 @@ observation.add_viability_check_to_all(
 ## Define the Dynamical Model(s)
 """
 Note that unlike it has usually been the case so far - be it with examples dealing with propagation or the prior estimation ones - we have always defined a mere single dynamical model. The modular structure of tudat, however, enables us to simulate the observations using a dynamical model that is (theoretically entirely) different from the one used to perform the estimation. Hence, we will now first define the model that will be used during the simulation of observations. In particular, we will consider:
+
 * Gravitational acceleration using a spherical harmonic approximation up to 4th degree and order for Mars.
 * Gravitational acceleration using a simple point mass model for:
+
     - Mars' two moons Phobos and Deimos
     - Earth
     - Jupiter
     - The Sun
+
 * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 """
 

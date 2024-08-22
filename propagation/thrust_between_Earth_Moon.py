@@ -159,6 +159,7 @@ central_bodies = ["Earth"]
 
 First off, the acceleration settings that act on the Vehicle are to be defined.
 In this case, these consist of the followings:
+
 - Acceleration from the constant thrust, using the settings defined earlier.
 - Gravitational acceleration from the Earth, the Moon, and the Sun, all modeled as point masses.
 
@@ -240,6 +241,7 @@ dependent_variables_to_save = [vehicle_altitude_dep_var, vehicle_mass_dep_var]
 Let's now define a set of termination settings. In this setup, once any single one of them is fulfilled, the propagation stops.
 
 These settings are the following:
+
 - Stop when the altitude get above 100,000 km.
 - Stop when the Vehicle has a mass of 4,000 kg (burned 1,000 kg of propellant).
 - Stop when the Vehicle reaches the specified end epoch (after 30 days).
@@ -365,6 +367,7 @@ This function requires the `system_of_bodies` and `propagator_settings` that hav
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
+
 - Column 0: Time history, in seconds since J2000.
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.

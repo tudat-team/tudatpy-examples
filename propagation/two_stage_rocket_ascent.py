@@ -127,6 +127,7 @@ create_rocket_section("Section 1", 370.0)
 
 
 # To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
+# 
 # - A constant drag coefficient of 0.85.
 # - No sideslip coefficient (equal to 0).
 # - A lift coefficient of 0.4.
@@ -247,6 +248,7 @@ class thrust_model:
 Using the `thrust_model` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
 
 For this first section, the following parameters are used for the thrust:
+
 - A thrust magnitude of 4.25 kN.
 - A specific impulse of 275 seconds.
 - A constant thrust angle of 40 deg from the vertical.
@@ -286,6 +288,7 @@ create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 """
 First off, the acceleration settings from the environment that act on the rocket are to be defined.
 In this case, these consist in the two followings:
+
 - Gravitational acceleration of Mars modeled as Spherical Harmonics, taken up to a degree and order 4.
 - Aerodynamic acceleration caused by the atmosphere of Mars (using the aerodynamic interface defined earlier).
 
@@ -377,6 +380,7 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 Termination settings define the conditions that, once reached, will stop the propagation.
 
 In this case, for the first rocket section, two termination settings are used:
+
 - Stop when the vehicle starts falling again, indicating that it reached apogee.
 - Stop 225 minutes after lift-off.
 """
@@ -416,6 +420,7 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
 ### Create integrator settings
 """
 Let's now create integrator settings. These use a RK78 integration scheme with a variable step size. The following settings are used:
+
 - An initial time step of 0.25 seconds.
 - A minimum time step of 1e-4 seconds.
 - A maximum time step of 100 seconds.
