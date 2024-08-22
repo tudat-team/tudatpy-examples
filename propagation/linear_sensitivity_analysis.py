@@ -67,7 +67,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
@@ -184,7 +184,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
@@ -233,7 +233,7 @@ propagator_settings = propagation_setup.propagator.translational(
 ### Setup the variational equations
 """
 In addition to the state of the satellite, variation equations will also be propagated.
-A detailled explanation on variational equations is given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/running_variational_simulation.html).
+A detailed explanation on variational equations is given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/running_variational_simulation.html).
 
 In this example, both the initial state transition matrix and the sensitivity matrix are to be propagated.
 The list of the available estimated parameters for the sensitivity matrix are also given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/sensitivity_analysis/available_parameters.html).
@@ -254,7 +254,7 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 """
 In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `create_dynamics_simulator()` function that we would normally use).
 
-This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be intergrated immidiately when the function is called.
+This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be integrated immediately when the function is called.
 """
 
 # Create the variational equation solver and propagate the dynamics
@@ -321,7 +321,7 @@ delta_v3 = np.linalg.norm(delta_drag_coefficient_array[:, 4:8], axis=1)
 
 ### Plot the deviation in position
 """
-Make a plot of the deivation in position over time, in response to all parameter variations.
+Make a plot of the deviation in position over time, in response to all parameter variations.
 """
 
 # Plot deviations of position
@@ -342,7 +342,7 @@ plt.show()
 
 ### Plot the deviation in velocity
 """
-Make a plot of the deivation in velocity over time, in response to all parameter variations.
+Make a plot of the deviation in velocity over time, in response to all parameter variations.
 """
 
 # Plot deviations of speed
