@@ -86,7 +86,7 @@ environment_setup.add_engine_model(
     'Vehicle', 'LowThrustEngine', thrust_magnitude_settings, bodies )
 environment_setup.add_rotation_model(
     bodies, 'Vehicle', environment_setup.rotation_model.custom_inertial_direction_based(
-        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehcleFixed' ) )
+        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehicleFixed' ) )
 
 ## Shape-based low-thrust trajectory optimization
 """

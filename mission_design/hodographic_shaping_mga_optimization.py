@@ -8,9 +8,9 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 This example illustrates the usage of PyGMO to optimize a low-thrust interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat. The low-thrust legs are simulated using hodographic shaping. The spacecraft is considered to depart from the edge of the sphere of influence (SOI) of the Earth, execute swingbys at the Mars and Earth, and arrive at the edge of Jupiter's SOI. Thus, the transfer includes 3 legs and 2 swingbys.
 
-The velocity directions of each hodographic-shaping leg are modeled using the recommended shaping functions and two additional shaping functions, resulting in 2 velocity-shaping free coefficients per direction per leg (i.e. 6 per leg). Some simplifications are considered when defining the departure/arrival velocity at each transfer node: the angles defining the orientation of the arrival/departure velocity and the angles defining the orbital plane of a swingby are all assumed to take the value 0. Additionally, no impululsive $\Delta V$ is considered to be applied during the swingbys.
+The velocity directions of each hodographic-shaping leg are modeled using the recommended shaping functions and two additional shaping functions, resulting in 2 velocity-shaping free coefficients per direction per leg (i.e. 6 per leg). Some simplifications are considered when defining the departure/arrival velocity at each transfer node: the angles defining the orientation of the arrival/departure velocity and the angles defining the orbital plane of a swingby are all assumed to take the value 0. Additionally, no impulsive $\Delta V$ is considered to be applied during the swingbys.
 
-The optimized parameters vector is consituted by the following variables:
+The optimized parameters vector is constituted by the following variables:
 * Departure date (1 variable)
 * Magnitude of the departure excess velocity from Earth (1 variable)
 * Magnitude of the arrival excess velocity at Jupiter (1 variable)

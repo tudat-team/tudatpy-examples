@@ -53,7 +53,7 @@ Let's setup some constants that are used throughout the tutorial. The MPC code f
 
 We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
 
-For our frame origin we use the Solar System Barycentre. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
+For our frame origin we use the Solar System Barycenter. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
 """
 
 # Direct inputs:
@@ -117,7 +117,7 @@ print(obs_by_WISE)
 
 ### Set up the environment
 """
-We now set up the environment, including the bodies to use, the reference frame and frame origin. The epherides for all major planets as well as the Earth's Moon are retrieved using spice. 
+We now set up the environment, including the bodies to use, the reference frame and frame origin. The ephemerides for all major planets as well as the Earth's Moon are retrieved using spice. 
 
 BatchMPC will automatically generate the body object for Eros, but we still need to specify the bodies to propagate and their central bodies. We can retrieve the list from the BatchMPC object.
 """
@@ -143,7 +143,7 @@ body_settings = environment_setup.get_default_body_settings(
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
-# Retrieve Eros' body name from BatchMPC and set its centre to enable its propapgation
+# Retrieve Eros' body name from BatchMPC and set its centre to enable its propagation
 bodies_to_propagate = batch.MPC_objects
 central_bodies = [global_frame_origin]
 
@@ -339,7 +339,7 @@ print(
 
 #### Change in residuals per iteration
 """
-We want to visualise the residuals, splitting them between Right Ascension and Declination. Internally, `concatentated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatentated_observations`, i.e. by slicing [::2].
+We want to visualise the residuals, splitting them between Right Ascension and Declination. Internally, `concatenated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatenated_observations`, i.e. by slicing [::2].
 """
 
 residual_history = pod_output.residual_history
@@ -406,12 +406,12 @@ plt.show()
 
 # As seen previously, the estimation converges around iteration 4.
 
-#### Residuals Corellations Matrix
+#### Residuals Correlations Matrix
 """
-Lets check out the corellation of the estimated parameters.
+Lets check out the correlation of the estimated parameters.
 """
 
-# Corellation can be retrieved using the CovarianceAnalysisInput class:
+# Correlation can be retrieved using the CovarianceAnalysisInput class:
 covariance_input = estimation.CovarianceAnalysisInput(observation_collection)
 covariance_output = estimator.compute_covariance(covariance_input)
 
@@ -510,7 +510,7 @@ ax.legend(ncol=1)
 
 plt.tight_layout()
 
-ax.set_ylabel("Carthesian Error [km]")
+ax.set_ylabel("Cartesian Error [km]")
 ax.set_xlabel("Year")
 
 fig.suptitle(f"Error vs SPICE over time for {target_name}")
@@ -528,9 +528,9 @@ This plot shows the final iteration of the residuals, highlighting the 10 observ
 # 10 observatories with most observations
 num_observatories = 10
 
-finalresiduals = np.array(residual_history[:, -1])
+final_residuals = np.array(residual_history[:, -1])
 # if you would like to check the iteration 1 residuals, use:
-# finalresiduals = np.array(residual_history[:, 0])
+# final_residuals = np.array(residual_history[:, 0])
 
 # This piece of code collects the 10 largest observatories
 observatory_names = (
@@ -574,7 +574,7 @@ fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 # RA
 axs[0].scatter(
     residual_times[mask_not_top][::2],
-    finalresiduals[mask_not_top][::2],
+    final_residuals[mask_not_top][::2],
     marker=".",
     s=30,
     label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
@@ -583,7 +583,7 @@ axs[0].scatter(
 # DEC
 axs[1].scatter(
     residual_times[mask_not_top][1::2],
-    finalresiduals[mask_not_top][1::2],
+    final_residuals[mask_not_top][1::2],
     marker=".",
     s=30,
     label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
@@ -595,7 +595,7 @@ for observatory in top_observatories:
     name = f"{observatory} | {observatory_names.loc[observatory].Name} | {int(observatory_names.loc[observatory]['count'])} obs"
     axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
-        finalresiduals[concatenated_receiving_observatories == observatory][::2],
+        final_residuals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
         label=name,
@@ -603,7 +603,7 @@ for observatory in top_observatories:
     )
     axs[1].scatter(
         residual_times[concatenated_receiving_observatories == observatory][1::2],
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2],
+        final_residuals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
         label=name,
@@ -651,16 +651,16 @@ observatory_names_box = (
 
 top_observatories_box = observatory_names_box.index.tolist()
 
-# retrieve the data for RA and DEC seperately
+# retrieve the data for RA and DEC separately
 for observatory in top_observatories_box[::-1]:
     name = f"{observatory} | {observatory_names_box.loc[observatory].Name} | {int(observatory_names_box.loc[observatory]['count'])} obs"
     names.append(name)
     data_per_observatory_list_RA.append(
-        finalresiduals[concatenated_receiving_observatories == observatory][::2]
+        final_residuals[concatenated_receiving_observatories == observatory][::2]
     )
 
     data_per_observatory_list_DEC.append(
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2]
+        final_residuals[concatenated_receiving_observatories == observatory][1::2]
     )
 
 # positioning the boxes
@@ -757,13 +757,13 @@ for idx, observatory in enumerate(top_observatories_hist):
     name = f"{observatory} | {observatory_names_hist.loc[observatory].Name} | {int(observatory_names_hist.loc[observatory]['count'])} obs"
 
     axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][0::2],
+        final_residuals[concatenated_receiving_observatories == observatory][0::2],
         bins=nbins,
         alpha=transparency + 0.05,
         label="Right Ascension",
     )
     axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2],
+        final_residuals[concatenated_receiving_observatories == observatory][1::2],
         bins=nbins,
         alpha=transparency,
         label="Declination",

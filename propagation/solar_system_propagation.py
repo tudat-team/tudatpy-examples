@@ -69,7 +69,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `body_system`.
 """
@@ -115,7 +115,7 @@ for body_name in bodies_to_create:
 """
 The acceleration settings that act each body are first defined. These accelerations only consist in the gravitational effect of each other body modeled as a Point Mass.
 
-These acceleration settings, taking the form of a dictionnary, are then converted to acceleration models both for the barycentric and the hierarchical propagation variant, using the respective central bodies.
+These acceleration settings, taking the form of a dictionary, are then converted to acceleration models both for the barycentric and the hierarchical propagation variant, using the respective central bodies.
 """
 
 # Define the accelerations acting on each body
@@ -175,7 +175,7 @@ First, a termination setting is setup so that the propagation stops after 5 simu
 
 Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 1 hour.
 
-Then, the translational propagator settings are defined seperately for both system of central bodies.
+Then, the translational propagator settings are defined separately for both system of central bodies.
 """
 
 # Create termination settings
@@ -241,7 +241,7 @@ The results of the propagation are then processed to a more user-friendly form.
 Let's first plot the trajectory of each of the bodies in 3 dimensions, with respect to the Solar System Barycenter.
 """
 
-# Convert the state dictionnary to a multi-dimensional array
+# Convert the state dictionary to a multi-dimensional array
 barycentric_system_state_array = result2array(results_barycentric)
 
 fig1 = plt.figure(figsize=(8, 8))

@@ -256,7 +256,7 @@ The `get_acceleration_models()` helper function returns the acceleration models 
 
 - Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
 - Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
-- Radiatio pressure from the Sun using a simplified canonnball model.
+- Radiation pressure from the Sun using a simplified cannonball model.
 
 This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
 """
@@ -447,7 +447,7 @@ Most importantly, the simulation bodies, acceleration models, integrator setting
 """
 The simulation settings are first defined.
 
-The SPICE kernels are loaded, so that we can acess the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
+The SPICE kernels are loaded, so that we can access the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
 
 The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
 

@@ -202,7 +202,7 @@ plt.show()
 
 ## MGA transfer with DSMs and manually-created settings
 """
-This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionaly, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
+This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionally, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
 """
 
 ### Setup and inputs
@@ -287,7 +287,7 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 ### Define transfer parameters
 """
 
-As before, it is possible to print the definition of the transfer paramaters which need to be selected.
+As before, it is possible to print the definition of the transfer parameters which need to be selected.
 """
 
 # Print transfer parameter definitions
@@ -515,7 +515,7 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 ### Define transfer parameters
 """
 
-As before, it is possible to print the definition of the transfer paramaters which need to be selected.
+As before, it is possible to print the definition of the transfer parameters which need to be selected.
 """
 
 # Print transfer parameter definitions

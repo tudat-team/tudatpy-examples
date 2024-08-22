@@ -90,7 +90,7 @@ raw_datafile = data.read_tracking_txt_file(
 # 
 # We then specify any required ancillary settings; in this case we use the factory function for N-way range observations, where all signals are in the X-band frequency range. Then, all the necessary information is available to create the observation collection with "Mars" as main body. Recall that the observations were made using the MRO spacecraft, but already corrected for Mars system barycenter. You could consider that there might be slightly difference between Mars itself and the system barycenter, but since both Deimos and Phobos are very small (7 and 8 orders of magnitude less massive than Mars), this difference is negligible for the example.
 # 
-# An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artifically create such a collection from a simiulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
+# An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artificially create such a collection from a simulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
 # 
 
 # In[4]:

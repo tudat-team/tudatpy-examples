@@ -43,7 +43,7 @@ import pygmo as pg
 
 ## Helpers
 """
-First of all, let us define a helper function which is used troughout this example.
+First of all, let us define a helper function which is used throughout this example.
 """
 
 # The design variables in the current optimization problem are the departure time and the time of flight between transfer nodes. However, to evaluate an MGA trajectory in Tudat it is necessary to specify a different set of parameters: node times, node free parameters, leg free parameters. This function converts a vector of design variables to the parameters which are used as input to the MGA trajectory object.
@@ -64,7 +64,7 @@ def convert_trajectory_parameters (transfer_trajectory_object: tudatpy.kernel.tr
     times_of_flight_per_leg = trajectory_parameters[1:]
 
     # Get node times
-    # Node time for the intial node: departure time
+    # Node time for the initial node: departure time
     node_times.append(departure_time)
     # None times for other nodes: node time of the previous node plus time of flight
     accumulated_time = departure_time
@@ -256,7 +256,7 @@ legs_tof_ub[4] = 6000 * constants.JULIAN_DAY
 
 # To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `TransferTrajectoryProblem`, is given to PyGMO trough the `pg.problem()` method.
 # 
-# The optimiser is selected to be the Differential Evolution (DE) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.de)). When selecting the algorithm, here the coefficient F is selected to have the value 0.5, instead of the default 0.8. Additionaly, a fixed seed is selected; since PyGMO uses a random number generator, this ensures that PyGMO's results are reproducible.
+# The optimiser is selected to be the Differential Evolution (DE) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.de)). When selecting the algorithm, here the coefficient F is selected to have the value 0.5, instead of the default 0.8. Additionally, a fixed seed is selected; since PyGMO uses a random number generator, this ensures that PyGMO's results are reproducible.
 # 
 # Finally, the initial population is created, with a size of 20 individuals.
 

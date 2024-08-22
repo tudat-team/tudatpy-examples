@@ -61,7 +61,7 @@ class HimmelblauOptimization:
                  y_min: float,
                  y_max: float):
         
-        # Set input arguments as attributes, representaing the problem bounds for both design variables
+        # Set input arguments as attributes, representing the problem bounds for both design variables
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -284,7 +284,7 @@ plt.show()
 """
 To investigate how well the Differential Evolution algorithm performed, let's now run the optimisation with a grid search of 1000x1000 nodes.
 
-This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evoluation algorithm.
+This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evolution algorithm.
 """
 
 # Set number of points

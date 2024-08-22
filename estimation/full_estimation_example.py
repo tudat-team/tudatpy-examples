@@ -391,7 +391,7 @@ Finally, to further process the obtained data, one can - exemplary - plot the be
 
 ### Range-rate over time
 """
-First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizont and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
+First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizon and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
 """
 
 observation_times = np.array(simulated_observations.concatenated_times)
@@ -447,7 +447,7 @@ final_residuals = estimation_output.final_residuals
 plt.figure(figsize=(9,5))
 plt.hist(final_residuals, 25)
 plt.xlabel('Final iteration range-rate residual [m/s]')
-plt.ylabel('Occurences [-]')
+plt.ylabel('Occurrences [-]')
 plt.title('Histogram of residuals on final iteration')
 
 plt.tight_layout()

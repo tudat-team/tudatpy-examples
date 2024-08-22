@@ -102,7 +102,7 @@ system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 ### Create the vehicle
 """
 
-Let's now create the 5000 kg Vehicle for which the trajectory bewteen the Earth and the Moon will be propagated.
+Let's now create the 5000 kg Vehicle for which the trajectory between the Earth and the Moon will be propagated.
 """
 
 # Create the vehicle body in the environment
@@ -216,7 +216,7 @@ system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
 
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 # Create a dependent variable to save the altitude of the vehicle w.r.t. Earth over time
@@ -260,7 +260,7 @@ termination_mass_settings = propagation_setup.propagator.dependent_variable_term
 # Create a termination setting to stop at the specified simulation end epoch
 termination_time_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
-# Setup a hybrid termination setting to stop the simulation when one of the aforementionned termination setting is reached
+# Setup a hybrid termination setting to stop the simulation when one of the aforementioned termination setting is reached
 termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_distance_settings, termination_mass_settings, termination_time_settings],
     fulfill_single_condition = True)
@@ -403,7 +403,7 @@ moon_states_from_spice = {
     epoch:spice.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
     for epoch in list(state_history.keys())
 }
-Convert the dictionary to a mutli-dimensional array
+Convert the dictionary to a multi-dimensional array
 """
 moon_array = result2array(moon_states_from_spice)
 """
