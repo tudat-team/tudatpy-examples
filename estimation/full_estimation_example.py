@@ -306,10 +306,11 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 ### Creating the Estimator object
 """
 Ultimately, the `Estimator` object consolidates all relevant information required for the estimation of any system parameter:
-    * the environment (bodies)
-    * the parameter set (parameters_to_estimate)
-    * observation models (observation_settings_list)
-    * dynamical, numerical, and integrator setup (propagator_settings)
+
+* the environment (bodies)
+* the parameter set (parameters_to_estimate)
+* observation models (observation_settings_list)
+* dynamical, numerical, and integrator setup (propagator_settings)
 
 Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
 """

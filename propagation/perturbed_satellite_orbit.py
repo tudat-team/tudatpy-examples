@@ -99,8 +99,9 @@ bodies.get("Delfi-C3").mass = 2.2 #kg
 
 
 # To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
+#
 # - A constant drag coefficient of 1.2.
-# - A reference area of 0.035m$^2$.
+# - A reference area of 0.035m $^2$ .
 # - No sideslip or lift coefficient (equal to 0).
 # - No moment coefficient.
 
@@ -113,8 +114,7 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
 environment_setup.add_aerodynamic_coefficient_interface(
     bodies, "Delfi-C3", aero_coefficient_settings)
 
-
-# To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m$^2$. This interface also accounts for the variation in pressure cause by the shadow of Earth.
+# To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m $^2$ . This interface also accounts for the variation in pressure cause by the shadow of Earth.
 
 # Create radiation pressure settings, and add to vehicle
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -146,6 +146,7 @@ central_bodies = ["Earth"]
 """
 First off, the acceleration settings that act on `Delfi-C3` are to be defined.
 In this case, these consist in the followings:
+
 - Gravitational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
@@ -283,6 +284,7 @@ This function requires the `bodies` and `propagator_settings` that have all been
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
+
 - Column 0: Time history, in seconds since J2000.
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.

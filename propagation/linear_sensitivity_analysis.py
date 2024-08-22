@@ -139,11 +139,14 @@ central_bodies = ["Earth"]
 """
 First off, the acceleration settings that act on `Delfi-C3` are to be defined.
 In this case, these consist in the followings:
+
 * Gravitational acceleration using a Point Mass approximation from:
+
     - The Sun
     - The Moon
     - Mars
     - Venus
+
 * Gravitational acceleration using a Spherical Harmonic approximation up to degree and order 5 from Earth.
 * Aerodynamic acceleration from Earth.
 * Acceleration caused by the radiation pressure of the Sun on the vehicle approximated as a cannonball.
