@@ -34,6 +34,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 # Load tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
@@ -42,6 +43,7 @@ from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
+
 
 ## Aerodynamic guidance class
 """
@@ -157,6 +159,7 @@ class STSAerodynamicGuidance:
                 self.bank_angle = np.arccos(cosine_of_bank_angle)
             self.current_time = current_time
 
+
 ## Configuration
 """
 
@@ -183,6 +186,7 @@ Let’s create the environment for our simulation. This setup covers the creatio
 
 """
 
+
 ### Create the bodies
 """
 
@@ -207,6 +211,7 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of bodies (in this case only Earth)
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ### Create the vehicle
 """
 
@@ -216,6 +221,7 @@ Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be 
 # Create vehicle object and set its constant mass
 bodies.create_empty_body("STS")
 bodies.get_body( "STS" ).set_constant_mass(5.0e3)
+
 
 ### Add an aerodynamic coefficient interface
 """
@@ -238,14 +244,15 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 # Add predefined aerodynamic coefficients database to the body
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
-### Add rotation model based on aerodynamic guidance
-"""
-Create the aerodynamic guidance object
+
+# ### Add rotation model based on aerodynamic guidance
+
+# Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
 rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
     'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
 environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
-"""
+
 
 ## Propagation setup
 """
@@ -261,6 +268,7 @@ bodies_to_propagate = ["STS"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -287,6 +295,7 @@ acceleration_settings = {"STS": accelerations_settings_STS}
 acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
+
 
 ### Define the initial state
 """
@@ -319,6 +328,7 @@ initial_state = environment.transform_to_inertial_orientation(
     initial_earth_fixed_state, simulation_start_epoch, earth_rotation_model
 )
 
+
 ### Define the dependent variables to save
 """
 
@@ -338,6 +348,7 @@ dependent_variables_to_save = [
     propagation_setup.dependent_variable.total_acceleration_norm("STS"),
     propagation_setup.dependent_variable.mach_number("STS", "Earth")
 ]
+
 
 ### Create the propagator settings
 """
@@ -383,6 +394,7 @@ propagator_settings = propagation_setup.propagator.translational(
     output_variables=dependent_variables_to_save
 )
 
+
 ## Propagate the trajectory
 """
 
@@ -407,6 +419,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 dependent_variables = dynamics_simulator.dependent_variable_history
 # Convert the dependent variables from a dictionary to a numpy array
 dependent_variables_array = result2array(dependent_variables)
+
 
 ## Post-process the propagation results
 """
@@ -435,6 +448,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Airspeed vs altitude
 """
 
@@ -449,6 +463,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### g-load over time
 """
 
@@ -462,6 +477,7 @@ plt.xlabel("Time [min]"), plt.ylabel("Total g-load [-]")
 plt.grid()
 plt.tight_layout()
 plt.show()
+
 
 ### Aerodynamic coefficient over time
 """
@@ -481,6 +497,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Angles over time
 """
 
@@ -498,6 +515,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Angle of attack vs Mach number
 """
 
@@ -513,6 +531,7 @@ plt.xticks(np.arange(0, 28.1, 1))
 plt.grid()
 plt.tight_layout()
 plt.show()
+
 
 ### Derivative of flight path angle over time
 """
@@ -534,3 +553,4 @@ plt.yticks(10**np.arange(-12, 0.1, 1))
 plt.grid()
 plt.tight_layout()
 plt.show()
+

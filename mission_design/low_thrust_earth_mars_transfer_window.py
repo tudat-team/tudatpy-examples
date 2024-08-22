@@ -50,13 +50,13 @@ from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 from tudatpy.numerical_simulation.propagation import create_dependent_variable_dictionary
 from tudatpy.util import result2array
 
+
 ## Environment setup
 """
 
 The simulation environment is set up here: the standard Spice kernels are loaded, the origin of the global frame is defined, and all necessary bodies are created. 
 
 """
-
 
 # Load spice kernels
 spice_interface.load_standard_kernels( )
@@ -88,6 +88,7 @@ environment_setup.add_rotation_model(
     bodies, 'Vehicle', environment_setup.rotation_model.custom_inertial_direction_based(
         lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehicleFixed' ) )
 
+
 ## Shape-based low-thrust trajectory optimization
 """
 
@@ -115,13 +116,13 @@ axial_velocity_shaping_free_coefficients = [
     0.0
 ]
 
+
 ### Velocity shaping functions
 """
 
 Define a factory function to obtain the radial velocity shaping functions
 
 """
-
 
 def get_radial_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
@@ -166,8 +167,8 @@ def get_radial_velocity_shaping_functions(trajectory_parameters: list,
     return (radial_velocity_shaping_functions,
             free_coefficients)
 
-# Define a factory function to obtain the normal velocity shaping functions
 
+# Define a factory function to obtain the normal velocity shaping functions
 
 def get_normal_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
@@ -211,6 +212,7 @@ def get_normal_velocity_shaping_functions(trajectory_parameters: list,
     free_coefficients = trajectory_parameters[5:7]
     return (normal_velocity_shaping_functions,
             free_coefficients)
+
 
 # Define a factory function to obtain the axial velocity shaping functions
 
@@ -260,12 +262,12 @@ def get_axial_velocity_shaping_functions(trajectory_parameters: list,
     return (axial_velocity_shaping_functions,
             free_coefficients)
 
+
 ### Low-thrust Trajectory Optimization solution
 """
 
 Define a function to obtain the LTTO solution
 """
-
 
 def create_hodographic_trajectory(
         trajectory_parameters: list,
@@ -353,8 +355,8 @@ def create_hodographic_trajectory(
 
     return trajectory_object
 
-# Create function to obtain transfer $\Delta V$
 
+# Create function to obtain transfer $\Delta V$
 
 def hodographic_low_thrust_trajectory_delta_v(
         bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
@@ -433,6 +435,7 @@ latest_departure_time   = DateTime(2017,  7,   1)
 earliest_arrival_time   = DateTime(2019, 11,   1)
 latest_arrival_time     = DateTime(2021,  9,   1)
 
+
 # To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
 time_window_percentage = 0.5
@@ -440,6 +443,7 @@ time_resolution = time_resolution = min(
         latest_departure_time.epoch() - earliest_departure_time.epoch(),
         latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
+
 
 # Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
 
@@ -452,12 +456,12 @@ RECALCULATE_delta_v = input(
 ).strip().lower() == 'y'
 print()
 
+
 # Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
 #  
 # - The optimal departure-arrival date combination
 # - The constant time-of-flight isochrones
 # - And more
-
 
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     # Regenerate plot
@@ -491,6 +495,7 @@ else:
         delta_v          = ΔV,
         threshold        = 60
     )
+
 
 ### Variations
 """
@@ -868,6 +873,7 @@ def inspect_low_thrust_trajectory(
     # Show the plot
     plt.show()
 
+
 ## Observations and conclusions
 """
 
@@ -886,9 +892,11 @@ inspect_low_thrust_trajectory(
     DateTime(2020,6,11)
 )
 
+
 # **High $\Delta V$ trajectory**
 
 inspect_low_thrust_trajectory(
     DateTime(2016,10,22),
     DateTime(2021,1,21)
 )
+

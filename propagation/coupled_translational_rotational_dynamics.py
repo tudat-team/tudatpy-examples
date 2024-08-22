@@ -81,6 +81,7 @@ from matplotlib import pyplot as plt
 
 spice.load_standard_kernels([])
 
+
 ## Auxiliary functions
 """
 In order to keep the main code neat and clean, several auxiliary functions will be used that need to be defined before the main code. Feel free to skip them now and come back to them when they are used in the script. [TODO, add proper comments to each function (specifying what it does, what goes in, what goes out) before the function ... ... DONE].
@@ -131,6 +132,7 @@ def get_gravitational_field(frame_name: str) -> environment_setup.gravity_field.
 
     return settings_to_return
 
+
 ### Initial rotational state generation
 """
 The numerical propagation of the rotational dynamics requires an initial state (rotation quaternion and angular velocity vector). We assume that Phobos is in synchronous rotation around Mars, meaning that Phobos' $x$ axis points towards the planet, its $z$ axis is parallel to the orbital angular momentum vector and the $y$ axis completes the right-handed basis (similar to the axes along its RSW frame, with only a flipping of signs). The angular velocity is expressed in body-fixed axes, which makes its definition much easier: we only define non-zero angular velocity about the z-axis. The creation of a rotational state with these characteristics is given in the function below.
@@ -165,6 +167,7 @@ def get_initial_rotational_state_at_epoch(epoch: float, rotational_rate_around_z
     angular_velocity = np.array([0.0, 0.0, rotational_rate_around_z_axis])
 
     return np.concatenate((phobos_rotation_quaternion, angular_velocity))
+
 
 ### Generic logistic functions
 """
@@ -538,6 +541,7 @@ def get_longitudinal_normal_mode_from_inertia_tensor(inertia_tensor: np.ndarray,
 
     return mean_motion * np.sqrt(3*gamma)
 
+
 ## Generating the environment
 """
 We will begin by creating our Solar System. We will begin by creating the `body_settings` for all bodies except Phobos. These settings will be used to create the `bodies` object. **Note:** Be aware of the modules you need to import.
@@ -558,6 +562,7 @@ body_settings.get('Phobos').gravity_field_settings.scaled_mean_moment_of_inertia
 
 # AND NOW WE CREATE THE BODIES OBJECT
 bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 # Although both the translation and rotation of Phobos will be numerically integrated, it is advantageous to assign the body object with a-priori ephemeris and rotation models. One might want to access these attributes - for instance to retrieve an initial state - and pre-existing ephemeris and rotation models prevent potential internal inconsistencies within tudat.
 # 
@@ -601,6 +606,7 @@ dependent_variables = [ propagation_setup.dependent_variable.keplerian_state('Ph
                         propagation_setup.dependent_variable.inertial_to_body_fixed_313_euler_angles('Phobos')
                       ]
 
+
 ### Translational dynamics
 """
 Let's start by defining our translational propagator. Here, we will create all the inputs required by the function one by one, as listed in the API, except the ones we already created before.
@@ -632,6 +638,7 @@ translational_propagator_settings = propagation_setup.propagator.translational( 
                                                                                 initial_epoch,
                                                                                 integrator_settings,
                                                                                 termination_condition )
+
 
 ### Rotational dynamics
 """
@@ -665,6 +672,7 @@ rotational_propagator_settings = propagation_setup.propagator.rotational( torque
                                                                           integrator_settings,
                                                                           termination_condition )
 
+
 # The  `get_initial_rotational_state_at_epoch` is defined at the top of this file.
 # 
 ### Combined propagator
@@ -680,6 +688,7 @@ combined_propagator_settings = propagation_setup.propagator.multitype( propagato
                                                                        termination_condition,
                                                                        output_variables = dependent_variables)
 
+
 ## Simulating the dynamics
 """
 At this point, one has everything they need to simulate. This is always done through the `numerical_simulation.create_dynamics_simulator` function, regardless of the type of dynamics that is considered
@@ -689,6 +698,7 @@ At this point, one has everything they need to simulate. This is always done thr
 simulator = numerical_simulation.create_dynamics_simulator(bodies, combined_propagator_settings)
 state_history = simulator.state_history
 dependent_variable_history = simulator.dependent_variable_history
+
 
 ## Let's look at plots
 """
@@ -786,6 +796,7 @@ plt.legend()
 
 plt.show()
 
+
 # **Note:** The third Euler angle of Phobos, $\varphi$, is omitted from plot. This is because it represents Phobos' rotation about its $z$ axis, and therefore it will increase secularly and overlap with $\Psi$.
 # 
 # Here, there are two things that immediately stand out: Mars' coordinates in Phobos' sky are a mess (i.e. Phobos' orientation is not what we expected) and the inclination of Phobos is nowhere near 0. We will start by addressing the latter. Notice that "the inclination of Phobos" is usually thought of as measured from the Martian equator. Here, however, the angles of the orbit are computed with respect to global frame orientation, which is here set to J2000. The Martian equator is inclined by about $35.5º$ with respect to that of the Earth, and that is why we see Phobos' inclination oscillate around that value rather than $0º$.
@@ -812,6 +823,7 @@ damping_results = numerical_simulation.propagation.get_zero_proper_mode_rotation
                                                                                          dissipation_times)
 damped_state_history = damping_results.forward_backward_states[-1][1]
 damped_dependent_variable_history = damping_results.forward_backward_dependent_variables[-1][1]
+
 
 # As you can see, we are using the `bodies` and the `propagator_settings` that we had already created earlier. The output of this function is the `damping_results` object, of type [TODO, insert link to class here]. This object contains:
 # 
@@ -916,5 +928,6 @@ plt.grid()
 plt.legend()
 
 plt.show()
+
 
 # In these new damped dynamics, Mars does oscillate periodically around $0º$ of latitude and longitude in Phobos' sky, and the Fourier transform shows that the frequency at the normal mode is gone. Note that we would see the same thing in the FFT of Phobos' Euler angles. This is now a faithful representation of Phobos' motion. Note that, even though the libration at the frequency of the normal mode is removed, the fact that Phobos' normal mode is very close to its orbital period (strongest forcing frequency), there are numerous small forcing terms close to the normal mode that result in observable effects in Phobos' libration frequency spectrum. These are discussed and tabulated in detail by (Rambaux et al. 2010).

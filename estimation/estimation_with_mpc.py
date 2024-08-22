@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 
+
 ## Preparing the environment and observations
 """
 
@@ -46,6 +47,7 @@ We use SPICE kernels to retrieve the ephemerides the planets as well as to verif
 
 # SPICE KERNELS
 spice.load_standard_kernels()
+
 
 ### Setting some constants
 """
@@ -76,6 +78,7 @@ time_buffer = 1 * 31 * 86400
 global_frame_origin = "SSB"
 global_frame_orientation = "J2000"
 
+
 # Derived inputs:
 
 target_sbdb = SBDBquery(target_mpc_code)
@@ -85,6 +88,7 @@ target_spkid = target_sbdb.codes_300_spkid  # the ID used by the
 target_name = target_sbdb.shortname  # the ID used by the
 
 print(f"SPK ID for {target_name} is: {target_spkid}")
+
 
 ### Retrieving the observations
 """
@@ -100,6 +104,7 @@ batch.filter(
 
 batch.summary()
 
+
 # Our batch includes many observations from space telescopes, lets take a closer look at that data.
 
 print("Summary of space telescopes in batch:")
@@ -112,6 +117,7 @@ obs_by_WISE = (
 
 print("\nInitial and Final Observations by WISE:")
 print(obs_by_WISE)
+
 
 # While the observations from WISE appear to be useful, including them requires setting up the dynamics for the WISE spacecraft which is too advanced for this tutorial and its observations will be excluded later on in this example. The observations can also be filtered out explicitly by excluding the observatories with the .filter() method, specifying their codes (C57 etc.). Note that all the observations are given in an angular format, Right Ascension (RA) and Declination (DEC) in radians.
 
@@ -147,13 +153,14 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 bodies_to_propagate = batch.MPC_objects
 central_bodies = [global_frame_origin]
 
+
 ### Convert the observations to Tudat
 """
 Now that our system of bodies is ready we can retrieve the observation collection from the observations batch using the `to_tudat()` method. Note that by setting the included_satellites to `None`, space telescope observations are filtered out. From the observation collection we can also retrieve observation links. We use the links to define our observations settings this is where you would also add bias settings. For the purpose of this example, we will keep it simple and use the plain angular position settings, which can process observations with Right Ascension and Declination. We can also retrieve the times for the first and final observations from the batch object in seconds since J2000 TDB, which is what tudat uses internally. We here add our buffer, set previously, to avoid interpolation errors down the line.
 """
 
 # Transform the MPC observations into a tudat compatible format.
-# note that we explicitly exlude all satellite observations in this step by setting included satellites to None.
+# note that we explicitly exclude all satellite observations in this step by setting included satellites to None.
 observation_collection = batch.to_tudat(bodies=bodies, included_satellites=None)
 
 # set create angular_position settings for each link in the list.
@@ -175,6 +182,7 @@ epoch_end_nobuffer = batch.epoch_end
 
 epoch_start_buffer = epoch_start_nobuffer - time_buffer
 epoch_end_buffer = epoch_end_nobuffer + time_buffer
+
 
 ### Creating the acceleration settings
 """
@@ -208,6 +216,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
 
+
 ### Retrieving an initial guess for Eros' position
 """
 We use the SPICE ephemeris to retrieve a 'benchmark' initial state for Eros at the first epoch. We can also use this initial state as our initial guess for the estimation. We add a random uniform offset of +/- 1 million kilometers for the position and 100 m/s for the velocity. Adding this random offset should not have a strong influence on the final results, it is added in to keep the tutorial representative. In real-world cases we might not have such a good initial guess.
@@ -234,6 +243,7 @@ initial_guess[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
 
 print("Error between the real initial state and our initial guess:")
 print(initial_guess - initial_states)
+
 
 ### Finalising the propagation setup
 """
@@ -266,6 +276,7 @@ propagator_settings = propagation_setup.propagator.translational(
     termination_settings=termination_condition,
 )
 
+
 ## Setting Up the estimation
 """
 With the observation collection, the environment and propagations settings ready we can now begin setting up our estimation. 
@@ -282,6 +293,7 @@ parameter_settings = estimation_setup.parameter.initial_states(
 parameters_to_estimate = estimation_setup.create_parameter_set(
     parameter_settings, bodies, propagator_settings
 )
+
 
 # The `Estimator` object collects the environment, observation settings and propagation settings. We also create an `EstimationInput` object and provide it our observation collection retrieved from `.to_tudat()`. Our maximum iterations steps was previously set to 6.
 
@@ -305,6 +317,7 @@ pod_input = estimation.EstimationInput(
 # Set methodological options
 pod_input.define_estimation_settings(reintegrate_variational_equations=True)
 
+
 ## Performing the estimation
 """
 
@@ -313,6 +326,7 @@ With everything set up we can now perform the estimation.
 
 # Perform the estimation
 pod_output = estimator.perform_estimation(pod_input)
+
 
 # The estimator appears to converge within ~4 steps. Lets check how close our initial guess and final estimate are compared to the benchmark initial state.
 
@@ -331,6 +345,7 @@ print(
 print(
     f"{target_name} final radial error to spice: {round(error_magnitude_final, 2)} km"
 )
+
 
 ## Visualising the results
 """
@@ -404,6 +419,7 @@ axs[0, 0].legend()
 
 plt.show()
 
+
 # As seen previously, the estimation converges around iteration 4.
 
 #### Residuals Correlations Matrix
@@ -442,6 +458,7 @@ fig.suptitle(f"Correlations for estimated parameters for {target_name}")
 
 fig.set_tight_layout(True)
 
+
 #### Orbit error vs spice over time
 """
 Next, lets take a look at the error of the orbit over time, using spice as a reference.
@@ -466,6 +483,7 @@ gap_ranges = [
 
 print(f"Largest gap = {round(max(gaps), 3)} years")
 print(gap_ranges)
+
 
 # Now lets plot the orbit error
 fig, ax = plt.subplots(1, 1, figsize=(9, 5))
@@ -518,6 +536,7 @@ fig.set_tight_layout(True)
 
 plt.show()
 
+
 # Please note that a lack of observations in an area of time does not necessarily result in a bad fit in that area. Lets look at the observatories next.
 
 #### Final residuals highlighted per observatory
@@ -531,6 +550,7 @@ num_observatories = 10
 final_residuals = np.array(residual_history[:, -1])
 # if you would like to check the iteration 1 residuals, use:
 # final_residuals = np.array(residual_history[:, 0])
+
 
 # This piece of code collects the 10 largest observatories
 observatory_names = (
@@ -567,6 +587,7 @@ mask_not_top = [
 # get the number of observations by the other observatories
 # (divide by two because the observations are concatenated RA,DEC in this list)
 n_obs_not_top = int(sum(mask_not_top) / 2)
+
 
 fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
@@ -627,6 +648,7 @@ fig.suptitle(f"Final Iteration residuals for {target_name}")
 fig.set_tight_layout(True)
 
 plt.show()
+
 
 #### Residual Boxplots per observatory
 """
@@ -718,6 +740,7 @@ ax.set_ylim(10 - 4, int(len(top_observatories_box) * 10) + 4)
 fig.set_tight_layout(True)
 plt.show()
 
+
 #### Histograms per observatory
 """
 Finally, lets get the residual histogram for the top 6 observatories, splitting again for right ascension and declination.
@@ -727,6 +750,7 @@ num_observatories = 6
 nbins = 20
 number_of_columns = 2
 transparency = 0.6
+
 
 number_of_rows = (
     int(num_observatories / number_of_columns)
@@ -781,6 +805,7 @@ fig.suptitle(
 )
 fig.set_tight_layout(True)
 plt.show()
+
 
 # That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the dynamical model and the estimation settings. Consider for example adding weights and biases on observations and links as well as improved integrator settings and perturbations. 
 # 
