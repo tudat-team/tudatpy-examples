@@ -65,7 +65,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
@@ -146,7 +146,7 @@ central_bodies = ["Earth"]
 """
 First off, the acceleration settings that act on `Delfi-C3` are to be defined.
 In this case, these consist in the followings:
-- Graviational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
+- Gravitational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
 - Radiation pressure acceleration caused by the Sun (using the radiation interface defined earlier).
@@ -192,7 +192,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
@@ -210,7 +210,7 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 """
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 # Define list of dependent variables to save
@@ -296,7 +296,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings
 )
 
-# Extract the resulting state and depedent variable history and convert it to an ndarray
+# Extract the resulting state and dependent variable history and convert it to an ndarray
 states = dynamics_simulator.state_history
 states_array = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history

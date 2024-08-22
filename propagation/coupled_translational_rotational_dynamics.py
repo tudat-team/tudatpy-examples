@@ -572,7 +572,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 ## Coupled dynamics
 """
-If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**, and the combined translational-rotational is another example of this mult-type propagation. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
+If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**, and the combined translational-rotational is another example of this multi-type propagation. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
 
 As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational), [rotational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.rotational) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
 
@@ -703,7 +703,7 @@ dependent_variable_history = simulator.dependent_variable_history
 ## Let's look at plots
 """
 We are now ready to do some post-processing, and look at our results! Here, we will be looking at how Phobos moves and rotates. In order to better interpret the results, it is good to gather some facts about its situation in the Martian system. Useful information on Phobos is: \
-· It has a semimajor axis of ~9500km. \
+· It has a semi-major axis of ~9500km. \
 · It has an orbital period of ~7h, which means that in 30 days it completes ~140 orbits around Mars. \
 · It is in a near-circular, near-equatorial orbit ($e\approx0.0151$, $i\approx1.1º$). \
 · It is locked in synchronous rotation, which means that Mars should be fixed at $0º$ latitude and longitude in the Phobian sky. \
@@ -728,7 +728,7 @@ plt.plot(epochs, dependents_array[:,1] / 1e3)
 plt.grid()
 plt.xlabel(time_label)
 plt.ylabel(r'$a$ [km]')
-plt.title('Semimajor axis')
+plt.title('Semi-major axis')
 
 plt.figure()
 plt.plot(epochs, dependents_array[:,2])
@@ -829,7 +829,7 @@ damped_dependent_variable_history = damping_results.forward_backward_dependent_v
 # · **The forward-backward states.** It is a list of tuples. Each tuple contains the results of one iteration. In each of these tuples, there are two dictionaries: one of them is the state history of the forward propagation, i.e. with the damping torque; the other is the state history of the backward propagation, i.e. without the torque. There is one more tuple than iterations. The tuple in index 0 contains the undamped states, i.e. the histories of the forward and backward states when no torque is applied. **Note:** In this tuple, the two dictionaries are in principle the same, because the dynamics of both propagations are identical. The small errors that might be encountered are fully integration errors. \
 # · **The forward-backward dependent variables.** It is the exact same thing as the forward-backward states, but with the dependent variables provided in the `propagator_settings`.
 # 
-# Notice that `dapming_results` already contains the propagated states of the "fully" damped dynamics, which means there is no need to re-propagate them again with the obtained damped initial state. The damped trjectory is readily available to us, although it spans the 40960h of the final damping time. To aid in comparison with the undamped dynamics from above, we will only plot the first 30 days.
+# Notice that `damping_results` already contains the propagated states of the "fully" damped dynamics, which means there is no need to re-propagate them again with the obtained damped initial state. The damped trajectory is readily available to us, although it spans the 40960h of the final damping time. To aid in comparison with the undamped dynamics from above, we will only plot the first 30 days.
 # 
 ## Let's look at plots (again)
 """
@@ -860,7 +860,7 @@ plt.plot(epochs, damped_dependents_array[:,1] / 1e3)
 plt.grid()
 plt.xlabel(time_label)
 plt.ylabel(r'$a$ [km]')
-plt.title('Semimajor axis')
+plt.title('Semi-major axis')
 
 plt.figure()
 plt.plot(epochs, damped_dependents_array[:,2])
