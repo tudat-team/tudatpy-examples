@@ -353,7 +353,7 @@ def create_hodographic_trajectory(
 
     return trajectory_object
 
-# Create function to obtain transfer ΔV
+# Create function to obtain transfer $\Delta V$
 
 
 def hodographic_low_thrust_trajectory_delta_v(

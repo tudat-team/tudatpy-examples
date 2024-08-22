@@ -80,6 +80,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 We create two identical vehicles, called asterix and obelix, we set the mass and the aerodynamic coefficient 
 interface (one satellite has 3X the surface of the other satellite). The main vehicle properties are:
+
 - mass: 5 kg
 - drag surface: 0.03 and 0.01 $m^2$
 - aerodynamic coefficient: 1.2
@@ -121,6 +122,7 @@ environment_setup.add_aerodynamic_coefficient_interface(
 
 We set the (identical) accelerations acting on the satellites.
 The dynamical model includes the following accelerations:
+
 - spherical harmonic gravity exerted by the Earth, up to degree 2 and order 0
 - aerodynamic
 - point mass gravity of the Sun and the Moon
@@ -184,6 +186,7 @@ initial_states = np.concatenate((initial_state, initial_state))
 ### Set dependent variables to save
 """
 These include (for both satellites):
+
 - the keplerian states
 - the norm of the aerodynamic drag
 """
@@ -204,6 +207,7 @@ dependent_variables_to_save = [
 """
 
 The simulation terminates when one of the two occurs:
+
 - simulation time reaches 60 days
 - angular separation between two satellites reaches 20 degrees
 
@@ -386,6 +390,7 @@ print("Termination reason:" + angular_separation.termination_reason)
 """
 
 The output is processed to produce the following figures:
+
 1. kepler elements
 2. drag acceleration norm
 3. semi-major axis, with linear regression to see the difference in decay of both satellites

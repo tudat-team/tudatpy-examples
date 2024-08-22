@@ -54,6 +54,7 @@ Then, the class must contain an `updateGuidance()` function that will be called 
 Most importantly, this function updates both the angle of attack (`self.angle_of_attack`) and bank angle (`self.bank_angle`) of the vehicle.
 
 The angle of attack $\alpha$ should be updated as a function of the Mach number $M$ as follows:
+
 - $\alpha = 40$ deg if $M > 12$.
 - $\alpha = 10$ deg if $M < 6$.
 - $\alpha$ varies linearly between the two boundaries for other $M$.
@@ -344,6 +345,7 @@ dependent_variables_to_save = [
 The propagator is finally setup.
 
 First, a termination condition is defined so that the propagation as soon as one of these conditions is fulfilled:
+
 - The altitude gets below 25km.
 - The simulation time gets above 3 days.
 

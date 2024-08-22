@@ -47,8 +47,9 @@ This class, `HimmelblauOptimization`, will be taken as input from the `pygmo.pro
 problem.
 
 To be PyGMO-compatible, the UDP class must have two methods:
- - `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
- - `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
+
+- `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
+- `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
  
 Please refer to [PyGMO UDP tutorial](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) for more on how to define a UDP.
 """
@@ -98,7 +99,7 @@ print(prob)
 """
 As a second step, we have to create an algorithm to solve the problem. Many different algorithms are available through PyGMO, including heuristic methods and local optimizers.
 
-In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](See also https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
+In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
 
 See also [this tutorial](https://esa.github.io/pygmo2/tutorials/using_algorithm.html) on PyGMO algorithms.
 """

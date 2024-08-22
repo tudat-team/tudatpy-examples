@@ -125,12 +125,15 @@ central_bodies = ["Earth"]
 ### Create the acceleration model
 """
 Subsequently, all accelerations (and there settings) that act on `Delfi-C3` have to be defined. In particular, we will consider:
+
 * Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
 * Aerodynamic acceleration for Earth.
 * Gravitational acceleration using a simple point mass model for:
+
     - The Sun
     - The Moon
     - Mars
+
 * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 
 The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
