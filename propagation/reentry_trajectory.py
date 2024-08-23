@@ -121,7 +121,7 @@ class STSAerodynamicGuidance:
 
             # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
             current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
-            
+
             # Extract the current force coefficients (in order: C_D, C_S, C_L)
             current_force_coefficients = self.aerodynamic_coefficient_interface.current_force_coefficients
             # Extract the (constant) reference area of the vehicle
@@ -191,8 +191,6 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
 These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
 
 # Create default body settings for "Earth"
@@ -204,9 +202,6 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies (in this case only Earth)
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 
 ### Create the vehicle
 """
@@ -214,9 +209,10 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be simulated.
 """
 
-# Create vehicle object and set its constant mass
-bodies.create_empty_body("STS")
-bodies.get_body( "STS" ).set_constant_mass(5.0e3)
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("STS")
+
+body_settings.get("STS").constant_mass = 5000
 
 
 ### Add an aerodynamic coefficient interface
@@ -246,18 +242,23 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 )
 
 # Add predefined aerodynamic coefficients database to the body
-environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
+body_settings.get("STS").aerodynamic_coefficient_settings = coefficient_settings
 
-# ### Add rotation model based on aerodynamic guidance
-=======
+
+# The system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
+### Add rotation model based on aerodynamic guidance
+"""
 # Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
 rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
     'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
 environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
+"""
 
 
 ## Propagation setup

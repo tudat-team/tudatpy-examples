@@ -68,8 +68,6 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
 These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", "Venus"
@@ -81,9 +79,6 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create the system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 
 ### Create the vehicle and its environment interface
 """
@@ -94,30 +89,38 @@ This satellite is setup to have mass of 2.2 kg, a reference area (used both for 
 When setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 """
 
-# Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 2.2 #kg
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("Delfi-C3")
+
+body_settings.get("Delfi-C3").constant_mass = 400
 
 # Create aerodynamic coefficient interface settings
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-# Add the aerodynamic interface to the environment
-environment_setup.add_aerodynamic_coefficient_interface(
-            bodies, "Delfi-C3", aero_coefficient_settings)
+
+# Add the aerodynamic interface to the body settings
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-# Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(
-            bodies, "Delfi-C3", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create the system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 ## Propagation setup
@@ -159,7 +162,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 # Define unique (Sun, Earth) accelerations acting on Delfi-C3
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Earth=[
