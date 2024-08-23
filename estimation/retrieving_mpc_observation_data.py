@@ -27,9 +27,9 @@ In this example we do not perform an estimation, as such we only need the batchM
 """
 
 from tudatpy.data.mpc import BatchMPC
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation.estimation_setup import observation
-from tudatpy.kernel.interface import spice
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.interface import spice
 
 from tudatpy.data.horizons import HorizonsQuery
 

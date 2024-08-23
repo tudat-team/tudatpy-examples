@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 import tudatpy
 from tudatpy import constants
 from tudatpy import numerical_simulation
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.trajectory_design import shape_based_thrust
 from tudatpy.trajectory_design import transfer_trajectory
@@ -59,7 +59,7 @@ The simulation environment is set up here: the standard Spice kernels are loaded
 """
 
 # Load spice kernels
-spice_interface.load_standard_kernels( )
+spice.load_standard_kernels( )
 
 # Define global frame orientation
 global_frame_orientation = 'ECLIPJ2000'
@@ -769,7 +769,7 @@ def inspect_low_thrust_trajectory(
     # RETRIEVE EPHEMERIS OF ASTRONOMICAL BODIES ###############################
     ###########################################################################
 
-    retrieve_ephemeris = lambda body: np.vstack([spice_interface.get_body_cartesian_state_at_epoch(
+    retrieve_ephemeris = lambda body: np.vstack([spice.get_body_cartesian_state_at_epoch(
         target_body_name=body,
         observer_body_name="SSB",
         reference_frame_name="ECLIPJ2000",

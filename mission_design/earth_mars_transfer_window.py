@@ -35,7 +35,7 @@ import pickle
 
 # Tudat imports
 from tudatpy import constants
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
@@ -48,7 +48,7 @@ We proceed to set up the simulation environment, by loading the standard Spice k
 """
 
 # Load spice kernels
-spice_interface.load_standard_kernels( )
+spice.load_standard_kernels( )
 
 # Define global frame orientation
 global_frame_orientation = 'ECLIPJ2000'

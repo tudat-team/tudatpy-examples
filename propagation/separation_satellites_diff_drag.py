@@ -34,12 +34,12 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
 from tudatpy.astro.time_conversion import DateTime
 
 # Load spice kernels
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
 
 
 ## Creation of the environment

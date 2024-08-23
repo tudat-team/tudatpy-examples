@@ -361,7 +361,7 @@ def define_dependent_variables_to_save(section_name):
     return [
         propagation_setup.dependent_variable.altitude( section_name, "Mars" ),
         propagation_setup.dependent_variable.airspeed( section_name, "Mars" ),
-        propagation_setup.dependent_variable.dynamic_pressure( section_name ),
+        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars" ),
         propagation_setup.dependent_variable.body_mass( section_name ),
         propagation_setup.dependent_variable.total_acceleration_norm( section_name ),
         propagation_setup.dependent_variable.single_acceleration_norm(

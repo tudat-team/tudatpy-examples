@@ -64,10 +64,10 @@ def create_low_thrust_transfer_object(transfer_body_order: list,
                                       departure_eccentricity: float,
                                       arrival_semi_major_axis: float,
                                       arrival_eccentricity: float,
-                                      bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+                                      bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
                                       central_body: str,
                                       numbers_of_revolutions: List[int]) -> \
-        tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory:
+        tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory:
 
     # Create the list with the velocity shaping functions to use in each leg
     radial_velocity_function_components_per_leg = []
@@ -324,7 +324,7 @@ class MGAHodographicShapingTrajectoryOptimizationProblem:
 
     def get_transfer_trajectory_object(self,
                                        design_parameter_vector: np.ndarray) -> \
-            tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory:
+            tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory:
         """
         Function that creates a transfer trajectory object, evaluates it using the provided design parameter vector and
         return the evaluated transfer trajectory object.
@@ -336,7 +336,7 @@ class MGAHodographicShapingTrajectoryOptimizationProblem:
 
     def get_node_times(self,
                        design_parameter_vector: np.ndarray) -> \
-            tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory:
+            tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory:
         """
         Function that creates a transfer trajectory object, evaluates it using the provided design parameter vector and
         returns the associated node times.

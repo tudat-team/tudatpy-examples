@@ -49,7 +49,7 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.io import save2txt
+from tudatpy.data import save2txt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
@@ -533,6 +533,7 @@ for i in range(len(orbit_parameters)):
 
         # Create Asteroid Orbit Problem object
         current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                                  integrator_settings,
                                                                   propagator_settings,
                                                                   mission_initial_time,
                                                                   mission_duration,
@@ -663,6 +664,7 @@ for i in range(len(FFD_array)):
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,
@@ -748,6 +750,7 @@ for i in range(len(yates_array)): # Run through yates array
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,

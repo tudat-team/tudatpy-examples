@@ -12,12 +12,12 @@ This example highlights a simple orbit estimation routine using real, angular ob
 ## Import statements
 """
 # Tudat imports for propagation and estimation
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
-from tudatpy.kernel.numerical_simulation.estimation_setup import observation
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import estimation, estimation_setup
+from tudatpy.numerical_simulation.estimation_setup import observation
 """
 
 # import MPC interface
@@ -232,14 +232,14 @@ initial_states = spice.get_body_cartesian_state_at_epoch(
 )
 
 # Add random offset for initial guess
-np.random.seed = 1
+rng = np.random.default_rng(seed=1)
 
 initial_position_offset = 1e6 * 1000
 initial_velocity_offset = 100
 
 initial_guess = initial_states.copy()
-initial_guess[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
-initial_guess[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
+initial_guess[0:3] += (2 * rng.random(3) - 1) * initial_position_offset
+initial_guess[3:6] += (2 * rng.random(3) - 1) * initial_velocity_offset
 
 print("Error between the real initial state and our initial guess:")
 print(initial_guess - initial_states)
