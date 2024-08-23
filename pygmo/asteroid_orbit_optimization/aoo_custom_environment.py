@@ -42,7 +42,7 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.io import save2txt
+from tudatpy.data import save2txt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
