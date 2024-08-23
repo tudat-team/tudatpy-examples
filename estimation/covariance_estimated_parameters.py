@@ -94,29 +94,34 @@ body_settings = environment_setup.get_default_body_settings(
 # In[4]:
 
 
-# Create vehicle objects.
+# Create empty body settings for the satellite
 body_settings.add_empty_settings("Delfi-C3")
-body_settings.get("Delfi-C3").constant_mass = 2.2 #kg
+
+body_settings.get("Delfi-C3").constant_mass = 2.2
 
 # Create aerodynamic coefficient interface settings
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-# Add the aerodynamic interface to the environment
+
+# Add the aerodynamic interface to the body settings
 body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = dict()
-occulting_bodies["Sun"] = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
-    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
 
-# Add the radiation pressure interface to the environment
-body_settings.get("Delfi-C3").radiation_pressure_target_settings = radiation_pressure_settings
+# Add the radiation pressure interface to the body settings
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
