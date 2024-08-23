@@ -91,7 +91,6 @@ bodies_to_create = ["Sun", "Earth", "Moon"]
 # Create bodies in simulation
 """
 body_settings = environment_setup.get_default_body_settings(bodies_to_create)
-system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 
 
@@ -102,8 +101,8 @@ Let's now create the 5000 kg Vehicle for which the trajectory between the Earth 
 """
 
 # # Create the vehicle body in the environment
-system_of_bodies.create_empty_body("Vehicle")
-system_of_bodies.get_body("Vehicle").set_constant_mass(5e3)
+body_settings.add_empty_settings("Vehicle")
+body_settings.get("Vehicle").constant_mass = 5000
 
 
 ### Define the thrust guidance settings
@@ -122,7 +121,9 @@ rotation_model_settings = environment_setup.rotation_model.orbital_state_directi
         direction_is_opposite_to_vector=False,
         base_frame = "",
         target_frame = "VehicleFixed" )
-environment_setup.add_rotation_model( system_of_bodies, 'Vehicle', rotation_model_settings )
+body_settings.get("Vehicle").rotation_model_settings = rotation_model_settings
+
+system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 
 thrust_magnitude_settings = (
     propagation_setup.thrust.constant_thrust_magnitude(

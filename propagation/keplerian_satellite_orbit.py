@@ -69,8 +69,6 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
 These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
 
 # Create default body settings for "Earth"
@@ -82,17 +80,20 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies (in this case only Earth)
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
-### Create the vehicle
+### Create the vehicle settings
 """
 Let's now create the massless satellite for which the orbit around Earth will be propagated.
 """
 
-# Add vehicle object to system of bodies
-bodies.create_empty_body("Delfi-C3")
+# Add empty settings to body settings
+body_settings.add_empty_settings("Delfi-C3")
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create system of bodies (in this case only Earth)
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 ## Propagation setup

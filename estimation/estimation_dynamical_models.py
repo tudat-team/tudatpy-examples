@@ -66,23 +66,24 @@ global_frame_orientation = "ECLIPJ2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 ### VEHICLE BODY ###
 # Create vehicle object
-bodies.create_empty_body("MEX")
-bodies.get("MEX").mass = 1000.0
+body_settings.add_empty_settings("MEX")
+body_settings.get("MEX").constant_mass = 1000.0
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Mars"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-# Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(bodies, "MEX", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Mars"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("MEX").radiation_pressure_target_settings = vehicle_target_settings
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Define bodies that are propagated
 bodies_to_propagate = ["MEX"]
@@ -250,7 +251,7 @@ accelerations_settings_mars_express_simulation = dict(
     ],
     Sun=[
         propagation_setup.acceleration.point_mass_gravity(),
-        propagation_setup.acceleration.cannonball_radiation_pressure()
+        propagation_setup.acceleration.radiation_pressure()
     ])
 
 
