@@ -1,12 +1,8 @@
 # Propagation of coupled translational-rotational dynamics
 """
 
-"""
-
-## Objectives
-"""
-
 The present example will demonstrate the use of a multi-type propagator in Tudat. For that, we will consider the problem of simulating the coupled translational-rotational dynamics of Phobos around Mars, including the definition of a realistic initial state. Let's begin by talking about the forces and torques that we'll be considering as part of our dynamical problem.
+
 """
 
 ## Phobos' dynamics in the Martian system
@@ -61,6 +57,7 @@ When implementing the dynamics in tudat, it is important to be specific in the e
 - The inertia tensor of Phobos.
 
 For most of these, we will use the defaults provided by spice. For Phobos, however, we will create it ourselves from scratch, since the default settings (point mass gravity field; no inertia tensor) are insufficient for our purposes.
+
 """
 
 ## Import statements
@@ -82,7 +79,7 @@ from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entri
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
 
-spice.load_standard_kernels([])
+spice.load_standard_kernels()
 
 
 ## Auxiliary functions
@@ -212,7 +209,7 @@ def bring_inside_bounds(original: float | np.ndarray, lower_bound: float,
     if include not in ['upper', 'lower']:
         raise ValueError('(bring_inside_bounds): Invalid value for argument "include". Only "upper" and "lower" are allowed. Provided: ' + include)
 
-    if type(original) in [float, np.float32, np.float64, np.longdouble()]: #np.longdouble replaces np.float128, which might give problems in some architectures
+    if type(original) in [float, np.float32, np.float64, np.float128]:
         to_return = bring_inside_bounds_scalar(original, lower_bound, upper_bound, include)
     else:
         dim_num = len(original.shape)
@@ -400,12 +397,10 @@ def get_fourier(time_history: np.ndarray, clean_signal: list = [0.0, 0]) -> tupl
         signal = remove_jumps(signal, clean_signal[0])
     if clean_signal[1] != 0:
         coeffs = polyfit(sample_times, signal, clean_signal[1])
-        idx = 0
-        while idx < len(coeffs):
+        for idx in range(len(coeffs)):
             current_coeff = coeffs[idx]
             exponent = idx
             signal = signal - current_coeff*sample_times**exponent
-            idx +=1
 
     n = len(sample_times)
     dt = sample_times[1] - sample_times[0]
@@ -816,21 +811,22 @@ plt.show()
 """
 As we just saw, Phobos does not rotate the way we would expect it to, due to the presence of excited normal modes. The fact that the normal mode is excited is a result of the initial rotational state, which is not consistent with rotational dynamics in which the normal modes are damped. We solve this problem by determining an initial state where these normal modes **are** damped, following the method used by (Rambaux et al. 2010). Specifically, we introduce a _virtual torque_ ("virtual" is a scientific word for "made up") that we know has a strong damping effect, and we propagate the dynamics forward in time. At one point, we will reach a state in which the normal modes have been eliminated from the dynamics (or 'damped'). Now, we remove this damping torque and we propagate the dynamics backward in time from this point onwards, until we reach our original initial time. This new rotational state that we have found, and will call the _damped initial state_ would ideally not excite the normal modes of Phobos when propagated forward again using our 'normal' (e.g. without the virtual torque) dynamical model.
 
-In practice, the normal mode will be excited much less than initially, but some excitation still remains. This is further resolved by repeating the above procedure many times, with increasing 'damping times'. In Tudat, this approach is automated by the [`get_damped_proper_mode_initial_rotational_state` function](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state), where additional details of the algorithm are described. In short, a _damping time_ $\tau_{d}$ is selected, which is a measure of how quick the virtual torque will eliminate the normal modes, and it is used to compute the torque. The propagation is performed forwards in time with the virtual torque enabled, for $10 \tau_{d}$, and backwards to the original time without it. The new initial state is used in another iteration with a new and larger damping time. The implementation of the virtual torque in this algorithm is very specific to bodies in spin-orbit resonance, which will (averaged over long time periods) rotate uniformly around their body-fixed :math:`z` axis, with a period equal to the orbital period. The damping torque will act to prevent the excitation of the normal modes while preserving that uniform rotation. The function thus requires as inputs: (1) the `bodies` object, (2) the `propagator_settings` object, (3) the mean rotational rate of the body around its Z axis, and (4) a list of dissipation times or damping times in order to compute the virtual torques for the different iteration. The above is implemented as follows:
+In practice, the normal mode will be excited much less than initially, but some excitation still remains. This is further resolved by repeating the above procedure many times, with increasing 'damping times'. In Tudat, this approach is automated by the `get_zero_proper_mode_rotational_state` function [TODO: add API docs], where additional details of the algorithm are described. In short, a _damping time_ :math:`\tau_{d}` is selected, which is a measure of how quick the virtual torque will eliminate the normal modes, and it is used to compute the torque. The propagation is performed forwards in time with the virtual torque enabled, for :math:`10 \tau_{d}`, and backwards to the original time without it. The new initial state is used in another iteration with a new and larger damping time. The implementation of the virtual torque in this algorithm is very specific to bodies in spin-orbit resonance, which will (averaged over long time periods) rotate uniformly around their body-fixed :math:`z` axis, with a period equal to the orbital period. The damping torque will act to prevent the excitation of the normal modes while preserving that uniform rotation. The function thus requires as inputs: (1) the `bodies` object, (2) the `propagator_settings` object, (3) the mean rotational rate of the body around its Z axis, and (4) a list of dissipation times or damping times in order to compute the virtual torques for the different iteration. The above is implemented as follows:
 """
 
 phobos_mean_rotational_rate = 0.000228035245  # In rad/s
 # As dissipation times, we will start with 4h and keep duplicating the damping time in each iteration. In the final iteration, a damping time of 4096h means a propagation time of 40960h, which is a bit over 4.5 years.
 dissipation_times = list(np.array([4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0])*3600.0)  # In seconds. Here, we
-damping_results = numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
+damping_results = numerical_simulation.propagation.get_zero_proper_mode_rotational_state(bodies,
                                                                                          combined_propagator_settings,
                                                                                          phobos_mean_rotational_rate,
                                                                                          dissipation_times)
 damped_state_history = damping_results.forward_backward_states[-1][1]
 damped_dependent_variable_history = damping_results.forward_backward_dependent_variables[-1][1]
 
+
 # As you can see, we are using the `bodies` and the `propagator_settings` that we had already created earlier. The output of this function is the `damping_results` object, of type [TODO, insert link to class here]. This object contains:
-#
+# 
 # - **The damped initial state.** This state is of the same type and size as the one provided in the `propagator_settings`. In this case of the coupled dynamics, a 13-dimensional vector. This is the initial state that the algorithm finds after its iterations, for which the normal modes should be (almost) entirely damped.
 # - **The forward-backward states.** It is a list of tuples. Each tuple contains the results of one iteration. In each of these tuples, there are two dictionaries: one of them is the state history of the forward propagation, i.e. with the damping torque; the other is the state history of the backward propagation, i.e. without the torque. There is one more tuple than iterations. The tuple in index 0 contains the undamped states, i.e. the histories of the forward and backward states when no torque is applied. **Note:** In this tuple, the two dictionaries are in principle the same, because the dynamics of both propagations are identical. The small errors that might be encountered are fully integration errors.
 # - **The forward-backward dependent variables.** It is the exact same thing as the forward-backward states, but with the dependent variables provided in the `propagator_settings`.
@@ -840,8 +836,6 @@ damped_dependent_variable_history = damping_results.forward_backward_dependent_v
 ## Let's look at plots (again)
 """
 With the new damped states and dependent variables, we can perform the same kind of post-processing that we did earlier.
-
-In these new damped dynamics, Mars does oscillate periodically around $0º$ of latitude and longitude in Phobos' sky, and the Fourier transform shows that the frequency at the normal mode is gone. Note that we would see the same thing in the FFT of Phobos' Euler angles. This is now a faithful representation of Phobos' motion. Note that, even though the libration at the frequency of the normal mode is removed, the fact that Phobos' normal mode is very close to its orbital period (strongest forcing frequency), there are numerous small forcing terms close to the normal mode that result in observable effects in Phobos' libration frequency spectrum. These are discussed and tabulated in detail by (Rambaux et al. 2010).
 """
 
 ## PLOTS
@@ -935,3 +929,5 @@ plt.legend()
 
 plt.show()
 
+
+# In these new damped dynamics, Mars does oscillate periodically around $0º$ of latitude and longitude in Phobos' sky, and the Fourier transform shows that the frequency at the normal mode is gone. Note that we would see the same thing in the FFT of Phobos' Euler angles. This is now a faithful representation of Phobos' motion. Note that, even though the libration at the frequency of the normal mode is removed, the fact that Phobos' normal mode is very close to its orbital period (strongest forcing frequency), there are numerous small forcing terms close to the normal mode that result in observable effects in Phobos' libration frequency spectrum. These are discussed and tabulated in detail by (Rambaux et al. 2010).
