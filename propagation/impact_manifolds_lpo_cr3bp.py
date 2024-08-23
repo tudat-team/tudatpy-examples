@@ -67,7 +67,7 @@ def cr3bp_unit_of_time (gravitational_parameter_primary: float,
 
 ########################################################################################################################
 # Get full-state rotation matrix from inertial frame to body-fixed frame
-def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -83,7 +83,7 @@ def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.kernel.numerical_simu
 
 ########################################################################################################################
 # Get full-state rotation matrix from body-fixed frame to inertial frame
-def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -100,7 +100,7 @@ def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.kernel.numerical_simu
 ########################################################################################################################
 # Conversion of state from inertial to body-fixed frame
 def convert_state_history_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_inertial: dict) -> dict:
 
@@ -116,7 +116,7 @@ def convert_state_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion of state from body-fixed to inertial frame
 def convert_state_history_body_fixed_to_inertial(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_body_fixed: dict) -> dict:
 
@@ -132,7 +132,7 @@ def convert_state_history_body_fixed_to_inertial(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_history_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_history_inertial: dict) -> dict:
 
@@ -150,7 +150,7 @@ def convert_stm_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_inertial: np.ndarray,
         time_initial: float,

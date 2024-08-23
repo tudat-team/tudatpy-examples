@@ -105,12 +105,14 @@ There are four mandatory methods that must be implemented in the class:
 
 class TransferTrajectoryProblem:
 
-    def __init__(self,
-                 transfer_trajectory_object: tudatpy.kernel.trajectory_design.transfer_trajectory.TransferTrajectory,
-                 departure_date_lb: float, # Lower bound on departure date
-                 departure_date_ub: float, # Upper bound on departure date
-                 legs_tof_lb: np.ndarray, # Lower bounds of each leg's time of flight
-                 legs_tof_ub: np.ndarray): # Upper bounds of each leg's time of flight
+    def __init__(
+        self,
+        transfer_trajectory_object: tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory,
+        departure_date_lb: float,  # Lower bound on departure date
+        departure_date_ub: float,  # Upper bound on departure date
+        legs_tof_lb: np.ndarray,  # Lower bounds of each leg's time of flight
+        legs_tof_ub: np.ndarray,
+    ):  # Upper bounds of each leg's time of flight
         """
         Class constructor.
         """
