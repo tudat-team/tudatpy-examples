@@ -233,25 +233,25 @@ def create_simulation_bodies(itokawa_radius):
         spice.get_body_gravitational_parameter( 'Sun') )
     # Shape (spherical)
     body_settings.get("Itokawa").shape_settings = get_itokawa_shape_settings(itokawa_radius)
-    # Create system of selected bodies
-    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     ### VEHICLE BODY ###
     # Create vehicle object
-    bodies.create_empty_body("Spacecraft")
-    bodies.get("Spacecraft").set_constant_mass(400.0)
+    body_settings.add_empty_settings("Spacecraft")
+    body_settings.get("Spacecraft").constant_mass = 400
 
-    # Create radiation pressure settings, and add to vehicle
+    # Create radiation pressure settings
     reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
     radiation_pressure_coefficient = 1.2
-    radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-        "Sun",
-        reference_area_radiation,
-        radiation_pressure_coefficient)
-    environment_setup.add_radiation_pressure_interface(
-        bodies,
-        "Spacecraft",
-        radiation_pressure_settings)
+    occulting_bodies_dict = dict()
+    occulting_bodies_dict["Sun"] = ["Itokawa"]
+    vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+        reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+    # Add the radiation pressure interface to the body settings
+    body_settings.get("Spacecraft").radiation_pressure_target_settings = vehicle_target_settings
+
+    # Create system of selected bodies
+    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     return bodies
 
@@ -270,7 +270,7 @@ This function takes as input the list of bodies that will be propagated, the lis
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     # Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
-        Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
+        Sun =     [ propagation_setup.acceleration.radiation_pressure(),
                     propagation_setup.acceleration.point_mass_gravity() ],
         Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(3, 3) ],
         Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
