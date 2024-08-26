@@ -353,8 +353,6 @@ simulated_observations = estimation.simulate_observations(
     bodies)
 
 
-# <a id='estimation_section'></a>
-
 ## Perform the estimation
 """
 Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is entirely identical.

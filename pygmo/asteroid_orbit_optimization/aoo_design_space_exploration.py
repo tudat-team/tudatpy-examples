@@ -548,12 +548,12 @@ for i in range(len(orbit_parameters)):
 
         ### OUTPUT OF THE SIMULATION ###
         # Retrieve propagated state and dependent variables
-        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
         # Get the number of function evaluations (for comparison of different integrators)
         dynamics_simulator = current_asteroid_orbit_problem.get_last_run_dynamics_simulator()
-        function_evaluation_dict = dynamics_simulator.cumulative_number_of_function_evaluations
+        function_evaluation_dict = dynamics_simulator.propagation_results.cumulative_number_of_function_evaluations_history
         number_of_function_evaluations = list(function_evaluation_dict.values())[-1]
 
         dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
@@ -678,8 +678,8 @@ for i in range(len(FFD_array)):
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
@@ -764,8 +764,8 @@ for i in range(len(yates_array)): # Run through yates array
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
