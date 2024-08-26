@@ -737,7 +737,7 @@ def inspect_low_thrust_trajectory(
     # PROCESS SIMULATION OUTPUT ###############################################
     ###########################################################################
     # Retrieve propagated state and dependent variables
-    state_history = dynamics_simulator.state_history
+    state_history = dynamics_simulator.propagation_results.state_history
 
     # Create dependent variable dictionary
     dv_dict = create_dependent_variable_dictionary(dynamics_simulator)

@@ -410,7 +410,7 @@ After this, the dependent variable history is extracted.
 The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 
-In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.state_history` variable.
+In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.propagation_results.state_history` variable.
 """
 
 # Create the simulation objects and propagate the dynamics
@@ -419,7 +419,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 )
 
 # Extract the resulting simulation dependent variables
-dependent_variables = dynamics_simulator.dependent_variable_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 # Convert the dependent variables from a dictionary to a numpy array
 dependent_variables_array = result2array(dependent_variables)
 

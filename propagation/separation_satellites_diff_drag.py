@@ -389,8 +389,8 @@ With these commands, we execute the simulation and retrieve the output.
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings)
-states = dynamics_simulator.state_history
-dependent_variables = dynamics_simulator.dependent_variable_history
+states = dynamics_simulator.propagation_results.state_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)

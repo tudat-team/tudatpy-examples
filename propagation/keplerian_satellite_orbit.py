@@ -209,7 +209,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 )
 
 # Extract the resulting state history and convert it to an ndarray
-states = dynamics_simulator.state_history
+states = dynamics_simulator.propagation_results.state_history
 states_array = result2array(states)
 
 
