@@ -309,7 +309,7 @@ propagator_settings_simulation = propagation_setup.propagator. \
 propagator_settings_simulation.processing_settings.set_integrated_result = True
 # Run propagation
 dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings_simulation)
-state_history_simulated_observations = dynamics_simulator.state_history
+state_history_simulated_observations = dynamics_simulator.propagation_results.state_history
 
 # Create observation simulators
 observation_simulators = estimation_setup.create_observation_simulators(

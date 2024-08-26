@@ -384,8 +384,8 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 
 # Extract the state and dependent variable history
 """
-state_history = dynamics_simulator.state_history
-dependent_variable_history = dynamics_simulator.dependent_variable_history
+state_history = dynamics_simulator.propagation_results.state_history
+dependent_variable_history = dynamics_simulator.propagation_results.dependent_variable_history
 """
 
 # Convert the dictionaries to multi-dimensional arrays
