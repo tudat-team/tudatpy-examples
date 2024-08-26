@@ -109,6 +109,7 @@ class STSAerodynamicGuidance:
             mach_number = self.vehicle_flight_conditions.mach_number
             airspeed = self.vehicle_flight_conditions.airspeed
             density = self.vehicle_flight_conditions.density
+            print(f'Density:{density}')
 
             # Set the current Angle of Attack (AoA). The following line enforces the followings:
             # * the AoA is constant at 40deg when the Mach number is above 12

@@ -312,6 +312,8 @@ print(f"Declination: {np.round(max_diff_DEC, 10)} rad")
 # create plot
 fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
 
+print(f'RA residuals:\n {jpl_RA - batch_RA}')
+print(f'DEC residuals:\n + {jpl_DEC-batch_DEC}')
 
 ax_ra.scatter(batch_times_utc, (jpl_RA - batch_RA), marker="+")
 ax_dec.scatter(batch_times_utc, (jpl_DEC - batch_DEC), marker="+")
