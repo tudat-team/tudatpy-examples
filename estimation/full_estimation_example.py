@@ -341,7 +341,6 @@ simulated_observations = estimation.simulate_observations(
     estimator.observation_simulators,
     bodies)
 
-# <a id='estimation_section'></a>
 
 ## Perform the estimation
 """
