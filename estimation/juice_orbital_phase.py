@@ -34,7 +34,7 @@ def get_gravity_ganymede():
 
     cosine_coef[0, 0] = 1.0
     cosine_coef[2, 0] = -127.8e-6 / gravitation.legendre_normalization_factor(2, 0)
-    cosine_coef[2, 2] = 38.3e-6 / gravitation.legendre_normalization_factor(2, 2)
+    cosine_coef[2, 2] = 38.3e-6 / gravitation.legendre_normalization_factorPoint(2, 2)
 
     return environment_setup.gravity_field.spherical_harmonic(mu_ganymede, radius_ganymede, cosine_coef, sine_coef, "IAU_Ganymede")
 
