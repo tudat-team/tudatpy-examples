@@ -511,9 +511,9 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     propagator_settings
 )
 # Extract the propagated states and dependent variables and convert them to numpy arrays
-states = dynamics_simulator.state_history
+states = dynamics_simulator.propagation_results.state_history
 states_array_section_1 = result2array(states)
-dep_vars = dynamics_simulator.dependent_variable_history
+dep_vars = dynamics_simulator.propagation_results.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
 

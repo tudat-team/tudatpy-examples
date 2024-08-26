@@ -376,7 +376,7 @@ class AsteroidOrbitProblem:
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
-        dependent_variables = dynamics_simulator.dependent_variable_history
+        dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
         
         # Retrieve distance
@@ -391,7 +391,7 @@ class AsteroidOrbitProblem:
 
         # Exaggerate fitness value if the spacecraft has broken out of the selected distance range
         current_penalty = 0.0
-        if (max(dynamics_simulator.dependent_variable_history.keys()) < self.mission_final_time):
+        if (max(dynamics_simulator.propagation_results.dependent_variable_history.keys()) < self.mission_final_time):
             current_penalty = 1.0E2
 
         return [current_fitness + current_penalty, np.mean(distance) + current_penalty * 1.0E3]
