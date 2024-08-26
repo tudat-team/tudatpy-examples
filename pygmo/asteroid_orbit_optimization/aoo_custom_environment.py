@@ -583,7 +583,7 @@ orbitProblem.fitness(design_variable_vector)
 With a little bit of post-processing, the orbit can be plotted. You can see that with only 2 full orbits that the trajectory is already very perturbed. This has to do with all the perturbations that are in the model, which poses a challenge for the optimization in the next two parts of the example.
 """
 
-state_history = orbitProblem.get_last_run_dynamics_simulator().state_history
+state_history = orbitProblem.get_last_run_dynamics_simulator().propagation_results.state_history
 state_history = np.vstack(list(state_history.values()))
 state_history = np.vstack(state_history)
 

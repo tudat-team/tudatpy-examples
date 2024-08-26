@@ -583,8 +583,8 @@ for population_index, population_name in pops_to_analyze.items():
         orbitProblem.fitness(current_orbit_parameters)
         
         # Retrieve state and dependent variable history
-        current_states = orbitProblem.get_last_run_dynamics_simulator().state_history
-        current_dependent_variables = orbitProblem.get_last_run_dynamics_simulator().dependent_variable_history
+        current_states = orbitProblem.get_last_run_dynamics_simulator().propagation_results.state_history
+        current_dependent_variables = orbitProblem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
         
         # Save results to dict
         generation_output[individual] = [current_states, current_dependent_variables]
