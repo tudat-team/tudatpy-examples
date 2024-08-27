@@ -20,7 +20,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
-# In[231]:
+# In[287]:
 
 
 # Load required standard modules
@@ -47,7 +47,7 @@ from tudatpy.astro import element_conversion
 # 
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
 
-# In[232]:
+# In[288]:
 
 
 # Load spice kernels
@@ -55,11 +55,11 @@ spice.load_standard_kernels()
 
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2024, 8, 28).epoch()
-simulation_end_epoch   = DateTime(2024, 9, 10).epoch()
+simulation_end_epoch   = DateTime(2024, 9, 5).epoch()
 observation_start_epoch_1 = DateTime(2024, 8, 30).epoch()
-observation_end_epoch_1   = DateTime(2024, 9, 2).epoch()
-observation_start_epoch_2   = DateTime(2024, 9, 6).epoch()
-observation_end_epoch_2   = DateTime(2024, 9, 7).epoch()
+observation_end_epoch_1   = DateTime(2024, 9, 1).epoch()
+observation_start_epoch_2   = DateTime(2024, 9, 3).epoch()
+observation_end_epoch_2   = DateTime(2024, 9, 4).epoch()
 
 
 # ## Set up the environment
@@ -72,7 +72,7 @@ observation_end_epoch_2   = DateTime(2024, 9, 7).epoch()
 # 
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[233]:
+# In[289]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -91,7 +91,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # ### Create the vehicle and its environment interface
 # We will now create the satellite - called Starlink-32101 - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 400kg, a reference area (used both for aerodynamic and radiation pressure) of 4m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[234]:
+# In[290]:
 
 
 # Create vehicle objects.
@@ -121,7 +121,7 @@ environment_setup.add_radiation_pressure_interface(bodies, "Starlink-32101", rad
 # ## Set up the propagation
 # Having the environment created, we will define the settings for the propagation of the spacecraft. First, we have to define the body to be propagated - here, the spacecraft - and the central body - here, Earth - with respect to which the state of the propagated body is defined.
 
-# In[235]:
+# In[291]:
 
 
 # Define bodies that are propagated
@@ -143,7 +143,7 @@ central_bodies = ["Earth"]
 # 
 # The defined acceleration settings are then applied to `Starlink-32101` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
-# In[236]:
+# In[292]:
 
 
 # Define the accelerations acting on Starlink-32101
@@ -179,7 +179,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Within this example, we will retrieve the initial state of Starlink-32101 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [www.n2yo.com](https://www.n2yo.com/satellite/?s=60447).
 
-# In[237]:
+# In[293]:
 
 
 # Retrieve the initial state of Starlink-32101 using Two-Line-Elements (TLEs)
@@ -194,7 +194,7 @@ initial_state = Starlink_ephemeris.cartesian_state( simulation_start_epoch )
 # ### Create the integrator settings
 # For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
 
-# In[238]:
+# In[294]:
 
 
 # Create numerical integrator settings
@@ -206,7 +206,7 @@ integrator_settings = propagation_setup.integrator.\
 # ### Create the propagator settings
 # By combining all of the above-defined settings we can define the settings for the propagator to simulate the orbit of `Starlink-32101` around Earth. A termination condition needs to be defined so that the propagation stops as soon as the specified end epoch is reached. Finally, the translational propagator's settings are created.
 
-# In[239]:
+# In[295]:
 
 
 # Create termination settings
@@ -232,7 +232,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 
-# In[240]:
+# In[296]:
 
 
 # Define the position of the ground station on Earth
@@ -255,7 +255,7 @@ environment_setup.add_ground_station(
 # 
 # Each observable type has its own function for creating observation model settings - in this example we will use the `one_way_doppler_instantaneous()` function to model a series of one-way open-loop (i.e. instantaneous) Doppler observations. Realise that the individual observation model settings can also include corrective models or define biases for more advanced use-cases.
 
-# In[241]:
+# In[297]:
 
 
 # Define the uplink link ends for one-way observable
@@ -275,7 +275,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 # 
 # Note that the actual simulation of the observations requires `Observation Simulators`, which are created automatically by the `Estimator` object. Hence, one cannot simulate observations before the creation of an estimator.
 
-# In[281]:
+# In[325]:
 
 
 # Define observation simulation times for each link (separated by steps of 1 minute)
@@ -319,6 +319,17 @@ for n_batches in [1,2,3]:
         [observation_simulation_settings],
         [viability_setting]
     )
+
+        # Setup parameters settings to propagate the state transition matrix
+    parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
+    
+    # Add estimated parameters to the sensitivity matrix that will be propagated
+    parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
+    parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Starlink-32101"))
+    
+    # Create the parameters that will be estimated
+    parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
+    
     # Create the estimator
     estimator = numerical_simulation.Estimator(
         bodies,
@@ -364,6 +375,11 @@ print(covariance_output_list[0].formal_errors)
 print(covariance_output_list[1].formal_errors)
 print(covariance_output_list[2].formal_errors)
 
+
+
+# In[326]:
+
+
 fig, axs = plt.subplots(1, 3, figsize=(15, 5))
 
 # Create the heatmaps and add colorbars
@@ -394,25 +410,27 @@ plt.show()
 fig2, axs2 = plt.subplots(1, 3, figsize=(15, 5))
 
 # Create the heatmaps and add colorbars
-axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 0], label=r"$x$")
-axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 1], label=r"$y$")
-axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 2], label=r"$z$")
+axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 1], label=r"$y$", alpha = 0.6)
+axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 2], label=r"$z$", alpha = 0.5)
+axs2[0].plot(output_times / (24*3600), formal_errors_list[0][:, 0], label=r"$x$", alpha = 1)
 axs2[0].axvline(observation_start_epoch_1/(24*3600), color = 'b', label = 'Obs. Window')
 axs2[0].axvline(observation_end_epoch_1/(24*3600), color = 'b')
 axs2[0].set_title('n_batches = 1')
 
-axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 0], label=r"$x$")
-axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 1], label=r"$y$")
-axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 2], label=r"$z$")
+axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 1], label=r"$y$", alpha = 0.6)
+axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 2], label=r"$z$", alpha = 0.5)
+axs2[1].plot(output_times / (24*3600), formal_errors_list[1][:, 0], label=r"$x$", alpha = 1)
+
+
 axs2[1].axvline(observation_start_epoch_1/(24*3600), color = 'b', label = '1st Obs. Window')
 axs2[1].axvline(observation_end_epoch_1/(24*3600), color = 'b')
 axs2[1].axvline(observation_start_epoch_2/(24*3600), color = 'k', label = '2nd Obs. Window')
 axs2[1].axvline(observation_end_epoch_2/(24*3600), color = 'k')
 axs2[1].set_title('n_batches = 2')
 
-axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 0], label=r"$x$")
-axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 1], label=r"$y$")
-axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 2], label=r"$z$")
+axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 1], label=r"$y$", alpha = 0.6)
+axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 2], label=r"$z$", alpha = 0.5)
+axs2[2].plot(output_times / (24*3600), formal_errors_list[2][:, 0], label=r"$x$",alpha = 1 )
 axs2[2].axvline(simulation_start_epoch/(24*3600), color = 'b', label = 'Obs. Window')
 axs2[2].axvline(simulation_end_epoch/(24*3600), color = 'b')
 axs2[2].set_title('Full Simulation Observed')
@@ -428,168 +446,4 @@ plt.tight_layout()
 plt.show()
 
 
-# ## Set up the estimation
-# Using the defined models for the environment, the propagator, and the observations, we can finally set the actual presentation up. In particular, this consists of defining all parameter that should be estimated, the creation of the estimator, and the simulation of the observations.
-# 
-# ### Defining the parameters to estimate
-# For this example estimation, we decided to estimate the initial state of `Starlink-32101`, its drag coefficient, and the gravitational parameter of Earth. A comprehensive list of parameters available for estimation is provided in the FIX LINK.
-
-# In[253]:
-
-
-# Setup parameters settings to propagate the state transition matrix
-parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
-
-# Add estimated parameters to the sensitivity matrix that will be propagated
-parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
-parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Starlink-32101"))
-
-# Create the parameters that will be estimated
-parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
-
-
-# ### Creating the Estimator object
-# Ultimately, the `Estimator` object consolidates all relevant information required for the estimation of any system parameter:
-#     * the environment (bodies)
-#     * the parameter set (parameters_to_estimate)
-#     * observation models (observation_settings_list)
-#     * dynamical, numerical, and integrator setup (propagator_settings)
-# 
-# Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
-
-# In[254]:
-
-
-# Create the estimator
-estimator = numerical_simulation.Estimator(
-    bodies,
-    parameters_to_estimate,
-    observation_settings_list,
-    propagator_settings)
-
-
-# ### Perform the observations simulation
-# Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
-
-# In[255]:
-
-
-# Simulate required observations
-simulated_observations = estimation.simulate_observations(
-    [observation_simulation_settings],
-    estimator.observation_simulators,
-    bodies)
-
-
 # <a id='covariance_section'></a>
-
-# ## Perform the covariance analysis
-# Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is entirely identical.
-# 
-# ### Set up the inversion
-# To set up the inversion of the problem, we collect all relevant inputs in the form of a covariance input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
-
-# In[256]:
-
-
-# Create input object for covariance analysis
-covariance_input = estimation.CovarianceAnalysisInput(
-    simulated_observations)
-
-# Set methodological options
-covariance_input.define_covariance_settings(
-    reintegrate_variational_equations=False)
-
-# Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-covariance_input.set_constant_weight_per_observable(weights_per_observable)
-
-
-# ### Propagate the covariance matrix
-# Using the just defined inputs, we can ultimately run the computation of our covariance matrix. Printing the resulting formal errors will give us the diagonal entries of the matrix - while the first six entries represent the uncertainties in the (cartesian) initial state, the seventh and eighth are the errors associated with the gravitational parameter of Earth and the aerodynamic drag coefficient, respectively.
-
-# In[257]:
-
-
-# Perform the covariance analysis
-covariance_output = estimator.compute_covariance(covariance_input)
-
-
-# In[258]:
-
-
-# Print the covariance matrix
-print(covariance_output.formal_errors)
-
-
-# ## Results post-processing
-# Finally, to further process the obtained data, one can - exemplary - plot the correlation between the individual estimated parameters, or the behaviour of the formal error over time.
-# 
-# ### Correlation
-# When dealing with the results of covariance analyses - as a measure of how the estimated variable differs from the 'thought' true value - it is important to underline that the correlation between the parameters is another important aspect to take into consideration. In particular, correlation describes how two parameters are related with each other. Typically, a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
-
-# In[259]:
-
-
-plt.figure(figsize=(9, 6))
-
-plt.imshow(np.abs(covariance_output.correlations), aspect='auto', interpolation='none')
-plt.colorbar()
-
-plt.title("Correlation Matrix")
-plt.xlabel("Index - Estimated Parameter")
-plt.ylabel("Index - Estimated Parameter")
-
-plt.tight_layout()
-plt.show()
-
-
-# ### Propagated Formal Errors
-
-# In[260]:
-
-
-initial_covariance = covariance_output.covariance
-state_transition_interface = estimator.state_transition_interface
-output_times = simulation_times
-
-# Propagate formal errors over the course of the orbit
-propagated_formal_errors = estimation.propagate_formal_errors_split_output(
-    initial_covariance=initial_covariance,
-    state_transition_interface=state_transition_interface,
-    output_times=output_times)
-# Split tuple into epochs and formal errors
-epochs = np.array(propagated_formal_errors[0])
-formal_errors = np.array(propagated_formal_errors[1])
-
-plt.figure(figsize=(9, 5))
-plt.title("Observations as a function of time")
-plt.plot(output_times / (24*3600), formal_errors[:, 0], label=r"$x$")
-plt.plot(output_times / (24*3600), formal_errors[:, 1], label=r"$y$")
-plt.plot(output_times / (24*3600), formal_errors[:, 2], label=r"$z$")
-plt.axvline(observation_start_epoch_1/(24*3600), color = 'b', label = '1st obs. batch')
-plt.axvline(observation_end_epoch_1/(24*3600), color = 'b')
-
-plt.axvline(observation_start_epoch_2/(24*3600), color = 'k', label = '2nd obs. batch')
-plt.axvline(observation_end_epoch_2/(24*3600), color = 'k')
-
-plt.xlabel("Time [days]")
-plt.ylabel("Formal Errors in Position [m]")
-plt.legend()
-plt.grid()
-
-plt.tight_layout()
-plt.show()
-
-
-# In[262]:
-
-
-print(n_batches)
-
-
-# In[ ]:
-
-
-
-
