@@ -38,7 +38,7 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
-
+from tudatpy.astro import frame_conversion
 
 # ## Configuration
 # First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodies such as the Earth, the Sun, or the Moon known to `tudatpy`.
@@ -359,7 +359,9 @@ for n_batches in [1,2,3]:
 
     initial_covariance = covariance_output.covariance
     state_transition_interface = estimator.state_transition_interface
-    
+
+    prop_results = estimation.EstimationOutput.parameter_history
+    estimation.pro
     # Propagate formal errors over the course of the orbit
     propagated_formal_errors = estimation.propagate_formal_errors_split_output(
         initial_covariance=initial_covariance,
