@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # `Starlink-32101` - Covariance Analysis
+# # Covariance Propagation Using `Starlink-32101`
 # Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 # 
 # ## Objective
@@ -14,7 +14,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
-# In[597]:
+# In[612]:
 
 
 # Load required standard modules
@@ -49,7 +49,7 @@ from tudatpy.astro import frame_conversion
 # Please note that, in general, the satellite might not be visible during a full osbervation session. 
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
 
-# In[598]:
+# In[613]:
 
 
 # Load spice kernels
@@ -75,7 +75,7 @@ observation_end_epoch_3 = simulation_end_epoch
 # 
 # These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
-# In[599]:
+# In[614]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -94,7 +94,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # ### Create the vehicle and its environment interface
 # We will now create the satellite - called `Starlink-32101` - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 260kg, a reference area (used both for aerodynamic and radiation pressure) of 20m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[600]:
+# In[615]:
 
 
 # Create vehicle objects.
@@ -124,7 +124,7 @@ environment_setup.add_radiation_pressure_interface(bodies, "Starlink-32101", rad
 # ## Set up the Satellite Propagation
 # Having the environment created, we will define the settings for the propagation of the spacecraft. First, we have to define the body to be propagated - here, the spacecraft - and the central body - here, Earth - with respect to which the state of the propagated body is defined.
 
-# In[601]:
+# In[616]:
 
 
 # Define bodies that are propagated
@@ -146,7 +146,7 @@ central_bodies = ["Earth"]
 # 
 # The defined acceleration settings are then applied to ``Starlink-32101`` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
-# In[602]:
+# In[617]:
 
 
 # Define the accelerations acting on `Starlink-32101`
@@ -182,7 +182,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Within this example, we will retrieve the initial state of `Starlink-32101` using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [www.n2yo.com](https://www.n2yo.com/satellite/?s=60447).
 
-# In[603]:
+# In[618]:
 
 
 # Retrieve the initial state of `Starlink-32101` using Two-Line-Elements (TLEs)
@@ -197,7 +197,7 @@ initial_state = Starlink_ephemeris.cartesian_state( simulation_start_epoch )
 # ### Create the integrator settings
 # For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
 
-# In[604]:
+# In[619]:
 
 
 # Create numerical integrator settings
@@ -209,7 +209,7 @@ integrator_settings = propagation_setup.integrator.\
 # ### Create the propagator settings
 # By combining all of the above-defined settings we can define the settings for the propagator to simulate the orbit of ``Starlink-32101`` around Earth. A termination condition needs to be defined so that the propagation stops as soon as the specified end epoch is reached. Finally, the translational propagator's settings are created.
 
-# In[605]:
+# In[620]:
 
 
 # Create termination settings
@@ -235,7 +235,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 
-# In[606]:
+# In[621]:
 
 
 # Define the position of the ground station on Earth
@@ -258,7 +258,7 @@ environment_setup.add_ground_station(
 # 
 # Each observable type has its own function for creating observation model settings - in this example we will use the `one_way_doppler_instantaneous()` function to model a series of one-way open-loop (i.e. instantaneous) Doppler observations. 
 
-# In[607]:
+# In[622]:
 
 
 # Define the uplink link ends for one-way observable
@@ -296,7 +296,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 # #### 6 - Append Results
 # We append the formal errors and the covariance obtained for each scenario to the respective lists: `formal_errors_list`, `covariances_list`.
 
-# In[608]:
+# In[623]:
 
 
 # 1 - Define Observation Simulation Settings
@@ -421,7 +421,7 @@ print('All Done.\n')
 # ### Cartesian Coordinates
 # Let's visualize the obtained propagated **cartesian** formal errors for each selected observation scenario. 
 
-# In[609]:
+# In[624]:
 
 
 ## Uncomment these lines to show the correlation plots
@@ -497,7 +497,7 @@ plt.show()
 # Making use of the cool Tudat `frame_conversion` class, we are also able to express these results in the **RSW** coordinates.
 # In order to do this, we need to retrieve the estimated cartesian states for `Starlink-32101` and rotate these into a the RSW reference frame, for each time. The retrieved (instantaneous) rotation matrix is then used to retrieve the covariance matrix in the new reference system. As above, this is done for each observation scenario. 
 
-# In[610]:
+# In[625]:
 
 
 estimation_states = []
@@ -555,4 +555,10 @@ for ax in axs3.flat:
     
 plt.tight_layout()
 plt.show()
+
+
+# In[ ]:
+
+
+
 
