@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # JUICE's Circular Orbit Phase at Ganymede (GCO500) - Parameters Estimation
-# With this example, you will learn how to simulate and solve a relevant estimation problem, using the `JUICE`'s spacecraft during one of its two Ganymede Circular Orbit Phases. `JUICE` will make detailed observations of JUPITER and its large ocean-bearing moons – Ganymede, Callisto and Europa – with a suite of remote sensing, geophysical and in situ instruments. Range and Doppler measurements of `JUICE` taken from Earth will improve our knowledge of the Jovian system properties and dynamics. 
+# # Parameters Estimation During JUICE's Ganymede Orbital Phase
+# 
+# ## Objectives
+# With this example, you will learn **how to simulate and solve a relevant estimation problem using the `JUICE`'s spacecraft during one of its two Ganymede Circular Orbit Phases**. `JUICE` will make detailed observations of JUPITER and its large ocean-bearing moons – Ganymede, Callisto and Europa – with a suite of remote sensing, geophysical and in situ instruments. Range and Doppler measurements of `JUICE` taken from Earth will improve our knowledge of the Jovian system properties and dynamics. 
 # 
 # This example highlights the basic steps of setting up an orbit estimation routine. In particular, we will focus on how to set up and perform the full estimation of the spacecraft's state and Ganymede's gravitational parameter and spherical harmonics coefficients.
 # 
