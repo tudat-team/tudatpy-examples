@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # MARS EXPRESS - Using Different Dynamical Models for the Simulation of Observations and the Estimation
+# # Simulation and Estimation Using Different Dynamical Models
 # Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 # 
 # ## Objectives
@@ -21,7 +21,7 @@
 # Again, mainly (new) functionalities of the `estimation`, `estimation_setup`, and `observations` modules of the imported `tudatpy`packages will be used and demonstrated within this example.
 # 
 
-# In[16]:
+# In[1]:
 
 
 # Load required standard modules
@@ -49,7 +49,7 @@ current_directory = os.getcwd()
 # ## Simulation Settings
 # After having defined the general configuration of our simulation (i.e. importing required `SPICE` kernels, defining start and end epoch of the simulation) we will create the main celestial bodies involved in the simulation (mainly Mars, its two moons, the two neighbouring planets, and the Sun), the spacecraft itself, and its environment interface.
 
-# In[17]:
+# In[2]:
 
 
 # Load standard spice kernels as well as the one describing the orbit of Mars Express
@@ -95,7 +95,7 @@ bodies_to_propagate = ["MEX"]
 central_bodies = ["Mars"]
 
 
-# In[18]:
+# In[3]:
 
 
 time2plt = np.arange(simulation_start_epoch, simulation_end_epoch, 60)
@@ -132,7 +132,7 @@ plt.show()
 # ### Add a ground station
 # Following its real-world counterpart, our simulated Mars Express spacecraft will also be tracked using ESA's New Norcia (NNO) ESTRACK ground station. Located in North-East Australia, it will be set up with an altitude of 252m, 31.0482°S, 116.191°E.
 
-# In[19]:
+# In[4]:
 
 
 # Define the position of the New Norcia (NNO) ESTRACK Earth station
@@ -153,7 +153,7 @@ environment_setup.add_ground_station(
 # 
 # Moreover, expanding upon the knowledge from the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
 
-# In[20]:
+# In[15]:
 
 
 # Define the uplink link ends for one-way observable
@@ -182,7 +182,7 @@ observation_settings_list.append(observation.one_way_doppler_instantaneous(
 # ### Define Observation Simulation Settings
 # Finally, for each above-defined observation model, we will define **the noise of the observation-type** and general viability criteria. We impose the spacecraft to be trackable only when at a certain minimum angle (15 degrees) of elevation above the horizon as seen from the ground station. We also introduce Mars as a body that can potentially **occult** the line-of-sight between Mars Express and **New Norcia** (i.e. when the spacecraft dives 'behind' Mars, we will not simulate any observations).
 
-# In[21]:
+# In[6]:
 
 
 # Define observation simulation times for each link (separated by steps of one minute)
@@ -233,7 +233,7 @@ observation.add_viability_check_to_all(
 #     - The Sun
 # * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 
-# In[22]:
+# In[7]:
 
 
 # Define the accelerations acting on Mars Express during the observation simulation
@@ -270,7 +270,7 @@ accelerations_settings_mars_express_simulation = dict(
 # 
 # Having updated the tabulated ephemeris of Mars Express, one can create the required `observation simulator` object and finally simulate the observations according to the above-defined settings.
 
-# In[23]:
+# In[8]:
 
 
 ### Accelerations ###
@@ -329,7 +329,7 @@ mex_simulated_observations = estimation.simulate_observations(
 # 
 # All remaining settings remain untouched.
 
-# In[24]:
+# In[9]:
 
 
 # Copy and subsequently alter the accelerations acting on Mars Express used during the estimation
@@ -361,7 +361,7 @@ propagator_settings_estimation = propagation_setup.propagator. \
 # ## Perform the estimation
 # Having altered the dynamical model as well as the propagator settings, we create the `Estimator` object and subsequently set up the inversion of the problem - in particular, one has to define which **parameters are to be estimated**, could potentially include any a-priori information in the form of an a-priori covariance matrix, and **define the weights** associated with the individual types of observations.
 
-# In[25]:
+# In[10]:
 
 
 # Setup parameters settings to propagate the state transition matrix
@@ -403,14 +403,14 @@ estimation_input.set_constant_weight_per_observable(weights_per_observable)
 # 
 # We will again qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones (**realise that this cannot typically be done when working with real-world observations, since the ground truth is not known, and is exactly what one would like to know!**). However, since we conveniently know these parameters, it serves as a handy measure to shed light onto the estimation process. In particular, this highlights the fact that with increasing discrepancy between the dynamical models used within the simulation and estimation routines, the true-to-formal error ratio has to increase, since - besides to the pure estimation of parameters - the (artificially) introduced modelling imperfections have to be implicitly mitigated altering the values of the same set of parameters.
 
-# In[26]:
+# In[11]:
 
 
 # Perform the covariance analysis
 estimation_output = estimator.perform_estimation(estimation_input)
 
 
-# In[27]:
+# In[12]:
 
 
 # Print the covariance matrix
@@ -421,7 +421,7 @@ print(truth_parameters - parameters_to_estimate.parameter_vector)
 # ## Post-processing
 # Finally, to further illustrate the impact certain differences between the applied dynamical models have, we will first plot the behaviour of the simulated observations over time, as well as show how the discrepancy between our estimated solution and the 'ground truth' builds up over time.
 
-# In[28]:
+# In[13]:
 
 
 final_residuals = estimation_output.final_residuals
@@ -439,7 +439,7 @@ plt.tight_layout()
 plt.show()
 
 
-# In[29]:
+# In[14]:
 
 
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
