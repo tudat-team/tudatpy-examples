@@ -182,7 +182,7 @@ for i,observation_string in enumerate(observations):
 
         bands.append(band)
 
-# Extract the observatory code
+    # Extract the observatory code
     observatory = soup.find_all('a')[2].get_text().strip()
     observatories.append(observatory)
     RAs.append(deg_ra)
@@ -207,7 +207,7 @@ print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=False
 print("Space Telescopes:")
 print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=True, include_positions=False))
 
-# We can also directly have a look at the the observations themselves, for example, lets take a look at the first and final observations from TESS and WISE. The table property allows for read only access to the observations in pandas dataframe format. 
+# We can also directly have a look at the the observations themselves, for example, lets take a look at the first and final observations from TESS and WISE. The table property allows for read only access to the observations in pandas dataframe format.
 
 obs_by_Pan_STARRS = batch1.table.query("observatory == 'F51'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
 obs_by_Calar_Alto = batch1.table.query("observatory == 'Z84'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
@@ -239,9 +239,9 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 
 # Now that our batch is ready, we can transform it to a Tudat `ObservationCollection` object using the `to_tudat()` method.
-# 
+#
 # The `.to_tudat()` does the following for us:
-# 
+#
 # 1. Creates an empty body for each minor planet with their MPC code as a name.
 # 2. Adds this body to the system of bodies inputted to the method.
 # 3. Retrieves the global position of the terrestrial observatories in the batch and adds these stations to the Tudat environment.
