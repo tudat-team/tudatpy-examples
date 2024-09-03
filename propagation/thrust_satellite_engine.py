@@ -365,7 +365,6 @@ integrator_settings = propagation_setup.integrator.runge_kutta_4(
 
 
 # Create propagation settings.
-termination_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 translational_propagator_settings = propagation_setup.propagator.translational(
     central_bodies,
     acceleration_models,
