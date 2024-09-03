@@ -1,0 +1,21 @@
+# dependencies fixed for reproducibility
+name: tudat-examples
+channels:
+  - conda-forge
+  - tudat-team
+dependencies:
+  - tudatpy=0.8.0
+  - boost-cpp=1.78.0 # for Tudat compatibility with pygmo
+  - matplotlib=3.9.1
+  - scipy=1.14.1
+  - pandas=2.2.2
+  - astropy=6.1.2
+  - numpy=1.26.4
+  - pygmo=2.19.5
+  - ipython=8.26.0
+  - ipykernel=6.29.5
+  - nbconvert=7.16.4 # for create_script.py utility
+  - tqdm=4.66.5 # for create_script.py utility
+  - pip
+  - pip:
+    - astroquery==0.4.8.dev9321

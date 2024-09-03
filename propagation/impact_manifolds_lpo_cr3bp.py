@@ -6,13 +6,13 @@ binary forms, with or without modification, are permitted exclusively
 under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
 
-This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionaly, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
+This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionally, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
 
 The invariant manifolds of a planar Lyapunov orbit around the L2 point of the Mars-Phobos system are computed. The system is modeled using the CR3BP with Mars' gravity being described by a point mass and Phobos' gravity by a polyhedron (since Phobos is a small, irregular moon). Phobos is considered to be tidally locked. The invariant manifolds are propagated until a maximum time, maximum distance to Phobos, or impact with Phobos (whatever happens first). The trajectories are propagated using a dimensionless state (with the typical CR3BP units of length and time).
 
@@ -46,9 +46,8 @@ from tudatpy.astro.time_conversion import DateTime
 
 ## Auxiliary Functions
 """
+Since the CR3BP is being used, functions to compute the units of length and time used to make the CR3BP dimensionless are first defined.
 """
-
-# Since the CR3BP is being used, functions to compute the units of length and time used to make the CR3BP dimensionless are first defined.
 
 ########################################################################################################################
 # Compute unit of length of the CR3BP
@@ -74,7 +73,7 @@ def cr3bp_unit_of_time (gravitational_parameter_primary: float,
 
 ########################################################################################################################
 # Get full-state rotation matrix from inertial frame to body-fixed frame
-def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -90,7 +89,7 @@ def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.kernel.numerical_simu
 
 ########################################################################################################################
 # Get full-state rotation matrix from body-fixed frame to inertial frame
-def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -107,7 +106,7 @@ def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.kernel.numerical_simu
 ########################################################################################################################
 # Conversion of state from inertial to body-fixed frame
 def convert_state_history_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_inertial: dict) -> dict:
 
@@ -123,7 +122,7 @@ def convert_state_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion of state from body-fixed to inertial frame
 def convert_state_history_body_fixed_to_inertial(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_body_fixed: dict) -> dict:
 
@@ -139,7 +138,7 @@ def convert_state_history_body_fixed_to_inertial(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_history_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_history_inertial: dict) -> dict:
 
@@ -157,7 +156,7 @@ def convert_stm_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_inertial_to_body_fixed(
-        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_inertial: np.ndarray,
         time_initial: float,
@@ -281,11 +280,10 @@ def create_hybrid_termination_propagator_settings(central_bodies,
 
 ## Model and Propagation Setup
 """
-"""
+To setup the used model (CR3BP with polyhedral secondary), it is first necessary to define a series of parameters. These include the gravitational parameters of Mars and Phobos, the semi-major axis of Phobos, the polyhedron of Phobos (coordinates of the vertices and vertices defining each facet), and the initial state and period of the used Lagrange point orbit. This periodic orbit was determined via continuation, which is currently not available via Tudat. This and other functionalities for the computation of periodic orbits will be added to Tudat in (near-ish) future.
 
-# To setup the used model (CR3BP with polyhedral secondary), it is first necessary to define a series of parameters. These include the gravitational parameters of Mars and Phobos, the semi-major axis of Phobos, the polyhedron of Phobos (coordinates of the vertices and vertices defining each facet), and the initial state and period of the used Lagrange point orbit. This periodic orbit was determined via continuation, which is currently not available via Tudat. This and other functionalities for the computation of periodic orbits will be added to Tudat in (near-ish) future.
-# 
-# Since all the trajectories are here propagated in dimensionless coordinates, all the dimensional parameters are made dimensionless using the units of time and length of the CR3BP.
+Since all the trajectories are here propagated in dimensionless coordinates, all the dimensional parameters are made dimensionless using the units of time and length of the CR3BP.
+"""
 
 ####################################################################################################################
 # Define dimensional model parameters and then make them dimensionless
@@ -452,12 +450,9 @@ current_coefficient_set = propagation_setup.integrator.CoefficientSets.rkdp_87
 current_tolerance = 1e-12
 initial_time_step = 1e-6
 # Maximum step size: inf; minimum step size: eps
-integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(initial_time_step,
-                                                                                  current_coefficient_set,
-                                                                                  np.finfo(float).eps, 
-                                                                                  np.inf,
-                                                                                  current_tolerance, 
-                                                                                  current_tolerance)
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+    initial_time_step, current_coefficient_set, np.finfo(float).eps, np.inf,
+    current_tolerance, current_tolerance)
 
 
 # Finally, the dependent variables to save during the propagation are selected. Here, no dependent variable is saved, though the code can be modified to do so if desired.
@@ -475,7 +470,7 @@ Having defined the model to use, it is finally possible to propagate the Lagrang
 
 Next, the propagator settings are created using the `create_time_termination_propagator_settings` function: these settings define the propagation of the orbit to an exact final time (the period of the orbit). 
 
-Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `create_variational_equations_solver` function is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
+Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `create_variational_equations_solver` is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
 
 After the propagation is finished, the state and STM histories with respect to the inertial frame are retrieved and converted to the body-fixed frame.
 """
@@ -488,19 +483,15 @@ state_history_lpo_inertial = convert_state_history_body_fixed_to_inertial(
     bodies, name_secondary, {simulation_start_epoch: initial_state_lpo_body_fixed})
 
 # Create propagator settings
-time_propagator_settings = create_time_termination_propagator_settings(central_bodies, 
-                                                                       acceleration_models,
-                                                                       bodies_to_propagate,
-                                                                       state_history_lpo_inertial[simulation_start_epoch],
-                                                                       simulation_start_epoch, 
-                                                                       integrator_settings,
-                                                                       period_lpo, 
-                                                                       dependent_variables_to_save)
+time_propagator_settings = create_time_termination_propagator_settings(
+    central_bodies, acceleration_models, bodies_to_propagate, state_history_lpo_inertial[simulation_start_epoch],
+    simulation_start_epoch, integrator_settings, period_lpo, dependent_variables_to_save)
 
 # Propagate variational equations, propagating just the STM
 parameter_settings = estimation_setup.parameter.initial_states(time_propagator_settings, bodies)
 lpo_single_arc_solver = numerical_simulation.create_variational_equations_solver(
-        bodies, time_propagator_settings, estimation_setup.create_parameter_set(parameter_settings, bodies),
+        bodies, time_propagator_settings,
+        estimation_setup.create_parameter_set(parameter_settings, bodies),
         simulate_dynamics_on_creation=True)
 
 # Retrieve state and STM history and convert them to body-fixed frame
@@ -515,13 +506,12 @@ stm_history_lpo_body_fixed = convert_stm_history_inertial_to_body_fixed(
 
 ## Propagation of the invariant manifolds
 """
-"""
+Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but using a negative time step instead (backward propagation). 
 
-# Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but unsing a negative time step instead (backward propagation). 
-# 
-# The initial state of each manifold branch can be obtained by perturbing the state at a node of the orbit with the most unstable eigenvector of the monodromy matrix associated with that node, which corresponds to the eigenvector associated with the eigenvalue with the largest norm.
-# 
-# Since the linearized dynamics are being considered via the STM, one can instead use the monodromy matrix just to determine the unstable eigenvector at the 1st node. The unstable eigenvectors at the remaining nodes of the orbit can then be obtained using the STM. However, to do that, one needs to know the state and STM at each node of the orbit, which here is done using an interpolator. This allow having nodes equally spaced in time along the orbit. A 4th order Lagrange interpolator is used.
+The initial state of each manifold branch can be obtained by perturbing the state at a node of the orbit with the most unstable eigenvector of the monodromy matrix associated with that node, which corresponds to the eigenvector associated with the eigenvalue with the largest norm.
+
+Since the linearized dynamics are being considered via the STM, one can instead use the monodromy matrix just to determine the unstable eigenvector at the 1st node. The unstable eigenvectors at the remaining nodes of the orbit can then be obtained using the STM. However, to do that, one needs to know the state and STM at each node of the orbit, which here is done using an interpolator. This allow having nodes equally spaced in time along the orbit. A 4th order Lagrange interpolator is used.
+"""
 
 ####################################################################################################################
 # Propagate the invariant manifolds
@@ -583,23 +573,14 @@ for manifold_direction_to_propagate in [-1, 1]:
             {simulation_start_epoch: manifold_initial_state_body_fixed})
 
         # Create propagator settings
-        hybrid_propagator_settings = create_hybrid_termination_propagator_settings(central_bodies, 
-                                                                                   acceleration_models,
-                                                                                   bodies_to_propagate,
-                                                                                   state_history_manifold_inertial[simulation_start_epoch],
-                                                                                   simulation_start_epoch,
-                                                                                   integrator_settings,
-                                                                                   dependent_variables_to_save,
-                                                                                   name_spacecraft, name_secondary,
-                                                                                   gravitational_parameter_secondary,
-                                                                                   volume_secondary,
-                                                                                   hybrid_termination_max_distance,
-                                                                                   hybrid_termination_max_time)
+        hybrid_propagator_settings = create_hybrid_termination_propagator_settings(
+            central_bodies, acceleration_models, bodies_to_propagate, state_history_manifold_inertial[simulation_start_epoch],
+            simulation_start_epoch, integrator_settings, dependent_variables_to_save, name_spacecraft, name_secondary, gravitational_parameter_secondary,
+            volume_secondary, hybrid_termination_max_distance, hybrid_termination_max_time)
 
         # Propagate manifold
-        manifold_single_arc_solver = numerical_simulation.create_dynamics_simulator(bodies, 
-                                                                             hybrid_propagator_settings)
-                                                                             
+        manifold_single_arc_solver = numerical_simulation.create_dynamics_simulator(
+            bodies, hybrid_propagator_settings)
 
         if manifold_direction_to_propagate == -1:
             manifold_single_arc_solvers[0].append(manifold_single_arc_solver)
@@ -609,11 +590,10 @@ for manifold_direction_to_propagate in [-1, 1]:
 
 ## Plotting the results
 """
-"""
+Finally, we can plot the computed orbit and its manifolds. Before plotting the manifolds, their state history is retrieved from the single arc solver and converted to the body-fixed frame. 
 
-# Finally, we can plot the computed orbit and its manifolds. Before plotting the manifolds, their state history is retrieved from the single arc solver and converted to the body-fixed frame. 
-# 
-# Phobos' shape is also plotted, using the `tricontourf` function.
+Phobos' shape is also plotted, using the `tricontourf` function.
+"""
 
 ####################################################################################################################
 # Make plot: x vs y, x vs z
@@ -681,8 +661,4 @@ for ax_ in ax:
 ax[0].legend()
 ax[0].set_ylabel('y [km]')
 ax[1].set_ylabel('z [km]')
-
-
-plt.show()
-
 

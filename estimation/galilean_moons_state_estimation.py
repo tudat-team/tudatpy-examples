@@ -1,8 +1,8 @@
 # Galilean Satellites - Initial State Estimation
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -39,8 +39,8 @@ from tudatpy.astro.time_conversion import DateTime
 ## Orbital Simulation
 """
 Entirely independent of the upcoming estimation-process, we first have to define the general settings of the simulation, create the environment, and define all relevant settings of the propagation.
-"""
 
+"""
 
 ### Simulation Settings
 """
@@ -210,8 +210,8 @@ propagator_settings = propagation_setup.propagator. \
 ## Orbital Estimation
 """
 Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required link ends for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
-"""
 
+"""
 
 ### Create Link Ends for the Moons
 """
