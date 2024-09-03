@@ -6,19 +6,20 @@ binary forms, with or without modification, are permitted exclusively
 under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
 
 This example demonstrates how Multiple Gravity Assist (MGA) transfer trajectories can be simulated. Three types of transfers are analyzed:
+
 * High-thrust transfer with unpowered legs
 * High-thrust transfer with deep space maneuvers (DSMs) and manually-created legs and nodes
 * Low-thrust transfer with hodographic shaping
 
  
-In addition, this example show how the results, such as partial $\Delta$V's, total $\Delta$V and time of flight
+In addition, this example show how the results, such as partial $\Delta V$, total $\Delta V$ and time of flight
 values can be retrieved from the transfer object.
 
 A complete guide on transfer trajectory design is given on [this page](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/astrodynamics/trajectory_design.html) of tudat user documentation.
@@ -49,7 +50,7 @@ from tudatpy.util import result2array
 from tudatpy import constants
 
 
-# First, let's explore an MGA transfer trajectory with no thrust applied during the transfer legs. In this case, the impulsive $\Delta$Vs are only applied during the gravity assists.
+# First, let's explore an MGA transfer trajectory with no thrust applied during the transfer legs. In this case, the impulsive $\Delta V$ maneuvers are only applied during the gravity assists.
 
 ### Setup and inputs
 """
@@ -79,10 +80,9 @@ arrival_eccentricity = 0.98
 
 ### Create transfer settings and transfer object
 """
+The specified inputs can not be used directly, but they have to be translated to distinct settings, relating to either the nodes (departure, gravity assist, and arrival planets) or legs (trajectories in between planets). The fact that unpowered legs are used is indicated by the creation of unpowered and unperturbed leg settings.
+These settings are, in turn, used to create the transfer trajectory object.
 """
-
-# The specified inputs can not be used directly, but they have to be translated to distinct settings, relating to either the nodes (departure, gravity assist, and arrival planets) or legs (trajectories in between planets). The fact that unpowered legs are used is indicated by the creation of unpowered and unperturbed leg settings.
-# These settings are, in turn, used to create the transfer trajectory object.
 
 # Define the trajectory settings for both the legs and at the nodes
 transfer_leg_settings, transfer_node_settings = transfer_trajectory.mga_settings_unpowered_unperturbed_legs(
@@ -101,10 +101,9 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 
 ### Define transfer parameters
 """
+Next, it is necessary to specify the parameters which define the transfer. The advantage of having a transfer trajectory object is that it allows analyzing many different sets of transfer parameters using the same transfer trajectory object.
+The definition of the parameters that need to be specified for this transfer can be printed using the `transfer_trajectory.print_parameter_definitions()` function.
 """
-
-# Next, it is necessary to specify the parameters which define the transfer. The advantage of having a transfer trajectory object is that it allows analyzing many different sets of transfer parameters using the same transfer trajectory object.
-# The definition of the parameters that need to be specified for this transfer can be printed using the `transfer_trajectory.print_parameter_definitions()` function.
 
 # Print transfer parameter definitions
 print("Transfer parameter definitions:")
@@ -137,9 +136,8 @@ for i in transfer_node_settings:
 
 ### Evaluate transfer
 """
+The transfer parameters are now used to evaluate the transfer trajectory, which means that the semi-analytical methods used to determine the $\Delta V$ of each leg are now applied.
 """
-
-# The transfer parameters are now used to evaluate the transfer trajectory, which means that the semi-analytical methods used to determine the $\Delta$V of each leg are now applied.
 
 # Evaluate the transfer with given parameters
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters )
@@ -152,7 +150,7 @@ Last but not least, with the transfer trajectory computed, we can now analyse it
 
 #### Print results
 """
-Having evaluated the transfer trajectory, it is possible to extract various transfer characteristics, such as the $\Delta$V and time of flight.
+Having evaluated the transfer trajectory, it is possible to extract various transfer characteristics, such as the $\Delta V$ and time of flight.
 """
 
 # Print the total DeltaV and time of Flight required for the MGA
@@ -213,9 +211,8 @@ plt.show()
 
 ## MGA transfer with DSMs and manually-created settings
 """
+This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionally, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
 """
-
-# This next part of the example now makes use of DSMs in between the nodes. The general approach is similar to the example without DSMs, with some modifications to the inputs and transfer parameters. Additionaly, the manual creation of the nodes and legs settings is here exemplified, instead of using a factory function to get them.
 
 ### Setup and inputs
 """
@@ -245,7 +242,6 @@ Since, in this example, the DSMs are specified using the velocity formulation, o
 Alternatively, one can create the nodes and legs settings manually (option 2 in the code block below): 
 
 - The legs settings are a list containing the settings of each leg in the transfer. Here, only velocity-based DSM legs are used, therefore the settings of each leg are created by calling the `dsm_velocity_based_leg` factory function (this is repeated for all legs in the transfer). 
-
 - The nodes settings are a list containing the settings of each leg in the transfer. The nodes used in this transfer are a departure node (beginning of the transfer), several swingby nodes, and an arrival node (end of the transfer). Thus, the node settings are created by calling `departure_node` once, calling `swingby_node` four times, and calling `capture_node` once.
 
 Although the manual creation of the nodes and legs settings is a bit more complex than directly calling the `mga_settings_dsm_velocity_based_legs` factory function, it also allows more flexibility in the design of the transfer. For example, with manually-created legs settings, it is possible to create a transfer which mixes high- and low-thrust arcs (this is known as a hybrid-thrust transfer, their study is still a very new research area... perhaps you can contribute to it!).
@@ -302,7 +298,7 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 ### Define transfer parameters
 """
 
-As before, it is possible to print the definition of the transfer paramaters which need to be selected.
+As before, it is possible to print the definition of the transfer parameters which need to be selected.
 """
 
 # Print transfer parameter definitions
@@ -313,15 +309,20 @@ transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_
 # The legs with velocity-based DSMs require more transfer parameters than the unpowered legs. In particular, for legs with DSMs it is necessary to specify the leg free and node free parameters. 
 # 
 # There is a free parameter for each leg, representing the leg's time-of-flight fraction at which the DSM takes place. There are three free parameters for the departure node and each swingby node. The node free parameters represent the following:
-#  * For the departure node:
-#     1. Magnitude of the relative velocity w.r.t. the departure planet after departure.
-#     2. In-plane angle of the relative velocity w.r.t. the departure planet after departure.
-#     3. Out-of-plane angle of the relative velocity w.r.t. the departure planet after departure.
-#  * For the swing-by nodes:
+# 
+# * For the departure node:
+# 
+#   1. Magnitude of the relative velocity w.r.t. the departure planet after departure.
+#   2. In-plane angle of the relative velocity w.r.t. the departure planet after departure.
+#   3. Out-of-plane angle of the relative velocity w.r.t. the departure planet after departure.
+# 
+# * For the swing-by nodes:
+# 
 #     1. Periapsis radius.
 #     2. Rotation angle.
-#     3. Magnitude of $\Delta$V applied at periapsis.
-#  * For the arrival node: no node free parameters are required
+#     3. Magnitude of $\Delta V$ applied at periapsis.
+# 
+# * For the arrival node: no node free parameters are required
 
 # Define times at each node
 julian_day = constants.JULIAN_DAY
@@ -360,12 +361,12 @@ transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_
 ### Extract results and plot trajectory
 """
 Finally, the results are extracted and used to visualize the transfer trajectory. 
-"""
 
+"""
 
 #### Print results
 """
-Again, the values for the $\Delta$V and time of flight can be retrieved.
+Again, the values for the $\Delta V$ and time of flight can be retrieved.
 """
 
 # Print the total DeltaV and time of Flight required for the MGA
@@ -416,9 +417,8 @@ plt.show()
 
 ## MGA transfer with hodographic-shaping legs
 """
+This final example shows how to setup a low-thrust MGA transfer, with the thrust profile modeled using hodographic shaping. The approach is similar to the previous examples, with only some small differences when selecting the shaping functions.
 """
-
-# This final example shows how to setup a low-thrust MGA transfer, with the thrust profile modeled using hodographic shaping. The approach is similar to the previous examples, with only some small differences when selecting the shaping functions.
 
 ### Setup and inputs
 """
@@ -539,7 +539,7 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 ### Define transfer parameters
 """
 
-As before, it is possible to print the definition of the transfer paramaters which need to be selected.
+As before, it is possible to print the definition of the transfer parameters which need to be selected.
 """
 
 # Print transfer parameter definitions
@@ -583,12 +583,12 @@ transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_
 ### Extract results and plot trajectory
 """
 Finally, the results are extracted and used to analyze the transfer trajectory. 
-"""
 
+"""
 
 #### Print results
 """
-Again, the values for the $\Delta$V and time of flight can be retrieved.
+Again, the values for the $\Delta V$ and time of flight can be retrieved.
 """
 
 # Print the total DeltaV and time of Flight required for the MGA

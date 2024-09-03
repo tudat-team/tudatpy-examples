@@ -1,8 +1,8 @@
 # Perturbed satellite orbit
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -24,6 +24,7 @@ Then, the different modules of `tudatpy` that will be used are imported.
 
 # Load standard modules
 import numpy as np
+
 import matplotlib
 from matplotlib import pyplot as plt
 
@@ -57,8 +58,8 @@ simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-"""
 
+"""
 
 ### Create the bodies
 """
@@ -66,9 +67,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 """
 
 # Define string names for bodies to be created from default.
@@ -84,48 +83,54 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_origin,
     global_frame_orientation)
 
-# Create system of selected celestial bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
-### Create the vehicle
+### Create the vehicle settings
 """
-Let's now create the 400kg satellite for which the perturbed orbit around Earth will be propagated.
+Let's now create the 2.2kg satellite for which the perturbed orbit around Earth will be propagated.
 """
 
-# Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("Delfi-C3")
 
-bodies.get("Delfi-C3").mass = 2.2
+body_settings.get("Delfi-C3").constant_mass = 2.2
 
 
 # To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
+# 
 # - A constant drag coefficient of 1.2.
-# - A reference area of 4m$^2$.
+# - A reference area of 0.035m $^2$ .
 # - No sideslip or lift coefficient (equal to 0).
 # - No moment coefficient.
 
-# Create aerodynamic coefficient interface settings, and add to vehicle
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection
+# Create aerodynamic coefficient interface settings
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0, 0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "Delfi-C3", aero_coefficient_settings)
+
+# Add the aerodynamic interface to the body settings
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 
-# To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m$^2$. This interface also accounts for the variation in pressure cause by the shadow of Earth.
+# To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m $^2$ . This interface also accounts for the variation in pressure cause by the shadow of Earth.
 
-# Create radiation pressure settings, and add to vehicle
+# Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-environment_setup.add_radiation_pressure_interface(
-    bodies, "Delfi-C3", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create system of selected celestial bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 ## Propagation setup
@@ -147,7 +152,8 @@ central_bodies = ["Earth"]
 """
 First off, the acceleration settings that act on `Delfi-C3` are to be defined.
 In this case, these consist in the followings:
-- Graviational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
+
+- Gravitational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
 - Radiation pressure acceleration caused by the Sun (using the radiation interface defined earlier).
@@ -160,7 +166,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 # Define accelerations acting on Delfi-C3 by Sun and Earth.
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Earth=[
@@ -193,7 +199,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
@@ -211,7 +217,7 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 """
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 # Define list of dependent variables to save
@@ -242,6 +248,7 @@ dependent_variables_to_save = [
         propagation_setup.acceleration.cannonball_radiation_pressure_type, "Delfi-C3", "Sun"
     )
 ]
+
 
 ### Create the propagator settings
 """
@@ -274,22 +281,21 @@ propagator_settings = propagation_setup.propagator.translational(
 )
 
 
-
 ## Propagate the orbit
 """
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
+
 - Column 0: Time history, in seconds since J2000.
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
 
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in
-the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
+The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 """
 
@@ -298,18 +304,18 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings
 )
 
-# Extract the resulting state and depedent variable history and convert it to an ndarray
-states = dynamics_simulator.state_history
+# Extract the resulting state and dependent variable history and convert it to an ndarray
+states = dynamics_simulator.propagation_results.state_history
 states_array = result2array(states)
-dep_vars = dynamics_simulator.dependent_variable_history
+dep_vars = dynamics_simulator.propagation_results.dependent_variable_history
 dep_vars_array = result2array(dep_vars)
 
 
 ## Post-process the propagation results
 """
 The results of the propagation are then processed to a more user-friendly form.
-"""
 
+"""
 
 ### Total acceleration over time
 """
@@ -327,7 +333,6 @@ plt.ylabel('Total Acceleration [m/s$^2$]')
 plt.xlim([min(time_hours), max(time_hours)])
 plt.grid()
 plt.tight_layout()
-plt.show()
 
 
 ### Ground track
@@ -351,7 +356,6 @@ plt.xlim([min(longitude), max(longitude)])
 plt.yticks(np.arange(-90, 91, step=45))
 plt.grid()
 plt.tight_layout()
-plt.show()
 
 
 ### Kepler elements over time
@@ -400,7 +404,6 @@ for ax in fig.get_axes():
     ax.set_xlim([min(time_hours), max(time_hours)])
     ax.grid()
 plt.tight_layout()
-plt.show()
 
 
 ### Accelerations over time
@@ -447,4 +450,4 @@ plt.suptitle("Accelerations norms on Delfi-C3, distinguished by type and origin,
 plt.yscale('log')
 plt.grid()
 plt.tight_layout()
-plt.show()
+
