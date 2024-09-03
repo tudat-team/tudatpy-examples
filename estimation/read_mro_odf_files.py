@@ -9,7 +9,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 """
 
 import sys
-sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy")
+sys.path.insert(0, "/home/mfayolle/Tudat/tudat-bundle/cmake-build-release/tudatpy")
 
 # Load required standard modules
 import multiprocessing as mp
@@ -209,7 +209,7 @@ def run_estimation( input_index ):
         occulting_bodies = dict()
         occulting_bodies[ "Sun" ] = [ "Moon"]
 
-        body_settings.get( spacecraft_name ).constant_mass = 150;
+        body_settings.get( spacecraft_name ).constant_mass = 150
         body_settings.get(spacecraft_name).vehicle_shape_settings = get_grail_panel_geometry()
 
         # Create environment
@@ -227,15 +227,13 @@ def run_estimation( input_index ):
             single_odf_file_contents, bodies )
 
         # Create observation collection, split into arcs, and compress to 60 seconds
-        uncompressed_observations = estimation_setup.observation.split_observation_sets_into_arc(
-                estimation_setup.observation.create_odf_observed_observation_collection(
-            single_odf_file_contents, list( ), [ numerical_simulation.Time( 0, np.nan ), numerical_simulation.Time( 0, np.nan ) ] ), 60.0, 10 )
-        observation_time_limits = uncompressed_observations.time_bounds
+        original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
+            single_odf_file_contents, list( ), [ numerical_simulation.Time( 0, np.nan ), numerical_simulation.Time( 0, np.nan ) ] )
+        observation_time_limits = original_odf_observations.time_bounds
         initial_time = observation_time_limits[0] - 3600.0
         final_time = observation_time_limits[1] + 3600.0
 
         print('Time in hours: ', (final_time.to_float() - initial_time.to_float()) / 3600)
-
 
         # Create accelerations
         accelerations_settings_spacecraft = dict(
@@ -245,7 +243,7 @@ def run_estimation( input_index ):
             Earth=[
                 propagation_setup.acceleration.point_mass_gravity() ],
             Moon=[
-                propagation_setup.acceleration.spherical_harmonic_gravity(256, 256 ),
+                propagation_setup.acceleration.spherical_harmonic_gravity(256, 256),
                 propagation_setup.acceleration.radiation_pressure( environment_setup.radiation_pressure.cannonball_target ),
                 propagation_setup.acceleration.empirical()
                 ],
@@ -292,13 +290,11 @@ def run_estimation( input_index ):
             estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Moon") ,
             estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(spacecraft_name, "Moon"),
             estimation_setup.parameter.empirical_accelerations(spacecraft_name, "Moon", empirical_components)
-
         ]
 
         if perform_estimation:
-            compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
-                uncompressed_observations, 60)
-            print('Original observations: ')
+            compressed_observations = estimation_setup.observation.create_compressed_doppler_collection( original_odf_observations, 60, 10 )
+            print('Compressed observations: ')
             print(compressed_observations.concatenated_observations.size)
 
             #  Create observation model settings
@@ -351,39 +347,29 @@ def run_estimation( input_index ):
                         print( 'Arc times', observable_type, ' ', link_end_index, ' ', current_times[ 1 ] - next_current_times[ 0 ] )
             print('Printed arc times ================= ')
 
-            # Compute simulated observations
+            # Compute simulated observations and set residuals in compressed_observations
             simulated_observations = estimation.simulate_observations(observation_simulation_settings,
                                                                       observation_simulators, bodies)
-            residual_collection = estimation.create_residual_collection(compressed_observations, simulated_observations)
+            computed_residuals = compressed_observations.concatenated_observations - simulated_observations.concatenated_observations
+            compressed_observations.set_residuals(computed_residuals)
 
-            residual_filter_cutoff = dict()
-            residual_filter_cutoff[observation.dsn_n_way_averaged_doppler] = 0.01
             filtered_compressed_observations = estimation.create_filtered_observation_collection(
-                compressed_observations, residual_collection, residual_filter_cutoff)
+                compressed_observations, estimation.observation_filter(estimation.residual_filtering, 0.01) )
             print('Filtered observations: ')
             print(filtered_compressed_observations.concatenated_observations.size)
-            np.savetxt('unfiltered_residual_' + str(input_index) + '.dat', residual_collection.concatenated_observations,
+            np.savetxt('unfiltered_residual_' + str(input_index) + '.dat', compressed_observations.get_concatenated_residuals( ),
                        delimiter=',')
-            np.savetxt('unfiltered_time_' + str(input_index) + '.dat', residual_collection.concatenated_float_times,
+            np.savetxt('unfiltered_time_' + str(input_index) + '.dat', compressed_observations.concatenated_float_times,
                        delimiter=',')
             np.savetxt('unfiltered_link_end_ids_' + str(input_index) + '.dat',
-                       residual_collection.concatenated_link_definition_ids, delimiter=',')
+                       compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
-            # Create settings to simulate filtered observations
-            observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(
-                filtered_compressed_observations)
-
-            # Compute simulated filtered observations
-            simulated_filtered_observations = estimation.simulate_observations(observation_simulation_settings,
-                                                                               observation_simulators, bodies)
-            residual_filtered_collection = estimation.create_residual_collection(filtered_compressed_observations,
-                                                                                 simulated_filtered_observations)
             np.savetxt('filtered_residual_' + str(input_index) + '.dat',
-                       residual_filtered_collection.concatenated_observations, delimiter=',')
+                       filtered_compressed_observations.get_concatenated_residuals( ), delimiter=',')
             np.savetxt('filtered_time_' + str(input_index) + '.dat',
-                       residual_filtered_collection.concatenated_float_times, delimiter=',')
+                       filtered_compressed_observations.concatenated_float_times, delimiter=',')
             np.savetxt('filtered_link_end_ids_' + str(input_index) + '.dat',
-                       residual_filtered_collection.concatenated_link_definition_ids, delimiter=',')
+                       filtered_compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
             parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
             parameter_settings += extra_parameters
@@ -442,7 +428,7 @@ if __name__ == "__main__":
     for i in range(8):
         inputs.append(i)
     # Run parallel MC analysis
-    with mp.get_context("fork").Pool(1) as pool:
+    with mp.get_context("fork").Pool(8) as pool:
         pool.map(run_estimation,inputs)
 
 
