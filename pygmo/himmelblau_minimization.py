@@ -1,8 +1,8 @@
 # Himmelblau minimization with PyGMO
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -48,8 +48,9 @@ This class, `HimmelblauOptimization`, will be taken as input from the `pygmo.pro
 problem.
 
 To be PyGMO-compatible, the UDP class must have two methods:
- - `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
- - `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
+
+- `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
+- `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
  
 Please refer to [PyGMO UDP tutorial](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) for more on how to define a UDP.
 """
@@ -62,7 +63,7 @@ class HimmelblauOptimization:
                  y_min: float,
                  y_max: float):
         
-        # Set input arguments as attributes, representaing the problem bounds for both design variables
+        # Set input arguments as attributes, representing the problem bounds for both design variables
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -101,7 +102,7 @@ print(prob)
 """
 As a second step, we have to create an algorithm to solve the problem. Many different algorithms are available through PyGMO, including heuristic methods and local optimizers.
 
-In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](See also https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
+In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
 
 See also [this tutorial](https://esa.github.io/pygmo2/tutorials/using_algorithm.html) on PyGMO algorithms.
 """
@@ -172,8 +173,8 @@ print('Difference wrt the minimum: ', pop.champion_x - np.array([3,2]))
 ## Visualise optimisation
 """
 We can now visualise how our optimisation was carried trough different ways.
-"""
 
+"""
 
 ### Fitness history
 """
@@ -293,7 +294,7 @@ plt.show()
 """
 To investigate how well the Differential Evolution algorithm performed, let's now run the optimisation with a grid search of 1000x1000 nodes.
 
-This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evoluation algorithm.
+This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evolution algorithm.
 """
 
 # Set number of points
@@ -356,7 +357,4 @@ print('Best fitness with grid search (' + str(number_of_points) + ' points):', b
 print('Decision variable vector: ', best_x_MC)
 print('Number of function evaluations: ', number_of_points**2)
 print('Difference wrt the minimum: ', best_x_MC - np.array([3, 2]))
-
-
-
 

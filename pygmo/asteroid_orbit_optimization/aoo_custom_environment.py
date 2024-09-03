@@ -1,8 +1,8 @@
 # Asteroid orbit optimization with PyGMO - Custom Environment
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
 
+"""
 
 ## Context
 """
@@ -10,8 +10,8 @@ The aim of this tutorial is to illustrate the use of PyGMO to optimize an astrod
 
 **This part of the example is focussed on the creation of a custom environment, using manually defined rotation, ephemeris, gravity field, and shape settings**. A PyGMO compatible Problem class is also created for the next parts of the example. Using this problem class, a propagation is conducted to show a possible trajectory orbiting Itokawa.
 
-"""
 
+"""
 
 ### NOTE
 """
@@ -42,7 +42,7 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.io import save2txt
+from tudatpy.data import save2txt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
@@ -233,25 +233,25 @@ def create_simulation_bodies(itokawa_radius):
         spice.get_body_gravitational_parameter( 'Sun') )
     # Shape (spherical)
     body_settings.get("Itokawa").shape_settings = get_itokawa_shape_settings(itokawa_radius)
-    # Create system of selected bodies
-    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     ### VEHICLE BODY ###
     # Create vehicle object
-    bodies.create_empty_body("Spacecraft")
-    bodies.get("Spacecraft").set_constant_mass(400.0)
+    body_settings.add_empty_settings("Spacecraft")
+    body_settings.get("Spacecraft").constant_mass = 400
 
-    # Create radiation pressure settings, and add to vehicle
-    reference_area_radiation = 4.0
+    # Create radiation pressure settings
+    reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
     radiation_pressure_coefficient = 1.2
-    radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-        "Sun",
-        reference_area_radiation,
-        radiation_pressure_coefficient)
-    environment_setup.add_radiation_pressure_interface(
-        bodies,
-        "Spacecraft",
-        radiation_pressure_settings)
+    occulting_bodies_dict = dict()
+    occulting_bodies_dict["Sun"] = ["Itokawa"]
+    vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+        reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+    # Add the radiation pressure interface to the body settings
+    body_settings.get("Spacecraft").radiation_pressure_target_settings = vehicle_target_settings
+
+    # Create system of selected bodies
+    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     return bodies
 
@@ -262,7 +262,7 @@ The `get_acceleration_models()` helper function returns the acceleration models 
 
 - Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
 - Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
-- Radiatio pressure from the Sun using a simplified canonnball model.
+- Radiation pressure from the Sun using a simplified cannonball model.
 
 This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
 """
@@ -270,7 +270,7 @@ This function takes as input the list of bodies that will be propagated, the lis
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     # Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
-        Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
+        Sun =     [ propagation_setup.acceleration.radiation_pressure(),
                     propagation_setup.acceleration.point_mass_gravity() ],
         Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(3, 3) ],
         Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
@@ -423,7 +423,7 @@ class AsteroidOrbitProblem:
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
-        dependent_variables = dynamics_simulator.dependent_variable_history
+        dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
         
         # Retrieve distance
@@ -438,7 +438,7 @@ class AsteroidOrbitProblem:
 
         # Exaggerate fitness value if the spacecraft has broken out of the selected distance range
         current_penalty = 0.0
-        if (max(dynamics_simulator.dependent_variable_history.keys()) < self.mission_final_time):
+        if (max(dynamics_simulator.propagation_results.dependent_variable_history.keys()) < self.mission_final_time):
             current_penalty = 1.0E2
 
         return [current_fitness + current_penalty, np.mean(distance) + current_penalty * 1.0E3]
@@ -457,7 +457,7 @@ Most importantly, the simulation bodies, acceleration models, integrator setting
 """
 The simulation settings are first defined.
 
-The SPICE kernels are loaded, so that we can acess the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
+The SPICE kernels are loaded, so that we can access the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
 
 The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
 
@@ -583,7 +583,7 @@ orbitProblem.fitness(design_variable_vector)
 With a little bit of post-processing, the orbit can be plotted. You can see that with only 2 full orbits that the trajectory is already very perturbed. This has to do with all the perturbations that are in the model, which poses a challenge for the optimization in the next two parts of the example.
 """
 
-state_history = orbitProblem.get_last_run_dynamics_simulator().state_history
+state_history = orbitProblem.get_last_run_dynamics_simulator().propagation_results.state_history
 state_history = np.vstack(list(state_history.values()))
 state_history = np.vstack(state_history)
 
