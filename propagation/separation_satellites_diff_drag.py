@@ -34,12 +34,12 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
 from tudatpy.astro.time_conversion import DateTime
 
 # Load spice kernels
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
 
 
 ## Creation of the environment
@@ -73,9 +73,6 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_origin,
     global_frame_orientation)
 
-# Create system of selected celestial bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 
 ### Creation of vehicle settings
 """
@@ -89,12 +86,12 @@ interface (one satellite has 3X the surface of the other satellite). The main ve
 """
 
 # Create vehicle objects.
-bodies.create_empty_body("asterix")
-bodies.create_empty_body("obelix")
+body_settings.add_empty_settings("asterix")
+body_settings.add_empty_settings("obelix")
 
 # Set mass of satellites
-bodies.get("asterix").mass = 5.0
-bodies.get("obelix").mass = 5.0
+body_settings.get("asterix").constant_mass = 5.0
+body_settings.get("obelix").constant_mass = 5.0
 
 # Create aerodynamic coefficient interface settings and add it to the first satellite
 reference_area = 0.1 * 0.1
@@ -102,8 +99,7 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "asterix", aero_coefficient_settings)
+body_settings.get("asterix").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create aerodynamic coefficient interface settings and add it to the second satellite (3x surface area)
 reference_area = 3 * 0.1 * 0.1
@@ -111,8 +107,11 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "obelix", aero_coefficient_settings)
+body_settings.get("obelix").aerodynamic_coefficient_settings = aero_coefficient_settings
+
+
+# Create system of selected bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 ## Creation of propagation settings
@@ -390,8 +389,8 @@ With these commands, we execute the simulation and retrieve the output.
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings)
-states = dynamics_simulator.state_history
-dependent_variables = dynamics_simulator.dependent_variable_history
+states = dynamics_simulator.propagation_results.state_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)

@@ -361,7 +361,7 @@ def define_dependent_variables_to_save(section_name):
     return [
         propagation_setup.dependent_variable.altitude( section_name, "Mars" ),
         propagation_setup.dependent_variable.airspeed( section_name, "Mars" ),
-        propagation_setup.dependent_variable.dynamic_pressure( section_name ),
+        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars" ),
         propagation_setup.dependent_variable.body_mass( section_name ),
         propagation_setup.dependent_variable.total_acceleration_norm( section_name ),
         propagation_setup.dependent_variable.single_acceleration_norm(
@@ -511,9 +511,9 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     propagator_settings
 )
 # Extract the propagated states and dependent variables and convert them to numpy arrays
-states = dynamics_simulator.state_history
+states = dynamics_simulator.propagation_results.state_history
 states_array_section_1 = result2array(states)
-dep_vars = dynamics_simulator.dependent_variable_history
+dep_vars = dynamics_simulator.propagation_results.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
 

@@ -79,7 +79,7 @@ from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entri
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
 
-spice.load_standard_kernels([])
+spice.load_standard_kernels()
 
 
 ## Auxiliary functions
@@ -397,7 +397,7 @@ def get_fourier(time_history: np.ndarray, clean_signal: list = [0.0, 0]) -> tupl
         signal = remove_jumps(signal, clean_signal[0])
     if clean_signal[1] != 0:
         coeffs = polyfit(sample_times, signal, clean_signal[1])
-        for idx in len(coeffs):
+        for idx in range(len(coeffs)):
             current_coeff = coeffs[idx]
             exponent = idx
             signal = signal - current_coeff*sample_times**exponent
