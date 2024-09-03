@@ -57,6 +57,7 @@ import pygmo as pg
 
 current_dir = os.path.abspath('')
 
+
 ## Creation of Custom Environment
 """
 
@@ -107,6 +108,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     return environment_setup.rotation_model.simple(
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
+
 ### Itokawa ephemeris settings
 """
 The next helper function defined, `get_itokawa_ephemeris_settings()`, that can be used to set the ephemeris of Itokawa.
@@ -154,6 +156,7 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         "Sun",
         "ECLIPJ2000")
 
+
 ### Itokawa gravity field settings
 """
 The `get_itokawa_gravity_field_settings()` helper function can be used to get the gravity field settings of Itokawa.
@@ -182,6 +185,7 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
         normalized_sine_coefficients=normalized_sine_coefficients,
         associated_reference_frame=itokawa_body_fixed_frame)
 
+
 ### Itokawa shape settings
 """
 The next helper function defined, `get_itokawa_shape_settings()` return the shape settings object for Itokawa. It uses a simple spherical model, and take the radius of Itokawa as input.
@@ -190,6 +194,7 @@ The next helper function defined, `get_itokawa_shape_settings()` return the shap
 def get_itokawa_shape_settings(itokawa_radius):
     # Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
+
 
 ### Simulation bodies
 """
@@ -250,13 +255,14 @@ def create_simulation_bodies(itokawa_radius):
 
     return bodies
 
+
 ### Acceleration models
 """
 The `get_acceleration_models()` helper function returns the acceleration models to be used during the astrodynamic simulation. The following accelerations are included:
 
 - Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
 - Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
-- Radiatio pressure from the Sun using a simplified canonnball model.
+- Radiation pressure from the Sun using a simplified cannonball model.
 
 This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
 """
@@ -282,6 +288,7 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
         acceleration_settings,
         bodies_to_propagate,
         central_bodies)
+
 
 ### Termination settings
 """
@@ -324,6 +331,7 @@ def get_termination_settings(mission_initial_time,
     return propagation_setup.propagator.hybrid_termination(termination_settings_list,
                                                            fulfill_single_condition=True)
 
+
 ### Dependent variables to save
 """
 Finally, the `get_dependent_variables_to_save()` helper function returns a pre-defined list of dependent variables to save during the propagation, alongside the propagated state. This function can be expanded, but contains by default only the position of the spacecraft with respect to the Itokawa asteroid expressed in spherical coordinates.
@@ -336,6 +344,7 @@ def get_dependent_variables_to_save():
         )
     ]
     return dependent_variables_to_save
+
 
 ## Optimisation problem formulation 
 """
@@ -437,6 +446,7 @@ class AsteroidOrbitProblem:
     def get_last_run_dynamics_simulator(self):
         return self.dynamics_simulator_function()
 
+
 ### Setup orbital simulation
 """
 Before running the optimisation, some aspect of the orbital simulation around Itokawa still need to be setup.
@@ -447,7 +457,7 @@ Most importantly, the simulation bodies, acceleration models, integrator setting
 """
 The simulation settings are first defined.
 
-The SPICE kernels are loaded, so that we can acess the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
+The SPICE kernels are loaded, so that we can access the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
 
 The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
 
@@ -491,6 +501,7 @@ central_bodies = ["Itokawa"]
 # Create acceleration models
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
+
 #### Dependent variables, termination settings, and orbit parameters
 """
 To define the propagator settings in the subsequent sections, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the dependent variables and termination settings.
@@ -506,6 +517,7 @@ termination_settings = get_termination_settings(
     mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
 
 orbit_parameters = [1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02]
+
 
 #### Integrator and Propagator settings
 """
@@ -542,6 +554,7 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          propagator,
                                                                          dependent_variables_to_save)
 
+
 ## Propagating Orbit
 """
 
@@ -563,6 +576,7 @@ orbitProblem = AsteroidOrbitProblem(bodies,
                                     design_variable_ub)
 design_variable_vector = np.array([1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02])
 orbitProblem.fitness(design_variable_vector)
+
 
 ### Visualizing orbit
 """
@@ -590,3 +604,4 @@ ax.set_xlim([-1000,1000])
 ax.set_ylim([-1000,1000])
 ax.set_zlim([-1000,1000])
 ax.grid()
+
