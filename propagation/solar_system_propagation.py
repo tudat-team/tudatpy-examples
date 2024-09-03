@@ -40,6 +40,7 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
@@ -57,6 +58,7 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 4, 25).epoch()
 simulation_end_epoch   = simulation_start_epoch + 5 * constants.JULIAN_YEAR
 
+
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
@@ -69,7 +71,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `body_system`.
 """
@@ -88,6 +90,7 @@ bodies_to_propagate = bodies_to_create
 # Create bodies in simulation.
 body_settings = environment_setup.get_default_body_settings(bodies_to_create)
 body_system = environment_setup.create_system_of_bodies(body_settings)
+
 
 ## Propagation setup
 """
@@ -111,11 +114,12 @@ for body_name in bodies_to_create:
     else:
         central_bodies_hierarchical.append("Sun")
 
+
 ### Create the acceleration model
 """
 The acceleration settings that act each body are first defined. These accelerations only consist in the gravitational effect of each other body modeled as a Point Mass.
 
-These acceleration settings, taking the form of a dictionnary, are then converted to acceleration models both for the barycentric and the hierarchical propagation variant, using the respective central bodies.
+These acceleration settings, taking the form of a dictionary, are then converted to acceleration models both for the barycentric and the hierarchical propagation variant, using the respective central bodies.
 """
 
 # Define the accelerations acting on each body
@@ -145,6 +149,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     else:
         acceleration_models_hierarchical = acceleration_models
 
+
 ### Define the initial state
 """
 The initial state of each body now has to be defined.
@@ -167,6 +172,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
     else:
         system_initial_state_hierarchical = system_initial_state
 
+
 ### Create the propagator settings
 """
 The propagator settings are now defined.
@@ -175,7 +181,7 @@ First, a termination setting is setup so that the propagation stops after 5 simu
 
 Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 1 hour.
 
-Then, the translational propagator settings are defined seperately for both system of central bodies.
+Then, the translational propagator settings are defined separately for both system of central bodies.
 """
 
 # Create termination settings
@@ -209,6 +215,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
             termination_settings
         )
 
+
 ## Propagate the bodies
 """
 Each of the bodies can now be simulated.
@@ -230,6 +237,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
         results_hierarchical = numerical_simulation.create_dynamics_simulator(
             body_system, propagator_settings_hierarchical).state_history
 
+
 ## Post-process the propagation results
 """
 The results of the propagation are then processed to a more user-friendly form.
@@ -241,7 +249,7 @@ The results of the propagation are then processed to a more user-friendly form.
 Let's first plot the trajectory of each of the bodies in 3 dimensions, with respect to the Solar System Barycenter.
 """
 
-# Convert the state dictionnary to a multi-dimensional array
+# Convert the state dictionary to a multi-dimensional array
 barycentric_system_state_array = result2array(results_barycentric)
 
 fig1 = plt.figure(figsize=(8, 8))
@@ -270,6 +278,7 @@ ax1.set_ylim([-2.5E11, 2.5E11])
 ax1.set_zlabel('z [m]')
 ax1.set_zlim([-2.5E11, 2.5E11])
 plt.tight_layout()
+
 
 ### Plot the hierarchical system evolution in 3D
 """
@@ -323,3 +332,4 @@ for ax, ax_lim in zip(axs, ax_lims):
     ax.set_zlim(ax_lim)
     
 plt.tight_layout()
+

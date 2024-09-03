@@ -40,6 +40,7 @@ from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
 
+
 ## Configuration
 """
 First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodies such as the Earth, the Sun, or the Moon known to `tudatpy`.
@@ -55,6 +56,7 @@ spice.load_standard_kernels()
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 4).epoch()
+
 
 ## Set up the environment
 """
@@ -83,6 +85,7 @@ body_settings = environment_setup.get_default_body_settings(
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ### Create the vehicle and its environment interface
 """
 We will now create the satellite - called Delfi-C3 - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 400kg, a reference area (used both for aerodynamic and radiation pressure) of 4m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
@@ -106,10 +109,11 @@ reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U Cube
 radiation_pressure_coefficient = 1.2
 occulting_bodies = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
+    "Sun", reference_area, radiation_pressure_coefficient, occulting_bodies
 )
 # Add the radiation pressure interface to the environment
 environment_setup.add_radiation_pressure_interface(bodies, "Delfi-C3", radiation_pressure_settings)
+
 
 ## Set up the propagation
 """
@@ -121,6 +125,7 @@ bodies_to_propagate = ["Delfi-C3"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -163,6 +168,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Define the initial state
 """
 Realise that the initial state of the spacecraft always has to be provided as a cartesian state - i.e. in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
@@ -178,6 +184,7 @@ delfi_tle = environment.Tle(
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
+
 ### Create the integrator settings
 """
 For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
@@ -187,6 +194,7 @@ For the problem at hand, we will use an RKF78 integrator with a fixed step-size 
 integrator_settings = propagation_setup.integrator.\
     runge_kutta_fixed_step_size(initial_time_step=60.0,
                                 coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
+
 
 ### Create the propagator settings
 """
@@ -206,6 +214,7 @@ propagator_settings = propagation_setup.propagator.translational(
     integrator_settings,
     termination_condition
 )
+
 
 ## Set up the observations
 """
@@ -232,6 +241,7 @@ environment_setup.add_ground_station(
     [station_altitude, delft_latitude, delft_longitude],
     element_conversion.geodetic_position_type)
 
+
 ### Define Observation Links and Types
 """
 To establish the links between our ground station and `Delfi-C3`, we will make use of the [observation module](https://py.api.tudat.space/en/latest/observation.html#observation) of tudat. During th link definition, each member is assigned a certain function within the link, for instance as "transmitter", "receiver", or "reflector". Once two (or more) members are connected to a link, they can be used to simulate observations along this particular link. The precise type of observation made along this link - e.g., range, range-rate, angular position, etc. - is then determined by the chosen observable type.
@@ -249,6 +259,7 @@ link_ends[observation.receiver] = observation.body_origin_link_end_id("Delfi-C3"
 # Create observation settings for each link/observable
 link_definition = observation.LinkDefinition(link_ends)
 observation_settings_list = [observation.one_way_doppler_instantaneous(link_definition)]
+
 
 ### Define Observation Simulation Settings
 """
@@ -282,6 +293,7 @@ observation.add_viability_check_to_all(
     [viability_setting]
 )
 
+
 ## Set up the estimation
 """
 Using the defined models for the environment, the propagator, and the observations, we can finally set the actual presentation up. In particular, this consists of defining all parameter that should be estimated, the creation of the estimator, and the simulation of the observations.
@@ -303,13 +315,15 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
+
 ### Creating the Estimator object
 """
 Ultimately, the `Estimator` object consolidates all relevant information required for the estimation of any system parameter:
-    * the environment (bodies)
-    * the parameter set (parameters_to_estimate)
-    * observation models (observation_settings_list)
-    * dynamical, numerical, and integrator setup (propagator_settings)
+
+* the environment (bodies)
+* the parameter set (parameters_to_estimate)
+* observation models (observation_settings_list)
+* dynamical, numerical, and integrator setup (propagator_settings)
 
 Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
 """
@@ -321,6 +335,7 @@ estimator = numerical_simulation.Estimator(
     observation_settings_list,
     propagator_settings)
 
+
 ### Perform the observations simulation
 """
 Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
@@ -331,6 +346,7 @@ simulated_observations = estimation.simulate_observations(
     [observation_simulation_settings],
     estimator.observation_simulators,
     bodies)
+
 
 # <a id='estimation_section'></a>
 
@@ -369,6 +385,7 @@ estimation_input.define_estimation_settings(
 weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
 estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
+
 ### Estimate the individual parameters
 """
 Using the just defined inputs, we can ultimately run the estimation of the selected parameters. After a pre-defined maximum number of iterations (the default value is set to a total of five), the least squares estimator - ideally having reached a sufficient level of convergence - will stop with the process of iterating over the problem and updating the parameters.
@@ -379,9 +396,11 @@ Since we have now estimated the actual parameters - unlike when only propagating
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
 
+
 # Print the covariance matrix
 print(estimation_output.formal_errors)
 print(truth_parameters - parameters_to_estimate.parameter_vector)
+
 
 ## Results post-processing
 """
@@ -391,7 +410,7 @@ Finally, to further process the obtained data, one can - exemplary - plot the be
 
 ### Range-rate over time
 """
-First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizont and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
+First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizon and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
 """
 
 observation_times = np.array(simulated_observations.concatenated_times)
@@ -407,6 +426,7 @@ plt.grid()
 
 plt.tight_layout()
 plt.show()
+
 
 ### Residuals history
 """
@@ -431,6 +451,7 @@ ax4.set_xlabel("Time since J2000 [s]")
 plt.tight_layout()
 plt.show()
 
+
 ### Final residuals
 """
 Finally, one can also analyse the residuals of the last iteration. Hence, for each of the estimated parameters, we have calculated the true-to-formal-error rate, as well as plotted the statistical distribution of the final residuals between the simulated observations and the estimated orbit. Ideally, given the type of observable we have used (i.e. free of any bias) as well as a statistically sufficient high number of observations, we would expect to see a Gaussian distribution with zero mean here.
@@ -447,8 +468,9 @@ final_residuals = estimation_output.final_residuals
 plt.figure(figsize=(9,5))
 plt.hist(final_residuals, 25)
 plt.xlabel('Final iteration range-rate residual [m/s]')
-plt.ylabel('Occurences [-]')
+plt.ylabel('Occurrences [-]')
 plt.title('Histogram of residuals on final iteration')
 
 plt.tight_layout()
 plt.show()
+
