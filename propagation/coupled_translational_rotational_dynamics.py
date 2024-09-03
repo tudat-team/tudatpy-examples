@@ -817,7 +817,7 @@ In practice, the normal mode will be excited much less than initially, but some 
 phobos_mean_rotational_rate = 0.000228035245  # In rad/s
 # As dissipation times, we will start with 4h and keep duplicating the damping time in each iteration. In the final iteration, a damping time of 4096h means a propagation time of 40960h, which is a bit over 4.5 years.
 dissipation_times = list(np.array([4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0])*3600.0)  # In seconds. Here, we
-damping_results = numerical_simulation.propagation.get_zero_proper_mode_rotational_state(bodies,
+damping_results = numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
                                                                                          combined_propagator_settings,
                                                                                          phobos_mean_rotational_rate,
                                                                                          dissipation_times)

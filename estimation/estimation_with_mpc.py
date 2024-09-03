@@ -10,7 +10,6 @@ This example highlights a simple orbit estimation routine using real, angular ob
 """
 
 ## Import statements
-"""
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
@@ -18,7 +17,6 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
-"""
 
 # import MPC interface
 from tudatpy.data.mpc import BatchMPC
