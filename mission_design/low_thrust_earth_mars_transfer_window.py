@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 import tudatpy
 from tudatpy import constants
 from tudatpy import numerical_simulation
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.trajectory_design import shape_based_thrust
 from tudatpy.trajectory_design import transfer_trajectory
@@ -59,7 +59,7 @@ The simulation environment is set up here: the standard Spice kernels are loaded
 """
 
 # Load spice kernels
-spice_interface.load_standard_kernels( )
+spice.load_standard_kernels( )
 
 # Define global frame orientation
 global_frame_orientation = 'ECLIPJ2000'
@@ -70,23 +70,26 @@ global_frame_origin = 'Sun'
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create environment model
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 # Create vehicle object and add it to the existing system of bodies
 vehicle_mass = 4.0E3
 specific_impulse = 3000.0
-bodies.create_empty_body('Vehicle')
-bodies.get_body('Vehicle').mass = vehicle_mass
+body_settings.add_empty_settings("Vehicle")
+
+body_settings.get("Vehicle").constant_mass = vehicle_mass
+
+# Create rotation model settings
+rotation_model_settings = environment_setup.rotation_model.custom_inertial_direction_based(
+        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehicleFixed' )
+body_settings.get("Vehicle").rotation_model_settings = rotation_model_settings
+
+# Create bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Create vehicle thrust settings        
 thrust_magnitude_settings = (
 propagation_setup.thrust.custom_thrust_magnitude_fixed_isp( lambda time : 0.0, specific_impulse ) )
 environment_setup.add_engine_model(
     'Vehicle', 'LowThrustEngine', thrust_magnitude_settings, bodies )
-environment_setup.add_rotation_model(
-    bodies, 'Vehicle', environment_setup.rotation_model.custom_inertial_direction_based(
-        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehicleFixed' ) )
 
 
 ## Shape-based low-thrust trajectory optimization
@@ -734,7 +737,7 @@ def inspect_low_thrust_trajectory(
     # PROCESS SIMULATION OUTPUT ###############################################
     ###########################################################################
     # Retrieve propagated state and dependent variables
-    state_history = dynamics_simulator.state_history
+    state_history = dynamics_simulator.propagation_results.state_history
 
     # Create dependent variable dictionary
     dv_dict = create_dependent_variable_dictionary(dynamics_simulator)
@@ -769,7 +772,7 @@ def inspect_low_thrust_trajectory(
     # RETRIEVE EPHEMERIS OF ASTRONOMICAL BODIES ###############################
     ###########################################################################
 
-    retrieve_ephemeris = lambda body: np.vstack([spice_interface.get_body_cartesian_state_at_epoch(
+    retrieve_ephemeris = lambda body: np.vstack([spice.get_body_cartesian_state_at_epoch(
         target_body_name=body,
         observer_body_name="SSB",
         reference_frame_name="ECLIPJ2000",

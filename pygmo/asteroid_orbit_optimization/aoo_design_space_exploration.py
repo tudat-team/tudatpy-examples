@@ -49,7 +49,7 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.io import save2txt
+from tudatpy.data import save2txt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
@@ -211,20 +211,22 @@ def create_simulation_bodies(itokawa_radius):
 
     ### VEHICLE BODY ###
     # Create vehicle object
-    bodies.create_empty_body("Spacecraft")
-    bodies.get("Spacecraft").set_constant_mass(400.0)
+    body_settings.add_empty_settings("Spacecraft")
+    body_settings.get("Spacecraft").constant_mass = 400
 
-    # Create radiation pressure settings, and add to vehicle
+    # Create radiation pressure settings
     reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
     radiation_pressure_coefficient = 1.2
-    radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-        "Sun",
-        reference_area_radiation,
-        radiation_pressure_coefficient)
-    environment_setup.add_radiation_pressure_interface(
-        bodies,
-        "Spacecraft",
-        radiation_pressure_settings)
+    occulting_bodies_dict = dict()
+    occulting_bodies_dict["Sun"] = ["Itokawa"]
+    vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+        reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+    # Add the radiation pressure interface to the body settings
+    body_settings.get("Spacecraft").radiation_pressure_target_settings = vehicle_target_settings
+
+    # Create system of selected bodies
+    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     return bodies
 
@@ -234,7 +236,7 @@ def create_simulation_bodies(itokawa_radius):
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
-        Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
+        Sun =     [ propagation_setup.acceleration.radiation_pressure(),
                     propagation_setup.acceleration.point_mass_gravity() ],
         Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(3, 3) ],
         Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
@@ -374,7 +376,7 @@ class AsteroidOrbitProblem:
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
-        dependent_variables = dynamics_simulator.dependent_variable_history
+        dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
         
         # Retrieve distance
@@ -389,7 +391,7 @@ class AsteroidOrbitProblem:
 
         # Exaggerate fitness value if the spacecraft has broken out of the selected distance range
         current_penalty = 0.0
-        if (max(dynamics_simulator.dependent_variable_history.keys()) < self.mission_final_time):
+        if (max(dynamics_simulator.propagation_results.dependent_variable_history.keys()) < self.mission_final_time):
             current_penalty = 1.0E2
 
         return [current_fitness + current_penalty, np.mean(distance) + current_penalty * 1.0E3]
@@ -533,6 +535,7 @@ for i in range(len(orbit_parameters)):
 
         # Create Asteroid Orbit Problem object
         current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                                  integrator_settings,
                                                                   propagator_settings,
                                                                   mission_initial_time,
                                                                   mission_duration,
@@ -545,12 +548,12 @@ for i in range(len(orbit_parameters)):
 
         ### OUTPUT OF THE SIMULATION ###
         # Retrieve propagated state and dependent variables
-        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
         # Get the number of function evaluations (for comparison of different integrators)
         dynamics_simulator = current_asteroid_orbit_problem.get_last_run_dynamics_simulator()
-        function_evaluation_dict = dynamics_simulator.cumulative_number_of_function_evaluations
+        function_evaluation_dict = dynamics_simulator.propagation_results.cumulative_number_of_function_evaluations_history
         number_of_function_evaluations = list(function_evaluation_dict.values())[-1]
 
         dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
@@ -663,6 +666,7 @@ for i in range(len(FFD_array)):
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,
@@ -674,8 +678,8 @@ for i in range(len(FFD_array)):
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
@@ -748,6 +752,7 @@ for i in range(len(yates_array)): # Run through yates array
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,
@@ -759,8 +764,8 @@ for i in range(len(yates_array)): # Run through yates array
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
