@@ -2,7 +2,6 @@
 # coding: utf-8
 
 # # Initial state estimation From Real MPC Observations
-# Copyright (c) 2010-2023, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 # 
 # ## Objectives
 # This example highlights a **simple orbit estimation routine** using **real angular observation data** from the  [Minor Planet Center](https://www.minorplanetcenter.net/) (MPC). 
@@ -11,10 +10,20 @@
 # 
 # We will estimate the initial state of [Eros](https://en.wikipedia.org/wiki/433_Eros), a near-Earth asteroid also visited by the NEAR Shoemaker probe in 1998. We will use the `Tudat BatchMPC` interface to retrieve and process the data. For a more in depth explanation of this interface we recommend first checking out the [Retrieving observation data from the Minor Planet Centre](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/retrieving_mpc_observation_data.html) example. We will also briefly use the SBDBquery class which interfaces JPL's [Small Body DataBase (SBDB)](https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html).
 
+# ## Key API References
+#  Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+# 
+# | Module | | Methods |➡️ | | | | | | |
+# | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+# | [**data.mpc.BatchMPC**]() | [**get_observations**]() | [**filter**]() | [**summary**]() | [**observatories_table**]() | [**table.query**]() | [**MPC_objects**]() | [**to_tudat()**]()| [**epoch_start**]() | [**epoch_end**]() |
+# | [**data.sbdb.SBDBquery**]() |[**codes_300_spkid**]() | [**shortname**]()|
+# 
+# 🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
+
 # ## Import statements
 # Let's start with importing the required modules. Most - if not all - of them (spice, numerical_simulation, environment, propagation) are used quite extensively in pretty much all tudatpy examples.They will soon become your friends (if they haven't already!).
 
-# In[30]:
+# In[1]:
 
 
 # Tudat imports for propagation and estimation
