@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # Retrieving observation data from the Minor Planet Centre
-# Copyright (c) 2010-2023, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-# 
+# # Retrieving Observations From the Minor Planet Centre
 # ## Objectives
 # The [Minor Planet Centre](https://www.minorplanetcenter.net/) (MPC) provides positional elements and observation data for minor planets, comets and outer irregular natural satellites of the major planets. Tudat's `BatchMPC` class allows for the retrieval and processing of observational data for these objects. 
 # 
@@ -18,6 +16,17 @@
 # - [433 Eros](https://en.wikipedia.org/wiki/433_Eros) (also the main focus of the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example)
 # - [238 Hypatia](https://en.wikipedia.org/wiki/238_Hypatia)
 # - [329 Svea](https://en.wikipedia.org/wiki/329_Svea)
+# 
+
+# ## Key API References
+#  Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+# 
+# | Module | | Methods |➡️ | | | | | | | | |
+# | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---| ---|
+# | [data.mpc.BatchMPC]() | [**get_observations**]() | [**filter**]() | [**summary**]() | [**observatories_table**]() | [**table.query**]() | [**MPC_objects**]() | [**to_tudat()**]()| [**epoch_start**]() | [**epoch_end**]() | [**plot_observations_sky**]() | [**plot_observations_temporal**]()|
+# | data.horizons.HorizonsQuery | [**interpolated_observations**]() |
+# 
+# 🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
 
 # ### Import statements
 # In this example we do not perform an estimation, so we only need the `BatchMPC`  class from `data` , `environment_setup`  and `observation`  to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation ouput and load the standard `SPICE` kernels.
@@ -35,6 +44,7 @@ from tudatpy.data.horizons import HorizonsQuery
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+from astroquery.mpc import MPC
 
 
 # Load spice kernels
@@ -269,8 +279,6 @@ observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict, 
 
 # In[16]:
 
-
-from astroquery.mpc import MPC
 
 mpc_code_hypatia = 238
 data = MPC.get_observations(mpc_code_hypatia)

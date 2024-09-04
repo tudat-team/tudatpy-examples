@@ -2,10 +2,25 @@
 # coding: utf-8
 
 # # Covariance Propagation Using `Starlink-32101`
-# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 # 
-# ## Objective
-# This example will show you how to propagate the covariance. We will simulate a series of **one-way**  open loop observing sessions of the ``Starlink-32101`` satellite, and we will see simulating a different number of observations affects the evolution of the **formal errors** over time. This example builds up on the [Delfi-C3 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), so go check that out if you haven't already! 
+# ## Objectives
+# This example will show you how to **propagate the covariance**. We will simulate a series of **one-way**  open loop observing sessions of the ``Starlink-32101`` satellite, and we will see simulating a different number of observations affects the evolution of the **formal errors** over time. This example builds up on the [Delfi-C3 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), so go check that out if you haven't already! 
+
+# ## Key API References
+#  Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+# 
+# | Module | | Methods | ➡️ || | || | || |
+# | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+# | [numerical_simulation.estimation_setup.observation](https://py.api.tudat.space/en/latest/observation.html) | [**body_reference_point_link_end_id**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id) | [**LinkDefinition**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.LinkDefinition) | [**one_way_doppler_instantaneous**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.one_way_doppler_instantaneous) | [**add_gaussian_noise_to_observable**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.add_gaussian_noise_to_observable) | [**elevation_angle_viability**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.elevation_angle_viability)|[**tabulated_simulation_settings**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings)|
+# |[numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)| [**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | | | | |
+# | [numerical_simulation.Estimator](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator) | [**observation_simulators**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.observation_simulators) | [**compute_covariance**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.compute_covariance) | [**perform_estimation**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.perform_estimation) | [**state_transition_interface**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.state_transition_interface) | |
+# | [numerical_simulation.estimation](https://py.api.tudat.space/en/latest/estimation.html)  | [**simulate_observations**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) | [**CovarianceAnalysisInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.CovarianceAnalysisInput) | [**estimation_convergence_checker**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationConvergenceChecker) |[**EstimationInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput)| [**propagate_formal_errors_split_output**]| [**propagate_covariance_split_output**]()|
+# | [astro.frame_conversion](https://py.api.tudat.space/en/latest/frame_conversion.html#) | [**inertial_to_rsw_rotation_matrix**](https://py.api.tudat.space/en/latest/frame_conversion.html#tudatpy.astro.frame_conversion.inertial_to_rsw_rotation_matrix) | 
+# | [astro.time_conversion](https://py.api.tudat.space/en/latest/time_conversion.html) | [**DateTime**]() | 
+# | [astro.element_conversion](https://py.api.tudat.space/en/latest/element_conversion.html) | [**geodetic_position_type**]() | 
+# 
+# 
+# 🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
 
 # ## Import statements
 # Typically - in the most pythonic way - all required modules are imported at the very beginning.
@@ -14,7 +29,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
-# In[612]:
+# In[2]:
 
 
 # Load required standard modules
@@ -49,7 +64,7 @@ from tudatpy.astro import frame_conversion
 # Please note that, in general, the satellite might not be visible during a full osbervation session. 
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
 
-# In[613]:
+# In[3]:
 
 
 # Load spice kernels
@@ -75,7 +90,7 @@ observation_end_epoch_3 = simulation_end_epoch
 # 
 # These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
-# In[614]:
+# In[4]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -94,7 +109,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # ### Create the vehicle and its environment interface
 # We will now create the satellite - called `Starlink-32101` - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 260kg, a reference area (used both for aerodynamic and radiation pressure) of 20m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[615]:
+# In[5]:
 
 
 # Create vehicle objects.
@@ -124,7 +139,7 @@ environment_setup.add_radiation_pressure_interface(bodies, "Starlink-32101", rad
 # ## Set up the Satellite Propagation
 # Having the environment created, we will define the settings for the propagation of the spacecraft. First, we have to define the body to be propagated - here, the spacecraft - and the central body - here, Earth - with respect to which the state of the propagated body is defined.
 
-# In[616]:
+# In[6]:
 
 
 # Define bodies that are propagated
@@ -146,7 +161,7 @@ central_bodies = ["Earth"]
 # 
 # The defined acceleration settings are then applied to ``Starlink-32101`` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
-# In[617]:
+# In[7]:
 
 
 # Define the accelerations acting on `Starlink-32101`
@@ -182,7 +197,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Within this example, we will retrieve the initial state of `Starlink-32101` using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [www.n2yo.com](https://www.n2yo.com/satellite/?s=60447).
 
-# In[618]:
+# In[8]:
 
 
 # Retrieve the initial state of `Starlink-32101` using Two-Line-Elements (TLEs)
@@ -197,7 +212,7 @@ initial_state = Starlink_ephemeris.cartesian_state( simulation_start_epoch )
 # ### Create the integrator settings
 # For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
 
-# In[619]:
+# In[9]:
 
 
 # Create numerical integrator settings
@@ -209,7 +224,7 @@ integrator_settings = propagation_setup.integrator.\
 # ### Create the propagator settings
 # By combining all of the above-defined settings we can define the settings for the propagator to simulate the orbit of ``Starlink-32101`` around Earth. A termination condition needs to be defined so that the propagation stops as soon as the specified end epoch is reached. Finally, the translational propagator's settings are created.
 
-# In[620]:
+# In[10]:
 
 
 # Create termination settings
@@ -235,7 +250,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 
-# In[621]:
+# In[11]:
 
 
 # Define the position of the ground station on Earth
@@ -258,7 +273,7 @@ environment_setup.add_ground_station(
 # 
 # Each observable type has its own function for creating observation model settings - in this example we will use the `one_way_doppler_instantaneous()` function to model a series of one-way open-loop (i.e. instantaneous) Doppler observations. 
 
-# In[622]:
+# In[12]:
 
 
 # Define the uplink link ends for one-way observable
@@ -296,7 +311,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 # #### 6 - Append Results
 # We append the formal errors and the covariance obtained for each scenario to the respective lists: `formal_errors_list`, `covariances_list`.
 
-# In[623]:
+# In[13]:
 
 
 # 1 - Define Observation Simulation Settings
@@ -421,7 +436,7 @@ print('All Done.\n')
 # ### Cartesian Coordinates
 # Let's visualize the obtained propagated **cartesian** formal errors for each selected observation scenario. 
 
-# In[624]:
+# In[14]:
 
 
 ## Uncomment these lines to show the correlation plots
@@ -497,7 +512,7 @@ plt.show()
 # Making use of the cool Tudat `frame_conversion` class, we are also able to express these results in the **RSW** coordinates.
 # In order to do this, we need to retrieve the estimated cartesian states for `Starlink-32101` and rotate these into a the RSW reference frame, for each time. The retrieved (instantaneous) rotation matrix is then used to retrieve the covariance matrix in the new reference system. As above, this is done for each observation scenario. 
 
-# In[625]:
+# In[15]:
 
 
 estimation_states = []
