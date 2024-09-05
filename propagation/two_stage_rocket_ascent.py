@@ -1,28 +1,28 @@
-# Two-stage rocket ascent
-"""
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+#!/usr/bin/env python
+# coding: utf-8
 
-"""
+# # Two-stage rocket ascent
+# 
+# ## Objectives
+# This example demonstrates the simulation of the ascent trajectory of a two stage rocket on Mars. Two simulations are carried: one for each stage. In these simulations, both the dynamic state and the mass of the vehicle are propagated.
+# 
+# To ascent to orbit, the rocket needs thrust. This example thus also focuses on demonstrating various ascpect of thrust that are available in Tudat(Py). More specifically, dual thrust is implemented, simulating a solid propellant which burns with a magnitude 1.75 times higher in the 15 first seconds.
+# 
+# Aerodynamic guidance is also included, as to very simply update the angle of attack of the vehicle over time, simulating an oscillation between -2deg and 2deg.
+# 
+# A custom termination setting is also showcased, used to switch from the first stage to the second stage when apogee is reached.
 
-## Context
-"""
-This example demonstrates the simulation of the ascent trajectory of a two stage rocket on Mars. Two simulations are carried: one for each stage. In these simulations, both the dynamic state and the mass of the vehicle are propagated.
+# ## Key API References
 
-To ascent to orbit, the rocket needs thrust. This example thus also focuses on demonstrating various ascpect of thrust that are available in Tudat(Py). More specifically, dual thrust is implemented, simulating a solid propellant which burns with a magnitude 1.75 times higher in the 15 first seconds.
+# ## Import statements
+# The required import statements are made here, at the very beginning.
+# 
+# Some standard modules are first loaded. These are `numpy`, `matplotlib.pyplot`, and `datetime.datetime`.
+# 
+# Then, the different modules of `tudatpy` that will be used are imported.
 
-Aerodynamic guidance is also included, as to very simply update the angle of attack of the vehicle over time, simulating an oscillation between -2deg and 2deg.
+# In[1]:
 
-A custom termination setting is also showcased, used to switch from the first stage to the second stage when apogee is reached.
-"""
-
-## Import statements
-"""
-The required import statements are made here, at the very beginning.
-
-Some standard modules are first loaded. These are `numpy`, `matplotlib.pyplot`, and `datetime.datetime`.
-
-Then, the different modules of `tudatpy` that will be used are imported.
-"""
 
 # Load standard modules
 import numpy as np
@@ -38,12 +38,14 @@ from tudatpy.astro import element_conversion, time_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
 
-## Configuration
-"""
-NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion module` is then used to convert the `datetime` to the correct format.
-"""
+# ## Configuration
+# NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
+# 
+# Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion module` is then used to convert the `datetime` to the correct format.
+
+# In[2]:
+
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -55,24 +57,23 @@ simulation_start_JD = time_conversion.calendar_date_to_julian_day(simulation_sta
 # Convert simulation start to seconds since J2000
 simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(simulation_start_JD)
 
-## Environment setup
-"""
-Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
 
-"""
+# ## Environment setup
+# Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
+# 
+# ### Create the bodies
+# Bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
+# 
+# The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
+# 
+# These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+# 
+# For our central body Mars, a predefined exponential atmosphere is then loaded.
+# 
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-### Create the bodies
-"""
-Bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
+# In[3]:
 
-The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
-
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-For our central body Mars, a predefined exponential atmosphere is then loaded.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
-"""
 
 # Define a function to create a default system of bodies (so it can be reused later)
 def create_bodies():
@@ -99,19 +100,19 @@ def create_bodies():
 # Create the system of selected celestial bodies
 bodies = create_bodies()
 
-## First section simulation
-"""
-In this example, our rocket consists of two stages. Do note that, further, the nomenclature of rocket **sections** is used, rather than rocket **stages**. The first rocket section contains both the first and the second stage. The second rocket section contains only the second stage. Section 1 is thus before stage separation, and section 2 after.
 
-Two distinct propagations will be made, one for each rocket section. The first section is numerically propagated until stage separation at apogee. Then, the second rocket section is propagated with a different body, with different properties, starting from where the first section stopped.
+# ## First section simulation
+# In this example, our rocket consists of two stages. Do note that, further, the nomenclature of rocket **sections** is used, rather than rocket **stages**. The first rocket section contains both the first and the second stage. The second rocket section contains only the second stage. Section 1 is thus before stage separation, and section 2 after.
+# 
+# Two distinct propagations will be made, one for each rocket section. The first section is numerically propagated until stage separation at apogee. Then, the second rocket section is propagated with a different body, with different properties, starting from where the first section stopped.
+# 
+# In a first time, we will thus focus on the ascent of the first section. Many functions will be defined in this example to setup the propagation of the first section. This is because the second section uses a similar setup, and will later re-use these functions.
 
-In a first time, we will thus focus on the ascent of the first section. Many functions will be defined in this example to setup the propagation of the first section. This is because the second section uses a similar setup, and will later re-use these functions.
-"""
+# ### Create the vehicle
+# Let's now create our vehicle for the first section, called "Section 1". It has an initial mass of 370kg.
 
-### Create the vehicle
-"""
-Let's now create our vehicle for the first section, called "Section 1". It has an initial mass of 370kg.
-"""
+# In[4]:
+
 
 # Define a function to create a body for a rocket section
 def create_rocket_section(section_name, wet_mass):
@@ -123,12 +124,16 @@ def create_rocket_section(section_name, wet_mass):
 # Create the first rocket section body with a wet mass of 370kg
 create_rocket_section("Section 1", 370.0)
 
+
 # To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
 # - A constant drag coefficient of 0.85.
 # - No sideslip coefficient (equal to 0).
 # - A lift coefficient of 0.4.
 # - A reference area of 0.25m$^2$.
 # - No moment coefficient.
+
+# In[5]:
+
 
 # Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
 def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
@@ -147,15 +152,17 @@ def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
 # Create an aerodynamic coefficient interface for the first rocket section
 add_aero_coefficients("Section 1", 0.85, 0.4)
 
-### Propagation setup
-"""
-Now that the environment is created, the propagation setup is defined.
 
-First, the bodies to be propagated and the central bodies will be defined.
-Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
+# ### Propagation setup
+# Now that the environment is created, the propagation setup is defined.
+# 
+# First, the bodies to be propagated and the central bodies will be defined.
+# Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
+# 
+# The body to be propagated in the first part of this example is the first rocket section.
 
-The body to be propagated in the first part of this example is the first rocket section.
-"""
+# In[6]:
+
 
 # Define bodies that are propagated
 bodies_to_propagate = ["Section 1"]
@@ -163,34 +170,36 @@ bodies_to_propagate = ["Section 1"]
 # Define central bodies of propagation
 central_bodies = ["Mars"]
 
-#### Thrust model
-"""
-Let's now define a thrust class, which will contain all of the functions needed to fully define a custom thrust model.
 
-As always in an ascent problem, we cannot use thrust anymore when the current stage has exhausted its propellant. The first function, `is_thrust_on()`, returns True when thrust can be used, and False when all of the propellant has been used.
+# #### Thrust model
+# Let's now define a thrust class, which will contain all of the functions needed to fully define a custom thrust model.
+# 
+# As always in an ascent problem, we cannot use thrust anymore when the current stage has exhausted its propellant. The first function, `is_thrust_on()`, returns True when thrust can be used, and False when all of the propellant has been used.
+# 
+# Then, the `get_thrust_magnitude()` function returns the current thrust magnitude. This magnitude is 1.75 times higher in the first 15 seconds, simulating the dual thrust of a solid propellant motor. This results in the following function for the thrust over time, with the time since engine start $t$ in seconds, and the user-set thrust magnitude $F_{T_\text{set}}$ in Newtons:
+# $$
+# F_T(t) = 
+# \begin{cases}
+# 1.75 \cdot F_{T_\text{set}} & \text{if }t < 15 \\
+# F_{T_\text{set}} & \text{if }t \geq 15
+# \end{cases}
+# $$
+# 
+# The constant specific impulse is returned by the `get_specific_impulse()` function.
+# 
+# Finally, the `get_thrust_direction()` returns the angle of the thrust in the **inertial frame**, as defined by the `vertical_angle` variable that specifies the angle of the thrust w.r.t. the axis going from the vehicle to the centre of Mars (the **vertical frame**). This unit vector that represents the thrust angle in the inertial frame $\hat{\mathbf{f}}_T$ is computed as below, with the rotation matrix from the vertical frame to the inertial frame $\mathbf{R}^{I/V}$ and the specified thrust angle in the vertical frame $\alpha_V$.
+# 
+# $$
+# \hat{\mathbf{f}}_T = \mathbf{R}^{I/V} \cdot 
+# \begin{bmatrix}
+# 0 \\
+# \sin \alpha_V \\
+# -\cos \alpha_V
+# \end{bmatrix}
+# $$
 
-Then, the `get_thrust_magnitude()` function returns the current thrust magnitude. This magnitude is 1.75 times higher in the first 15 seconds, simulating the dual thrust of a solid propellant motor. This results in the following function for the thrust over time, with the time since engine start $t$ in seconds, and the user-set thrust magnitude $F_{T_\text{set}}$ in Newtons:
-$$
-F_T(t) = 
-\begin{cases}
-1.75 \cdot F_{T_\text{set}} & \text{if }t < 15 \\
-F_{T_\text{set}} & \text{if }t \geq 15
-\end{cases}
-$$
+# In[7]:
 
-The constant specific impulse is returned by the `get_specific_impulse()` function.
-
-Finally, the `get_thrust_direction()` returns the angle of the thrust in the **inertial frame**, as defined by the `vertical_angle` variable that specifies the angle of the thrust w.r.t. the axis going from the vehicle to the centre of Mars (the **vertical frame**). This unit vector that represents the thrust angle in the inertial frame $\hat{\mathbf{f}}_T$ is computed as below, with the rotation matrix from the vertical frame to the inertial frame $\mathbf{R}^{I/V}$ and the specified thrust angle in the vertical frame $\alpha_V$.
-
-$$
-\hat{\mathbf{f}}_T = \mathbf{R}^{I/V} \cdot 
-\begin{bmatrix}
-0 \\
-\sin \alpha_V \\
--\cos \alpha_V
-\end{bmatrix}
-$$
-"""
 
 class thrust_model:
 
@@ -236,16 +245,18 @@ class thrust_model:
         # Return the thrust direction in the inertial frame
         return thrust_inertial_frame
 
-#### Define the thrust settings
-"""
-Using the `thrust_model` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
 
-For this first section, the following parameters are used for the thrust:
-- A thrust magnitude of 4.25 kN.
-- A specific impulse of 275 seconds.
-- A constant thrust angle of 40 deg from the vertical.
-- A dry mass of the first section of 185 kg (note that the wet mass was defined as 370 kg, so 185 kg of propellant can be used).
-"""
+# #### Define the thrust settings
+# Using the `thrust_model` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
+# 
+# For this first section, the following parameters are used for the thrust:
+# - A thrust magnitude of 4.25 kN.
+# - A specific impulse of 275 seconds.
+# - A constant thrust angle of 40 deg from the vertical.
+# - A dry mass of the first section of 185 kg (note that the wet mass was defined as 370 kg, so 185 kg of propellant can be used).
+
+# In[8]:
+
 
 # Define a function to create acceleration settings based on the direction and magnitude from the custom thrust class
 def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
@@ -276,17 +287,18 @@ current_thrust_model = thrust_model(4250, 275, np.deg2rad(40), bodies.get("Secti
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
 
-#### Create the accelerations model
-"""
-First off, the acceleration settings from the environment that act on the rocket are to be defined.
-In this case, these consist in the two followings:
-- Graviational acceleration of Mars modeled as Spherical Harmonics, taken up to a degree and order 4.
-- Aerodynamic acceleration caused by the atmosphere of Mars (using the aerodynamic interface defined earlier).
+# #### Create the accelerations model
+# First off, the acceleration settings from the environment that act on the rocket are to be defined.
+# In this case, these consist in the two followings:
+# - Graviational acceleration of Mars modeled as Spherical Harmonics, taken up to a degree and order 4.
+# - Aerodynamic acceleration caused by the atmosphere of Mars (using the aerodynamic interface defined earlier).
+# 
+# Additional accelerations are then added for the first rocket section, containing the thrust acceleration settings that were defined earlier.
+# 
+# The acceleration settings defined are then applied to the rocket section, and acceleration models are created.
 
-Additional accelerations are then added for the first rocket section, containing the thrust acceleration settings that were defined earlier.
+# In[9]:
 
-The acceleration settings defined are then applied to the rocket section, and acceleration models are created.
-"""
 
 # Define a function to create acceleration models for a given rocket section, containing the thrust
 def create_section_accelerations(section_name):
@@ -314,16 +326,17 @@ def create_section_accelerations(section_name):
 acceleration_models = create_section_accelerations("Section 1")
 
 
-### Define the initial state
-"""
-The initial state of the rocket for which the ascent will be propagated is now defined. 
+# ### Define the initial state
+# The initial state of the rocket for which the ascent will be propagated is now defined. 
+# 
+# This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+# 
+# In this case, let's make use of the `spherical_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Spherical elements, and then converted in Cartesian elements.
+# 
+# The initial state that will be defined is the one of the entire rocket, which is the same as the one used for the first section.
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+# In[10]:
 
-In this case, let's make use of the `spherical_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Spherical elements, and then converted in Cartesian elements.
-
-The initial state that will be defined is the one of the entire rocket, which is the same as the one used for the first section.
-"""
 
 # Define the initial state in Spherical elements, and convert to Mars fixed Cartesian elements
 initial_mars_fixed_state = element_conversion.spherical_to_cartesian_elementwise(
@@ -340,10 +353,12 @@ initial_inertial_state = environment.transform_to_inertial_orientation(
     initial_mars_fixed_state, simulation_start_epoch, bodies.get_body("Mars").rotation_model
 )
 
-### Define dependent variables to save
-"""
-Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularily interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
-"""
+
+# ### Define dependent variables to save
+# Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularily interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
+
+# In[11]:
+
 
 # Define a function to return the list of dependent variables to save for a given section
 def define_dependent_variables_to_save(section_name):
@@ -364,14 +379,16 @@ def define_dependent_variables_to_save(section_name):
 # Define the dependent variables to save for the first rocket section
 dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 
-### Define termination settings
-"""
-Termination settings define the conditions that, once reached, will stop the propagation.
 
-In this case, for the first rocket section, two termination settings are used:
-- Stop when the vehicle starts falling again, indicating that it reached apogee.
-- Stop 225 minutes after lift-off.
-"""
+# ### Define termination settings
+# Termination settings define the conditions that, once reached, will stop the propagation.
+# 
+# In this case, for the first rocket section, two termination settings are used:
+# - Stop when the vehicle starts falling again, indicating that it reached apogee.
+# - Stop 225 minutes after lift-off.
+
+# In[12]:
+
 
 class vehicle_falling:
     
@@ -404,14 +421,16 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
     fulfill_single_condition=True
 )
 
-### Create integrator settings
-"""
-Let's now create integrator settings. These use a RK78 intergration scheme with a variable step size. The following settings are used:
-- An initial time step of 0.25 seconds.
-- A minimum time step of 1e-4 seconds.
-- A maximum time step of 100 seconds.
-- A relative and absolute error tolerance of 1e-13.
-"""
+
+# ### Create integrator settings
+# Let's now create integrator settings. These use a RK78 intergration scheme with a variable step size. The following settings are used:
+# - An initial time step of 0.25 seconds.
+# - A minimum time step of 1e-4 seconds.
+# - A maximum time step of 100 seconds.
+# - A relative and absolute error tolerance of 1e-13.
+
+# In[13]:
+
 
 # Define integrator settings with the initial integration epoch
 def define_integrator_settings():
@@ -429,15 +448,17 @@ def define_integrator_settings():
 # Define the integrator settings
 integrator_settings = define_integrator_settings()
 
-### Create propagator settings
-"""
-The acceleration models, the initial state, the dependent variables, and the termination settings can now all be combined to define translational propagation settings.
-Also, in this case, a Cowell propagator is selected.
 
-Since we use thrust, we also define mass propagation settings, with the mass rate being setup to be consistant with the thrust.
+# ### Create propagator settings
+# The acceleration models, the initial state, the dependent variables, and the termination settings can now all be combined to define translational propagation settings.
+# Also, in this case, a Cowell propagator is selected.
+# 
+# Since we use thrust, we also define mass propagation settings, with the mass rate being setup to be consistant with the thrust.
+# 
+# The translational and mass propagation settings are combined together, to propagate both in the same propagation.
 
-The translational and mass propagation settings are combined together, to propagate both in the same propagation.
-"""
+# In[14]:
+
 
 # Define a function to create translational and mass propagation settings for a given rocket section
 def create_propagator_settings(section_name, initial_state, simulation_start_epoch, initial_mass, termination_settings, integrator_settings):
@@ -481,12 +502,14 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings, integrator_settings)
 
-### Run the first section ascent
-"""
-With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `create_dynamics_simulator()` function.
 
-The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the apochs.
-"""
+# ### Run the first section ascent
+# With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `create_dynamics_simulator()` function.
+# 
+# The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the apochs.
+
+# In[15]:
+
 
 # Run the numerical simulation of the first rocket section
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
@@ -499,25 +522,27 @@ states_array_section_1 = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
-### Save section 1 final state
-"""
-Because we now want to simulate the second section from our rocket, we need to save what was the last state from the first section. This way, we can start a new propagation, simulating the remaining ascent of the second section (being the second stage) only, starting from where the first section ended.
-"""
+
+# ### Save section 1 final state
+# Because we now want to simulate the second section from our rocket, we need to save what was the last state from the first section. This way, we can start a new propagation, simulating the remaining ascent of the second section (being the second stage) only, starting from where the first section ended.
+
+# In[16]:
+
 
 final_state_section_1 = states_array_section_1[-1,1:7]
 final_epoch_section_1 = states_array_section_1[-1,0]
 
-## Second section simulation
-"""
-With the first section simulation finished, the resulting states and dependant variables saved as the `states_array_section_1` and `dep_vars_array_section_1` arrays, and the final first section state saved as `final_state_section_1`, we can now propagate our second rocket section.
 
-The setup is done in a very similar way than for the first section, re-using many of the setup functions that were defined.
-"""
+# ## Second section simulation
+# With the first section simulation finished, the resulting states and dependant variables saved as the `states_array_section_1` and `dep_vars_array_section_1` arrays, and the final first section state saved as `final_state_section_1`, we can now propagate our second rocket section.
+# 
+# The setup is done in a very similar way than for the first section, re-using many of the setup functions that were defined.
 
-### Define the bodies
-"""
-The same celestial bodies are defined again, as well as the second section with a wet mass of 85kg, a drag coefficient of 0.55, and a lift coefficient of 0.25.
-"""
+# ### Define the bodies
+# The same celestial bodies are defined again, as well as the second section with a wet mass of 85kg, a drag coefficient of 0.55, and a lift coefficient of 0.25.
+
+# In[17]:
+
 
 # Re-create the system of bodies (to remove the first section that is now useless)
 bodies = create_bodies()
@@ -535,52 +560,60 @@ add_aero_coefficients("Section 2", 0.55, 0.25)
 bodies_to_propagate = ["Section 2"]
 
 
-### Define the thrust and accelerations
-"""
-The thrust for the second section is of a magnitude of 2.25 kN and a specific impulse of 273 seconds.
+# ### Define the thrust and accelerations
+# The thrust for the second section is of a magnitude of 2.25 kN and a specific impulse of 273 seconds.
+# 
+# The second section has a constant thrust orientation of 90 degrees from the vertical (it is horizontal).
+# 
+# Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
 
-The second section has a constant thrust orientation of 90 degrees from the vertical (it is horizontal).
+# In[18]:
 
-Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
-"""
 
 # Define the acceleration models for the second rocket section
 acceleration_models = create_section_accelerations("Section 2")
 
 
-### Define dependent variables
-"""
-The same dependent variables as for the first section are used. However, they are now all linked to the "Section 2" body.
-"""
+# ### Define dependent variables
+# The same dependent variables as for the first section are used. However, they are now all linked to the "Section 2" body.
+
+# In[19]:
+
 
 dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 
-### Define integrator settings
-"""
-A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
-"""
+
+# ### Define integrator settings
+# A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
+
+# In[20]:
+
 
 integrator_settings = define_integrator_settings()
 
-### Define propagator settings
-"""
-New translational and mass propagator settings are now defined for the second section.
 
-This time, the initial state of the second section is set as the final state of the first section.
-Also, the initial mass of the second section is set as 85kg for the mass propagator, and the only termination settings used is to finish after 300 minutes have elapsed since lift-off.
-"""
+# ### Define propagator settings
+# New translational and mass propagator settings are now defined for the second section.
+# 
+# This time, the initial state of the second section is set as the final state of the first section.
+# Also, the initial mass of the second section is set as 85kg for the mass propagator, and the only termination settings used is to finish after 300 minutes have elapsed since lift-off.
+
+# In[21]:
+
 
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, termination_max_time_settings, integrator_settings)
 
-### Run second section simulation
-"""
-We can now run the ascent simulation for the second section.
 
-Note that this may take a little longer to run, since it will propagate for up to half a day, instead of around 10 minutes until apogee.
+# ### Run second section simulation
+# We can now run the ascent simulation for the second section.
+# 
+# Note that this may take a little longer to run, since it will propagate for up to half a day, instead of around 10 minutes until apogee.
+# 
+# The state and dependent variable histories for the second section are now saved into the `states_array_section_2` and `dep_vars_array_section_2` numpy arrays.
 
-The state and dependent variable histories for the second section are now saved into the `states_array_section_2` and `dep_vars_array_section_2` numpy arrays.
-"""
+# In[22]:
+
 
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies,
@@ -591,22 +624,24 @@ states_array_section_2 = result2array(states)
 dep_vars = dynamics_simulator.dependent_variable_history
 dep_vars_array_section_2 = result2array(dep_vars)
 
-## Results analysis
-"""
-With the ascent simulation of both sections completed, we can now analyse the results. Most importantly, this consists in plotting the various dependent variables that has been saved over time.
-"""
 
-### Combine results from both sections
-"""
-First, let's combine the dependent variables arrays from both rocket sections together. This then produces one single `dep_vars_array` containing the dependent variables history of the entire rocket over time.
-"""
+# ## Results analysis
+# With the ascent simulation of both sections completed, we can now analyse the results. Most importantly, this consists in plotting the various dependent variables that has been saved over time.
+
+# ### Combine results from both sections
+# First, let's combine the dependent variables arrays from both rocket sections together. This then produces one single `dep_vars_array` containing the dependent variables history of the entire rocket over time.
+
+# In[23]:
+
 
 dep_vars_array = np.concatenate((dep_vars_array_section_1, dep_vars_array_section_2))
 
-### Extract the data
-"""
-Let's now extract each of the relevant data array from the dependent variables multi-dimensional array.
-"""
+
+# ### Extract the data
+# Let's now extract each of the relevant data array from the dependent variables multi-dimensional array.
+
+# In[24]:
+
 
 times = dep_vars_array[:,0]
 times_since_launch = times - times[0]
@@ -620,12 +655,14 @@ SH_a = dep_vars_array[:,6]
 thrust_a = dep_vars_array[:,7]
 aero_a = dep_vars_array[:,8]
 
-### Plot the results
-"""
-Let's plot all of the dependent variables over time.
 
-Do note that some of the plots are cropped after 10 minutes, to effectively zoom in on their most interesting part.
-"""
+# ### Plot the results
+# Let's plot all of the dependent variables over time.
+# 
+# Do note that some of the plots are cropped after 10 minutes, to effectively zoom in on their most interesting part.
+
+# In[25]:
+
 
 print("Stage separation occured after %.2f minutes." % ((final_epoch_section_1-times[0])/60))
 
@@ -680,39 +717,24 @@ ax5.legend()
 plt.tight_layout()
 plt.show()
 
-### Results analysis
-"""
-Finally, we can analyse the plot that we produce, giving various insights in our numerical simulation of a two-stage rocket ascent on Mars.
 
-"""
-
-#### Altitude over time
-"""
-In the first plot on the top left, we can see the altitude plotted as a function of time. This shows that the rocket progressively gains more and more altitude, as its accelerates. After stage separation, at around 9min, when the second stage ignites, the rocket does not gain significantly more altitude. This is because the second stage fires only horizontally. Because it does so at apoapsis, it fires only prograde, increasing the prograde (horizontal) velocity of the rocket, without increasing its radial (vertical) velocity. Afterwards, we see oscillations between around 150km and 900km. This shows that our vehicle is now in orbit.
-
-"""
-
-#### Airspeed over time
-"""
-The second plot on the top right clearly shows that the rocket gains considerable speed in the first seconds, when the first stage fires. At first stage burnout, the velocity starts decreasing. This is because we loose velocity for altitude, until we reach apoapsis. At apoapsis, the second stage ignites, and the velocity increases considerably again. Afterwards, we see oscillations between around 3.4 and 2.7 km/s, showing that our vehicle is at orbital velocity around Mars.
-
-"""
-
-#### Rocket mass over time
-"""
-The thrist plot in the middle left shows the mass of our rocket over time in its first 10 minutes. We can clearly identify the two moments where the rocket burns propellant, indicated by the two sections where the mass linearly decreases, from 0min to 2min, and from 9min to 10min. During the burns, since the rocket has a thrust magnitude that is 1.75 times higher in the first 15 seconds, it also looses propellant 1.75 times faster. This can be seen by the higher mass rate at the beginning of the ignition of both stages.
-Finally, we can see at around 9min that the two stages separate, because our rocket mass instantaneously changes from 185kg to 85kg.
-
-"""
-
-#### Dynamic pressure over time
-"""
-The fourth plot, in the middle right, shows the dynamic pressure over time in front of our rocket. While the model used to compute it is rather simplistic, it still gives a good indication as when max-q (moment of maximum dynamic pressure) is reached, and of its magnitude. This maximum dynamic pressure may be lower than expected, since we are flying on Mars and not the Earth.
-
-"""
-
-#### Accelerations over time
-"""
-Finally, the plot at the bottom shows various accelerations over time. Clearly, thrust gives the acceleration of the highest magnitude. Once again, we can see that the thrust was each time of a mgnitude 1.75 times higher in the first 15 seconds. Also, we can see that the thrust acceleration increases over time furing each of the burn. This can be expected: the acceleration that results in the thrust force becomes higher over time as our rocket mass becomes lower.
-The Martian gravitational acceleration comes second in magnitude. While it appears constant, because its magnitude is much lower than the one of the thrst, this gravitational acceleration decreases as altitude increases.
-Finally, the aerodynamic acceleration is only significant in the first 2min of the ascent. One may realise that this acceleration follows a similar shape as the dynamic pressure over time. This is because the aerodynamic acceleration relies purely on the aerodynamic coefficients (which are constant in this case), the angle of attack (that varies only between -2deg and 2deg), and the dynamic pressure.
+# ### Results analysis
+# Finally, we can analyse the plot that we produce, giving various insights in our numerical simulation of a two-stage rocket ascent on Mars.
+# 
+# #### Altitude over time
+# In the first plot on the top left, we can see the altitude plotted as a function of time. This shows that the rocket progressively gains more and more altitude, as its accelerates. After stage separation, at around 9min, when the second stage ignites, the rocket does not gain significantly more altitude. This is because the second stage fires only horizontally. Because it does so at apoapsis, it fires only prograde, increasing the prograde (horizontal) velocity of the rocket, without increasing its radial (vertical) velocity. Afterwards, we see oscillations between around 150km and 900km. This shows that our vehicle is now in orbit.
+# 
+# #### Airspeed over time
+# The second plot on the top right clearly shows that the rocket gains considerable speed in the first seconds, when the first stage fires. At first stage burnout, the velocity starts decreasing. This is because we loose velocity for altitude, until we reach apoapsis. At apoapsis, the second stage ignites, and the velocity increases considerably again. Afterwards, we see oscillations between around 3.4 and 2.7 km/s, showing that our vehicle is at orbital velocity around Mars.
+# 
+# #### Rocket mass over time
+# The thrist plot in the middle left shows the mass of our rocket over time in its first 10 minutes. We can clearly identify the two moments where the rocket burns propellant, indicated by the two sections where the mass linearly decreases, from 0min to 2min, and from 9min to 10min. During the burns, since the rocket has a thrust magnitude that is 1.75 times higher in the first 15 seconds, it also looses propellant 1.75 times faster. This can be seen by the higher mass rate at the beginning of the ignition of both stages.
+# Finally, we can see at around 9min that the two stages separate, because our rocket mass instantaneously changes from 185kg to 85kg.
+# 
+# #### Dynamic pressure over time
+# The fourth plot, in the middle right, shows the dynamic pressure over time in front of our rocket. While the model used to compute it is rather simplistic, it still gives a good indication as when max-q (moment of maximum dynamic pressure) is reached, and of its magnitude. This maximum dynamic pressure may be lower than expected, since we are flying on Mars and not the Earth.
+# 
+# #### Accelerations over time
+# Finally, the plot at the bottom shows various accelerations over time. Clearly, thrust gives the acceleration of the highest magnitude. Once again, we can see that the thrust was each time of a mgnitude 1.75 times higher in the first 15 seconds. Also, we can see that the thrust acceleration increases over time furing each of the burn. This can be expected: the acceleration that results in the thrust force becomes higher over time as our rocket mass becomes lower.
+# The Martian gravitational acceleration comes second in magnitude. While it appears constant, because its magnitude is much lower than the one of the thrst, this gravitational acceleration decreases as altitude increases.
+# Finally, the aerodynamic acceleration is only significant in the first 2min of the ascent. One may realise that this acceleration follows a similar shape as the dynamic pressure over time. This is because the aerodynamic acceleration relies purely on the aerodynamic coefficients (which are constant in this case), the angle of attack (that varies only between -2deg and 2deg), and the dynamic pressure.
