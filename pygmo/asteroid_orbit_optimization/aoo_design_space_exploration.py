@@ -49,7 +49,7 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.io import save2txt
+from tudatpy.data import save2txt
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
@@ -63,6 +63,7 @@ import tudatpy.util as util
 import pygmo as pg
 
 current_dir = os.path.abspath('')
+
 
 ## Creation of Custom Environment
 """
@@ -101,6 +102,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     return environment_setup.rotation_model.simple(
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
+
 ### Itokawa ephemeris settings
 """
 def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
@@ -134,6 +136,7 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         "ECLIPJ2000")
 """
 
+
 ### Itokawa gravity field settings
 """
 def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius):
@@ -158,12 +161,14 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
         associated_reference_frame=itokawa_body_fixed_frame)
 """
 
+
 ### Itokawa shape settings
 """
 def get_itokawa_shape_settings(itokawa_radius):
     Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
 """
+
 
 ### Simulation bodies
 """
@@ -206,29 +211,32 @@ def create_simulation_bodies(itokawa_radius):
 
     ### VEHICLE BODY ###
     # Create vehicle object
-    bodies.create_empty_body("Spacecraft")
-    bodies.get("Spacecraft").set_constant_mass(400.0)
+    body_settings.add_empty_settings("Spacecraft")
+    body_settings.get("Spacecraft").constant_mass = 400
 
-    # Create radiation pressure settings, and add to vehicle
+    # Create radiation pressure settings
     reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
     radiation_pressure_coefficient = 1.2
-    radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-        "Sun",
-        reference_area_radiation,
-        radiation_pressure_coefficient)
-    environment_setup.add_radiation_pressure_interface(
-        bodies,
-        "Spacecraft",
-        radiation_pressure_settings)
+    occulting_bodies_dict = dict()
+    occulting_bodies_dict["Sun"] = ["Itokawa"]
+    vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+        reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+    # Add the radiation pressure interface to the body settings
+    body_settings.get("Spacecraft").radiation_pressure_target_settings = vehicle_target_settings
+
+    # Create system of selected bodies
+    bodies = environment_setup.create_system_of_bodies(body_settings)
 
     return bodies
+
 
 ### Acceleration models
 """
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     Define accelerations acting on Spacecraft
     accelerations_settings_spacecraft = dict(
-        Sun =     [ propagation_setup.acceleration.cannonball_radiation_pressure(),
+        Sun =     [ propagation_setup.acceleration.radiation_pressure(),
                     propagation_setup.acceleration.point_mass_gravity() ],
         Itokawa = [ propagation_setup.acceleration.spherical_harmonic_gravity(3, 3) ],
         Jupiter = [ propagation_setup.acceleration.point_mass_gravity() ],
@@ -247,6 +255,7 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
         acceleration_settings,
         bodies_to_propagate,
         central_bodies)
+
 
 ### Termination settings
 """
@@ -283,6 +292,7 @@ def get_termination_settings(mission_initial_time,
     return propagation_setup.propagator.hybrid_termination(termination_settings_list,
                                                            fulfill_single_condition=True)
 
+
 ### Dependent variables to save
 """
 def get_dependent_variables_to_save():
@@ -293,6 +303,7 @@ def get_dependent_variables_to_save():
     ]
     return dependent_variables_to_save
 """
+
 
 ## Optimisation problem formulation 
 """
@@ -365,7 +376,7 @@ class AsteroidOrbitProblem:
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
-        dependent_variables = dynamics_simulator.dependent_variable_history
+        dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
         
         # Retrieve distance
@@ -380,13 +391,14 @@ class AsteroidOrbitProblem:
 
         # Exaggerate fitness value if the spacecraft has broken out of the selected distance range
         current_penalty = 0.0
-        if (max(dynamics_simulator.dependent_variable_history.keys()) < self.mission_final_time):
+        if (max(dynamics_simulator.propagation_results.dependent_variable_history.keys()) < self.mission_final_time):
             current_penalty = 1.0E2
 
         return [current_fitness + current_penalty, np.mean(distance) + current_penalty * 1.0E3]
 
     def get_last_run_dynamics_simulator(self):
         return self.dynamics_simulator_function()
+
 
 ### Setup orbital simulation
 """
@@ -424,6 +436,7 @@ central_bodies = ["Itokawa"]
 # Create acceleration models
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
+
 #### Dependent variables, termination settings, and orbit parameters
 """
 # Define list of dependent variables to save
@@ -435,6 +448,7 @@ termination_settings = get_termination_settings(
     mission_initial_time, mission_duration, minimum_distance_from_com, maximum_distance_from_com)
 
 orbit_parameters = [1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02]
+
 
 #### Integrator and Propagator settings
 """
@@ -462,12 +476,13 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          propagator,
                                                                          dependent_variables_to_save)
 
+
 ## Design Space Exploration
 """
 
 **From here on out the example is new compared to the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example.**
 
-Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimalisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimalisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
+Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
 
 - Monte Carlo Analysis
 - Fractional Factorial Design
@@ -498,6 +513,7 @@ min_distance = np.zeros((no_of_runs, len(orbit_param_names)))
 constraint_values = np.zeros((no_of_runs, len(orbit_param_names)))
 parameters = np.zeros((no_of_runs, len(orbit_param_names)))
 
+
 #### Monte Carlo loop
 """
 
@@ -519,6 +535,7 @@ for i in range(len(orbit_parameters)):
 
         # Create Asteroid Orbit Problem object
         current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                                  integrator_settings,
                                                                   propagator_settings,
                                                                   mission_initial_time,
                                                                   mission_duration,
@@ -531,12 +548,12 @@ for i in range(len(orbit_parameters)):
 
         ### OUTPUT OF THE SIMULATION ###
         # Retrieve propagated state and dependent variables
-        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+        state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+        dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
         # Get the number of function evaluations (for comparison of different integrators)
         dynamics_simulator = current_asteroid_orbit_problem.get_last_run_dynamics_simulator()
-        function_evaluation_dict = dynamics_simulator.cumulative_number_of_function_evaluations
+        function_evaluation_dict = dynamics_simulator.propagation_results.cumulative_number_of_function_evaluations_history
         number_of_function_evaluations = list(function_evaluation_dict.values())[-1]
 
         dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
@@ -592,6 +609,7 @@ design_variable_units = {0: r' m',
                            2: r' deg',
                            3: r' deg'}
 
+
 obj_arrays = [mean_latitude_all_param, mean_distance_all_param]
 objective_names = ['Latitude', 'Distance']
 for obj in range(2): #number of objectives
@@ -609,6 +627,7 @@ for obj in range(2): #number of objectives
         
         #For more verbose results, remove the 'break' below.
         break
+
 
 ### Fractional Factorial Design
 """
@@ -647,6 +666,7 @@ for i in range(len(FFD_array)):
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,
@@ -658,8 +678,8 @@ for i in range(len(FFD_array)):
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
@@ -673,6 +693,7 @@ for i in range(len(FFD_array)):
 
     mean_dependent_variables_list[i, 0] = mean_distance
     mean_dependent_variables_list[i, 1] = mean_latitude
+
 
 #### Post-processing FFD
 """
@@ -731,6 +752,7 @@ for i in range(len(yates_array)): # Run through yates array
 
     # Create Asteroid Orbit Problem object
     current_asteroid_orbit_problem = AsteroidOrbitProblem(bodies,
+                                                  integrator_settings,
                                                   propagator_settings,
                                                   mission_initial_time,
                                                   mission_duration,
@@ -742,8 +764,8 @@ for i in range(len(yates_array)): # Run through yates array
 
     ### OUTPUT OF THE SIMULATION ###
     # Retrieve propagated state and dependent variables
-    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().state_history
-    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().dependent_variable_history
+    state_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.state_history
+    dependent_variable_history = current_asteroid_orbit_problem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
 
     dependent_variables_list = np.vstack(list(dependent_variable_history.values()))
     # Retrieve distance
@@ -759,6 +781,7 @@ for i in range(len(yates_array)): # Run through yates array
     mean_distances[i] = mean_distance
     mean_latitudes[i] = mean_latitude
 
+
 #### Anova Analysis
 """
 
@@ -771,6 +794,7 @@ i, ij, ijk, err = util.anova_analysis(mean_distances, #can also be mean_latitude
             no_of_factors,
             no_of_levels,
             level_of_interactions=2)
+
 
 #### ANOVA Results
 """

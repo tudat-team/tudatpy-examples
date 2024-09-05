@@ -40,6 +40,7 @@ from numpy import random
 # Load pygmo library
 import pygmo as pg
 
+
 ## Create user-defined problem
 """
 A PyGMO-compatible problem class is now defined. This is known in PyGMO terminology as a User-Defined Problem (UDP).
@@ -47,8 +48,9 @@ This class, `HimmelblauOptimization`, will be taken as input from the `pygmo.pro
 problem.
 
 To be PyGMO-compatible, the UDP class must have two methods:
- - `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
- - `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
+
+- `get_bounds()`: it takes no input and returns a tuple of two n-dimensional lists, containing respectively the lower and upper boundaries of each variable. The dimension of the problem (i.e. the value of n) is automatically inferred by the return type of the this function.
+- `fitness(x)`: it takes a np.array as input (of size n) and returns a list with p values as output. In case of single-objective optimization, p = 1, otherwise p will be equal to the number of objectives.
  
 Please refer to [PyGMO UDP tutorial](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) for more on how to define a UDP.
 """
@@ -61,7 +63,7 @@ class HimmelblauOptimization:
                  y_min: float,
                  y_max: float):
         
-        # Set input arguments as attributes, representaing the problem bounds for both design variables
+        # Set input arguments as attributes, representing the problem bounds for both design variables
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
@@ -76,6 +78,7 @@ class HimmelblauOptimization:
         
         # Return list
         return [function_value]
+
 
 ## Create problem
 """
@@ -94,11 +97,12 @@ prob = pygmo.problem(udp)
 # Print the problem's information
 print(prob)
 
+
 ## Create algorithm
 """
 As a second step, we have to create an algorithm to solve the problem. Many different algorithms are available through PyGMO, including heuristic methods and local optimizers.
 
-In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](See also https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
+In this example, we will use the Differential Evolution (DE). Similarly to the UDP, it is also possible to create a User-Defined Algorithm (UDA), but in this tutorial we will use an algorithm readily available in PyGMO. [This webpage](https://esa.github.io/pygmo2/overview.html#list-of-algorithms) offers a list of all of the PyGMO optimisation algorithms that are available.
 
 See also [this tutorial](https://esa.github.io/pygmo2/tutorials/using_algorithm.html) on PyGMO algorithms.
 """
@@ -118,6 +122,7 @@ algo = pygmo.algorithm(de_algo)
 # Print the algorithm's information
 print(algo)
 
+
 ## Initialise population
 """
 A population in PyGMO is essentially a container for multiple individuals. Each individual has an associated decision vector which can change (evolution), the resulting fitness vector, and an unique ID to allow their tracking. The population is initialized starting from a specific problem to ensure that all individuals are compatible with the UDP. The default population size is 0.
@@ -133,6 +138,7 @@ pop = pygmo.population(prob, size=pop_size, seed=current_seed)
 inspect_pop = False
 if inspect_pop:
     print(pop)
+
 
 ## Evolve population
 """
@@ -162,6 +168,7 @@ print('Fitness (= function) value: ', pop.champion_f)
 print('Decision variable vector: ', pop.champion_x)
 print('Number of function evaluations: ', pop.problem.get_fevals())
 print('Difference wrt the minimum: ', pop.champion_x - np.array([3,2]))
+
 
 ## Visualise optimisation
 """
@@ -204,6 +211,7 @@ plt.tight_layout()
 # Show the figure
 plt.show()
 
+
 ### Himmelblau function
 """
 Then, let's plot the Himmelblau function with the best individual of each generation.
@@ -240,6 +248,7 @@ plt.tight_layout()
 
 # Show the plot
 plt.show()
+
 
 ### Visualise vicinity of minimum
 """
@@ -280,11 +289,12 @@ plt.tight_layout()
 # Show the figure
 plt.show()
 
+
 ## Grid search
 """
 To investigate how well the Differential Evolution algorithm performed, let's now run the optimisation with a grid search of 1000x1000 nodes.
 
-This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evoluation algorithm.
+This leads to a difference w.r.t. the minimum in the order of $10^{-3}$. This means that the grid search requires about 5 times more function evaluations to reach a minimum with an accuracy 1000 times worse than the Differential Evolution algorithm.
 """
 
 # Set number of points
@@ -310,6 +320,7 @@ print('Best fitness with grid search (' + str(number_of_nodes) + ' points):', be
 print('Decision variable vector: ', best_x_GS)
 print('Number of function evaluations: ', number_of_nodes**2)
 print('Difference wrt the minimum: ', best_x_GS - np.array([3, 2]))
+
 
 ## Monte Carlo search
 """
@@ -346,3 +357,4 @@ print('Best fitness with grid search (' + str(number_of_points) + ' points):', b
 print('Decision variable vector: ', best_x_MC)
 print('Number of function evaluations: ', number_of_points**2)
 print('Difference wrt the minimum: ', best_x_MC - np.array([3, 2]))
+
