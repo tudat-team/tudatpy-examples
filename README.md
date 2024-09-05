@@ -6,7 +6,7 @@ If you want to know more about Tudatpy, please visit the [Tudat website]([https:
 
 ## Format
 
-The examples are available as both Jupyter Notebooks and raw ``.py`` scripts.
+The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency.
 
 ### Jupyter Notebook
 
