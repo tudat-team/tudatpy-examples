@@ -33,6 +33,8 @@ cmake-build-*/
 .pydevproject
 *.sublime-project
 *.sublime-workspace
+.vscode/
+
 # Rever
 rever/
 

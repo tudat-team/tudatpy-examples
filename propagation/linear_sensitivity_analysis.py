@@ -39,6 +39,7 @@ from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
 
+
 ## Configuration
 """
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth, the Sun, the Moon, Venus, or Mars, can be make known to `tudatpy`.
@@ -54,6 +55,7 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
+
 ## Environment setup
 """
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
@@ -66,9 +68,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 """
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", "Venus"
@@ -80,8 +80,6 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create the system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Create the vehicle and its environment interface
 """
@@ -92,30 +90,39 @@ This satellite is setup to have mass of 400kg, a reference area (used both for a
 When setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 """
 
-# Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 400.0
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("Delfi-C3")
+
+body_settings.get("Delfi-C3").constant_mass = 400
 
 # Create aerodynamic coefficient interface settings
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-# Add the aerodynamic interface to the environment
-environment_setup.add_aerodynamic_coefficient_interface(
-            bodies, "Delfi-C3", aero_coefficient_settings)
+
+# Add the aerodynamic interface to the body settings
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-# Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(
-            bodies, "Delfi-C3", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create the system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ## Propagation setup
 """
@@ -131,15 +138,19 @@ bodies_to_propagate = ["Delfi-C3"]
 # Define central bodies of propagation
 central_bodies = ["Earth"]
 
+
 ### Create the acceleration model
 """
 First off, the acceleration settings that act on `Delfi-C3` are to be defined.
 In this case, these consist in the followings:
+
 * Gravitational acceleration using a Point Mass approximation from:
+
     - The Sun
     - The Moon
     - Mars
     - Venus
+
 * Gravitational acceleration using a Spherical Harmonic approximation up to degree and order 5 from Earth.
 * Aerodynamic acceleration from Earth.
 * Acceleration caused by the radiation pressure of the Sun on the vehicle approximated as a cannonball.
@@ -152,7 +163,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 # Define unique (Sun, Earth) accelerations acting on Delfi-C3
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Earth=[
@@ -175,11 +186,12 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Define the initial state
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 """
@@ -191,6 +203,7 @@ delfi_tle = environment.Tle(
 )
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
+
 
 ### Create the propagator settings
 """
@@ -221,10 +234,11 @@ propagator_settings = propagation_setup.propagator.translational(
     termination_condition
 )
 
+
 ### Setup the variational equations
 """
 In addition to the state of the satellite, variation equations will also be propagated.
-A detailled explanation on variational equations is given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/running_variational_simulation.html).
+A detailed explanation on variational equations is given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/running_variational_simulation.html).
 
 In this example, both the initial state transition matrix and the sensitivity matrix are to be propagated.
 The list of the available estimated parameters for the sensitivity matrix are also given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/sensitivity_analysis/available_parameters.html).
@@ -240,11 +254,12 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
+
 ## Propagate the dynamics
 """
 In this example, since we wish to propagate the variational equations in addition to the satellite state, we use the `create_variational_equations_solver()` function (instead of the `create_dynamics_simulator()` function that we would normally use).
 
-This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be intergrated immidiately when the function is called.
+This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be integrated immediately when the function is called.
 """
 
 # Create the variational equation solver and propagate the dynamics
@@ -256,6 +271,7 @@ variational_equations_solver = numerical_simulation.create_variational_equations
 states = variational_equations_solver.state_history
 state_transition_matrices = variational_equations_solver.state_transition_matrix_history
 sensitivity_matrices = variational_equations_solver.sensitivity_matrix_history
+
 
 ## Perform the sensitivity analysis
 """
@@ -279,6 +295,7 @@ for epoch in state_transition_matrices:
     delta_initial_state_dict[epoch] = np.dot(state_transition_matrices[epoch], initial_state_variation)
     earth_standard_param_dict[epoch] = np.dot(sensitivity_matrices[epoch], earth_standard_param_variation)
     delta_drag_coeff_dict[epoch] = np.dot(sensitivity_matrices[epoch], drag_coeff_variation)
+
 
 ## Post-process the results
 """
@@ -306,9 +323,10 @@ delta_v2 = np.linalg.norm(delta_earth_standard_param_array[:, 4:8], axis=1)
 delta_r3 = np.linalg.norm(delta_drag_coefficient_array[:, 1:4], axis=1)
 delta_v3 = np.linalg.norm(delta_drag_coefficient_array[:, 4:8], axis=1)
 
+
 ### Plot the deviation in position
 """
-Make a plot of the deivation in position over time, in response to all parameter variations.
+Make a plot of the deviation in position over time, in response to all parameter variations.
 """
 
 # Plot deviations of position
@@ -326,9 +344,10 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+
 ### Plot the deviation in velocity
 """
-Make a plot of the deivation in velocity over time, in response to all parameter variations.
+Make a plot of the deviation in velocity over time, in response to all parameter variations.
 """
 
 # Plot deviations of speed
@@ -345,3 +364,4 @@ plt.xlim([min(time_hours), max(time_hours)])
 plt.legend()
 plt.tight_layout()
 plt.show()
+

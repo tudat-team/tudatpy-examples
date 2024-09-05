@@ -34,6 +34,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 # Load tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
@@ -42,6 +43,7 @@ from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
 from tudatpy.astro.time_conversion import DateTime
+
 
 ## Aerodynamic guidance class
 """
@@ -54,6 +56,7 @@ Then, the class must contain an `updateGuidance()` function that will be called 
 Most importantly, this function updates both the angle of attack (`self.angle_of_attack`) and bank angle (`self.bank_angle`) of the vehicle.
 
 The angle of attack $\alpha$ should be updated as a function of the Mach number $M$ as follows:
+
 - $\alpha = 40$ deg if $M > 12$.
 - $\alpha = 10$ deg if $M < 6$.
 - $\alpha$ varies linearly between the two boundaries for other $M$.
@@ -157,6 +160,7 @@ class STSAerodynamicGuidance:
                 self.bank_angle = np.arccos(cosine_of_bank_angle)
             self.current_time = current_time
 
+
 ## Configuration
 """
 
@@ -183,6 +187,7 @@ Let’s create the environment for our simulation. This setup covers the creatio
 
 """
 
+
 ### Create the bodies
 """
 
@@ -190,9 +195,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 """
 
 # Create default body settings for "Earth"
@@ -204,8 +207,6 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies (in this case only Earth)
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Create the vehicle
 """
@@ -213,9 +214,11 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be simulated.
 """
 
-# Create vehicle object and set its constant mass
-bodies.create_empty_body("STS")
-bodies.get_body( "STS" ).set_constant_mass(5.0e3)
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("STS")
+
+body_settings.get("STS").constant_mass = 5000
+
 
 ### Add an aerodynamic coefficient interface
 """
@@ -236,16 +239,24 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
 )
 
 # Add predefined aerodynamic coefficients database to the body
-environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
+body_settings.get("STS").aerodynamic_coefficient_settings = coefficient_settings
+
+
+# The system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ### Add rotation model based on aerodynamic guidance
 """
-Create the aerodynamic guidance object
+# Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
 rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
     'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
 environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
 """
+
 
 ## Propagation setup
 """
@@ -261,6 +272,7 @@ bodies_to_propagate = ["STS"]
 
 # Define central bodies of propagation
 central_bodies = ["Earth"]
+
 
 ### Create the acceleration model
 """
@@ -288,12 +300,13 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
 
+
 ### Define the initial state
 """
 
 The initial state of the vehicle that will be propagated is now defined. Most importantly, the `STS` vehicle starts 120km above Earth, at a velocity og 7500m/s, and a flight path angle of -0.6 deg (from the horizon).
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 In this case, let's make use of the `spherical_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Spherical elements, and then converted in Cartesian elements.
 
@@ -319,12 +332,13 @@ initial_state = environment.transform_to_inertial_orientation(
     initial_earth_fixed_state, simulation_start_epoch, earth_rotation_model
 )
 
+
 ### Define the dependent variables to save
 """
 
 In this example, we are interested in saving not only the propagated state of the vehicle over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 # Define the list of dependent variables to save during the propagation
@@ -339,16 +353,18 @@ dependent_variables_to_save = [
     propagation_setup.dependent_variable.mach_number("STS", "Earth")
 ]
 
+
 ### Create the propagator settings
 """
 
 The propagator is finally setup.
 
 First, a termination condition is defined so that the propagation as soon as one of these conditions is fulfilled:
+
 - The altitude gets below 25km.
 - The simulation time gets above 3 days.
 
-Combinated termination settings are then needed, which can be done using the `propagation_setup.propagator.hybrid_termination()` function.
+Combined termination settings are then needed, which can be done using the `propagation_setup.propagator.hybrid_termination()` function.
 
 Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 0.5 seconds.
 
@@ -382,6 +398,7 @@ propagator_settings = propagation_setup.propagator.translational(
     output_variables=dependent_variables_to_save
 )
 
+
 ## Propagate the trajectory
 """
 
@@ -394,7 +411,7 @@ After this, the dependent variable history is extracted.
 The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
 Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 
-In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.state_history` variable.
+In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.propagation_results.state_history` variable.
 """
 
 # Create the simulation objects and propagate the dynamics
@@ -403,9 +420,10 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 )
 
 # Extract the resulting simulation dependent variables
-dependent_variables = dynamics_simulator.dependent_variable_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 # Convert the dependent variables from a dictionary to a numpy array
 dependent_variables_array = result2array(dependent_variables)
+
 
 ## Post-process the propagation results
 """
@@ -434,6 +452,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Airspeed vs altitude
 """
 
@@ -448,6 +467,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### g-load over time
 """
 
@@ -461,6 +481,7 @@ plt.xlabel("Time [min]"), plt.ylabel("Total g-load [-]")
 plt.grid()
 plt.tight_layout()
 plt.show()
+
 
 ### Aerodynamic coefficient over time
 """
@@ -480,6 +501,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Angles over time
 """
 
@@ -497,6 +519,7 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
+
 ### Angle of attack vs Mach number
 """
 
@@ -512,6 +535,7 @@ plt.xticks(np.arange(0, 28.1, 1))
 plt.grid()
 plt.tight_layout()
 plt.show()
+
 
 ### Derivative of flight path angle over time
 """
@@ -533,3 +557,4 @@ plt.yticks(10**np.arange(-12, 0.1, 1))
 plt.grid()
 plt.tight_layout()
 plt.show()
+
