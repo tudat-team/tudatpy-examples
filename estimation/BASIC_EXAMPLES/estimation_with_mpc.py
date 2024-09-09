@@ -192,11 +192,13 @@ link_list = list(
     )
 )
 
+
 for link in link_list:
     # add optional bias settings here
     observation_settings_list.append(
         observation.angular_position(link, bias_settings=None)
     )
+
 # Retrieve the first and final observation epochs and add the buffer
 epoch_start_nobuffer = batch.epoch_start
 epoch_end_nobuffer = batch.epoch_end
