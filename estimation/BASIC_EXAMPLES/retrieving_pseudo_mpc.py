@@ -404,7 +404,7 @@ environment_setup.add_radiation_pressure_target_model(
 
 
 #Create quasi impulsive shot manuever
-epoch_impulse_0 = f'2024-08-04 12:00:00'
+epoch_impulse_0 = f'2024-08-04 21:00:00'
 impulse_time_0= datetime.strptime(epoch_impulse_0, "%Y-%m-%d %H:%M:%S")
 impulse_jd_0 = Time(impulse_time_0).jd
 impulse_j2000 = time_conversion.julian_day_to_seconds_since_epoch(impulse_jd_0)
@@ -1053,16 +1053,16 @@ plt.show()
 
 # ## Zoom In!
 
-# In[23]:
+# In[27]:
 
 
-# Same as before, but showing 
+# Same as before, but showing log values for the S and W components
 fig, ax = plt.subplots(1, 1, figsize=(11, 5))
 
 ax2 = ax
 
-ax2.loglog(time2plt_normalized[:pre_flyby_index], rot_Delta_X_tnw[:pre_flyby_index,1], color = 'green',label=r'$\Delta N$')
-ax2.loglog(time2plt_normalized[:pre_flyby_index], rot_Delta_X_tnw[:pre_flyby_index,2], color = 'orange',label=r'$\Delta W$')
+ax2.plot(time2plt_normalized[:pre_flyby_index], rot_Delta_X[:pre_flyby_index,1], color = 'green',label=r'$\Delta N$')
+ax2.plot(time2plt_normalized[:pre_flyby_index], rot_Delta_X[:pre_flyby_index,2], color = 'orange',label=r'$\Delta W$')
 
 ax2.axvspan(time2plt_normalized[moon_index][0],time2plt_normalized[-1][0] , facecolor='blue', alpha=0.2)
 ax2.axvspan(time2plt_normalized[0][0],time2plt_normalized[moon_index][0] , facecolor='green', alpha=0.2)
@@ -1081,7 +1081,7 @@ plt.tight_layout()
 plt.show()
 
 
-# In[24]:
+# In[28]:
 
 
 #Retrieve Estimated State History Form Estimation Output
@@ -1161,7 +1161,7 @@ ax1.legend()
 axins = inset_axes(ax1, width="30%", height="30%", loc='upper center', borderpad=1.5)
 
 # Set limits for zoom (around lunar flyby for this example)
-zoom_start = lunar_flyby_time - 0.5  # Adjust this value for desired zoom range
+zoom_start = lunar_flyby_time - 0.5  
 zoom_end = lunar_flyby_time + 0.5
 
 # Plot the zoomed portion in the inset
@@ -1172,7 +1172,7 @@ axins.plot(time2plt_utc_short[pre_flyby_index:], (juice_prop[pre_flyby_index:, 2
 
 # Set limits for the inset zoom region
 axins.set_xlim(45, 49)
-axins.set_ylim(-1e8, 1e8)  # Adjust Y-axis limits based on your data for better zoom clarity
+axins.set_ylim(-1e8, 1e8) 
 
 # Add a zoom box to the inset
 axins.axvline(lunar_flyby_time, color='red', linestyle='--')
@@ -1181,13 +1181,13 @@ axins.axvline(pre_flyby_time, color='gray', linestyle='--')
 axins.axvspan(time2plt_utc_short[moon_index][0],time2plt_utc_short[-1][0] , facecolor='blue', alpha=0.2)
 axins.axvspan(time2plt_utc_short[0][0],time2plt_utc_short[moon_index][0] , facecolor='green', alpha=0.2)
 # Add lines connecting the inset to the main plot using `mark_inset`
-mark_inset(ax1, axins, loc1=1, loc2=3, fc="none", ec="0.7")  # 'loc1' and 'loc2' control corners connected
+mark_inset(ax1, axins, loc1=1, loc2=3, fc="none", ec="0.7")  
 
 # Tight layout for the plot
 plt.show()
 
 
-# In[25]:
+# In[29]:
 
 
 from mpl_toolkits.mplot3d import Axes3D
