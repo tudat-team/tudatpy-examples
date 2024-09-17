@@ -18,7 +18,7 @@
 # To run this example, you need [the data file](https://ssd.jpl.nasa.gov/dat/planets/mrorange2006-2013.txt) from the NASA JPLand store it in a subfolder called [./data](./data). For your convenience, this file has been added to the example repository already
 # 
 
-# In[1]:
+# In[4]:
 
 
 # Set the filename of the data file
@@ -44,7 +44,7 @@ except FileNotFoundError:
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, some elements of the `observation`, `estimation` and `estimation_setup` modules will be used and demonstrated within this example.
 # 
 
-# In[2]:
+# In[5]:
 
 
 # General imports
@@ -77,7 +77,7 @@ from tudatpy.numerical_simulation.estimation_setup import observation
 # The file columns specified here are all known to Tudat, and can be used to **process the observation** (see [TDB LINK]()) for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
 # 
 
-# In[7]:
+# In[6]:
 
 
 file_columns = [
@@ -108,7 +108,7 @@ raw_datafile = data.read_tracking_txt_file(
 # An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artifically create such a collection from a simiulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
 # 
 
-# In[8]:
+# In[7]:
 
 
 # Create ancillary settings
@@ -124,7 +124,7 @@ observations = observation.create_tracking_txtfile_observation_collection(
 # The range from Earth to Mars and back oscillates between about 1.2 AU at closest approach and 5 AU when furthest apart. This is certainly within intuitive expectations for a planet at ~1.5 AU semi-major axis.
 # 
 
-# In[9]:
+# In[8]:
 
 
 observation_times = np.array(observations.concatenated_times)
@@ -146,7 +146,7 @@ plt.show()
 # 
 # As we mentioned earlier, within this example we also aim to **mimic the loaded real observations** starting from **SPICE ephemerides**. To achieve this, the first step is to load the standard SPICE kernels into our program.
 
-# In[10]:
+# In[9]:
 
 
 spice.load_standard_kernels()
@@ -156,7 +156,7 @@ spice.load_standard_kernels()
 # 
 # We then continue to **set up the environment** by creating the relavant bodies and applying their **default body settings**. A global frame with origin at Solar System Barycenter (SSB) and J2000 orientation is chosen. For this example, we want to show the **influence of adding a more precise rotation model**, so a simple utility function is introduced to create the bodies.
 
-# In[11]:
+# In[10]:
 
 
 def create_bodies(use_itrf_rotation_model: bool = False) -> environment.SystemOfBodies:
@@ -197,7 +197,7 @@ bodies = create_bodies()
 # 
 # The system of bodies was already defined above, and all the other required information is in the collection of real observations that were loaded from the data file. For the observation simulation settings, there is a convenience function that extracts the settings from the collection `observation_settings_from_collection`. Creating the simulators is slightly more involved, as we need to specify the correct link definition for every observation - recall that the measurements are made using a variety of ground station.
 
-# In[12]:
+# In[11]:
 
 
 # Extract the relevant information from the real observations to mimic
@@ -228,7 +228,7 @@ simulated_observations_simple = create_observations(observation_model_settings, 
 # ### Simple simulation
 # For the first attempt, we **won't include any corrections**. This implies that the simulation will simply calculate the Euclidean distance that the light travels between the link ends. Plotting the difference between that and the observations reveals an error that grows with the distance between Earth and Mars. **The larger the distance, the more that range is underestimated by the simple simulation**. Additionally, **there is some spread of the residuals**, that seems to be related to a phenomenon of much higher frequency.
 
-# In[17]:
+# In[12]:
 
 
 residuals_simple = simulated_observations_simple.concatenated_observations - observation_vals
@@ -247,7 +247,7 @@ plt.show()
 # 
 # One reason that might come to mind for the residual spread is that **the position of the ground stations is not accurately modelled over time**. This is indeed due to the simplifications in the default rotation model. If we create the bodies using the rotation model according to the **IERS 2010 models**, the spread is completely eliminated.
 
-# In[18]:
+# In[13]:
 
 
 bodies_rotation = create_bodies(use_itrf_rotation_model=True)
@@ -271,7 +271,7 @@ plt.show()
 # To account for the **relativistic effects due to the Sun**, we can add a *light time correction* to the settings of the observation model. 
 # Doing this and once more plotting the residuals shows that **the error signal related to the Earth-Mars synodic period is removed**, leaving a residual that oscillates annually in the order **a few hundreds of meters**. 
 
-# In[20]:
+# In[14]:
 
 
 #  Create light time corrections
@@ -301,7 +301,7 @@ plt.show()
 # 
 # The following plot just summarises the observation simulation efforts of this example. You could go on to reduce the residuals to several meters (see [Kuchynka et al., 2012](https://ipnpr.jpl.nasa.gov/progress_report/42-190/190C.pdf) for details). This indicates **some small, but important imperfections in our algorithms**, for instance simplifications used in the time conversions between the time stamps in the files, and the times used in our simulations. The residuals indicate (among others) **a periodic trend at the Earth's orbital period around the Sun**.
 
-# In[63]:
+# In[15]:
 
 
 fig, ax = plt.subplots(4, 1, figsize=(15, 15))
@@ -358,10 +358,4 @@ ax[-1].set_xlabel("Time [yr]")
 fig.align_labels()
 fig.tight_layout()
 plt.show()
-
-
-# In[ ]:
-
-
-
 
