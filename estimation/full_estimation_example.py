@@ -2,8 +2,6 @@
 # coding: utf-8
 
 # # Parameter Estimation with DELFI-C3
-# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-#  
 # ## Objectives
 # This example will guide you through the set-up of an orbit estimation routine, which usually comprises the estimation of the covariance, as well as the estimation of the initial parameters. In this example we will focus on the latter, and you'll learn: 
 #  
@@ -21,7 +19,7 @@
 # | Module | | Methods | ➡️ || | || | || |
 # | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 # | [numerical_simulation.estimation_setup.observation](https://py.api.tudat.space/en/latest/observation.html) | [**body_reference_point_link_end_id**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id) | [**LinkDefinition**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.LinkDefinition) | [**one_way_doppler_instantaneous**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.one_way_doppler_instantaneous) | [**add_gaussian_noise_to_observable**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.add_gaussian_noise_to_observable) | [**elevation_angle_viability**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.elevation_angle_viability)|[**tabulated_simulation_settings**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings)|
-# |[numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)| [**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | | | | |
+# |[numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)| [**parameter**](https://py.api.tudat.space/en/latest/parameter.html) | [**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | | | | |
 # | [numerical_simulation.Estimator](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator) | [**observation_simulators**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.observation_simulators) | [**compute_covariance**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.compute_covariance) | [**perform_estimation**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.perform_estimation) | [**state_transition_interface**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.state_transition_interface) | |
 # | [numerical_simulation.estimation](https://py.api.tudat.space/en/latest/estimation.html)  | [**simulate_observations**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) | [**CovarianceAnalysisInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.CovarianceAnalysisInput) | [**estimation_convergence_checker**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationConvergenceChecker) |[**EstimationInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput)| [**propagate_formal_errors_split_output**]()| [**propagate_covariance_split_output**]()|
 # | [astro.time_conversion](https://py.api.tudat.space/en/latest/time_conversion.html) | [**DateTime**]() | 
@@ -43,7 +41,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
-# In[6]:
+# In[1]:
 
 
 # Load required standard modules
@@ -70,7 +68,7 @@ from tudatpy.astro import element_conversion
 #  
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
 
-# In[7]:
+# In[2]:
 
 
 # Load spice kernels
@@ -91,7 +89,7 @@ simulation_end_epoch   = DateTime(2000, 1, 4).epoch()
 #  
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[8]:
+# In[3]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -110,12 +108,12 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # ### Create the vehicle and its environment interface
 # We will now create the satellite - called Delfi-C3 - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 400kg, a reference area (used both for aerodynamic and radiation pressure) of 4m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[9]:
+# In[4]:
 
 
 # Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 2.2
+body_settings.add_empty_settings("Delfi-C3")
+body_settings.get("Delfi-C3").constant_mass = 400 
 
 # Create aerodynamic coefficient interface settings
 reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -124,23 +122,27 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0.0, 0.0]
 )
 # Add the aerodynamic interface to the environment
-environment_setup.add_aerodynamic_coefficient_interface(bodies, "Delfi-C3", aero_coefficient_settings)
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
+occulting_bodies = dict()
+occulting_bodies["Sun"] = ["Earth"]
+radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
+
 # Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(bodies, "Delfi-C3", radiation_pressure_settings)
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = radiation_pressure_settings
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 # ## Set up the propagation
 # Having the environment created, we will define the settings for the propagation of the spacecraft. First, we have to define the body to be propagated - here, the spacecraft - and the central body - here, Earth - with respect to which the state of the propagated body is defined.
 
-# In[10]:
+# In[5]:
 
 
 # Define bodies that are propagated
@@ -162,13 +164,13 @@ central_bodies = ["Earth"]
 # 
 # The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
-# In[11]:
+# In[6]:
 
 
 # Define the accelerations acting on Delfi-C3
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Mars=[
@@ -198,7 +200,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 
-# In[12]:
+# In[7]:
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
@@ -213,7 +215,7 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 # ### Create the integrator settings
 # For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
 
-# In[13]:
+# In[8]:
 
 
 # Create numerical integrator settings
@@ -225,7 +227,7 @@ integrator_settings = propagation_setup.integrator.\
 # ### Create the propagator settings
 # By combining all of the above-defined settings we can define the settings for the propagator to simulate the orbit of `Delfi-C3` around Earth. A termination condition needs to be defined so that the propagation stops as soon as the specified end epoch is reached. Finally, the translational propagator's settings are created.
 
-# In[14]:
+# In[9]:
 
 
 # Create termination settings
@@ -251,7 +253,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 
-# In[15]:
+# In[10]:
 
 
 # Define the position of the ground station on Earth
@@ -274,7 +276,7 @@ environment_setup.add_ground_station(
 # 
 # Each observable type has its own function for creating observation model settings - in this example we will use the `one_way_doppler_instantaneous()` function to model a series of one-way open-loop (i.e. instantaneous) Doppler observations. Realise that the individual observation model settings can also include corrective models or define biases for more advanced use-cases.
 
-# In[16]:
+# In[11]:
 
 
 # Define the uplink link ends for one-way observable
@@ -294,7 +296,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 # 
 # Note that the actual simulation of the observations requires `Observation Simulators`, which are created automatically by the `Estimator` object. Hence, one cannot simulate observations before the creation of an estimator.
 
-# In[17]:
+# In[12]:
 
 
 # Define observation simulation times for each link (separated by steps of 1 minute)
@@ -327,7 +329,7 @@ observation.add_viability_check_to_all(
 # ### Defining the parameters to estimate
 # For this example estimation, we decided to estimate the initial state of `Delfi-C3`, its drag coefficient, and the gravitational parameter of Earth.
 
-# In[18]:
+# In[13]:
 
 
 # Setup parameters settings to propagate the state transition matrix
@@ -352,7 +354,7 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 # Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
 # 
 
-# In[19]:
+# In[14]:
 
 
 # Create the estimator
@@ -367,7 +369,7 @@ estimator = numerical_simulation.Estimator(
 # Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 # 
 
-# In[20]:
+# In[15]:
 
 
 # Simulate required observations
@@ -385,7 +387,7 @@ simulated_observations = estimation.simulate_observations(
 # ### Set up the inversion
 # To set up the inversion of the problem, we collect all relevant inputs in the form of a estimation input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different **weights** - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
 
-# In[21]:
+# In[16]:
 
 
 # Save the true parameters to later analyse the error
@@ -417,19 +419,62 @@ estimation_input.set_constant_weight_per_observable(weights_per_observable)
 # Using the just defined inputs, we can ultimately run the estimation of the selected parameters. After a pre-defined maximum number of iterations (the default value is set to a total of five), the least squares estimator - ideally having reached a sufficient level of convergence - will stop with the process of iterating over the problem and updating the parameters.
 # 
 
-# In[22]:
+# In[17]:
 
 
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
 
 
-# In[23]:
+# # True Errors, Formal Errors
+# 
+# Since we have now estimated the actual parameters - unlike when only getting the initial covariance matrix over the course of the orbit, as done in [Delfi-C3 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html) - we are able to qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones. 
+# 
+# The common way to perform this comparison is by following these 3 simple steps:
+# 1) Compute the formal errors. These are the **diagonal entries of the covariance matrix (variances)**
+# 2) Take the difference between the true parameters (known) and the estimated ones (estimated)
+# 3) Take the ratio between the results obtained in 2) and 1). This is the true-to-formal-error ratio.
+# 
+# Doing this might help highlight that the formal errors one gets as the result of a covariance analysis tend to sketch a too optimistic version of reality - typically, (all or some of) the true errors are by a certain factor larger than the formal ones. In this example, we see that the 3rd, 5th and 8th parameters estimates might be too optimistic, as their true-to-formal ratio is bigger than one. 
+
+# In[18]:
 
 
-# Print the covariance matrix
-print(estimation_output.formal_errors)
-print(truth_parameters - parameters_to_estimate.parameter_vector)
+# Perturb the initial state estimate from the truth (10 m in position; 0.1 m/s in velocity)
+# Save the true parameters to later analyse the error
+truth_parameters = parameters_to_estimate.parameter_vector
+perturbed_parameters = truth_parameters.copy( )
+for i in range(3):
+    perturbed_parameters[i] += 10.0
+    perturbed_parameters[i+3] += 0.01
+    
+parameters_to_estimate.parameter_vector = perturbed_parameters
+
+# Create input object for the estimation
+convergence_checker = estimation.estimation_convergence_checker(maximum_iterations=4)
+estimation_input = estimation.EstimationInput(
+    simulated_observations,
+    convergence_checker=convergence_checker)
+
+# Set methodological options
+estimation_input.define_estimation_settings(
+    reintegrate_variational_equations=False)
+
+# Define weighting of the observations in the inversion
+weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
+estimation_input.set_constant_weight_per_observable(weights_per_observable)
+
+# Print the formal errors (diagonal entries of the covariance matrix) and the true-to-formal-errors.
+# Perform the estimation
+estimation_output = estimator.perform_estimation(estimation_input)
+formal_errors = estimation_output.formal_errors #formal errors
+print(f'Formal Errors:\n\n{formal_errors}\n')
+
+true_errors = truth_parameters - parameters_to_estimate.parameter_vector #true_parameters - estimated_parameters = true error
+print(f'True Errors:\n\n{true_errors}\n') 
+
+true_to_formal_ratio = true_errors/formal_errors #true-to-formal-error ratio
+print(f'True-To-Formal-Error Ratio:\n\n{true_to_formal_ratio}\n') 
 
 
 # ## Post-Processing Results
@@ -441,7 +486,7 @@ print(truth_parameters - parameters_to_estimate.parameter_vector)
 # ### Range-rate over time
 # First, we will thus plot all simulations we have simulated over time. One can clearly see how the satellite slowly emerges from the horizont and then more 'quickly' passes the station, until the visibility criterion is not fulfilled anymore.
 
-# In[24]:
+# In[19]:
 
 
 observation_times = np.array(simulated_observations.concatenated_times)
@@ -462,7 +507,7 @@ plt.show()
 # ### Residuals history
 # One might also opt to instead plot the **behaviour of the residuals** per iteration of the estimator. To this end, we have thus plotted the residuals of the individual observations as a function of time. Note that we can observe a seemingly equal spread around zero. As expected - since we have not defined it this way - the observation is thus not biased.
 
-# In[25]:
+# In[20]:
 
 
 residual_history = estimation_output.residual_history
@@ -485,16 +530,10 @@ plt.show()
 
 
 # ### Final residuals
-# Finally, one can also **analyse the residuals** of the last iteration. Hence, for each of the estimated parameters, we have calculated the **true-to-formal-error rate**, as well as plotted the **statistical distribution of the final residuals** between the simulated observations and the estimated orbit. Ideally, given the type of observable we have used (i.e. free of any bias) as well as a statistically sufficient high number of observations, we would expect to see a Gaussian distribution with zero mean here.
+# Finally, one can plot the **statistical distribution of the final residuals** between the simulated observations and the estimated orbit. Ideally, given the type of observable we have used (i.e. free of any bias) as well as a statistically sufficient high number of observations, we would expect to see a Gaussian distribution with zero mean here.
 
-# In[26]:
+# In[21]:
 
-
-print('True-to-formal-error ratio:')
-print('\nInitial state')
-print(((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)[:6])
-print('\nPhysical parameters')
-print(((truth_parameters - parameters_to_estimate.parameter_vector) / estimation_output.formal_errors)[6:])
 
 final_residuals = estimation_output.final_residuals
 
