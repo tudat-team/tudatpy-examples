@@ -4,7 +4,7 @@
 # # Multiple Gravity Assist trajectories
 # ## Objectives
 # 
-# This example demonstrates how Multiple Gravity Assist (MGA) transfer trajectories can be simulated. Three types of transfers are analyzed:
+# This example demonstrates how **Multiple Gravity Assist (MGA)** transfer trajectories can be simulated. Three types of transfers are analyzed:
 # * High-thrust transfer with unpowered legs
 # * High-thrust transfer with deep space maneuvers (DSMs) and manually-created legs and nodes
 # * Low-thrust transfer with hodographic shaping
@@ -16,6 +16,15 @@
 # A complete guide on transfer trajectory design is given on [this page](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/astrodynamics/trajectory_design.html) of tudat user documentation.
 
 # ## Key API References
+#  Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+# 
+# | Module | | Methods | ➡️|  | | | | | | | |
+# | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+# | [numerical_simulation.environment_setup](https://py.api.tudat.space/en/latest/environment_setup.html) | [**create_simplified_system_of_bodies**](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.create_simplified_system_of_bodies) |
+# | [trajectory_design.transfer_trajectory](https://py.api.tudat.space/en/latest/transfer_trajectory.html) | [**mga_settings_unpowered_unperturbed_legs**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#functions) | [**create_transfer_trajectory**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.create_transfer_trajectory) |[**print_parameter_definitions**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.print_parameter_definitions)| [**dsm_velocity_based_leg**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.dsm_velocity_based_leg) |  [**departure_node**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.departure_node) | [**swingby_node**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.swingby_node) | [**capture_node**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.capture_node) | [**states_along_trajectory**](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory.states_along_trajectory) |
+# | [trajectory_design.shape_based_thrust](https://py.api.tudat.space/en/latest/shape_based_thrust.html) | [**recommended_radial_hodograph_functions**](https://py.api.tudat.space/en/latest/shape_based_thrust.html#tudatpy.trajectory_design.shape_based_thrust.recommended_radial_hodograph_functions) | [**hodograph_scaled_power_sine**] | [**hodograph_scaled_power_cosine**] | [**recommended_axial_hodograph_functions**](https://py.api.tudat.space/en/latest/shape_based_thrust.html#tudatpy.trajectory_design.shape_based_thrust.recommended_axial_hodograph_functions) |
+# 
+# 🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
 
 # ## MGA Transfer With Unpowered Legs
 
