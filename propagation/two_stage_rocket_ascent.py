@@ -437,13 +437,16 @@ def define_integrator_settings():
     initial_time_step = 0.25
     minimum_time_step = 1e-4
     maximum_time_step = 100
-    return propagation_setup.integrator.runge_kutta_variable_step_size(
+    tolerance = 1e-14
+
+    control_settings = propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance( tolerance, tolerance )
+    validation_settings = propagation_setup.integrator.step_size_validation(minimum_time_step, maximum_time_step, minimum_step_size_handling = propagation_setup.integrator.MinimumIntegrationTimeStepHandling.set_to_minimum_step_every_time_warning)
+
+    return propagation_setup.integrator.runge_kutta_variable_step(
         initial_time_step,
         propagation_setup.integrator.rkf_78,
-        minimum_time_step,
-        maximum_time_step,
-        relative_error_tolerance=1e-14,
-        absolute_error_tolerance=1e-14)
+        step_size_control_settings = control_settings,
+        step_size_validation_settings = validation_settings)
 
 # Define the integrator settings
 integrator_settings = define_integrator_settings()
@@ -548,7 +551,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = ThrustModel(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+current_thrust_model = ThrustModel(2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
@@ -674,53 +677,60 @@ Let's plot all of the dependent variables over time.
 Do note that some of the plots are cropped after 10 minutes, to effectively zoom in on their most interesting part.
 """
 
-print("Stage separation occurred after %.2f minutes." % ((final_epoch_section_1-times[0])/60))
+stage_separation_epoch_mins = (final_epoch_section_1 - times[0]) / 60
+print(f"Stage separation occurred after {stage_separation_epoch_mins:.2f} minutes.")
 
 # Compute the index at which the time since launch gets above 10 minutes
-idx_crop = np.where(times_since_launch/60 >= 10)[0][0]
+idx_crop = np.where(times_since_launch / 60 >= 10)[0][0]
 
 # Create a figure with 5 subplots: a grid of 2x2, then one horizontal one at the bottom
 fig = plt.figure(figsize=(9, 11))
 gs = fig.add_gridspec(3, 2)
 ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[0, 1])
-ax3 =fig.add_subplot(gs[1, 0])
+ax3 = fig.add_subplot(gs[1, 0])
 ax4 = fig.add_subplot(gs[1, 1])
 ax5 = fig.add_subplot(gs[2, :])
 
 # Plot the altitude history
-ax1.plot(times_since_launch/60, altitudes/1e3)
+ax1.plot(times_since_launch / 60, altitudes / 1e3)
 ax1.grid()
 ax1.set_xlabel("Time since launch [min]")
 ax1.set_ylabel("Altitude [km]")
 
 # Plot the airspeed history
-ax2.plot(times_since_launch/60, airspeeds)
+ax2.plot(times_since_launch / 60, airspeeds)
 ax2.grid()
 ax2.set_xlabel("Time since launch [min]")
 ax2.set_ylabel("Airspeed [m/s]")
 
 # Plot the mass history in the first 10 minutes
-ax3.plot(times_since_launch[:idx_crop]/60, mass[:idx_crop])
+ax3.plot(times_since_launch[:idx_crop] / 60, mass[:idx_crop])
 ax3.grid()
 ax3.set_xlabel("Time since launch [min]")
 ax3.set_ylabel("Rocket mass [kg]")
 
 # Plot the dynamic pressure history in the first 10 minutes
-ax4.plot(times_since_launch[:idx_crop]/60, dyna_pressures[:idx_crop]/1e3)
+ax4.plot(times_since_launch[:idx_crop] / 60, dyna_pressures[:idx_crop] / 1e3)
 ax4.grid()
 ax4.set_xlabel("Time since launch [min]")
 ax4.set_ylabel("Dynamic pressure [kPa]")
 
 # Plot the accelerations history in the first 10 minutes
-ax5.plot(times_since_launch[:idx_crop]/60, total_a[:idx_crop], label="Total", linestyle="dotted", color="black")
-ax5.plot(times_since_launch[:idx_crop]/60, SH_a[:idx_crop], label="SH D/O 4")
-ax5.plot(times_since_launch[:idx_crop]/60, thrust_a[:idx_crop], label="Thrust")
-ax5.plot(times_since_launch[:idx_crop]/60, aero_a[:idx_crop], label="Aerodynamic")
+ax5.plot(
+    times_since_launch[:idx_crop] / 60,
+    total_a[:idx_crop],
+    label="Total",
+    linestyle="dotted",
+    color="black",
+)
+ax5.plot(times_since_launch[:idx_crop] / 60, SH_a[:idx_crop], label="SH D/O 4")
+ax5.plot(times_since_launch[:idx_crop] / 60, thrust_a[:idx_crop], label="Thrust")
+ax5.plot(times_since_launch[:idx_crop] / 60, aero_a[:idx_crop], label="Aerodynamic")
 ax5.grid()
 ax5.set_xlabel("Time since launch [min]")
 ax5.set_ylabel("Acceleration [m/s$^2$]")
-#ax5.set_yscale("log") # (uncomment this to see the distinction between the accelerations more clearly)
+# ax5.set_yscale("log") # (uncomment this to see the distinction between the accelerations more clearly)
 ax5.legend()
 
 # Save some space using a tight layout, and show the figure
