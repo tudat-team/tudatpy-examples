@@ -62,7 +62,7 @@ current_directory = os.getcwd()
 # ## Simulation Settings
 # After having defined the general configuration of our simulation (i.e. importing required `SPICE` kernels, defining start and end epoch of the simulation) we will create the main celestial bodies involved in the simulation (mainly Mars, its two moons, the two neighbouring planets, and the Sun), the spacecraft itself, and its environment interface.
 
-# In[2]:
+# In[15]:
 
 
 # Load standard spice kernels as well as the one describing the orbit of Mars Express
@@ -82,24 +82,24 @@ global_frame_origin = "Mars"
 global_frame_orientation = "ECLIPJ2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
-
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 ### VEHICLE BODY ###
 # Create vehicle object
-bodies.create_empty_body("MEX")
-bodies.get("MEX").mass = 1000.0
+body_settings.add_empty_settings("MEX")
+body_settings.get("MEX").constant_mass = 1000.0
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Mars"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
+occulting_bodies = dict()
+occulting_bodies["Sun"] = ["Mars"]
+radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
+
 # Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(bodies, "MEX", radiation_pressure_settings)
+body_settings.get("MEX").radiation_pressure_target_settings = radiation_pressure_settings
+# Create system of bodies
+
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Define bodies that are propagated
 bodies_to_propagate = ["MEX"]
@@ -108,7 +108,7 @@ bodies_to_propagate = ["MEX"]
 central_bodies = ["Mars"]
 
 
-# In[3]:
+# In[16]:
 
 
 time2plt = np.arange(simulation_start_epoch, simulation_end_epoch, 60)
@@ -145,7 +145,7 @@ plt.show()
 # ### Add a ground station
 # Following its real-world counterpart, our simulated Mars Express spacecraft will also be tracked using ESA's New Norcia (NNO) ESTRACK ground station. Located in North-East Australia, it will be set up with an altitude of 252m, 31.0482°S, 116.191°E.
 
-# In[4]:
+# In[17]:
 
 
 # Define the position of the New Norcia (NNO) ESTRACK Earth station
@@ -166,7 +166,7 @@ environment_setup.add_ground_station(
 # 
 # Moreover, expanding upon the knowledge from the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
 
-# In[15]:
+# In[18]:
 
 
 # Define the uplink link ends for one-way observable
@@ -195,7 +195,7 @@ observation_settings_list.append(observation.one_way_doppler_instantaneous(
 # ### Define Observation Simulation Settings
 # Finally, for each above-defined observation model, we will define **the noise of the observation-type** and general viability criteria. We impose the spacecraft to be trackable only when at a certain minimum angle (15 degrees) of elevation above the horizon as seen from the ground station. We also introduce Mars as a body that can potentially **occult** the line-of-sight between Mars Express and **New Norcia** (i.e. when the spacecraft dives 'behind' Mars, we will not simulate any observations).
 
-# In[6]:
+# In[19]:
 
 
 # Define observation simulation times for each link (separated by steps of one minute)
@@ -246,7 +246,7 @@ observation.add_viability_check_to_all(
 #     - The Sun
 # * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 
-# In[7]:
+# In[20]:
 
 
 # Define the accelerations acting on Mars Express during the observation simulation
@@ -268,7 +268,7 @@ accelerations_settings_mars_express_simulation = dict(
     ],
     Sun=[
         propagation_setup.acceleration.point_mass_gravity(),
-        propagation_setup.acceleration.cannonball_radiation_pressure()
+        propagation_setup.acceleration.radiation_pressure()
     ])
 
 
@@ -283,7 +283,7 @@ accelerations_settings_mars_express_simulation = dict(
 # 
 # Having updated the tabulated ephemeris of Mars Express, one can create the required `observation simulator` object and finally simulate the observations according to the above-defined settings.
 
-# In[8]:
+# In[21]:
 
 
 ### Accelerations ###
@@ -342,7 +342,7 @@ mex_simulated_observations = estimation.simulate_observations(
 # 
 # All remaining settings remain untouched.
 
-# In[9]:
+# In[22]:
 
 
 # Copy and subsequently alter the accelerations acting on Mars Express used during the estimation
@@ -374,7 +374,7 @@ propagator_settings_estimation = propagation_setup.propagator. \
 # ## Perform the estimation
 # Having altered the dynamical model as well as the propagator settings, we create the `Estimator` object and subsequently set up the inversion of the problem - in particular, one has to define which **parameters are to be estimated**, could potentially include any a-priori information in the form of an a-priori covariance matrix, and **define the weights** associated with the individual types of observations.
 
-# In[10]:
+# In[23]:
 
 
 # Setup parameters settings to propagate the state transition matrix
@@ -416,14 +416,14 @@ estimation_input.set_constant_weight_per_observable(weights_per_observable)
 # 
 # We will again qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones (**realise that this cannot typically be done when working with real-world observations, since the ground truth is not known, and is exactly what one would like to know!**). However, since we conveniently know these parameters, it serves as a handy measure to shed light onto the estimation process. In particular, this highlights the fact that with increasing discrepancy between the dynamical models used within the simulation and estimation routines, the true-to-formal error ratio has to increase, since - besides to the pure estimation of parameters - the (artificially) introduced modelling imperfections have to be implicitly mitigated altering the values of the same set of parameters.
 
-# In[11]:
+# In[24]:
 
 
 # Perform the covariance analysis
 estimation_output = estimator.perform_estimation(estimation_input)
 
 
-# In[12]:
+# In[25]:
 
 
 # Print the covariance matrix
@@ -434,7 +434,7 @@ print(truth_parameters - parameters_to_estimate.parameter_vector)
 # ## Post-processing
 # Finally, to further illustrate the impact certain differences between the applied dynamical models have, we will first plot the behaviour of the simulated observations over time, as well as show how the discrepancy between our estimated solution and the 'ground truth' builds up over time.
 
-# In[13]:
+# In[26]:
 
 
 final_residuals = estimation_output.final_residuals
@@ -452,7 +452,7 @@ plt.tight_layout()
 plt.show()
 
 
-# In[14]:
+# In[27]:
 
 
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
