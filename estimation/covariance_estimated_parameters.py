@@ -11,7 +11,7 @@
 # 
 # For the **full estimation** of some selected parameteres, such as initial state, drag coefficient, and radiation pressure coefficient of a spacecraft, see [DELFI-C3 - Parameter Estimation Example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
 # 
-# To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of open-loop Doppler range-rate measurements at 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
+# To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of instantaneous unbiased one-way Doppler range-rate measurements with uncertainty of 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
 # 
 # The first part of this example deals with the setup of all relevant (environment, propagation, and estimation) modules, so feel free to skip these steps if you're already familiar with them!
 
@@ -21,7 +21,7 @@
 # | Module | | Methods |➡️ | | | 
 # | --- | --- | --- | --- | --- | --- |
 # | [numerical_simulation.estimation_setup.observation](https://py.api.tudat.space/en/latest/observation.html) | [**body_reference_point_link_end_id**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id) | [**LinkDefinition**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.LinkDefinition) | [**one_way_doppler_instantaneous**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.one_way_doppler_instantaneous) | [**add_gaussian_noise_to_observable**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.add_gaussian_noise_to_observable) | [**elevation_angle_viability**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.elevation_angle_viability) |[**tabulated_simulation_settings**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings)|
-# | [numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)| [**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | | | | |
+# | [numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)|[**parameter**](https://py.api.tudat.space/en/latest/parameter.html)  |[**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | | | | |
 # | [numerical_simulation.Estimator](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator)  | [**observation_simulators**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.observation_simulators) | [**compute_covariance**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.compute_covariance) | [**perform_estimation**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.perform_estimation) | [**state_transition_interface**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.state_transition_interface) | |
 # | [numerical_simulation.estimation](https://py.api.tudat.space/en/latest/estimation.html) | [**simulate_observations**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) | [**CovarianceAnalysisInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.CovarianceAnalysisInput) | [**estimation_convergence_checker**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationConvergenceChecker) |[**EstimationInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput)|
 # | [astro.time_conversion](https://py.api.tudat.space/en/latest/time_conversion.html) | [**DateTime**]() | 
@@ -37,7 +37,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
-# In[2]:
+# In[1]:
 
 
 # Load required standard modules
@@ -60,11 +60,13 @@ from tudatpy.astro import element_conversion
 # ## Configuration
 # First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodies such as the Earth, the Sun, or the Moon known to `tudatpy`.
 # 
-# Subsequently, the start and end epoch of the simulation and observations are defined. Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of four days.
+# Subsequently, the start and end epoch of the simulation and observations are defined.* Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of four days.
 # 
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
+# 
+# *Please note that it is always a good practice to separate the observation start and end epochs from the simulated ones. This way, we ensure that the times at which the observations are simulated all fall within the simulation timespan, especially given the geometry of the problem and the time difference at the two link ends (receiver and transmitter are separated by a certain distance). For this reason, we will set the first observation start epoch at one day after the simulation start epoch, and the observation end epoch at one day before the end of the simulation.
 
-# In[3]:
+# In[2]:
 
 
 # Load spice kernels
@@ -75,7 +77,7 @@ simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 5).epoch()
 
 observation_start_epoch = DateTime(2000, 1, 2).epoch()
-observation_end_epoch   = simulation_end_epoch
+observation_end_epoch   = DateTime(2000, 1, 4).epoch()
 
 
 # ## Set up the environment
@@ -88,7 +90,7 @@ observation_end_epoch   = simulation_end_epoch
 # 
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[4]:
+# In[3]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -100,19 +102,16 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 
 # ### Create the vehicle and its environment interface
 # We will now create the satellite - called Delfi-C3 - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 400kg, a reference area (used both for aerodynamic and radiation pressure) of 4m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[5]:
+# In[4]:
 
 
 # Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 400 
+body_settings.add_empty_settings("Delfi-C3")
+body_settings.get("Delfi-C3").constant_mass = 400 
 
 # Create aerodynamic coefficient interface settings
 reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -121,23 +120,27 @@ aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0.0, 0.0]
 )
 # Add the aerodynamic interface to the environment
-environment_setup.add_aerodynamic_coefficient_interface(bodies, "Delfi-C3", aero_coefficient_settings)
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
+occulting_bodies = dict()
+occulting_bodies["Sun"] = ["Earth"]
+radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
+
 # Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(bodies, "Delfi-C3", radiation_pressure_settings)
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = radiation_pressure_settings
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 # ## Set up the propagation
 # Having the environment created, we will define the settings for the propagation of the spacecraft. First, we have to define the body to be propagated - here, the spacecraft - and the central body - here, Earth - with respect to which the state of the propagated body is defined.
 
-# In[6]:
+# In[5]:
 
 
 # Define bodies that are propagated
@@ -159,13 +162,13 @@ central_bodies = ["Earth"]
 # 
 # The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
-# In[7]:
+# In[6]:
 
 
 # Define the accelerations acting on Delfi-C3
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Mars=[
@@ -193,9 +196,9 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # ### Define the initial state
 # In Tudat, the initial state of the spacecraft always has to be provided as a **cartesian state** - i.e. in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 # 
-# Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org) and are converted in to cartesian state via the `cartesian_state`function of the `environment` class. 
+# Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org) and are converted in to cartesian state via the `cartesian_state`function of the `ephemeris` class. 
 
-# In[8]:
+# In[7]:
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
@@ -210,7 +213,7 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 # ### Create the integrator settings
 # For the problem at hand, we will use an RKF78 integrator with a **fixed step-size of 60 seconds**. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
 
-# In[9]:
+# In[8]:
 
 
 # Create numerical integrator settings
@@ -222,7 +225,7 @@ integrator_settings = propagation_setup.integrator.\
 # ### Create the propagator settings
 # By combining all of the above-defined settings we can define the settings for the propagator to simulate the orbit of `Delfi-C3` around Earth. A **termination condition** needs to be defined so that the propagation stops as soon as the specified end epoch is reached. Finally, the translational propagator's settings are created.
 
-# In[10]:
+# In[9]:
 
 
 # Create termination settings
@@ -248,7 +251,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 
-# In[11]:
+# In[10]:
 
 
 # Define the position of the ground station on Earth
@@ -273,7 +276,7 @@ environment_setup.add_ground_station(
 # 
 # Note that the `one_way_doppler_instantaneous()` measurements use the **satellite** as **transmitter** and the **ground station** as **receiver**. 
 
-# In[12]:
+# In[11]:
 
 
 # Define the uplink link ends for one-way observable
@@ -293,7 +296,7 @@ observation_settings_list = [observation.one_way_doppler_instantaneous(link_defi
 # 
 # Note that the actual simulation of the observations requires `Observation Simulators`, which are created automatically by the `Estimator` object. Hence, one cannot simulate observations before the creation of an estimator.
 
-# In[13]:
+# In[12]:
 
 
 # Define observation simulation times for each link (separated by steps of 1 minute)
@@ -326,7 +329,7 @@ observation.add_viability_check_to_all(
 # ### Defining the parameters to estimate
 # For this example estimation, we decided to estimate the initial state of `Delfi-C3`, its drag coefficient, and the gravitational parameter of Earth. A comprehensive list of parameters available for estimation is provided at [this link](https://py.api.tudat.space/en/latest/parameter.html).
 
-# In[14]:
+# In[13]:
 
 
 # Setup parameters settings to propagate the state transition matrix
@@ -350,7 +353,7 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 # 
 # Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
 
-# In[15]:
+# In[14]:
 
 
 # Create the estimator
@@ -364,7 +367,7 @@ estimator = numerical_simulation.Estimator(
 # ### Perform the observations simulation
 # Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 
-# In[16]:
+# In[15]:
 
 
 # Simulate required observations
@@ -377,12 +380,12 @@ simulated_observations = estimation.simulate_observations(
 # <a id='covariance_section'></a>
 
 # ## Perform the covariance analysis
-# Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is entirely identical.
+# Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is largely identical up to this point (see, for example, the [full estimation example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/tudatpy-examples/estimation/full_estimation_example.html)).
 # 
 # ### Set up the inversion
 # To set up the inversion of the problem, we collect all relevant inputs in the form of a covariance input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
 
-# In[17]:
+# In[16]:
 
 
 # Create input object for covariance analysis
@@ -399,28 +402,29 @@ covariance_input.set_constant_weight_per_observable(weights_per_observable)
 
 
 # ### Computing the Covariance
-# Using the just defined inputs, we can ultimately run the computation of our covariance matrix. Printing the resulting formal errors will give us the diagonal entries of the matrix - while the first six entries represent the uncertainties in the (cartesian) initial state, the seventh and eighth are the errors associated with the gravitational parameter of Earth and the aerodynamic drag coefficient, respectively.
+# Using the just defined inputs, we can ultimately run the computation of our covariance matrix. The formal errors are the square root of the diagonal entries of the covariance matrix. While the first six entries represent the uncertainties in the (cartesian) initial state, the seventh and eighth are the errors associated with the gravitational parameter of Earth and the aerodynamic drag coefficient, respectively.
 # 
 # When dealing with the results of covariance analyses - as a measure of how the estimated variable differs from the 'thought' true value - it is important to stress that the correlation between the parameters is another important aspect to take into consideration.
 
-# In[18]:
+# In[17]:
 
 
 # Perform the covariance analysis
 covariance_output = estimator.compute_covariance(covariance_input)
 
 
-# In[19]:
+# In[18]:
 
 
 # Print the covariance matrix
-print(covariance_output.formal_errors)
+formal_errors = covariance_output.formal_errors
+print(formal_errors)
 
 
 # ### Visualizing Correlations 
-# In particular, correlation describes how two parameters are related with each other. Typically, a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
+# In particular, correlation describes how the estimate and uncertainty of two parameters are related with each other. Typically, a value of 1.0 indicates entirely correlated elements (thus always present on the diagonal, indicating the correlation of an element with itself), a value of 0.0 indicates perfectly uncorrelated elements.
 
-# In[20]:
+# In[19]:
 
 
 plt.figure(figsize=(8, 6))
@@ -436,56 +440,6 @@ plt.tight_layout()
 plt.show()
 
 
-# # True Errors, Formal Errors
-# 
-# Since we have now estimated the actual parameters - unlike when only getting the initial covariance matrix over the course of the orbit, as done in [Delfi-C3 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html) - we are able to qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones. 
-# 
-# The common way to perform this comparison is by following these 3 simple steps:
-# 1) Compute the formal errors. These are the **diagonal entries of the covariance matrix (variances)**
-# 2) Take the difference between the true parameters (known) and the estimated ones (estimated)
-# 3) Take the ratio between the results obtained in 2) and 1). This is the true-to-formal-error ratio.
-# 
-# Doing this might help highlight that the formal errors one gets as the result of a covariance analysis tend to sketch a too optimistic version of reality - typically, (all or some of) the true errors are by a certain factor larger than the formal ones. In this example, we see that the 3rd, 5th and 8th parameters estimates might be too optimistic, as their true-to-formal ratio is bigger than one. 
-
-# In[21]:
-
-
-# Perturb the initial state estimate from the truth (10 m in position; 0.1 m/s in velocity)
-# Save the true parameters to later analyse the error
-truth_parameters = parameters_to_estimate.parameter_vector
-perturbed_parameters = truth_parameters.copy( )
-for i in range(3):
-    perturbed_parameters[i] += 10.0
-    perturbed_parameters[i+3] += 0.01
-parameters_to_estimate.parameter_vector = perturbed_parameters
-
-# Create input object for the estimation
-convergence_checker = estimation.estimation_convergence_checker(maximum_iterations=4)
-estimation_input = estimation.EstimationInput(
-    simulated_observations,
-    convergence_checker=convergence_checker)
-
-# Set methodological options
-estimation_input.define_estimation_settings(
-    reintegrate_variational_equations=False)
-
-# Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-estimation_input.set_constant_weight_per_observable(weights_per_observable)
-
-# Print the formal errors (diagonal entries of the covariance matrix) and the true-to-formal-errors.
-# Perform the estimation
-estimation_output = estimator.perform_estimation(estimation_input)
-formal_errors = estimation_output.formal_errors #formal errors
-print(f'Formal Errors:\n\n{formal_errors}\n')
-
-true_errors = truth_parameters - parameters_to_estimate.parameter_vector #true_parameters - estimated_parameters = true error
-print(f'True Errors:\n\n{true_errors}\n') 
-
-true_to_formal_ratio = true_errors/formal_errors #true-to-formal-error ratio
-print(f'True-To-Formal-Error Ratio:\n\n{true_to_formal_ratio}\n') 
-
-
 # ## Post-Processing Results
 # Perfect, we have got our results. Now it is time to make sense of them. To further process them, one can - exemplary - plot:
 # 1) the ellipsoidal confidence region defined by the covariance;
@@ -497,15 +451,15 @@ print(f'True-To-Formal-Error Ratio:\n\n{true_to_formal_ratio}\n')
 # The **confidence region** is nothing more than a multi-dimensional generalization of a confidence interval. It is a set of points in an $n$-dimensional space (where $n$ is the number of parameters to be estimated). 
 # The full confidence region is often represented by its **linear approximation** - the **confidence ellipsoid**, centered in the estimated solution to our problem, also known as "**nominal solution**". This confidence ellipsoid will be **stretched along the direction of the eigenvector corresponding to the most-uncertain parameter**.
 # 
-# It is important to note that, in **nonlinear problems,** the full confidence will take the form of a **banana**, and the **confidence ellipsoid might not be representative of the real problem anymore**. (See: [Milani & Gronchi, Theory of Orbit Determination](https://www.cambridge.org/core/books/theory-of-orbit-determination/4BBF3B9D3E9DF63268D0733AE4C41C32) for a more detailed explanation.)
+# It is important to note that, in **nonlinear problems,** the full confidence region will take the form of a **banana**, and the **confidence ellipsoid might not be representative of the real problem anymore**. (See: [Milani & Gronchi, Theory of Orbit Determination](https://www.cambridge.org/core/books/theory-of-orbit-determination/4BBF3B9D3E9DF63268D0733AE4C41C32) for a more detailed explanation.)
 # 
-# In the following, we will see how to plot the **linear approximation of the confidence region**, naming the **confidence ellipsoid** This is defined by the **covariance matrix**, which also encodes information about the **correlations** between different parameters. Then, we will perform the same operation, taking the "*formal errors matrix*" instead - again, this is the covariance where all the off-diagonal elements are set to zero) - and **we will compare the two ellipsoids** so obtained. 
+# In the following, we will see how to plot the **linear approximation of the confidence region**, naming the **confidence ellipsoid**. This is defined by the **covariance matrix**, which also encodes information about the **correlations** between different parameters. Then, we will perform the same operation, taking the "*formal errors matrix*" instead - again, this is the covariance where all the off-diagonal elements are set to zero) - and **we will compare the two ellipsoids** so obtained. 
 # 
 # #### Formal Errors and Covariance Matrix: How Are They Related?
 # Note how we have mentioned above that the **formal errors** constitute the **diagonal entries of the covariance matrix (variances)**. 
-# In practice, the "formal error matrix" is a covariance matrix where all the **off-diagonal terms are set to zero**. Recalling example [Delfi-C3 Covariance Analysis](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), this amounts discard any **correlation** in the errors between different parameters.
+# In practice, the "formal error matrix" is a covariance matrix where all the **off-diagonal terms are set to zero**. Recalling what done just above, this amounts discard any **correlation** in the errors between different parameters.
 
-# In[22]:
+# In[20]:
 
 
 # # Define the parameters
@@ -522,25 +476,19 @@ covariance_input.set_constant_weight_per_observable(weights_per_observable)
 covariance_output = estimator.compute_covariance(covariance_input)
 initial_covariance = covariance_output.covariance  # Covariance matrix
 print(f'Initial_covariance:\n\n{initial_covariance}\n')
-"""
-Ideally, I would want to propagate the covariance here,
-in order to see what happens to the confidence ellipsoid along the orbit.
-However, there is a problem with estimation.propagate_covariance, which is needed to propagate the covariance...
 
->>>>> TypeError: Unregistered type : Eigen::Matrix<double, -1, -1, 0, -1, -1> <<<<<
-"""
 state_transition_interface = estimator.state_transition_interface
 output_times = observation_times
 
-FEM_covariance = np.diag(formal_errors**2)
-print(f'Formal Error Matrix:\n\n{FEM_covariance}\n')
+diagonal_covariance = np.diag(formal_errors**2)
+print(f'Formal Error Matrix:\n\n{diagonal_covariance}\n')
 
 sigma = 3  # Confidence level
 original_eigenvalues, original_eigenvectors = np.linalg.eig(initial_covariance)
-original_FEM_eigenvalues, original_FEM_eigenvectors = np.linalg.eig(FEM_covariance)
+original_diagonal_eigenvalues, original_diagonal_eigenvectors = np.linalg.eig(diagonal_covariance)
 print(f'Estimated state and parameters:\n\n {parameters_to_estimate.parameter_vector}\n')
 print(f'Eigenvalues of Covariance Matrix:\n\n {original_eigenvalues}\n')
-print(f'Eigenvalues of Formal Errors Matrix:\n\n {original_FEM_eigenvalues}\n')
+print(f'Eigenvalues of Formal Errors Matrix:\n\n {original_diagonal_eigenvalues}\n')
 
 
 # ## Visualizing the covariance and the formal errors
@@ -555,43 +503,42 @@ print(f'Eigenvalues of Formal Errors Matrix:\n\n {original_FEM_eigenvalues}\n')
 # 
 # As you will see, based on how the two ellipsoids are oriented in 3D space, we can tell the formal errors matrix eigenvectors are parallel to the x,y and z axis, while the one belonging to the full covariance matrix are not, due to the **existing relationship (correlation)** between different parameters (variables). 
 
-# In[23]:
+# In[22]:
 
 
 # # Select the first 3 dimensions for plotting
 
 # Sort eigenvalues and eigenvectors
 sorted_indices = np.argsort(original_eigenvalues)[::-1]
-FEM_sorted_indices = np.argsort(original_FEM_eigenvalues)[::-1]
+diagonal_sorted_indices = np.argsort(original_diagonal_eigenvalues)[::-1]
 
 eigenvalues = original_eigenvalues[sorted_indices]
 eigenvectors = original_eigenvectors[:, sorted_indices]
 
-FEM_eigenvalues = original_FEM_eigenvalues[FEM_sorted_indices]
-FEM_eigenvectors = original_FEM_eigenvectors[:, FEM_sorted_indices]
+diagonal_eigenvalues = original_diagonal_eigenvalues[diagonal_sorted_indices]
+diagonal_eigenvectors = original_diagonal_eigenvectors[:, diagonal_sorted_indices]
 
 # Output results
 print(f"Sorted Eigenvalues (variances along principal axes):\n\n{eigenvalues}\n")
-print(f"Sorted Formal Error Matrix Eigenvalues (variances along principal axes):\n\n{FEM_eigenvalues}\n")
+print(f"Sorted Formal Error Matrix Eigenvalues (variances along principal axes):\n\n{diagonal_eigenvalues}\n")
 print(f"Sorted Eigenvectors (directions of principal axes):\n\n{eigenvectors}\n")
-print(f"Sorted Formal Error Matrix Eigenvectors (directions of principal axes):\n\n{FEM_eigenvectors}\n")
+print(f"Sorted Formal Error Matrix Eigenvectors (directions of principal axes):\n\n{diagonal_eigenvectors}\n")
 
 COV_sub = initial_covariance[np.ix_(np.sort(sorted_indices)[:3], np.sort(sorted_indices)[:3])]  #Covariance restriction to first 3 (spatial) eigenvectors
-FEM_COV_sub = FEM_covariance[np.ix_(np.sort(FEM_sorted_indices)[:3], np.sort(FEM_sorted_indices)[:3])]  #Covariance restriction to first 3 (spatial) eigenvectors
+diagonal_COV_sub = diagonal_covariance[np.ix_(np.sort(diagonal_sorted_indices)[:3], np.sort(diagonal_sorted_indices)[:3])]  #Covariance restriction to first 3 (spatial) eigenvectors
 
 x_star_sub = x_star[sorted_indices[:3]] #Nominal solution subset
-FEM_x_star_sub = x_star[FEM_sorted_indices[:3]] #Nominal solution subset
+diagonal_x_star_sub = x_star[diagonal_sorted_indices[:3]] #Nominal solution subset
 
 # Eigenvalue decomposition of the submatrix
 eigenvalues, eigenvectors = np.linalg.eig(COV_sub)
-FEM_eigenvalues, FEM_eigenvectors = np.linalg.eig(FEM_COV_sub)
+diagonal_eigenvalues, diagonal_eigenvectors = np.linalg.eig(diagonal_COV_sub)
 
 # Ensure eigenvalues are positive
 if np.any(eigenvalues <= 0):
      raise ValueError(f"$Covariance$ submatrix is not positive definite. Eigenvalues must be positive.\n")
-if np.any(FEM_eigenvalues <= 0):
+if np.any(diagonal_eigenvalues <= 0):
     raise ValueError(f"$Formal Errors$ submatrix is not positive definite. Eigenvalues must be positive.\n")
-
 
 phi = np.linspace(0, np.pi, 50)
 theta = np.linspace(0, 2 * np.pi,50)
@@ -602,30 +549,30 @@ x_ell= np.sqrt(eigenvalues[0])*  np.sin(phi) * np.cos(theta)
 y_ell = np.sqrt(eigenvalues[1])* np.sin(phi) * np.sin(theta)
 z_ell = np.sqrt(eigenvalues[2])* np.cos(phi)
 
-# Generate points on the unit sphere and multiply each direction by the corresponding FEM_eigenvalue
-FEM_x_ell = np.sqrt(FEM_eigenvalues[0])*np.sin(phi) * np.cos(theta)
-FEM_y_ell = np.sqrt(FEM_eigenvalues[1])*np.sin(phi) * np.sin(theta)
-FEM_z_ell = np.sqrt(FEM_eigenvalues[2])*np.cos(phi)
+# Generate points on the unit sphere and multiply each direction by the corresponding diagonal_eigenvalue
+diagonal_x_ell = np.sqrt(diagonal_eigenvalues[0])*np.sin(phi) * np.cos(theta)
+diagonal_y_ell = np.sqrt(diagonal_eigenvalues[1])*np.sin(phi) * np.sin(theta)
+diagonal_z_ell = np.sqrt(diagonal_eigenvalues[2])*np.cos(phi)
 
 ell = np.stack([x_ell, y_ell, z_ell], axis=0)
-FEM_ell = np.stack([FEM_x_ell, FEM_y_ell, FEM_z_ell], axis=0)
+diagonal_ell = np.stack([diagonal_x_ell, diagonal_y_ell, diagonal_z_ell], axis=0)
 
-#Rotate the Ellipsoid(s). This is done by multiplying ell and FEM_ell by the corresponding eigenvector matrices
+#Rotate the Ellipsoid(s). This is done by multiplying ell and diagonal_ell by the corresponding eigenvector matrices
 ellipsoid_boundary_3_sigma = 3 * np.tensordot(eigenvectors, ell, axes=1)
 ellipsoid_boundary_1_sigma = 1 * np.tensordot(eigenvectors, ell, axes=1) 
-FEM_ellipsoid_boundary_3_sigma = 3 * np.tensordot(FEM_eigenvectors, FEM_ell, axes=1)
-FEM_ellipsoid_boundary_1_sigma = 1 * np.tensordot(FEM_eigenvectors, FEM_ell, axes=1)
+diagonal_ellipsoid_boundary_3_sigma = 3 * np.tensordot(diagonal_eigenvectors, diagonal_ell, axes=1)
+diagonal_ellipsoid_boundary_1_sigma = 1 * np.tensordot(diagonal_eigenvectors, diagonal_ell, axes=1)
 
 # Plot the ellipsoid in 3D
 fig = plt.figure(figsize=(8, 8))
 ax = fig.add_subplot(121, projection='3d')
-FEM_ax =fig.add_subplot(122, projection='3d')
+diagonal_ax =fig.add_subplot(122, projection='3d')
 
 ax.plot_surface(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], color='cyan', alpha=0.4, label = '3-sigma (covariance)')
 ax.plot_surface(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], color='blue', alpha=0.4, label = '1-sigma (covariance)')
 
-FEM_ax.plot_surface(FEM_ellipsoid_boundary_3_sigma[0], FEM_ellipsoid_boundary_3_sigma[1], FEM_ellipsoid_boundary_3_sigma[2], color='red', alpha=0.2, label = '3-sigma (formal errors)')
-FEM_ax.plot_surface(FEM_ellipsoid_boundary_1_sigma[0], FEM_ellipsoid_boundary_1_sigma[1], FEM_ellipsoid_boundary_1_sigma[2], color='black', alpha=0.2, label = '1-sigma (formal errors)')
+diagonal_ax.plot_surface(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[1], diagonal_ellipsoid_boundary_3_sigma[2], color='red', alpha=0.2, label = '3-sigma (formal errors)')
+diagonal_ax.plot_surface(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[1], diagonal_ellipsoid_boundary_1_sigma[2], color='black', alpha=0.2, label = '1-sigma (formal errors)')
 
 ax.plot(ellipsoid_boundary_1_sigma[0], ellipsoid_boundary_1_sigma[2], 'r+', alpha=0.1, zdir='y', zs=2*np.max(ellipsoid_boundary_3_sigma[1]))
 ax.plot(ellipsoid_boundary_1_sigma[1], ellipsoid_boundary_1_sigma[2], 'r+',alpha=0.1, zdir='x', zs=-2*np.max(ellipsoid_boundary_3_sigma[0]))
@@ -635,13 +582,13 @@ ax.plot(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[2], 'b+', alph
 ax.plot(ellipsoid_boundary_3_sigma[1], ellipsoid_boundary_3_sigma[2], 'b+',alpha=0.1, zdir='x', zs=-2*np.max(ellipsoid_boundary_3_sigma[0]))
 ax.plot(ellipsoid_boundary_3_sigma[0], ellipsoid_boundary_3_sigma[1], 'b+',alpha=0.1, zdir='z', zs=-2*np.max(ellipsoid_boundary_3_sigma[2]))
 
-FEM_ax.plot(FEM_ellipsoid_boundary_1_sigma[0], FEM_ellipsoid_boundary_1_sigma[2], 'r+', alpha=0.1, zdir='y', zs=2*np.max(FEM_ellipsoid_boundary_3_sigma[1]))
-FEM_ax.plot(FEM_ellipsoid_boundary_1_sigma[1], FEM_ellipsoid_boundary_1_sigma[2], 'r+',alpha=0.1, zdir='x', zs=-2*np.max(FEM_ellipsoid_boundary_3_sigma[0]))
-FEM_ax.plot(FEM_ellipsoid_boundary_1_sigma[0], FEM_ellipsoid_boundary_1_sigma[1], 'r+',alpha=0.1, zdir='z', zs=-2*np.max(FEM_ellipsoid_boundary_3_sigma[2]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[2], 'r+', alpha=0.1, zdir='y', zs=2*np.max(diagonal_ellipsoid_boundary_3_sigma[1]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[1], diagonal_ellipsoid_boundary_1_sigma[2], 'r+',alpha=0.1, zdir='x', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[0]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_1_sigma[0], diagonal_ellipsoid_boundary_1_sigma[1], 'r+',alpha=0.1, zdir='z', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[2]))
 
-FEM_ax.plot(FEM_ellipsoid_boundary_3_sigma[0], FEM_ellipsoid_boundary_3_sigma[2], 'b+', alpha=0.1, zdir='y', zs=2*np.max(FEM_ellipsoid_boundary_3_sigma[1]))
-FEM_ax.plot(FEM_ellipsoid_boundary_3_sigma[1], FEM_ellipsoid_boundary_3_sigma[2], 'b+',alpha=0.1, zdir='x', zs=-2*np.max(FEM_ellipsoid_boundary_3_sigma[0]))
-FEM_ax.plot(FEM_ellipsoid_boundary_3_sigma[0], FEM_ellipsoid_boundary_3_sigma[1], 'b+',alpha=0.1, zdir='z', zs=-2*np.max(FEM_ellipsoid_boundary_3_sigma[2]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[2], 'b+', alpha=0.1, zdir='y', zs=2*np.max(diagonal_ellipsoid_boundary_3_sigma[1]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[1], diagonal_ellipsoid_boundary_3_sigma[2], 'b+',alpha=0.1, zdir='x', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[0]))
+diagonal_ax.plot(diagonal_ellipsoid_boundary_3_sigma[0], diagonal_ellipsoid_boundary_3_sigma[1], 'b+',alpha=0.1, zdir='z', zs=-2*np.max(diagonal_ellipsoid_boundary_3_sigma[2]))
 
 ax.set_xlabel('(x-x^*)')
 ax.set_ylabel('(y-y^*)')
@@ -651,13 +598,13 @@ ax.set_title('3D Confidence Ellipsoid and Projections')
 #ax.set_aspect('equal')
 ax.legend(loc = 'upper right')
 
-FEM_ax.set_xlabel('(x-x^*)')
-FEM_ax.set_ylabel('(y-y^*)')
-FEM_ax.set_zlabel('(z-z^*)')
-FEM_ax.set_aspect('equal')
-FEM_ax.set_title('Formal Errors and Projections')
-#FEM_ax.set_aspect('equal')
-FEM_ax.legend(loc = 'upper right')
+diagonal_ax.set_xlabel('(x-x^*)')
+diagonal_ax.set_ylabel('(y-y^*)')
+diagonal_ax.set_zlabel('(z-z^*)')
+diagonal_ax.set_aspect('equal')
+diagonal_ax.set_title('Formal Errors and Projections')
+#diagonal_ax.set_aspect('equal')
+diagonal_ax.legend(loc = 'upper right')
 
 plt.subplots_adjust(left=1, right=2, top=0.9, bottom=0.1) 
 plt.legend()
