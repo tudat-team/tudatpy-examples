@@ -37,7 +37,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported.
 
-# In[3]:
+# In[1]:
 
 
 # Load standard modules
@@ -61,7 +61,7 @@ from tudatpy.astro.time_conversion import DateTime
 # Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
 # Please refer to the API documentation of the `time_conversion module` [here](https://tudatpy.readthedocs.io/en/latest/time_conversion.html) for more information on this.
 
-# In[4]:
+# In[2]:
 
 
 # Load spice kernels
@@ -84,7 +84,7 @@ simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 # 
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[5]:
+# In[3]:
 
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", "Venus"
@@ -107,7 +107,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 # When setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 
-# In[6]:
+# In[4]:
 
 
 # Create vehicle objects.
@@ -142,7 +142,7 @@ environment_setup.add_radiation_pressure_interface(
 # First, the bodies to be propagated and the central bodies will be defined.
 # Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
 
-# In[7]:
+# In[5]:
 
 
 # Define bodies that are propagated
@@ -168,7 +168,7 @@ central_bodies = ["Earth"]
 # 
 # This dictionary is finally input to the propagation setup to create the acceleration models.
 
-# In[8]:
+# In[6]:
 
 
 # Define unique (Sun, Earth) accelerations acting on Delfi-C3
@@ -205,7 +205,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Within this example, we will retrieve the initial state of Delfi-C3 using its Two-Line-Elements (TLE) the date of its launch (April the 28th, 2008). The TLE strings are obtained from [space-track.org](https://www.space-track.org).
 
-# In[9]:
+# In[7]:
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
@@ -226,7 +226,7 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 # 
 # Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 
-# In[10]:
+# In[8]:
 
 
 # Create termination settings
@@ -257,7 +257,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # In this example, both the initial state transition matrix and the sensitivity matrix are to be propagated.
 # The list of the available estimated parameters for the sensitivity matrix are also given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/sensitivity_analysis/available_parameters.html).
 
-# In[11]:
+# In[9]:
 
 
 # Setup parameters settings to propagate the state transition matrix
@@ -276,7 +276,7 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 # 
 # This function takes additional arguments: the parameters that have to be estimated, and a boolean to specify that the parameters will be intergrated immidiately when the function is called.
 
-# In[12]:
+# In[10]:
 
 
 # Create the variational equation solver and propagate the dynamics
@@ -293,7 +293,7 @@ sensitivity_matrices = variational_equations_solver.sensitivity_matrix_history
 # ## Perform the sensitivity analysis
 # Now that the state transition matrix history and sensitivity matrix history are known, we can perform the actual sensitivity analysis by varying the estimated parameters.
 
-# In[13]:
+# In[11]:
 
 
 # Define the linear variation in the initial state
@@ -318,7 +318,7 @@ for epoch in state_transition_matrices:
 # ## Post-process the results
 # First, extract the time, and deviation in position and velocity associated with the system response to each variation.
 
-# In[14]:
+# In[12]:
 
 
 # Convert the dictionaries to numpy ndarrays
@@ -346,7 +346,7 @@ delta_v3 = np.linalg.norm(delta_drag_coefficient_array[:, 4:8], axis=1)
 # ### Plot the deviation in position
 # Make a plot of the deivation in position over time, in response to all parameter variations.
 
-# In[15]:
+# In[13]:
 
 
 # Plot deviations of position
@@ -368,7 +368,7 @@ plt.show()
 # ### Plot the deviation in velocity
 # Make a plot of the deivation in velocity over time, in response to all parameter variations.
 
-# In[16]:
+# In[14]:
 
 
 # Plot deviations of speed
