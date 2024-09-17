@@ -17,6 +17,7 @@
 # A high number of dependent variable are also propagated in this example. All of them are then plotted at the end of this script.
 
 # ## Key API References
+# 
 
 # ## Import statements
 # 
@@ -26,7 +27,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported.
 
-# In[19]:
+# In[1]:
 
 
 # Load standard modules
@@ -35,7 +36,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-# In[20]:
+# In[2]:
 
 
 # Load tudatpy modules
@@ -74,7 +75,7 @@ from tudatpy.astro.time_conversion import DateTime
 # $$
 # In this equation, $\chi$ and $\delta$ are the heading and latitude angles. $L$, $m$, $V$, and $\omega_E$ are the lift force, vehicle mass, airspeed, and Earth rotation rate. $g_d$ is the downwards (towards the centre of Earth) component of the gravitational acceleration. All of these values are either directly obtained or computed from the flight conditions, the aerodynamic coefficient interface, or the aerodynamic coefficient interface.
 
-# In[21]:
+# In[3]:
 
 
 # Create a class for the aerodynamic guidance of the STS, inheriting from 'propagation.AerodynamicGuidance'
@@ -170,7 +171,7 @@ class STSAerodynamicGuidance:
 # Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
 # Please refer to the API documentation of the `time_conversion module` [here](https://tudatpy.readthedocs.io/en/latest/time_conversion.html) for more information on this.
 
-# In[22]:
+# In[4]:
 
 
 # Load spice kernels
@@ -199,7 +200,7 @@ max_simulation_time = 3*constants.JULIAN_DAY
 # 
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[23]:
+# In[5]:
 
 
 # Create default body settings for "Earth"
@@ -219,7 +220,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 # Let's now create the 5000kg vehicle for which Earth re-entry trajectory will be simulated.
 
-# In[24]:
+# In[6]:
 
 
 # Create vehicle object and set its constant mass
@@ -231,26 +232,33 @@ bodies.get_body( "STS" ).set_constant_mass(5.0e3)
 # 
 # An aerodynamic coefficient interface is now added to the STS vehicle. These coefficients are interpolated from files that tabulate them as a function of angle of attack and Mach number.
 
-# In[25]:
+# In[29]:
 
 
 # Define the aerodynamic coefficient files (leave C_S empty)
 aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 
 # Setup the aerodynamic coefficients settings tabulated from the files
+#coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
+#    force_coefficient_files=aero_coefficients_files,
+#    reference_area=2690.0*0.3048*0.3048,
+#    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
+#    are_coefficients_in_aerodynamic_frame=True,
+#    are_coefficients_in_negative_axis_direction=True
+#)
+
+# Setup the aerodynamic coefficients settings tabulated from the files
 coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
     force_coefficient_files=aero_coefficients_files,
     reference_area=2690.0*0.3048*0.3048,
     independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
-    are_coefficients_in_aerodynamic_frame=True,
-    are_coefficients_in_negative_axis_direction=True
 )
 
 # Add predefined aerodynamic coefficients database to the body
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
 
-# In[26]:
+# In[14]:
 
 
 # ### Add rotation model based on aerodynamic guidance
@@ -269,7 +277,7 @@ environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
 # First, the bodies to be propagated and the central bodies will be defined.
 # Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
 
-# In[27]:
+# In[15]:
 
 
 # Define bodies that are propagated
@@ -288,7 +296,7 @@ central_bodies = ["Earth"]
 # 
 # This dictionary is finally input to the propagation setup to create the acceleration models.
 
-# In[28]:
+# In[16]:
 
 
 # Define the accelerations acting on the STS (Earth as a Point Mass, and Earth's atmosphere)
@@ -317,7 +325,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # Finally, the initial state has to be converted from the Earth-fixed frame in which it is defined with the Spherical elements to the inertial frame.
 
-# In[29]:
+# In[17]:
 
 
 # Set the initial state of the STS as spherical elements, and convert them to a cartesian state
@@ -346,7 +354,7 @@ initial_state = environment.transform_to_inertial_orientation(
 # 
 # [This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
 
-# In[30]:
+# In[18]:
 
 
 # Define the list of dependent variables to save during the propagation
@@ -376,7 +384,7 @@ dependent_variables_to_save = [
 # 
 # Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 
-# In[31]:
+# In[19]:
 
 
 # Define a termination conditions to stop once altitude goes below 25 km
@@ -420,7 +428,7 @@ propagator_settings = propagation_setup.propagator.translational(
 # 
 # In this example, we are not interested in analysing the state history. This can however be accessed in the `dynamics_simulator.state_history` variable.
 
-# In[32]:
+# In[20]:
 
 
 # Create the simulation objects and propagate the dynamics
@@ -442,7 +450,7 @@ dependent_variables_array = result2array(dependent_variables)
 # 
 # First, let's plot the altitude of the `STS` vehicle over time.
 
-# In[33]:
+# In[21]:
 
 
 # Extract the time from the dependent variables array (and convert from seconds to minutes)
@@ -465,7 +473,7 @@ plt.show()
 # 
 # Let's now plot the altitude of the vehicle as a function of its airspeed. This gives insights into how the vehicle decelerates.
 
-# In[34]:
+# In[22]:
 
 
 # Plot the airspeed vs altitude
@@ -481,7 +489,7 @@ plt.show()
 # 
 # The following plot then shows the total acceleration on the vehicle in `g` (Earth's gravitational acceleration at sea level).
 
-# In[35]:
+# In[23]:
 
 
 # Plot the g-load over time
@@ -497,7 +505,7 @@ plt.show()
 # 
 # Plotting the aerodynamic coefficients over time can also give a good set of insights into what happens during re-entry.
 
-# In[36]:
+# In[24]:
 
 
 # Plot C_D, C_L, and L/D over time
@@ -517,7 +525,7 @@ plt.show()
 # 
 # Plotting the angle of attack and bank angle over time allows to check if the aerodynamic guidance behaves as expected. Moreover, plotting the flight path angle over time allows to check how efficient the guidance was at keeping it constant.
 
-# In[37]:
+# In[25]:
 
 
 # Plot various angles over time (bank angle, angle of attack, and flight-path angle)
@@ -536,7 +544,7 @@ plt.show()
 # 
 # Plotting the angle of attack as a function of the Mach number allows to check that it indeed is of 10deg below Mach 6, of 40deg above Mach 12, and that it varies more or less linearly (and smoothly) in-between.
 
-# In[38]:
+# In[26]:
 
 
 # Plot the AoA over Mach number
@@ -554,7 +562,7 @@ plt.show()
 # 
 # Plotting the derivative of the flight path angle over time finally allows to analyse how constant the flight path angle really was.
 
-# In[39]:
+# In[27]:
 
 
 flight_path_angle = dependent_variables_array[:,1]
