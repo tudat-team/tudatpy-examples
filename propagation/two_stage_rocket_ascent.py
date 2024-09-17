@@ -199,7 +199,7 @@ $$
 $$
 """
 
-class thrust_model:
+class ThrustModel:
 
     def __init__(self, magnitude, Isp, vertical_angle, propagated_body, section_dry_mass):
         self.magnitude = magnitude               # Thrust magnitude [N]
@@ -217,7 +217,11 @@ class thrust_model:
         # If we are in the 15 first seconds, return 1.75 times the magnitude
         if self.t0 is None:
             self.t0 = time
-        if time - self.t0 < 15:
+
+        if self.propagated_body.mass <= self.section_dry_mass:
+            return 0
+
+        if (time - self.t0) < 15:
             return 1.75*self.magnitude
         return self.magnitude
 
@@ -281,7 +285,7 @@ def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
 
 
 # Setup the thrust model for the first section
-current_thrust_model = thrust_model(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185)
+current_thrust_model = ThrustModel(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185.0)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
 
@@ -412,7 +416,7 @@ end_epoch = simulation_start_epoch + 225*60
 termination_max_time_settings = propagation_setup.propagator.time_termination(end_epoch)
 
 # Combine both termination settings into a hybrid termination
-combined_termination_settings = propagation_setup.propagator.hybrid_termination(
+combined_termination_settings_section_1 = propagation_setup.propagator.hybrid_termination(
     [termination_apogee_settings, termination_max_time_settings],
     fulfill_single_condition=True
 )
@@ -495,7 +499,7 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
     )
     
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings, integrator_settings)
+propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings_section_1, integrator_settings)
 
 
 ### Run the first section ascent
@@ -544,7 +548,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = thrust_model(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+current_thrust_model = ThrustModel(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
@@ -577,10 +581,28 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 
 ### Define integrator settings
 """
-A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
+The same integrator settings as for section 1 are used for section 2. However, this initial integration epoch is now setup as the final epoch of the first section.
+
+Additionally, a termination setting is configured to stop the termination in case the rocket does not reach orbital velocity.
 """
 
 integrator_settings = define_integrator_settings()
+
+termination_surface_impact_settings = (
+    propagation_setup.propagator.dependent_variable_termination(
+        propagation_setup.dependent_variable.altitude("Section 2", "Mars"),
+        limit_value=500,
+        use_as_lower_limit=True,
+    )
+)
+
+# Combine both termination settings into a hybrid termination
+combined_termination_settings_section_2 = (
+    propagation_setup.propagator.hybrid_termination(
+        [termination_surface_impact_settings, termination_max_time_settings],
+        fulfill_single_condition=True,
+    )
+)
 
 
 ### Define propagator settings
@@ -592,7 +614,7 @@ Also, the initial mass of the second section is set as 85kg for the mass propaga
 """
 
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, termination_max_time_settings, integrator_settings)
+propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, combined_termination_settings_section_2, integrator_settings)
 
 
 ### Run second section simulation
