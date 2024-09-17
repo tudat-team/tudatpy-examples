@@ -19,6 +19,18 @@
 # For this purpose, this example also shows how to extract the position of the Moon over time from SPICE.
 
 # ## Key API References
+#  Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+# 
+# | Module | | Methods | ➡️| | | | | | | | |
+# | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+# | [interface.spice](https://py.api.tudat.space/en/latest/spice.html) | [**load_standard_kernels**](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) | 
+# | [numerical_simulation.environment_setup](https://py.api.tudat.space/en/latest/environment_setup.html) | [**get_default_body_settings**](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.get_default_body_settings) | [**create_system_of_bodies**](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.create_system_of_bodies) | [**rotation_model**](https://py.api.tudat.space/en/latest/rotation_model.html#rotation-model)| [**add_rotation_model**](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_rotation_model) | [**add_engine_model**](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_engine_model) |
+# | [numerical_simulation.propagation_setup](https://py.api.tudat.space/en/latest/propagation_setup.html) | [**acceleration.point_mass_gravity**](https://py.api.tudat.space/en/latest/acceleration.html#tudatpy.numerical_simulation.propagation_setup.acceleration.point_mass_gravity) | [**integrator.runge_kutta_fixed_step**](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.runge_kutta_fixed_step) | [**propagator.translational**](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational) | [**thrust.constant_thrust_magnitude**](https://py.api.tudat.space/en/latest/thrust.html#tudatpy.numerical_simulation.propagation_setup.thrust.constant_thrust_magnitude) |[**acceleration.thrust_from_engine**](https://py.api.tudat.space/en/latest/acceleration.html#tudatpy.numerical_simulation.propagation_setup.acceleration.thrust_from_engine) | [**dependent_variable**](https://py.api.tudat.space/en/latest/dependent_variable.html#dependent-variable) | propagator.dependent_variable_termination| propagator.hybrid_termination | propagator.cowell |  mass_rate.from_thrust | create_mass_rate_models | propagator.multitype
+# | [astro.element_conversion](https://py.api.tudat.space/en/latest/element_conversion.html) | [**keplerian_to_cartesian_elementwise**]()|
+# | [astro.time_conversion](https://py.api.tudat.space/en/latest/time_conversion.html) | [**DateTime**]() |
+# | [numerical_simulation.create_dynamics_simulator](https://py.api.tudat.space/en/latest/numerical_simulation.html#functions) | [**state_history**](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults.state_history) |
+# 
+# 🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
 
 # ## Import statements
 # 
