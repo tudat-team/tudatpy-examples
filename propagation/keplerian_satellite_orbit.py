@@ -181,7 +181,7 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
 # 
 # Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 
-# In[12]:
+# In[8]:
 
 
 # Create termination settings
