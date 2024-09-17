@@ -137,7 +137,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 # If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `.to_tudat()` method. The `.to_tudat()`method does not alter the batch object itself.
 
-# In[9]:
+# In[6]:
 
 
 observation_collection = batch1.to_tudat(bodies, included_satellites=None, apply_star_catalog_debias = False)
@@ -145,7 +145,7 @@ observation_collection = batch1.to_tudat(bodies, included_satellites=None, apply
 
 # The names of the bodies added to the system of bodies object as well as the dates of the oldest and latest observations can be retrieved from the batch:
 
-# In[10]:
+# In[7]:
 
 
 epoch_start = batch1.epoch_start # in seconds since J2000 TDB (Tudat default)
@@ -155,7 +155,7 @@ object_names = batch1.MPC_objects
 
 # We can now retrieve the links from the ObservationCollection we got from `to_tudat()` and create settings for these links. This is where link biases would be set, for now we just keep the settings default.
 
-# In[12]:
+# In[8]:
 
 
 observation_settings_list = list()
@@ -180,7 +180,7 @@ for link in link_list:
 # 
 # As validation, let's compare these interpolated RA and DEC to MPC's values for **329 Svea**:
 
-# In[13]:
+# In[9]:
 
 
 # Let's simplify by using only 329 Svea and removing observations from space telescopes
@@ -245,7 +245,7 @@ plt.show()
 # ### Using satellite observations.
 # Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemirides from a SPICE kernel or propagate the satellite. This body must then be linked to the MPC code for that space telescope when calling the `to_tudat()` method. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
 
-# In[15]:
+# In[10]:
 
 
 # Note that we are using the add_empty_settings() method instead of add_empty_body().
@@ -277,7 +277,7 @@ observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict, 
 # ### Manual retrieval from astroquery
 # Those familiar with **astroquery** (or those who have existing filitering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
 
-# In[16]:
+# In[11]:
 
 
 mpc_code_hypatia = 238
@@ -301,7 +301,7 @@ batch2.summary()
 
 # Batches can be combined using the `+` operator, duplicates are removed.
 
-# In[17]:
+# In[12]:
 
 
 batch3 = batch2 + batch1
@@ -311,7 +311,7 @@ batch3.summary()
 # ### Copying and non in-place filtering
 # We may want to compare results between batches. In that case it is usefull to copy a batch or perform non-destructive filtering:
 
-# In[18]:
+# In[13]:
 
 
 # Copying existing batches:
@@ -332,7 +332,7 @@ batch1_copy2.summary()
 # ### Plotting observations
 # The `.plot_observations_sky()` method can be used to view a projection of the observations. Similarly, `.plot_observations_temporal()` shows the declination and right ascension of a batch's bodies over time.
 
-# In[19]:
+# In[14]:
 
 
 # Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
@@ -343,7 +343,7 @@ fig = batch1.plot_observations_sky(projection=None, objects=[329])
 plt.show()
 
 
-# In[20]:
+# In[15]:
 
 
 # Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
