@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 import tudatpy
 from tudatpy import constants
 from tudatpy import numerical_simulation
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.trajectory_design import shape_based_thrust
 from tudatpy.trajectory_design import transfer_trajectory
@@ -50,6 +50,7 @@ from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 from tudatpy.numerical_simulation.propagation import create_dependent_variable_dictionary
 from tudatpy.util import result2array
 
+
 ## Environment setup
 """
 
@@ -57,9 +58,8 @@ The simulation environment is set up here: the standard Spice kernels are loaded
 
 """
 
-
 # Load spice kernels
-spice_interface.load_standard_kernels( )
+spice.load_standard_kernels( )
 
 # Define global frame orientation
 global_frame_orientation = 'ECLIPJ2000'
@@ -70,23 +70,27 @@ global_frame_origin = 'Sun'
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create environment model
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
 # Create vehicle object and add it to the existing system of bodies
 vehicle_mass = 4.0E3
 specific_impulse = 3000.0
-bodies.create_empty_body('Vehicle')
-bodies.get_body('Vehicle').mass = vehicle_mass
+body_settings.add_empty_settings("Vehicle")
+
+body_settings.get("Vehicle").constant_mass = vehicle_mass
+
+# Create rotation model settings
+rotation_model_settings = environment_setup.rotation_model.custom_inertial_direction_based(
+        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehicleFixed' )
+body_settings.get("Vehicle").rotation_model_settings = rotation_model_settings
+
+# Create bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Create vehicle thrust settings        
 thrust_magnitude_settings = (
 propagation_setup.thrust.custom_thrust_magnitude_fixed_isp( lambda time : 0.0, specific_impulse ) )
 environment_setup.add_engine_model(
     'Vehicle', 'LowThrustEngine', thrust_magnitude_settings, bodies )
-environment_setup.add_rotation_model(
-    bodies, 'Vehicle', environment_setup.rotation_model.custom_inertial_direction_based(
-        lambda time : np.array([1,0,0] ), global_frame_orientation, 'VehcleFixed' ) )
+
 
 ## Shape-based low-thrust trajectory optimization
 """
@@ -115,13 +119,13 @@ axial_velocity_shaping_free_coefficients = [
     0.0
 ]
 
+
 ### Velocity shaping functions
 """
 
 Define a factory function to obtain the radial velocity shaping functions
 
 """
-
 
 def get_radial_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
@@ -166,8 +170,8 @@ def get_radial_velocity_shaping_functions(trajectory_parameters: list,
     return (radial_velocity_shaping_functions,
             free_coefficients)
 
-# Define a factory function to obtain the normal velocity shaping functions
 
+# Define a factory function to obtain the normal velocity shaping functions
 
 def get_normal_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
@@ -211,6 +215,7 @@ def get_normal_velocity_shaping_functions(trajectory_parameters: list,
     free_coefficients = trajectory_parameters[5:7]
     return (normal_velocity_shaping_functions,
             free_coefficients)
+
 
 # Define a factory function to obtain the axial velocity shaping functions
 
@@ -260,12 +265,12 @@ def get_axial_velocity_shaping_functions(trajectory_parameters: list,
     return (axial_velocity_shaping_functions,
             free_coefficients)
 
+
 ### Low-thrust Trajectory Optimization solution
 """
 
 Define a function to obtain the LTTO solution
 """
-
 
 def create_hodographic_trajectory(
         trajectory_parameters: list,
@@ -353,8 +358,8 @@ def create_hodographic_trajectory(
 
     return trajectory_object
 
-# Create function to obtain transfer ΔV
 
+# Create function to obtain transfer $\Delta V$
 
 def hodographic_low_thrust_trajectory_delta_v(
         bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
@@ -363,7 +368,7 @@ def hodographic_low_thrust_trajectory_delta_v(
         departure_epoch: float,
         arrival_epoch: float,
         central_body: str = 'Sun') \
-    -> [tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory, float]:
+    -> list[tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory, float]:
     """
     Function to calculate the required ΔV of an Earth-Mars transfer
 
@@ -433,6 +438,7 @@ latest_departure_time   = DateTime(2017,  7,   1)
 earliest_arrival_time   = DateTime(2019, 11,   1)
 latest_arrival_time     = DateTime(2021,  9,   1)
 
+
 # To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
 time_window_percentage = 0.5
@@ -440,6 +446,7 @@ time_resolution = time_resolution = min(
         latest_departure_time.epoch() - earliest_departure_time.epoch(),
         latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
+
 
 # Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
 
@@ -452,12 +459,12 @@ RECALCULATE_delta_v = input(
 ).strip().lower() == 'y'
 print()
 
+
 # Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
 #  
 # - The optimal departure-arrival date combination
 # - The constant time-of-flight isochrones
 # - And more
-
 
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     # Regenerate plot
@@ -491,6 +498,7 @@ else:
         delta_v          = ΔV,
         threshold        = 60
     )
+
 
 ### Variations
 """
@@ -729,7 +737,7 @@ def inspect_low_thrust_trajectory(
     # PROCESS SIMULATION OUTPUT ###############################################
     ###########################################################################
     # Retrieve propagated state and dependent variables
-    state_history = dynamics_simulator.state_history
+    state_history = dynamics_simulator.propagation_results.state_history
 
     # Create dependent variable dictionary
     dv_dict = create_dependent_variable_dictionary(dynamics_simulator)
@@ -764,7 +772,7 @@ def inspect_low_thrust_trajectory(
     # RETRIEVE EPHEMERIS OF ASTRONOMICAL BODIES ###############################
     ###########################################################################
 
-    retrieve_ephemeris = lambda body: np.vstack([spice_interface.get_body_cartesian_state_at_epoch(
+    retrieve_ephemeris = lambda body: np.vstack([spice.get_body_cartesian_state_at_epoch(
         target_body_name=body,
         observer_body_name="SSB",
         reference_frame_name="ECLIPJ2000",
@@ -868,6 +876,7 @@ def inspect_low_thrust_trajectory(
     # Show the plot
     plt.show()
 
+
 ## Observations and conclusions
 """
 
@@ -886,9 +895,11 @@ inspect_low_thrust_trajectory(
     DateTime(2020,6,11)
 )
 
+
 # **High $\Delta V$ trajectory**
 
 inspect_low_thrust_trajectory(
     DateTime(2016,10,22),
     DateTime(2021,1,21)
 )
+

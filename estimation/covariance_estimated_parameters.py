@@ -40,6 +40,7 @@ from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.astro.time_conversion import DateTime
 from tudatpy.astro import element_conversion
 
+
 ## Configuration
 """
 First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodies such as the Earth, the Sun, or the Moon known to `tudatpy`.
@@ -56,6 +57,7 @@ spice.load_standard_kernels()
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
 simulation_end_epoch   = DateTime(2000, 1, 4).epoch()
 
+
 ## Set up the environment
 """
 We will now create and define the settings for the environment of our simulation. In particular, this covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
@@ -67,8 +69,6 @@ We will now create and define the settings for the environment of our simulation
 To create the systems of bodies for the simulation, one first has to define a list of strings of all bodies that are to be included. Note that the default body settings (such as atmosphere, body shape, rotation model) are taken from the `SPICE` kernel.
 
 These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-
-Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
 
 # Create default body settings for "Sun", "Earth", "Moon", "Mars", and "Venus"
@@ -80,36 +80,44 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Create the vehicle and its environment interface
 """
 We will now create the satellite - called Delfi-C3 - for which an orbit will be simulated. Using an `empty_body` as a blank canvas for the satellite, we define mass of 400kg, a reference area (used both for aerodynamic and radiation pressure) of 4m$^2$, and a aerodynamic drag coefficient of 1.2. Idem for the radiation pressure coefficient. Finally, when setting up the radiation pressure interface, the Earth is set as a body that can occult the radiation emitted by the Sun.
 """
 
-# Create vehicle objects.
-bodies.create_empty_body("Delfi-C3")
-bodies.get("Delfi-C3").mass = 2.2
+# Create empty body settings for the satellite
+body_settings.add_empty_settings("Delfi-C3")
+
+body_settings.get("Delfi-C3").constant_mass = 2.2
 
 # Create aerodynamic coefficient interface settings
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-# Add the aerodynamic interface to the environment
-environment_setup.add_aerodynamic_coefficient_interface(bodies, "Delfi-C3", aero_coefficient_settings)
+
+# Add the aerodynamic interface to the body settings
+body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = ["Earth"]
-radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-    "Sun", reference_area_radiation, radiation_pressure_coefficient, occulting_bodies
-)
-# Add the radiation pressure interface to the environment
-environment_setup.add_radiation_pressure_interface(bodies, "Delfi-C3", radiation_pressure_settings)
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
+vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
+
+
+# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ## Set up the propagation
 """
@@ -122,15 +130,19 @@ bodies_to_propagate = ["Delfi-C3"]
 # Define central bodies of propagation
 central_bodies = ["Earth"]
 
+
 ### Create the acceleration model
 """
 Subsequently, all accelerations (and there settings) that act on `Delfi-C3` have to be defined. In particular, we will consider:
+
 * Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
 * Aerodynamic acceleration for Earth.
 * Gravitational acceleration using a simple point mass model for:
+
     - The Sun
     - The Moon
     - Mars
+
 * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 
 The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
@@ -139,7 +151,7 @@ The defined acceleration settings are then applied to `Delfi-C3` by means of a d
 # Define the accelerations acting on Delfi-C3
 accelerations_settings_delfi_c3 = dict(
     Sun=[
-        propagation_setup.acceleration.cannonball_radiation_pressure(),
+        propagation_setup.acceleration.radiation_pressure(),
         propagation_setup.acceleration.point_mass_gravity()
     ],
     Mars=[
@@ -163,6 +175,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Define the initial state
 """
 Realise that the initial state of the spacecraft always has to be provided as a cartesian state - i.e. in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
@@ -178,6 +191,7 @@ delfi_tle = environment.Tle(
 delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
+
 ### Create the integrator settings
 """
 For the problem at hand, we will use an RKF78 integrator with a fixed step-size of 60 seconds. This can be achieved by tweaking the implemented RKF78 integrator with variable step-size such that both the minimum and maximum step-size is equal to 60 seconds and a tolerance of 1.0
@@ -187,6 +201,7 @@ For the problem at hand, we will use an RKF78 integrator with a fixed step-size 
 integrator_settings = propagation_setup.integrator.\
     runge_kutta_fixed_step_size(initial_time_step=60.0,
                                 coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
+
 
 ### Create the propagator settings
 """
@@ -206,6 +221,7 @@ propagator_settings = propagation_setup.propagator.translational(
     integrator_settings,
     termination_condition
 )
+
 
 ## Set up the observations
 """
@@ -232,6 +248,7 @@ environment_setup.add_ground_station(
     [station_altitude, delft_latitude, delft_longitude],
     element_conversion.geodetic_position_type)
 
+
 ### Define Observation Links and Types
 """
 To establish the links between our ground station and `Delfi-C3`, we will make use of the [observation module](https://py.api.tudat.space/en/latest/observation.html#observation) of tudat. During th link definition, each member is assigned a certain function within the link, for instance as "transmitter", "receiver", or "reflector". Once two (or more) members are connected to a link, they can be used to simulate observations along this particular link. The precise type of observation made along this link - e.g., range, range-rate, angular position, etc. - is then determined by the chosen observable type.
@@ -249,6 +266,7 @@ link_ends[observation.receiver] = observation.body_origin_link_end_id("Delfi-C3"
 # Create observation settings for each link/observable
 link_definition = observation.LinkDefinition(link_ends)
 observation_settings_list = [observation.one_way_doppler_instantaneous(link_definition)]
+
 
 ### Define Observation Simulation Settings
 """
@@ -282,6 +300,7 @@ observation.add_viability_check_to_all(
     [viability_setting]
 )
 
+
 ## Set up the estimation
 """
 Using the defined models for the environment, the propagator, and the observations, we can finally set the actual presentation up. In particular, this consists of defining all parameter that should be estimated, the creation of the estimator, and the simulation of the observations.
@@ -303,6 +322,7 @@ parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
 
+
 ### Creating the Estimator object
 """
 Ultimately, the `Estimator` object consolidates all relevant information required for the estimation of any system parameter:
@@ -321,6 +341,7 @@ estimator = numerical_simulation.Estimator(
     observation_settings_list,
     propagator_settings)
 
+
 ### Perform the observations simulation
 """
 Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
@@ -332,7 +353,6 @@ simulated_observations = estimation.simulate_observations(
     estimator.observation_simulators,
     bodies)
 
-# <a id='covariance_section'></a>
 
 ## Perform the covariance analysis
 """
@@ -357,6 +377,7 @@ covariance_input.define_covariance_settings(
 weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
 covariance_input.set_constant_weight_per_observable(weights_per_observable)
 
+
 ### Propagate the covariance matrix
 """
 Using the just defined inputs, we can ultimately run the computation of our covariance matrix. Printing the resulting formal errors will give us the diagonal entries of the matrix - while the first six entries represent the uncertainties in the (cartesian) initial state, the seventh and eighth are the errors associated with the gravitational parameter of Earth and the aerodynamic drag coefficient, respectively.
@@ -365,8 +386,10 @@ Using the just defined inputs, we can ultimately run the computation of our cova
 # Perform the covariance analysis
 covariance_output = estimator.compute_covariance(covariance_input)
 
+
 # Print the covariance matrix
 print(covariance_output.formal_errors)
+
 
 ## Results post-processing
 """
@@ -390,6 +413,7 @@ plt.ylabel("Index - Estimated Parameter")
 
 plt.tight_layout()
 plt.show()
+
 
 ### Propagated Formal Errors
 """
@@ -420,3 +444,4 @@ plt.grid()
 
 plt.tight_layout()
 plt.show()
+

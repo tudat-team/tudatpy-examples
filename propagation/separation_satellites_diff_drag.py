@@ -34,12 +34,13 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
 from tudatpy.astro.time_conversion import DateTime
 
 # Load spice kernels
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
+
 
 ## Creation of the environment
 """
@@ -72,26 +73,25 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_origin,
     global_frame_orientation)
 
-# Create system of selected celestial bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Creation of vehicle settings
 """
 
 We create two identical vehicles, called asterix and obelix, we set the mass and the aerodynamic coefficient 
 interface (one satellite has 3X the surface of the other satellite). The main vehicle properties are:
+
 - mass: 5 kg
 - drag surface: 0.03 and 0.01 $m^2$
 - aerodynamic coefficient: 1.2
 """
 
 # Create vehicle objects.
-bodies.create_empty_body("asterix")
-bodies.create_empty_body("obelix")
+body_settings.add_empty_settings("asterix")
+body_settings.add_empty_settings("obelix")
 
 # Set mass of satellites
-bodies.get("asterix").mass = 5.0
-bodies.get("obelix").mass = 5.0
+body_settings.get("asterix").constant_mass = 5.0
+body_settings.get("obelix").constant_mass = 5.0
 
 # Create aerodynamic coefficient interface settings and add it to the first satellite
 reference_area = 0.1 * 0.1
@@ -99,8 +99,7 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "asterix", aero_coefficient_settings)
+body_settings.get("asterix").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create aerodynamic coefficient interface settings and add it to the second satellite (3x surface area)
 reference_area = 3 * 0.1 * 0.1
@@ -108,8 +107,12 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "obelix", aero_coefficient_settings)
+body_settings.get("obelix").aerodynamic_coefficient_settings = aero_coefficient_settings
+
+
+# Create system of selected bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ## Creation of propagation settings
 """
@@ -121,6 +124,7 @@ environment_setup.add_aerodynamic_coefficient_interface(
 
 We set the (identical) accelerations acting on the satellites.
 The dynamical model includes the following accelerations:
+
 - spherical harmonic gravity exerted by the Earth, up to degree 2 and order 0
 - aerodynamic
 - point mass gravity of the Sun and the Moon
@@ -157,6 +161,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies_to_propagate,
     central_bodies)
 
+
 ### Set initial state
 """
 
@@ -178,12 +183,14 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     longitude_of_ascending_node=np.deg2rad(23.4),
     true_anomaly=np.deg2rad(139.87)
 )
-# Both satellites have the same inital state
+# Both satellites have the same initial state
 initial_states = np.concatenate((initial_state, initial_state))
+
 
 ### Set dependent variables to save
 """
 These include (for both satellites):
+
 - the keplerian states
 - the norm of the aerodynamic drag
 """
@@ -200,10 +207,12 @@ dependent_variables_to_save = [
     ),
 ]
 
+
 ### Define termination settings
 """
 
 The simulation terminates when one of the two occurs:
+
 - simulation time reaches 60 days
 - angular separation between two satellites reaches 20 degrees
 
@@ -241,7 +250,7 @@ class AngleSeparationTermination:
         self.bodies = bodies
         self.maximum_angular_separation = maximum_angular_separation
         # Create container to store separation angle
-        # The first element is neeeded because at the first epoch the termination settings are not checked
+        # The first element is needed because at the first epoch the termination settings are not checked
         self.separation_angle_history = [0.0]
         # Create termination reason to understand if time or angular separation triggered the termination
         self.termination_reason = "Final epoch of the propagation was reached."
@@ -319,6 +328,7 @@ class AngleSeparationTermination:
             stop_propagation = False
         return stop_propagation
 
+
 # Now the termination settings can be created.
 
 # Set simulation start and end epochs
@@ -338,6 +348,7 @@ angle_termination_condition = propagation_setup.propagator.custom_termination(an
 termination_list = [time_termination_condition, angle_termination_condition]
 hybrid_termination = propagation_setup.propagator.hybrid_termination(termination_list, fulfill_single_condition=True)
 
+
 # We use a variable step size Runge-Kutta-Fehlberg 7(8) integrator with relative and absolute tolerances equal to
 # $10^{-10}$.
 
@@ -354,6 +365,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     tolerance,
     tolerance)
 
+
 # The translational propagation settings are created here.
 
 # Create propagation settings
@@ -368,6 +380,7 @@ propagator_settings = propagation_setup.propagator.translational(
     output_variables=dependent_variables_to_save
 )
 
+
 ## Execute simulation
 """
 With these commands, we execute the simulation and retrieve the output.
@@ -376,16 +389,18 @@ With these commands, we execute the simulation and retrieve the output.
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings)
-states = dynamics_simulator.state_history
-dependent_variables = dynamics_simulator.dependent_variable_history
+states = dynamics_simulator.propagation_results.state_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)
+
 
 ## Post processing
 """
 
 The output is processed to produce the following figures:
+
 1. kepler elements
 2. drag acceleration norm
 3. semi-major axis, with linear regression to see the difference in decay of both satellites
@@ -423,6 +438,7 @@ def return_sparse_output(time_history, variable_history, datapoints=200):
     interpolated_values = [interp_function(epoch) for epoch in time_interp]
     return time_interp, interpolated_values
 
+
 # We retrieve the output and convert it to `numpy` arrays.
 
 # Get time and transform it in days
@@ -432,6 +448,7 @@ time_days = [t / 3600 / 24 for t in time]
 # Get states and dependent variables
 states_list = np.vstack(list(states.values()))
 dependent_variable_list = np.vstack(list(dependent_variables.values()))
+
 
 ### Kepler elements
 """
@@ -490,6 +507,7 @@ for element_number in range(6):
         
 plt.tight_layout()        
 
+
 ### Drag acceleration norm
 """
 
@@ -517,6 +535,7 @@ ax.grid()
 ax.set_title("Drag acceleration")
 ax.legend()
 plt.tight_layout()
+
 
 # As expected, the drag acceleration experienced by the satellite orbiting at a higher altitude (Asterix) is lower than
 #  the other satellite's drag acceleration. This happens because Obelix has 3 times the drag surface area of Asterix.
@@ -565,6 +584,7 @@ ax.grid()
 ax.legend(loc='lower left')
 plt.tight_layout()
 
+
 # Due to the larger drag acceleration experienced by Obelix, the satellites decays at a faster rate.
 # 
 ### Angular separation
@@ -587,3 +607,4 @@ ax.set_ylabel("Angular separation [deg]")
 ax.set_title("Angular separation between two satellites")
 ax.grid()
 plt.tight_layout()
+
