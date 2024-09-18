@@ -17,6 +17,9 @@
 # In[30]:
 
 
+import sys
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-debug/tudatpy")
+
 # Tudat imports for propagation and estimation
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel import numerical_simulation
