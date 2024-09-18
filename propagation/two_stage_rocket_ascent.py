@@ -21,7 +21,7 @@
 # 
 # Then, the different modules of `tudatpy` that will be used are imported.
 
-# In[1]:
+# In[12]:
 
 
 # Load standard modules
@@ -44,7 +44,7 @@ from tudatpy.util import result2array
 # 
 # Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion module` is then used to convert the `datetime` to the correct format.
 
-# In[2]:
+# In[13]:
 
 
 # Load spice kernels
@@ -72,7 +72,7 @@ simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(simul
 # 
 # Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
-# In[3]:
+# In[14]:
 
 
 # Define a function to create a default system of bodies (so it can be reused later)
@@ -111,7 +111,7 @@ bodies = create_bodies()
 # ### Create the vehicle
 # Let's now create our vehicle for the first section, called "Section 1". It has an initial mass of 370kg.
 
-# In[4]:
+# In[15]:
 
 
 # Define a function to create a body for a rocket section
@@ -132,7 +132,7 @@ create_rocket_section("Section 1", 370.0)
 # - A reference area of 0.25m$^2$.
 # - No moment coefficient.
 
-# In[5]:
+# In[16]:
 
 
 # Define a function to add an aerodynamic coefficient interface with the coefficient of a given section
@@ -161,7 +161,7 @@ add_aero_coefficients("Section 1", 0.85, 0.4)
 # 
 # The body to be propagated in the first part of this example is the first rocket section.
 
-# In[6]:
+# In[17]:
 
 
 # Define bodies that are propagated
@@ -198,7 +198,7 @@ central_bodies = ["Mars"]
 # \end{bmatrix}
 # $$
 
-# In[7]:
+# In[18]:
 
 
 class thrust_model:
@@ -255,7 +255,7 @@ class thrust_model:
 # - A constant thrust angle of 40 deg from the vertical.
 # - A dry mass of the first section of 185 kg (note that the wet mass was defined as 370 kg, so 185 kg of propellant can be used).
 
-# In[8]:
+# In[19]:
 
 
 # Define a function to create acceleration settings based on the direction and magnitude from the custom thrust class
@@ -297,7 +297,7 @@ create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 # 
 # The acceleration settings defined are then applied to the rocket section, and acceleration models are created.
 
-# In[9]:
+# In[20]:
 
 
 # Define a function to create acceleration models for a given rocket section, containing the thrust
@@ -335,7 +335,7 @@ acceleration_models = create_section_accelerations("Section 1")
 # 
 # The initial state that will be defined is the one of the entire rocket, which is the same as the one used for the first section.
 
-# In[10]:
+# In[21]:
 
 
 # Define the initial state in Spherical elements, and convert to Mars fixed Cartesian elements
@@ -357,7 +357,7 @@ initial_inertial_state = environment.transform_to_inertial_orientation(
 # ### Define dependent variables to save
 # Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularily interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
 
-# In[11]:
+# In[22]:
 
 
 # Define a function to return the list of dependent variables to save for a given section
@@ -365,7 +365,7 @@ def define_dependent_variables_to_save(section_name):
     return [
         propagation_setup.dependent_variable.altitude( section_name, "Mars" ),
         propagation_setup.dependent_variable.airspeed( section_name, "Mars" ),
-        propagation_setup.dependent_variable.dynamic_pressure( section_name ),
+        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars"),
         propagation_setup.dependent_variable.body_mass( section_name ),
         propagation_setup.dependent_variable.total_acceleration_norm( section_name ),
         propagation_setup.dependent_variable.single_acceleration_norm(
@@ -387,7 +387,7 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 # - Stop when the vehicle starts falling again, indicating that it reached apogee.
 # - Stop 225 minutes after lift-off.
 
-# In[12]:
+# In[23]:
 
 
 class vehicle_falling:
@@ -429,7 +429,7 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
 # - A maximum time step of 100 seconds.
 # - A relative and absolute error tolerance of 1e-13.
 
-# In[13]:
+# In[24]:
 
 
 # Define integrator settings with the initial integration epoch
@@ -457,7 +457,7 @@ integrator_settings = define_integrator_settings()
 # 
 # The translational and mass propagation settings are combined together, to propagate both in the same propagation.
 
-# In[14]:
+# In[25]:
 
 
 # Define a function to create translational and mass propagation settings for a given rocket section
@@ -508,7 +508,7 @@ propagator_settings = create_propagator_settings("Section 1", initial_inertial_s
 # 
 # The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the apochs.
 
-# In[15]:
+# In[26]:
 
 
 # Run the numerical simulation of the first rocket section
@@ -526,7 +526,7 @@ dep_vars_array_section_1 = result2array(dep_vars)
 # ### Save section 1 final state
 # Because we now want to simulate the second section from our rocket, we need to save what was the last state from the first section. This way, we can start a new propagation, simulating the remaining ascent of the second section (being the second stage) only, starting from where the first section ended.
 
-# In[16]:
+# In[27]:
 
 
 final_state_section_1 = states_array_section_1[-1,1:7]
@@ -541,7 +541,7 @@ final_epoch_section_1 = states_array_section_1[-1,0]
 # ### Define the bodies
 # The same celestial bodies are defined again, as well as the second section with a wet mass of 85kg, a drag coefficient of 0.55, and a lift coefficient of 0.25.
 
-# In[17]:
+# In[28]:
 
 
 # Re-create the system of bodies (to remove the first section that is now useless)
@@ -567,7 +567,7 @@ bodies_to_propagate = ["Section 2"]
 # 
 # Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
 
-# In[18]:
+# In[29]:
 
 
 # Define the acceleration models for the second rocket section
@@ -577,7 +577,7 @@ acceleration_models = create_section_accelerations("Section 2")
 # ### Define dependent variables
 # The same dependent variables as for the first section are used. However, they are now all linked to the "Section 2" body.
 
-# In[19]:
+# In[30]:
 
 
 dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
@@ -586,7 +586,7 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 # ### Define integrator settings
 # A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
 
-# In[20]:
+# In[31]:
 
 
 integrator_settings = define_integrator_settings()
@@ -598,7 +598,7 @@ integrator_settings = define_integrator_settings()
 # This time, the initial state of the second section is set as the final state of the first section.
 # Also, the initial mass of the second section is set as 85kg for the mass propagator, and the only termination settings used is to finish after 300 minutes have elapsed since lift-off.
 
-# In[21]:
+# In[32]:
 
 
 # Define the translational and mass propagator settings for the first rocket section
@@ -612,7 +612,7 @@ propagator_settings = create_propagator_settings("Section 2", final_state_sectio
 # 
 # The state and dependent variable histories for the second section are now saved into the `states_array_section_2` and `dep_vars_array_section_2` numpy arrays.
 
-# In[22]:
+# In[33]:
 
 
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
@@ -631,7 +631,7 @@ dep_vars_array_section_2 = result2array(dep_vars)
 # ### Combine results from both sections
 # First, let's combine the dependent variables arrays from both rocket sections together. This then produces one single `dep_vars_array` containing the dependent variables history of the entire rocket over time.
 
-# In[23]:
+# In[34]:
 
 
 dep_vars_array = np.concatenate((dep_vars_array_section_1, dep_vars_array_section_2))
@@ -640,7 +640,7 @@ dep_vars_array = np.concatenate((dep_vars_array_section_1, dep_vars_array_sectio
 # ### Extract the data
 # Let's now extract each of the relevant data array from the dependent variables multi-dimensional array.
 
-# In[24]:
+# In[35]:
 
 
 times = dep_vars_array[:,0]
@@ -661,7 +661,7 @@ aero_a = dep_vars_array[:,8]
 # 
 # Do note that some of the plots are cropped after 10 minutes, to effectively zoom in on their most interesting part.
 
-# In[25]:
+# In[36]:
 
 
 print("Stage separation occured after %.2f minutes." % ((final_epoch_section_1-times[0])/60))
