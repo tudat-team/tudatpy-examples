@@ -13,7 +13,9 @@
 # Apart from the usual tudatpy modules, we will also need the HorizonsQuery module, some astroquery modules (MPC, Table, Column) and the BeautifulSoup library.
 
 # In[1]:
-
+#
+# import sys
+# sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-debug/tudatpy")
 
 from tudatpy.data.mpc import BatchMPC
 from tudatpy.kernel.numerical_simulation.estimation_setup import observation
@@ -241,6 +243,7 @@ batch_times_utc = batch.table.epochUTC.to_list()
 batch_RA = batch.table.RA #in radians
 batch_DEC = batch.table.DEC #in radians
 
+# DOMINIC COMMENT:
 # Create Horizons query, see Horizons Documentation for more info.
 JUICE_horizons_query = HorizonsQuery(
     query_id="-28",
@@ -338,7 +341,8 @@ bodies_to_create = [
 ]
 
 # Create default body settings
-global_frame_origin = "Earth"
+global_frame_origin = "SSB"
+propagation_origin = "Earth"
 global_frame_orientation = "J2000"
 
 body_settings = environment_setup.get_default_body_settings(
@@ -350,7 +354,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Retrieve JUICE' body name from BatchMPC and set its centre to enable its propapgation
 bodies_to_propagate = batch.MPC_objects
-central_bodies = [global_frame_origin]
+central_bodies = [propagation_origin]
 
 #filter out the outliers
 batch.filter(observatories_exclude = ['Y05', 'J95'])
@@ -373,7 +377,7 @@ time_buffer_start = 86400
 time_buffer_end = 86400*10
 
 # timestep of 300s for our estimation
-timestep_global = 60*4
+timestep_global = 300
 
 epoch_start_buffer = epoch_start_nobuffer - time_buffer_start
 epoch_end_buffer = epoch_end_nobuffer + time_buffer_end
@@ -386,7 +390,7 @@ print(f'Epoch End (with buffer): {epoch_end_buffer}')
 
 # In[11]:
 
-
+#DOMINIC COMMENT: PLEASE ADD TO THE BODY SETTINGS (SEE UPDATED PERTURBED ORBIT EXAMPLE)
 # Create radiation pressure settings
 reference_area_radiation = 100 #m^2
 radiation_pressure_coefficient = 1.2
@@ -401,8 +405,10 @@ vehicle_target_settings = (
 environment_setup.add_radiation_pressure_target_model(
     bodies, "-28", vehicle_target_settings
 )
+bodies.get("-28").mass = 1800*2 #kg
 
 
+# DOMINIC COMMENT: HERE MAKE ONE ADJUSTMENTS: (1) DON'T GO VIA JULAIN DAY, SINCE YOU LOSE A LOT OF PRECISION (MAY NOT MATTER MUCH HERE, BUT NOT GOOD AS EXAMPLE)
 #Create quasi impulsive shot manuever
 epoch_impulse_0 = f'2024-08-04 21:00:00'
 impulse_time_0= datetime.strptime(epoch_impulse_0, "%Y-%m-%d %H:%M:%S")
@@ -412,8 +418,8 @@ impulse_j2000 = time_conversion.julian_day_to_seconds_since_epoch(impulse_jd_0)
 # Define the quasi-impulsive shot settings
 mid_times = [impulse_j2000]
 delta_v_values = [ np.array([0.0, 0.0, 0.0])]
-maneuver_duration = 60*40
-rise_time = 60*10
+maneuver_duration = 2*86400
+rise_time = 86400
 
 # Define acceleration model
 acceleration_settings_on_spacecraft = dict()
@@ -426,7 +432,8 @@ accelerations = {
     "Mercury": [propagation_setup.acceleration.point_mass_gravity()],
     "Venus": [propagation_setup.acceleration.point_mass_gravity()],
     "Earth": [propagation_setup.acceleration.spherical_harmonic_gravity(2,0)],
-    "Moon": [propagation_setup.acceleration.spherical_harmonic_gravity(4,0)],
+    # DOMINIC COMMENT, MOON C22 IS SAME ORDER OF MAGNITUDE AS J2, SO BEST TO USE BOTH
+    "Moon": [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
     "Mars": [propagation_setup.acceleration.point_mass_gravity()],
     "Jupiter": [propagation_setup.acceleration.point_mass_gravity()],
     "Saturn": [propagation_setup.acceleration.point_mass_gravity()],
@@ -453,8 +460,10 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 np.random.seed = 1
 
-initial_position_offset = 1e5
-initial_velocity_offset = 10
+# DOMINIC COMMENT: THESE INITIAL OFFSETS ARE NOT NECESSARY, AND IN FACT WILL MAKE THE PERFORMANCE OF THE ALGORITHM WORSE (MORE ITERATIONS)
+# SINCE THERE ARE ALREADY DISCREPANCIES BETWEEN OBSERVATIONS AND DYNAMICAL MODEL (UNLIKE IN A SIMULATION), THIS CAN BE REMOVED
+# initial_position_offset = 1e5
+# initial_velocity_offset = 10
 
 ephemeris_states = JUICE_horizons_query.cartesian('J2000')
 
@@ -462,7 +471,7 @@ spice_states = []
 for epoch in batch_times:
     state = spice.get_body_cartesian_state_at_epoch(
         '-28',
-        global_frame_origin,
+        propagation_origin,
         global_frame_orientation,
         "NONE",
         epoch,
@@ -480,16 +489,16 @@ print(ephemeris_states[0,0])
 print(initial_state)
 print(initial_state_spice)
 initial_guess = initial_state.copy()
-initial_guess[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
-initial_guess[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
+# initial_guess[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
+# initial_guess[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
 
 initial_guess_spice = initial_state_spice.copy()
-initial_guess_spice[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
-initial_guess_spice[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
+# initial_guess_spice[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
+# initial_guess_spice[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
 
-print("Error between the real initial state and our initial guess:")
-print(initial_guess - initial_state)
-print(initial_guess_spice - initial_state_spice)
+# print("Error between the real initial state and our initial guess:")
+# print(initial_guess - initial_state)
+# print(initial_guess_spice - initial_state_spice)
 
 
 x_horizons = [state[1] for state in ephemeris_states]
@@ -515,16 +524,16 @@ integrator_settings = propagation_setup.integrator.\
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.time_termination(epoch_end_buffer)
 
-# Create propagation settings
-propagator_settings = propagation_setup.propagator.translational(
-    central_bodies=['Earth'],
-    acceleration_models=acceleration_models,
-    bodies_to_integrate=bodies_to_propagate,
-    initial_states=initial_guess,
-    initial_time=epoch_start_buffer,
-    integrator_settings=integrator_settings,
-    termination_settings=termination_condition
-)
+# # Create propagation settings
+# propagator_settings = propagation_setup.propagator.translational(
+#     central_bodies=['Earth'],
+#     acceleration_models=acceleration_models,
+#     bodies_to_integrate=bodies_to_propagate,
+#     initial_states=initial_guess,
+#     initial_time=epoch_start_buffer,
+#     integrator_settings=integrator_settings,
+#     termination_settings=termination_condition
+# )
 
 # Create propagation settings
 propagator_settings_spice = propagation_setup.propagator.translational(
@@ -549,75 +558,75 @@ print(termination_condition)
 # ## Creating Simulator Objects
 
 # In[14]:
-
-
-### VEHICLE BODY ###
-# Create vehicle object
-bodies.get("-28").mass = 1800*2 #kg
-
-# Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings
-)
-
-dynamics_simulator_spice = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings_spice
-)
-# Extract the resulting state history and convert it to an ndarray
-states = dynamics_simulator.propagation_results.state_history
-states_array = result2array(states)
-
-states_spice = dynamics_simulator_spice.propagation_results.state_history
-states_array_spice = result2array(states_spice)
-print(states_array)
-
-
-# ## Propagation Comparison (SPICE and Horizons)
-
-# In[15]:
-
-
-time_prop = [state[0] for state in states_array]
-
-x_prop = [state[1] for state in states_array]
-y_prop = [state[2] for state in states_array]
-z_prop = [state[3] for state in states_array]
-
-time_prop_spice = [state[0] for state in states_array_spice]
-
-x_prop_spice = [state[1] for state in states_array_spice]
-y_prop_spice = [state[2] for state in states_array_spice]
-z_prop_spice = [state[3] for state in states_array_spice]
-
-print(initial_state_spice[0])
-print(x_prop_spice[0])
-
-plt.scatter(batch_times, x_horizons, s = 15, label = 'x horizons')
-plt.scatter(batch_times, y_horizons, s = 15, label = 'y horizons')
-plt.scatter(batch_times, z_horizons, s = 15, label = 'z horizons')
-
-plt.scatter(time_prop, x_prop, s = 1, label = 'x prop')
-plt.scatter(time_prop, y_prop, s = 1, label = 'y prop')
-plt.scatter(time_prop, z_prop, s = 1, label = 'z prop')
-
-plt.legend()
-plt.show()
-
-plt.scatter(batch_times, x_spice, s = 15, label = 'x spice')
-plt.scatter(batch_times, y_spice, s = 15, label = 'y spice')
-plt.scatter(batch_times, z_spice, s = 15, label = 'z spice')
-
-plt.scatter(time_prop_spice, x_prop_spice, s = 1, label = 'x prop')
-plt.scatter(time_prop_spice, y_prop_spice, s = 1, label = 'y prop')
-plt.scatter(time_prop_spice, z_prop_spice, s = 1, label = 'z prop')
-
-plt.legend()
-plt.show()
-
-states_array[:]
-print("Error between the real spice final state and our final state:")
-print(states_array[-1][1:] - ephemeris_states[-1][1:])
-print(states_array_spice[-1][1:] - spice_states[-1][:])
+# DOMINIC COMMENT: THIS PART CAN BE OMITTED, PART OF IT IS EQUIVALENT TO THE FIRST ITERATION OF THE ESTIMATION
+# 14
+#
+# ### VEHICLE BODY ###
+# # Create vehicle object
+#
+# # Create simulation object and propagatemaximum_step_size the dynamics
+# dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+#     bodies, propagator_settings
+# )
+#
+# dynamics_simulator_spice = numerical_simulation.create_dynamics_simulator(
+#     bodies, propagator_settings_spice
+# )
+# # Extract the resulting state history and convert it to an ndarray
+# states = dynamics_simulator.propagation_results.state_history
+# states_array = result2array(states)
+#
+# states_spice = dynamics_simulator_spice.propagation_results.state_history
+# states_array_spice = result2array(states_spice)
+# print(states_array)
+#
+#
+# # ## Propagation Comparison (SPICE and Horizons)
+#
+# # In[15]:
+#
+#
+# time_prop = [state[0] for state in states_array]
+#
+# x_prop = [state[1] for state in states_array]
+# y_prop = [state[2] for state in states_array]
+# z_prop = [state[3] for state in states_array]
+#
+# time_prop_spice = [state[0] for state in states_array_spice]
+#
+# x_prop_spice = [state[1] for state in states_array_spice]
+# y_prop_spice = [state[2] for state in states_array_spice]
+# z_prop_spice = [state[3] for state in states_array_spice]
+#
+# print(initial_state_spice[0])
+# print(x_prop_spice[0])
+#
+# plt.scatter(batch_times, x_horizons, s = 15, label = 'x horizons')
+# plt.scatter(batch_times, y_horizons, s = 15, label = 'y horizons')
+# plt.scatter(batch_times, z_horizons, s = 15, label = 'z horizons')
+#
+# plt.scatter(time_prop, x_prop, s = 1, label = 'x prop')
+# plt.scatter(time_prop, y_prop, s = 1, label = 'y prop')
+# plt.scatter(time_prop, z_prop, s = 1, label = 'z prop')
+#
+# plt.legend()
+# plt.show()
+#
+# plt.scatter(batch_times, x_spice, s = 15, label = 'x spice')
+# plt.scatter(batch_times, y_spice, s = 15, label = 'y spice')
+# plt.scatter(batch_times, z_spice, s = 15, label = 'z spice')
+#
+# plt.scatter(time_prop_spice, x_prop_spice, s = 1, label = 'x prop')
+# plt.scatter(time_prop_spice, y_prop_spice, s = 1, label = 'y prop')
+# plt.scatter(time_prop_spice, z_prop_spice, s = 1, label = 'z prop')
+#
+# plt.legend()
+# plt.show()
+#
+# states_array[:]
+# print("Error between the real spice final state and our final state:")
+# print(states_array[-1][1:] - ephemeris_states[-1][1:])
+# print(states_array_spice[-1][1:] - spice_states[-1][:])
 
 
 # ## Estimation Settings
@@ -627,7 +636,7 @@ print(states_array_spice[-1][1:] - spice_states[-1][:])
 
 # Setup parameters settings to propagate the state transition matrix
 parameter_settings = estimation_setup.parameter.initial_states(
-    propagator_settings, bodies
+    propagator_settings_spice, bodies
 )
 
 parameter_settings.append(estimation_setup.parameter.radiation_pressure_coefficient('-28'))
@@ -635,7 +644,7 @@ parameter_settings.append(estimation_setup.parameter.quasi_impulsive_shots('-28'
 
 # Create the parameters that will be estimated
 parameters_to_estimate = estimation_setup.create_parameter_set(
-    parameter_settings, bodies, propagator_settings
+    parameter_settings, bodies, propagator_settings_spice
 )
 
 # Save the true parameters to later analyse the error
@@ -674,7 +683,7 @@ estimator = numerical_simulation.Estimator(
     bodies=bodies,
     estimated_parameters=parameters_to_estimate,
     observation_settings=observation_settings_list,
-    propagator_settings=propagator_settings,
+    propagator_settings=propagator_settings_spice,
     integrate_on_creation=True,
 )
 
@@ -772,7 +781,7 @@ axs[0, 0].legend()
 
 plt.show()
 
-
+# DOMINIC COMMENT: I THINK THIS BLOCK CAN BE REMOVED (LET'S DISCUSS)
 # ## Simulated vs Retrieved Observations
 
 # In[20]:
@@ -798,25 +807,25 @@ observation.add_gaussian_noise_to_observable(
     noise_level,
     observation.angular_position_type
 )
-
-# Create integrator settings
-integrator_settings = propagation_setup.integrator.\
-    runge_kutta_fixed_step_size(initial_time_step=60,
-                                coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
-# Create termination settings
-termination_settings = propagation_setup.propagator.time_termination(epoch_end_nobuffer)
-
-# Create Propagator Settings 
-propagator_settings_simulation = propagation_setup.propagator. \
-    translational(central_bodies=central_bodies,
-                  acceleration_models=acceleration_models,
-                  bodies_to_integrate=bodies_to_propagate,
-                  initial_states=initial_guess_spice,
-                  initial_time=epoch_start_buffer,
-                  integrator_settings=integrator_settings,
-                  termination_settings=termination_settings)
-
-propagator_settings_simulation.processing_settings.set_integrated_result = True
+#
+# # Create integrator settings
+# integrator_settings = propagation_setup.integrator.\
+#     runge_kutta_fixed_step_size(initial_time_step=60,
+#                                 coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
+# # Create termination settings
+# termination_settings = propagation_setup.propagator.time_termination(epoch_end_nobuffer)
+#
+# # Create Propagator Settings
+# propagator_settings_simulation = propagation_setup.propagator. \
+#     translational(central_bodies=central_bodies,
+#                   acceleration_models=acceleration_models,
+#                   bodies_to_integrate=bodies_to_propagate,
+#                   initial_states=initial_guess_spice,
+#                   initial_time=epoch_start_buffer,
+#                   integrator_settings=integrator_settings,
+#                   termination_settings=termination_settings)
+#
+# propagator_settings_simulation.processing_settings.set_integrated_result = True
 
 
 # Create observation simulators
@@ -929,7 +938,7 @@ spice_states_new = []
 for epoch in time2plt:
     state = spice.get_body_cartesian_state_at_epoch(
         '-28',
-        global_frame_origin,
+        propagation_origin,
         global_frame_orientation,
         "NONE",
         epoch,
@@ -1096,7 +1105,7 @@ spice_states_new = []
 for epoch in time2plt:
     state = spice.get_body_cartesian_state_at_epoch(
         '-28',
-        global_frame_origin,
+        propagation_origin,
         global_frame_orientation,
         "NONE",
         epoch,
@@ -1191,7 +1200,7 @@ plt.show()
 
 
 from mpl_toolkits.mplot3d import Axes3D
-get_ipython().run_line_magic('matplotlib', '')
+# get_ipython().run_line_magic('matplotlib', '')
 
 # Your data processing code here (time2plt, juice_prop, spice_states_array, lunar_flyby_time, earth_flyby_time)
 
@@ -1216,7 +1225,7 @@ ax2.plot(spice_states_array[(earth_index-50):(earth_index+50), 0], spice_states_
 
 state_moon = spice.get_body_cartesian_state_at_epoch(
         'Moon',
-        global_frame_origin,
+        propagation_origin,
         global_frame_orientation,
         "NONE",
         lunar_j2000,
