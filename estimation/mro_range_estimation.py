@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-debug/tudatpy")
+
 # MRO Range Data
 """
 
@@ -280,17 +283,6 @@ plt.ylabel("Residuals [m]")
 plt.grid("on")
 plt.axhline(0, color="k", zorder=0)
 plt.show()
-#
-# plt.figure()
-# plt.plot(observation_times_year, corrections, ".")
-# plt.title("Time corrections")
-# plt.xlabel("Time [year]")
-# plt.ylabel("Residuals [m]")
-# plt.grid("on")
-# plt.axhline(0, color="k", zorder=0)
-# plt.show()
-
-
 
 
 # ## Adding time scale corrections
