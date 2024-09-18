@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-default/tudatpy")
+sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-debug/tudatpy")
 #!/usr/bin/env python
 # coding: utf-8
 
@@ -20,7 +20,6 @@ sys.path.insert(0, "/home/dominic/Tudat/tudat-bundle/tudat-bundle/cmake-build-de
 
 # In[1]:
 
-print('Start')
 # Set the filename of the data file
 TRACKING_FNAME = "./data/mrorange2006-2013.txt"
 
@@ -240,7 +239,7 @@ residuals_rotation = simulated_observations_rotation.concatenated_observations -
 
 plt.figure()
 plt.plot(observation_times_year, residuals_rotation, ".")
-plt.title("Simulation with ITRF rotation model")
+plt.title("Simulation with ITRF rotation model added")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
 plt.grid("on")
@@ -256,12 +255,47 @@ plt.show()
 
 # In[ ]:
 
-
 #  Create light time corrections
 light_time_correction_list =[
-        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]),
-        estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction( [3.6E11], [2] )
+        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"])
 ]
+
+observation_model_settings_lighttime = [
+    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in link_ends_per_index
+]
+
+
+simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
+residuals_lighttime = simulated_observations_lighttime.concatenated_observations - observation_vals
+
+# Plot the new residuals
+plt.figure()
+plt.plot(observation_times_year, residuals_lighttime, ".")
+plt.title("Simulation with light time corrections added")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
+plt.show()
+#
+# plt.figure()
+# plt.plot(observation_times_year, corrections, ".")
+# plt.title("Time corrections")
+# plt.xlabel("Time [year]")
+# plt.ylabel("Residuals [m]")
+# plt.grid("on")
+# plt.axhline(0, color="k", zorder=0)
+# plt.show()
+
+
+
+
+# ## Adding time scale corrections
+#
+# Much of the remaining error can be seen to have an annual period. The underlying cause is that the range is measured in UTC time scale, while the simulated observation
+# is measured in TDB time scale. We can extend our model to incorporate this effect by using the ``two_way_time_scale_range_bias`` bias
+# In[ ]:
+
 
 bias_setting = estimation_setup.observation.two_way_time_scale_range_bias( )
 
@@ -269,97 +303,65 @@ observation_model_settings_lighttime = [
     estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list,bias_setting) for linkdef_id in link_ends_per_index
 ]
 
-bodies_rotation.get( 'Mars' ).system_models.set_default_transponder_turnaround_ratio_function( )
 
-for linkdef_id in link_ends_per_index:
-    current_link_end = link_ends_per_index[linkdef_id]
-    current_station = current_link_end[observation.receiver].reference_point
-    bodies_rotation.get('Earth').get_ground_station( current_station ).set_transmitting_frequency_calculator( environment.ConstantFrequencyInterpolator( 7.2E9 ) )
-    print( current_station )
-
-print('Pre-create', len(observation_model_settings_lighttime))
-simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
-print('Post-create')
-residuals_lighttime = simulated_observations_lighttime.concatenated_observations - observation_vals
-link_end_ids = simulated_observations_lighttime.concatenated_link_definition_ids
-link_ends_per_index = simulated_observations_lighttime.link_definition_ids
-
-corrections = list()
-time_scale_converter = time_conversion.default_time_scale_converter( )
-for i in range(len(observation_times)):
-    current_link_end = link_ends_per_index[ link_end_ids[ i ] ]
-    current_receiver = current_link_end[ observation.receiver ]
-
-    current_ground_station_position = bodies.get( 'Earth' ).get_ground_station( current_receiver.reference_point ).station_state.cartesian_positon_at_reference_epoch
-    first_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ], current_ground_station_position )
-    second_time_difference = time_scale_converter.get_time_difference( time_conversion.tdb_scale, time_conversion.tai_scale, observation_times[ i ] - observation_vals[ i ] / 299792458., current_ground_station_position )
-    corrections.append( ( second_time_difference - first_time_difference ) * 3E8  )
-    # residuals_lighttime[ i ] = residuals_lighttime[ i ] - ( second_time_difference - first_time_difference ) * 299792458.
+simulated_observations_timescalebias = create_observations(observation_model_settings_lighttime, bodies_rotation)
+residuals_timescalebias = simulated_observations_timescalebias.concatenated_observations - observation_vals
 
 # Plot the new residuals
 plt.figure()
-plt.plot(observation_times_year, residuals_lighttime, ".")
-plt.title("Simulation with light time corrections")
+plt.plot(observation_times_year, residuals_timescalebias, ".")
+plt.title("Simulation with time scale bias added")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
 plt.grid("on")
 plt.axhline(0, color="k", zorder=0)
 plt.show()
 
-plt.figure()
-plt.plot(observation_times_year, corrections, ".")
-plt.title("Time corrections")
-plt.xlabel("Time [year]")
-plt.ylabel("Residuals [m]")
-plt.grid("on")
-plt.axhline(0, color="k", zorder=0)
-plt.show()
-
-
-# ## Summary Plot
-# 
-# The following plot just summarises the observation simulation efforts of this example. You could go on to reduce the residuals to several meters (see [Kuchynka et al., 2012](https://ipnpr.jpl.nasa.gov/progress_report/42-190/190C.pdf) for details). This indicates some small but important imperfections in our algorithms, for instance simplifications used in the time conversions between the time stamps in the files, and the times used in our simulations. The residuals indicate (among others) a periodic trend at the Earth's orbital period around the Sun.
-
+# ## Adding solar corona model
+#
+# Much of the remaining error is concentrated at a few short time intervals. This is where the Earth and Mars are in opposition, and the radio signal
+# passes very close to the Sun, requiring a model for the solar corona. This model is semi-empirical, and optimal settings for a given pass require some tuning
+# Below, we run the analysis with reasonable, but non-optimized, settings
 # In[ ]:
 
+# The corona model is frequency-dependent, and requires the transmission frequency and turn-around ratio to be defined
+for linkdef_id in link_ends_per_index:
+    current_link_end = link_ends_per_index[linkdef_id]
+    current_station = current_link_end[observation.receiver].reference_point
+    bodies_rotation.get('Earth').get_ground_station(current_station).set_transmitting_frequency_calculator(
+        environment.ConstantFrequencyInterpolator(7.2E9))
+bodies_rotation.get('Mars').system_models.set_default_transponder_turnaround_ratio_function()
 
-fig, ax = plt.subplots(4, 1, figsize=(10, 10))
 
-# Plot the observed and simulated range
-ax[0].plot(
-    observation_times_year,
-    observation_vals / constants.ASTRONOMICAL_UNIT,
-    "r<",
-    label="Observed Range",
-)
-ax[0].plot(
-    observation_times_year,
-    simulated_observations_simple.concatenated_observations / constants.ASTRONOMICAL_UNIT,
-    "k.",
-    label="Simulated Range",
-)
-ax[0].set_ylabel("2-way Range [AU]")
-ax[0].legend()
-ax[0].set_title("Observations")
+#  Create light time corrections
+light_time_correction_list.append(
+    estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction( [2E11], [2] ) )
 
-# Plot the residuals
 
-ax[1].set_title("Simple Simulation")
-ax[1].plot(observation_times_year , residuals_simple, ".")
+observation_model_settings_corona = [
+    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list,bias_setting) for linkdef_id in link_ends_per_index
+]
 
-ax[2].set_title("Adding accurate rotation model")
-ax[2].plot(observation_times_year, residuals_rotation, ".")
 
-ax[3].set_title("Adding first order relativistic correction")
-ax[3].plot(observation_times_year, residuals_lighttime, ".")
+simulated_observations_corona = create_observations(observation_model_settings_corona, bodies_rotation)
+residuals_corona = simulated_observations_corona.concatenated_observations - observation_vals
 
-[ax_i.axhline(0, color="k", linestyle="-", zorder=0) for ax_i in ax[1:]]
-[ax_i.set_ylabel("Residual [m]") for ax_i in ax[1:]]
-[ax_i.grid("on", zorder=0) for ax_i in ax]
-ax[-1].set_xlabel("Time [yr]")
-fig.align_labels()
-fig.tight_layout()
+# Plot the new residuals
+plt.figure()
+plt.plot(observation_times_year, residuals_corona, ".")
+plt.title("Simulation with corona model added")
+plt.xlabel("Time [year]")
+plt.ylabel("Residuals [m]")
+plt.grid("on")
+plt.axhline(0, color="k", zorder=0)
 plt.show()
+
+# ## Summary
+# 
+# The above provides an overview of succesive model refinement to reduce the residuals between Mars range observations and current Mars ephemerides.
+# You could go on to further reduce the residuals to several meters (see [Kuchynka et al., 2012](https://ipnpr.jpl.nasa.gov/progress_report/42-190/190C.pdf) for details)
+# with more refined modelling, but this is currently outside of the scope of this example (and in part, outside the scope of Tudat)
+# In[ ]:
 
 # In[ ]:
 
