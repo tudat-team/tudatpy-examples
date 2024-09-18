@@ -122,6 +122,7 @@ class STSAerodynamicGuidance:
 
             # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
             current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
+
             # Update the aerodynamic coefficients
             self.aerodynamic_coefficient_interface.update_coefficients(
                 current_aerodynamics_independent_variables, current_time)
@@ -232,9 +233,7 @@ aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
     force_coefficient_files=aero_coefficients_files,
     reference_area=2690.0*0.3048*0.3048,
-    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
-    are_coefficients_in_aerodynamic_frame=True,
-    are_coefficients_in_negative_axis_direction=True
+    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent]
 )
 
 # Add predefined aerodynamic coefficients database to the body
@@ -248,13 +247,11 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
 ### Add rotation model based on aerodynamic guidance
-"""
 # Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
 rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
     'Earth', '', 'STS_Fixed', aerodynamic_guidance_object.getAerodynamicAngles )
 environment_setup.add_rotation_model( bodies, 'STS', rotation_model_settings )
-"""
 
 
 ## Propagation setup
