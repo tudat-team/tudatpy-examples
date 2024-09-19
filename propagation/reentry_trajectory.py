@@ -381,8 +381,6 @@ dependent_variables_to_save = [
 # Combinated termination settings are then needed, which can be done using the `propagation_setup.propagator.hybrid_termination()` function.
 # 
 # Subsequently, the integrator settings are defined using a RK4 integrator with the fixed step size of 0.5 seconds.
-# 
-# Then, the translational propagator settings are defined. These are used to simulate the orbit of `Delfi-C3` around Earth.
 
 # In[34]:
 
