@@ -121,10 +121,6 @@ class STSAerodynamicGuidance:
             # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
             current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
             
-            # Update the aerodynamic coefficients
-            self.aerodynamic_coefficient_interface.update_coefficients(
-                current_aerodynamics_independent_variables, current_time)
-
             # Extract the current force coefficients (in order: C_D, C_S, C_L)
             current_force_coefficients = self.aerodynamic_coefficient_interface.current_force_coefficients
             # Extract the (constant) reference area of the vehicle
@@ -245,13 +241,17 @@ coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_forc
     force_coefficient_files=aero_coefficients_files,
     reference_area=2690.0*0.3048*0.3048,
     independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
+
 )
 
 # Add predefined aerodynamic coefficients database to the body
 environment_setup.add_aerodynamic_coefficient_interface(bodies, "STS", coefficient_settings)
 
-
 # ### Add rotation model based on aerodynamic guidance
+=======
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 # Create the aerodynamic guidance object
 aerodynamic_guidance_object = STSAerodynamicGuidance(bodies)
 rotation_model_settings = environment_setup.rotation_model.aerodynamic_angle_based(
