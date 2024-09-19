@@ -1,25 +1,26 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Impact Manifolds of Lagrange Point Orbits in CR3BP(-Polyhedron)
+"""
 
-# # Impact Manifolds of Lagrange Point Orbits in CR3BP(-Polyhedron)
-# 
-# ## Objectives
-# 
-# This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionaly, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
-# 
-# The invariant manifolds of a planar Lyapunov orbit around the L2 point of the Mars-Phobos system are computed. The system is modeled using the CR3BP with Mars' gravity being described by a point mass and Phobos' gravity by a polyhedron (since Phobos is a small, irregular moon). Phobos is considered to be tidally locked. The invariant manifolds are propagated until a maximum time, maximum distance to Phobos, or impact with Phobos (whatever happens first). The trajectories are propagated using a dimensionless state (with the typical CR3BP units of length and time).
-# 
-# The different trajectories are propagated with respect to a Mars-centered inertially-oriented frame, but analyzed with respect to a Phobos-centered rotating (synodic) frame.
+"""
 
-# ## Import statements
-# The required import statements are made here.
-# 
-# Some standard modules are first loaded, these include `copy`, `numpy`, `matplotlib.pyplot`, and `os`.
-# 
-# Then, the different modules of `tudatpy` that will be used are imported.
+## Objectives
+"""
 
-# In[1]:
+This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionaly, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
 
+The invariant manifolds of a planar Lyapunov orbit around the L2 point of the Mars-Phobos system are computed. The system is modeled using the CR3BP with Mars' gravity being described by a point mass and Phobos' gravity by a polyhedron (since Phobos is a small, irregular moon). Phobos is considered to be tidally locked. The invariant manifolds are propagated until a maximum time, maximum distance to Phobos, or impact with Phobos (whatever happens first). The trajectories are propagated using a dimensionless state (with the typical CR3BP units of length and time).
+
+The different trajectories are propagated with respect to a Mars-centered inertially-oriented frame, but analyzed with respect to a Phobos-centered rotating (synodic) frame.
+"""
+
+## Import statements
+"""
+The required import statements are made here.
+
+Some standard modules are first loaded, these include `copy`, `numpy`, `matplotlib.pyplot`, and `os`.
+
+Then, the different modules of `tudatpy` that will be used are imported.
+"""
 
 # General imports
 import copy
@@ -37,12 +38,10 @@ from tudatpy.math import interpolators, root_finders
 from tudatpy.astro.time_conversion import DateTime
 
 
-# ## Auxiliary Functions
-
-# Since the CR3BP is being used, functions to compute the units of length and time used to make the CR3BP dimensionless are first defined.
-
-# In[2]:
-
+## Auxiliary Functions
+"""
+Since the CR3BP is being used, functions to compute the units of length and time used to make the CR3BP dimensionless are first defined.
+"""
 
 ########################################################################################################################
 # Compute unit of length of the CR3BP
@@ -65,9 +64,6 @@ def cr3bp_unit_of_time (gravitational_parameter_primary: float,
 # In the CR3BP, trajectories are usually analyzed with respect to a synodic frame, i.e. a frame centered on the barycenter that rotates with the primaries (Mars and Phobos in this case). Instead of the usual barycentric synodic frame, here the synodic frame is considered to be Phobos centered (since orbits in the proximity of Phobos are being analyzed); therefore, the synodic frame coincides with Phobos' body-fixed frame. 
 # 
 # Since Tudat propagates the trajectories with respect to a frame with inertial origin and orientation, it is necessary to define functions to convert the state and state transition matrix (STM) to/from the body-fixed frame. The functions implemented here are valid for the conversion between an inertial frame and any **uniformly-rotating** (i.e. constant angular velocity) body-fixed frame.
-
-# In[3]:
-
 
 ########################################################################################################################
 # Get full-state rotation matrix from inertial frame to body-fixed frame
@@ -174,9 +170,6 @@ def convert_stm_inertial_to_body_fixed(
 # 
 # The `create_hybrid_termination_propagator_settings` function creates the settings for an orbit propagation with hybrid termination. This hybrid termination includes three possible termination conditions: maximum time, maximum distance to the origin of the secondary (Phobos), and impact with Phobos. The impact termination condition is defined using the Laplacian of the gravitational potential of the polyhedron. A given orbit propagation ends when one of these three conditions is met.
 
-# In[4]:
-
-
 ########################################################################################################################
 # Create propagator settings for time termination
 def create_time_termination_propagator_settings(central_bodies,
@@ -279,14 +272,12 @@ def create_hybrid_termination_propagator_settings(central_bodies,
     return hybrid_termination_propagator_settings
 
 
-# ## Model and Propagation Setup
+## Model and Propagation Setup
+"""
+To setup the used model (CR3BP with polyhedral secondary), it is first necessary to define a series of parameters. These include the gravitational parameters of Mars and Phobos, the semi-major axis of Phobos, the polyhedron of Phobos (coordinates of the vertices and vertices defining each facet), and the initial state and period of the used Lagrange point orbit. This periodic orbit was determined via continuation, which is currently not available via Tudat. This and other functionalities for the computation of periodic orbits will be added to Tudat in (near-ish) future.
 
-# To setup the used model (CR3BP with polyhedral secondary), it is first necessary to define a series of parameters. These include the gravitational parameters of Mars and Phobos, the semi-major axis of Phobos, the polyhedron of Phobos (coordinates of the vertices and vertices defining each facet), and the initial state and period of the used Lagrange point orbit. This periodic orbit was determined via continuation, which is currently not available via Tudat. This and other functionalities for the computation of periodic orbits will be added to Tudat in (near-ish) future.
-# 
-# Since all the trajectories are here propagated in dimensionless coordinates, all the dimensional parameters are made dimensionless using the units of time and length of the CR3BP.
-
-# In[5]:
-
+Since all the trajectories are here propagated in dimensionless coordinates, all the dimensional parameters are made dimensionless using the units of time and length of the CR3BP.
+"""
 
 ####################################################################################################################
 # Define dimensional model parameters and then make them dimensionless
@@ -358,9 +349,6 @@ volume_secondary = polyhedron_utilities.volume(vertices_coordinates, vertices_de
 # * Phobos: moving in circular orbit around the Mars, and having uniformly-rotating polyhedron gravity. Therefore, the polyhedron rotates with the same angular velocity of Phobos' orbit around Mars.
 # * Spacecraft: body with zero mass
 
-# In[6]:
-
-
 ####################################################################################################################
 # Create system of bodies    
 
@@ -424,9 +412,6 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # The acceleration models are now created. As mentioned, the primary (Mars) has point mass gravity and the secondary (Phobos) has polyhedral gravity.
 
-# In[7]:
-
-
 ####################################################################################################################
 # Create acceleration models
 
@@ -451,9 +436,6 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 # Next, the settings of the integrator are defined. A variable-step RKDP8(7) integrator is used. 
 
-# In[8]:
-
-
 ####################################################################################################################
 # Create integrator settings
 
@@ -469,27 +451,23 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
 
 # Finally, the dependent variables to save during the propagation are selected. Here, no dependent variable is saved, though the code can be modified to do so if desired.
 
-# In[9]:
-
-
 ####################################################################################################################
 # Select dependent variables
 
 dependent_variables_to_save = []
 
 
-# ## Propagation of the Lagrange point orbit
-# 
-# Having defined the model to use, it is finally possible to propagate the Lagrange point orbit from which the invariant manifolds will depart. Recall that the initial state and period of this orbit was defined above. Since this initial state was defined with respect to Phobos' body-fixed frame, it is first necessary to convert it to the inertial frame. 
-# 
-# Next, the propagator settings are created using the `create_time_termination_propagator_settings` function: these settings define the propagation of the orbit to an exact final time (the period of the orbit). 
-# 
-# Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `create_variational_equations_solver` is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
-# 
-# After the propagation is finished, the state and STM histories with respect to the inertial frame are retrieved and converted to the body-fixed frame.
+## Propagation of the Lagrange point orbit
+"""
 
-# In[10]:
+Having defined the model to use, it is finally possible to propagate the Lagrange point orbit from which the invariant manifolds will depart. Recall that the initial state and period of this orbit was defined above. Since this initial state was defined with respect to Phobos' body-fixed frame, it is first necessary to convert it to the inertial frame. 
 
+Next, the propagator settings are created using the `create_time_termination_propagator_settings` function: these settings define the propagation of the orbit to an exact final time (the period of the orbit). 
+
+Having the propagator settings and the initial state in the inertial frame, it is now possible to propagate the orbit. The `create_variational_equations_solver` is used, to allow the propagation of the STM (necessary for computing the invariant manifolds).
+
+After the propagation is finished, the state and STM histories with respect to the inertial frame are retrieved and converted to the body-fixed frame.
+"""
 
 ####################################################################################################################
 # Propagate lagrange point orbit with variational equations
@@ -520,16 +498,14 @@ stm_history_lpo_body_fixed = convert_stm_history_inertial_to_body_fixed(
     bodies, name_secondary, stm_history_lpo_inertial)
 
 
-# ## Propagation of the invariant manifolds
+## Propagation of the invariant manifolds
+"""
+Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but unsing a negative time step instead (backward propagation). 
 
-# Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but unsing a negative time step instead (backward propagation). 
-# 
-# The initial state of each manifold branch can be obtained by perturbing the state at a node of the orbit with the most unstable eigenvector of the monodromy matrix associated with that node, which corresponds to the eigenvector associated with the eigenvalue with the largest norm.
-# 
-# Since the linearized dynamics are being considered via the STM, one can instead use the monodromy matrix just to determine the unstable eigenvector at the 1st node. The unstable eigenvectors at the remaining nodes of the orbit can then be obtained using the STM. However, to do that, one needs to know the state and STM at each node of the orbit, which here is done using an interpolator. This allow having nodes equally spaced in time along the orbit. A 4th order Lagrange interpolator is used.
+The initial state of each manifold branch can be obtained by perturbing the state at a node of the orbit with the most unstable eigenvector of the monodromy matrix associated with that node, which corresponds to the eigenvector associated with the eigenvalue with the largest norm.
 
-# In[11]:
-
+Since the linearized dynamics are being considered via the STM, one can instead use the monodromy matrix just to determine the unstable eigenvector at the 1st node. The unstable eigenvectors at the remaining nodes of the orbit can then be obtained using the STM. However, to do that, one needs to know the state and STM at each node of the orbit, which here is done using an interpolator. This allow having nodes equally spaced in time along the orbit. A 4th order Lagrange interpolator is used.
+"""
 
 ####################################################################################################################
 # Propagate the invariant manifolds
@@ -558,9 +534,6 @@ state_history_lpo_body_fixed_interpolator = interpolators.create_one_dimensional
 # Next, the propagator settings are created. Hybrid propagator settings are used, which terminate the propagation after a maximum time or maximum distance to Phobos is reached, or after the spacecraft impacts Phobos (whatever happens first). Finally, the `create_dynamics_simulator` function is called to propagate each manifold.
 # 
 # The two manifold branches (i.e. initial state of the manifold obtained by a positive or negative perturbation) of the orbit are here propagated.
-
-# In[12]:
-
 
 # Loop over manifold nodes and propagate the manifold
 manifold_single_arc_solvers = [[],[]]
@@ -609,14 +582,12 @@ for manifold_direction_to_propagate in [-1, 1]:
             manifold_single_arc_solvers[1].append(manifold_single_arc_solver)
 
 
-# ## Plotting the results
+## Plotting the results
+"""
+Finally, we can plot the computed orbit and its manifolds. Before plotting the manifolds, their state history is retrieved from the single arc solver and converted to the body-fixed frame. 
 
-# Finally, we can plot the computed orbit and its manifolds. Before plotting the manifolds, their state history is retrieved from the single arc solver and converted to the body-fixed frame. 
-# 
-# Phobos' shape is also plotted, using the `tricontourf` function.
-
-# In[13]:
-
+Phobos' shape is also plotted, using the `tricontourf` function.
+"""
 
 ####################################################################################################################
 # Make plot: x vs y, x vs z
