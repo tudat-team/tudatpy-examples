@@ -1,39 +1,27 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Simulation and Estimation Using Different Dynamical Models
+"""
+"""
 
-# # Simulation and Estimation Using Different Dynamical Models
-# ## Objectives
-# Within this example, we will go beyond the earlier introduced basic steps of setting up an orbit estimation routine. In particular, using several orbits of the **Mars Express (MEX)** spacecraft around the Red Planet, we will introduce different **new types of observables**, **observation constraints**, and finally focus on how to apply **different dynamical models** to the simulation of observations and the estimation, respectively. Since no further explanation with respect to already introduced functionalities will be given in this example, the reader is advised - if not already done so - to first browse to the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
-# 
-# Using **different dynamical models** for the simulation of observations and the subsequent estimation comes in handy when trying to **emulate what effects an imperfect dynamical model will have on the estimation** of selected parameters based on real-world data. 
-# 
-# **Here is why**: while real-world data stems from a perfectly 'modelled' environment, **the estimator will always be subject to modelling shortcomings**. So we will never be able to perfectly model reality when setting up our estimation model. 
-# 
-# When we are dealing with *simulated observed data* (which is still different from the *real world data*, it being simulated!), we need to mimic this above-mentioned discrepancy. So how do we do that? We use a **slightly less advanced model for the estimation than for the simulation of observations**. This way, we are able to artificially mock the discrepancy between the real world and the estimation model available, and gain insights into the behaviour and sensitivity of the found solution to **modelling imperfections**.
-## Key API References
- Here's a comprehensive list of the  _modules_ and _methods_ that are relevant to this example, or that will be introduced here for the first time.
+## Objectives
+"""
+Within this example, we will go beyond the earlier introduced basic steps of setting up an orbit estimation routine. In particular, using several orbits of the **Mars Express (MEX)** spacecraft around the Red Planet, we will introduce different **new types of observables**, **observation constraints**, and finally focus on how to apply **different dynamical models** to the simulation of observations and the estimation, respectively. Since no further explanation with respect to already introduced functionalities will be given in this example, the reader is advised - if not already done so - to first browse to the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
 
-| Module | | Methods | ➡️ || | || | || |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| [numerical_simulation.estimation_setup.observation](https://py.api.tudat.space/en/latest/observation.html) | [**body_reference_point_link_end_id**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id) | [**LinkDefinition**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.LinkDefinition) | [**one_way_doppler_instantaneous**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.one_way_doppler_instantaneous) | [**add_gaussian_noise_to_observable**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.add_gaussian_noise_to_observable) | [**elevation_angle_viability**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.elevation_angle_viability)|[**tabulated_simulation_settings**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings)| [**first_order_relativistic_light_time_correction**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.first_order_relativistic_light_time_correction) | [**absolute_bias**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.absolute_bias) | [**one_way_range**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.one_way_range) | [**body_occultation_viability**](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_occultation_viability) |
-|[numerical_simulation.estimation_setup](https://py.api.tudat.space/en/latest/estimation_setup.html)| [**create_parameter_set**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_parameter_set) | [**create_observation_simulators**](https://py.api.tudat.space/en/latest/estimation_setup.html#tudatpy.numerical_simulation.estimation_setup.create_observation_simulators) |
-| [numerical_simulation.Estimator](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator) | [**observation_simulators**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.observation_simulators) | [**compute_covariance**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.compute_covariance) | [**perform_estimation**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.perform_estimation) | [**state_transition_interface**](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.Estimator.state_transition_interface) | |
-| [numerical_simulation.estimation](https://py.api.tudat.space/en/latest/estimation.html)  | [**simulate_observations**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) | [**CovarianceAnalysisInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.CovarianceAnalysisInput) | [**estimation_convergence_checker**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationConvergenceChecker) |[**EstimationInput**](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput)| [**propagate_formal_errors_split_output**]()| [**propagate_covariance_split_output**]()|
-| [astro.time_conversion](https://py.api.tudat.space/en/latest/time_conversion.html) | [**DateTime**]() | 
-| [astro.element_conversion](https://py.api.tudat.space/en/latest/element_conversion.html) | [**geodetic_position_type**]() | 
-|[numerical_simulation.create_dynamics_simulator](https://py.api.tudat.space/en/latest/numerical_simulation.html#tudatpy.numerical_simulation.create_dynamics_simulator) | [**state_history**](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults.state_history) |
- 
-🧐 **Missing something**? You can find out more on the [TudatPy API Reference](https://py.api.tudat.space/en/latest/), or you can [reach out to us](https://docs.tudat.space/en/latest/_src_about/contribute_to_tudat.html)! 
-# ## Import Statements
-# Typically - in the most pythonic way - all required modules are imported at the very beginning.
-# 
-# Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Moreover, we import `os` to be able to tell our system where it can find the downloaded SPICE kernel for Mars Express.
-# 
-# Again, mainly (new) functionalities of the `estimation`, `estimation_setup`, and `observations` modules of the imported `tudatpy`packages will be used and demonstrated within this example.
-# 
+Using **different dynamical models** for the simulation of observations and the subsequent estimation comes in handy when trying to **emulate what effects an imperfect dynamical model will have on the estimation** of selected parameters based on real-world data. 
 
-# In[1]:
+**Here is why**: while real-world data stems from a perfectly 'modelled' environment, **the estimator will always be subject to modelling shortcomings**. So we will never be able to perfectly model reality when setting up our estimation model. 
 
+When we are dealing with *simulated observed data* (which is still different from the *real world data*, it being simulated!), we need to mimic this above-mentioned discrepancy. So how do we do that? We use a **slightly less advanced model for the estimation than for the simulation of observations**. This way, we are able to artificially mock the discrepancy between the real world and the estimation model available, and gain insights into the behaviour and sensitivity of the found solution to **modelling imperfections**.
+"""
+
+## Import Statements
+"""
+Typically - in the most pythonic way - all required modules are imported at the very beginning.
+
+Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Moreover, we import `os` to be able to tell our system where it can find the downloaded SPICE kernel for Mars Express.
+
+Again, mainly (new) functionalities of the `estimation`, `estimation_setup`, and `observations` modules of the imported `tudatpy`packages will be used and demonstrated within this example.
+
+"""
 
 # Load required standard modules
 import os
@@ -57,11 +45,10 @@ from tudatpy.astro import element_conversion
 current_directory = os.getcwd()
 
 
-# ## Simulation Settings
-# After having defined the general configuration of our simulation (i.e. importing required `SPICE` kernels, defining start and end epoch of the simulation) we will create the main celestial bodies involved in the simulation (mainly Mars, its two moons, the two neighbouring planets, and the Sun), the spacecraft itself, and its environment interface.
-
-# In[15]:
-
+## Simulation Settings
+"""
+After having defined the general configuration of our simulation (i.e. importing required `SPICE` kernels, defining start and end epoch of the simulation) we will create the main celestial bodies involved in the simulation (mainly Mars, its two moons, the two neighbouring planets, and the Sun), the spacecraft itself, and its environment interface.
+"""
 
 # Load standard spice kernels as well as the one describing the orbit of Mars Express
 spice.load_standard_kernels()
@@ -106,9 +93,6 @@ bodies_to_propagate = ["MEX"]
 central_bodies = ["Mars"]
 
 
-# In[16]:
-
-
 time2plt = np.arange(simulation_start_epoch, simulation_end_epoch, 60)
 mex2plt = list()
 for epoch in time2plt:
@@ -138,13 +122,15 @@ plt.tight_layout()
 plt.show()
 
 
-# ## Set Up the Observations
-# Having set the underlying environment model of the simulated orbit, we can define the observational model. This entails the addition all required ground stations, the definition of the observation links and types, as well as the precise simulation settings.
-# ### Add a ground station
-# Following its real-world counterpart, our simulated Mars Express spacecraft will also be tracked using ESA's New Norcia (NNO) ESTRACK ground station. Located in North-East Australia, it will be set up with an altitude of 252m, 31.0482°S, 116.191°E.
+## Set Up the Observations
+"""
+Having set the underlying environment model of the simulated orbit, we can define the observational model. This entails the addition all required ground stations, the definition of the observation links and types, as well as the precise simulation settings.
+"""
 
-# In[17]:
-
+### Add a ground station
+"""
+Following its real-world counterpart, our simulated Mars Express spacecraft will also be tracked using ESA's New Norcia (NNO) ESTRACK ground station. Located in North-East Australia, it will be set up with an altitude of 252m, 31.0482°S, 116.191°E.
+"""
 
 # Define the position of the New Norcia (NNO) ESTRACK Earth station
 station_altitude = 252.0
@@ -159,13 +145,12 @@ environment_setup.add_ground_station(
     element_conversion.geodetic_position_type)
 
 
-# ### Define Observation Model Settings
-# Within this example - as it is common practice when tracking deep-space missions using the ESTRACK system - Mars Express will be tracked using an **n-way Doppler measurement** (realised as two-way link ends in this example). This means that the signal travels from Earth to the spacecraft where it gets **re-transmitted** and subsequently has to travel back to Earth where it is **recorded and processed**. In particular, we will model **two-way range** and **range-rate (Doppler) observables**.
-# 
-# Moreover, expanding upon the knowledge from the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
+### Define Observation Model Settings
+"""
+Within this example - as it is common practice when tracking deep-space missions using the ESTRACK system - Mars Express will be tracked using an **n-way Doppler measurement** (realised as two-way link ends in this example). This means that the signal travels from Earth to the spacecraft where it gets **re-transmitted** and subsequently has to travel back to Earth where it is **recorded and processed**. In particular, we will model **two-way range** and **range-rate (Doppler) observables**.
 
-# In[18]:
-
+Moreover, expanding upon the knowledge from the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
+"""
 
 # Define the uplink link ends for one-way observable
 one_way_nno_mex_link_ends = dict( )
@@ -190,11 +175,10 @@ observation_settings_list.append(observation.one_way_doppler_instantaneous(
     light_time_correction_settings = [light_time_correction_settings]))
 
 
-# ### Define Observation Simulation Settings
-# Finally, for each above-defined observation model, we will define **the noise of the observation-type** and general viability criteria. We impose the spacecraft to be trackable only when at a certain minimum angle (15 degrees) of elevation above the horizon as seen from the ground station. We also introduce Mars as a body that can potentially **occult** the line-of-sight between Mars Express and **New Norcia** (i.e. when the spacecraft dives 'behind' Mars, we will not simulate any observations).
-
-# In[19]:
-
+### Define Observation Simulation Settings
+"""
+Finally, for each above-defined observation model, we will define **the noise of the observation-type** and general viability criteria. We impose the spacecraft to be trackable only when at a certain minimum angle (15 degrees) of elevation above the horizon as seen from the ground station. We also introduce Mars as a body that can potentially **occult** the line-of-sight between Mars Express and **New Norcia** (i.e. when the spacecraft dives 'behind' Mars, we will not simulate any observations).
+"""
 
 # Define observation simulation times for each link (separated by steps of one minute)
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
@@ -234,18 +218,17 @@ observation.add_viability_check_to_all(
 )
 
 
-# ## Define the Dynamical Model(s)
-# Note that unlike it has usually been the case so far - be it with examples dealing with propagation or the prior estimation ones - we have always defined a mere single dynamical model. The modular structure of tudat, however, enables us to simulate the observations using a dynamical model that is (theoretically entirely) different from the one used to perform the estimation. Hence, we will now first define the model that will be used during the simulation of observations. In particular, we will consider:
-# * Gravitational acceleration using a spherical harmonic approximation up to 4th degree and order for Mars.
-# * Gravitational acceleration using a simple point mass model for:
-#     - Mars' two moons Phobos and Deimos
-#     - Earth
-#     - Jupiter
-#     - The Sun
-# * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
-
-# In[20]:
-
+## Define the Dynamical Model(s)
+"""
+Note that unlike it has usually been the case so far - be it with examples dealing with propagation or the prior estimation ones - we have always defined a mere single dynamical model. The modular structure of tudat, however, enables us to simulate the observations using a dynamical model that is (theoretically entirely) different from the one used to perform the estimation. Hence, we will now first define the model that will be used during the simulation of observations. In particular, we will consider:
+* Gravitational acceleration using a spherical harmonic approximation up to 4th degree and order for Mars.
+* Gravitational acceleration using a simple point mass model for:
+    - Mars' two moons Phobos and Deimos
+    - Earth
+    - Jupiter
+    - The Sun
+* Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
+"""
 
 # Define the accelerations acting on Mars Express during the observation simulation
 accelerations_settings_mars_express_simulation = dict(
@@ -270,19 +253,18 @@ accelerations_settings_mars_express_simulation = dict(
     ])
 
 
-# ### Perform the observations simulation
-# Following the known - trivial - estimation pipeline, the observations are simulated using the `simulation_observations()` function of the respective `Estimator` object. However, to avoid having to create two distinct estimators, we will manually implement a set of observation simulators upfront, before altering the dynamical model and creating the actual estimator.
-# 
-# The way custom-implemented observation simulators are implemented is that they do not propagate any bodies themselves but simulate the observations based on the (tabulated) ephemerides of all involved bodies. However, for this example, we wish to use "mock" ephemeris - coming from the propagation of an initial state using the propagation model we chose for simulating our observations, in place of the real (SPICE) ones. This means that we have to update the ephemeris of MEX such that it stems from the dynamical model of choice and not its `SPICE` kernel. In simple terms, these are the steps to follow:
-# 
-# 1) Select the **initial MEX state**. This (*and only this!*) is taken from the **SPICE ephemeris.
-# 2) Using the **chosen model and propagator, **propagate the initial MEX state**.
-# 3) Save the **propagated states**. **These will be used as ephemeris** for our example.
-# 
-# Having updated the tabulated ephemeris of Mars Express, one can create the required `observation simulator` object and finally simulate the observations according to the above-defined settings.
+### Perform the observations simulation
+"""
+Following the known - trivial - estimation pipeline, the observations are simulated using the `simulation_observations()` function of the respective `Estimator` object. However, to avoid having to create two distinct estimators, we will manually implement a set of observation simulators upfront, before altering the dynamical model and creating the actual estimator.
 
-# In[21]:
+The way custom-implemented observation simulators are implemented is that they do not propagate any bodies themselves but simulate the observations based on the (tabulated) ephemerides of all involved bodies. However, for this example, we wish to use "mock" ephemeris - coming from the propagation of an initial state using the propagation model we chose for simulating our observations, in place of the real (SPICE) ones. This means that we have to update the ephemeris of MEX such that it stems from the dynamical model of choice and not its `SPICE` kernel. In simple terms, these are the steps to follow:
 
+1) Select the **initial MEX state**. This (*and only this!*) is taken from the **SPICE ephemeris.
+2) Using the **chosen model and propagator, **propagate the initial MEX state**.
+3) Save the **propagated states**. **These will be used as ephemeris** for our example.
+
+Having updated the tabulated ephemeris of Mars Express, one can create the required `observation simulator` object and finally simulate the observations according to the above-defined settings.
+"""
 
 ### Accelerations ###
 # Create global accelerations dictionary
@@ -335,13 +317,12 @@ mex_simulated_observations = estimation.simulate_observations(
     bodies)
 
 
-# ### Alter the Dynamical Model for Mars
-# Based on what we already mentioned in the Objectives section, we want to create a discrepancy between the estimation model and the simulation model. Therefore, we will now select a **worse dynamical model for the estimation** with respect to the one used for the **observation simulations**.  The previously defined dynamical model of accelerations acting on `MEX` was taking into consideration the gravity of Phobos and Deimos. We will now make the model worse by removing the gravitational pull of both of Mars' moons from the acceleration settings of the spacecraft. This is simply achieved via the `pop` command. 
-# 
-# All remaining settings remain untouched.
+### Alter the Dynamical Model for Mars
+"""
+Based on what we already mentioned in the Objectives section, we want to create a discrepancy between the estimation model and the simulation model. Therefore, we will now select a **worse dynamical model for the estimation** with respect to the one used for the **observation simulations**.  The previously defined dynamical model of accelerations acting on `MEX` was taking into consideration the gravity of Phobos and Deimos. We will now make the model worse by removing the gravitational pull of both of Mars' moons from the acceleration settings of the spacecraft. This is simply achieved via the `pop` command. 
 
-# In[22]:
-
+All remaining settings remain untouched.
+"""
 
 # Copy and subsequently alter the accelerations acting on Mars Express used during the estimation
 accelerations_settings_mars_express_estimation = accelerations_settings_mars_express_simulation
@@ -369,11 +350,10 @@ propagator_settings_estimation = propagation_setup.propagator. \
                   termination_settings=termination_settings)
 
 
-# ## Perform the estimation
-# Having altered the dynamical model as well as the propagator settings, we create the `Estimator` object and subsequently set up the inversion of the problem - in particular, one has to define which **parameters are to be estimated**, could potentially include any a-priori information in the form of an a-priori covariance matrix, and **define the weights** associated with the individual types of observations.
-
-# In[23]:
-
+## Perform the estimation
+"""
+Having altered the dynamical model as well as the propagator settings, we create the `Estimator` object and subsequently set up the inversion of the problem - in particular, one has to define which **parameters are to be estimated**, could potentially include any a-priori information in the form of an a-priori covariance matrix, and **define the weights** associated with the individual types of observations.
+"""
 
 # Setup parameters settings to propagate the state transition matrix
 parameter_settings = estimation_setup.parameter.initial_states(propagator_settings_estimation, bodies)
@@ -409,19 +389,15 @@ weights_per_observable = {estimation_setup.observation.one_way_instantaneous_dop
 estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
 
-# ### Estimate the individual parameters
-# Finally, the actual estimation can be performed - ideally having reached a sufficient level of convergence, the least squares estimator will have found the most suitable parameters for the problem at hand.
-# 
-# We will again qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones (**realise that this cannot typically be done when working with real-world observations, since the ground truth is not known, and is exactly what one would like to know!**). However, since we conveniently know these parameters, it serves as a handy measure to shed light onto the estimation process. In particular, this highlights the fact that with increasing discrepancy between the dynamical models used within the simulation and estimation routines, the true-to-formal error ratio has to increase, since - besides to the pure estimation of parameters - the (artificially) introduced modelling imperfections have to be implicitly mitigated altering the values of the same set of parameters.
+### Estimate the individual parameters
+"""
+Finally, the actual estimation can be performed - ideally having reached a sufficient level of convergence, the least squares estimator will have found the most suitable parameters for the problem at hand.
 
-# In[24]:
-
+We will again qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones (**realise that this cannot typically be done when working with real-world observations, since the ground truth is not known, and is exactly what one would like to know!**). However, since we conveniently know these parameters, it serves as a handy measure to shed light onto the estimation process. In particular, this highlights the fact that with increasing discrepancy between the dynamical models used within the simulation and estimation routines, the true-to-formal error ratio has to increase, since - besides to the pure estimation of parameters - the (artificially) introduced modelling imperfections have to be implicitly mitigated altering the values of the same set of parameters.
+"""
 
 # Perform the covariance analysis
 estimation_output = estimator.perform_estimation(estimation_input)
-
-
-# In[25]:
 
 
 # Print the covariance matrix
@@ -429,11 +405,10 @@ print(estimation_output.formal_errors)
 print(truth_parameters - parameters_to_estimate.parameter_vector)
 
 
-# ## Post-processing
-# Finally, to further illustrate the impact certain differences between the applied dynamical models have, we will first plot the behaviour of the simulated observations over time, as well as show how the discrepancy between our estimated solution and the 'ground truth' builds up over time.
-
-# In[26]:
-
+## Post-processing
+"""
+Finally, to further illustrate the impact certain differences between the applied dynamical models have, we will first plot the behaviour of the simulated observations over time, as well as show how the discrepancy between our estimated solution and the 'ground truth' builds up over time.
+"""
 
 final_residuals = estimation_output.final_residuals
 observation_times = np.array(mex_simulated_observations.concatenated_times)
@@ -448,9 +423,6 @@ ax1.set_xlabel(r'Time [days]')
 ax1.set_ylabel(r'Final Residuals [m]')
 plt.tight_layout()
 plt.show()
-
-
-# In[27]:
 
 
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
@@ -476,9 +448,6 @@ ax1.legend()
 
 plt.tight_layout()
 plt.show()
-
-
-# In[ ]:
 
 
 

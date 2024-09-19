@@ -7,9 +7,6 @@
 # 
 # The present example will demonstrate the use of a multi-type propagator in Tudat. For that, we will consider the problem of simulating the coupled translational-rotational dynamics of Phobos around Mars, including the definition of a realistic initial state. Let's begin by talking about the forces and torques that we'll be considering as part of our dynamical problem.
 
-# ## Key API References
-# 
-
 # ## Phobos' dynamics in the Martian system
 # Due to the relative complexity of this example, it is useful to provide the explicit equations of motion. More details can be found in the [Tudat mathematical model description](https://github.com/tudat-team/tudat-space/raw/master/Tudat_mathematical_model_definition.pdf), and a number of sources in literature, most notably:
 # * [Rambaux et al. (2012).](https://www.aanda.org/articles/aa/abs/2012/12/aa19710-12/aa19710-12.html) Rotational motion of Phobos. Astronomy & Astrophysics, 548, A14.

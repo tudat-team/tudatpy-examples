@@ -12,8 +12,6 @@
 # 
 # A custom termination setting is also showcased, used to switch from the first stage to the second stage when apogee is reached.
 
-# ## Key API References
-
 # ## Import statements
 # The required import statements are made here, at the very beginning.
 # 

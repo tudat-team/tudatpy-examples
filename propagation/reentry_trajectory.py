@@ -16,9 +16,6 @@
 # 
 # A high number of dependent variable are also propagated in this example. All of them are then plotted at the end of this script.
 
-# ## Key API References
-# 
-
 # ## Import statements
 # 
 # The required import statements are made here, at the very beginning.
