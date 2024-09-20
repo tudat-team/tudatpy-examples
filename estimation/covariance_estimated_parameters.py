@@ -433,12 +433,7 @@ plt.show()
 # 4) the statistical interpretation of the final residuals.
 # 
 # ### 1) Plotting the Ellipsoidal Confidence Region
-# The **confidence region** is nothing more than a multi-dimensional generalization of a confidence interval. It is a set of points in an $n$-dimensional space (where $n$ is the number of parameters to be estimated). 
-# The full confidence region is often represented by its **linear approximation** - the **confidence ellipsoid**, centered in the estimated solution to our problem, also known as "**nominal solution**". This confidence ellipsoid will be **stretched along the direction of the eigenvector corresponding to the most-uncertain parameter**.
-# 
-# It is important to note that, in **nonlinear problems,** the full confidence region will take the form of a **banana**, and the **confidence ellipsoid might not be representative of the real problem anymore**. (See: [Milani & Gronchi, Theory of Orbit Determination](https://www.cambridge.org/core/books/theory-of-orbit-determination/4BBF3B9D3E9DF63268D0733AE4C41C32) for a more detailed explanation.)
-# 
-# In the following, we will see how to plot the **linear approximation of the confidence region**, naming the **confidence ellipsoid**. This is defined by the **covariance matrix**, which also encodes information about the **correlations** between different parameters. Then, we will perform the same operation, taking the "*formal errors matrix*" instead - again, this is the covariance where all the off-diagonal elements are set to zero) - and **we will compare the two ellipsoids** so obtained. 
+# In the following, we will see how to plot the **confidence ellipsoid**. This is defined by the **covariance matrix**, which also encodes information about the **correlations** between different parameters. Then, we will perform the same operation, taking the "*formal errors matrix*" instead (namely is the covariance where all the off-diagonal elements are set to zero) - and **we will compare the two ellipsoids** so obtained. 
 # 
 # #### Formal Errors and Covariance Matrix: How Are They Related?
 # Note how we have mentioned above that the **formal errors** constitute the **diagonal entries of the covariance matrix (variances)**. 
