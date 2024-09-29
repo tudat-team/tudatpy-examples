@@ -250,7 +250,7 @@ class ThrustModel:
 
 #### Define the thrust settings
 """
-Using the `thrust_model` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
+Using the `ThrustModel` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
 
 For this first section, the following parameters are used for the thrust:
 
@@ -390,7 +390,7 @@ In this case, for the first rocket section, two termination settings are used:
 - Stop 225 minutes after lift-off.
 """
 
-class vehicle_falling:
+class VehicleFalling:
     
     def __init__(self, body, initial_time):
         # Initialise the class used to compute wether a body is falling or not
@@ -408,7 +408,7 @@ class vehicle_falling:
         return dh < 0 and time_elapsed > 1
 
 # Define a termination setting based on the custom function defining wether the vehicle falls or not
-vehicle_falling_model = vehicle_falling(bodies.get("Section 1"), simulation_start_epoch)
+vehicle_falling_model = VehicleFalling(bodies.get("Section 1"), simulation_start_epoch)
 termination_apogee_settings = propagation_setup.propagator.custom_termination(vehicle_falling_model.is_it_falling)
 
 # Define a termination setting to stop 225 minutes after lift-off
@@ -429,7 +429,7 @@ Let's now create integrator settings. These use a RK78 integration scheme with a
 - An initial time step of 0.25 seconds.
 - A minimum time step of 1e-4 seconds.
 - A maximum time step of 100 seconds.
-- A relative and absolute error tolerance of 1e-13.
+- A relative and absolute error tolerance of 1e-14.
 """
 
 # Define integrator settings with the initial integration epoch
@@ -540,9 +540,13 @@ With the first section simulation finished, the resulting states and dependant v
 The setup is done in a very similar way than for the first section, re-using many of the setup functions that were defined.
 """
 
-### Define the bodies
+### Define the bodies, thrust and accelerations
 """
 The same celestial bodies are defined again, as well as the second section with a wet mass of 85kg, a drag coefficient of 0.55, and a lift coefficient of 0.25.
+
+The thrust for the second section is of a magnitude of 2.25 kN and a specific impulse of 290 seconds.
+The second section has a constant thrust orientation of 90 degrees from the vertical (it is horizontal).
+Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
 """
 
 # Re-create the system of bodies (to remove the first section that is now useless)
@@ -551,7 +555,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = ThrustModel(2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+current_thrust_model = ThrustModel(2250, 290, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
@@ -559,16 +563,6 @@ add_aero_coefficients("Section 2", 0.55, 0.25)
 
 # Define bodies that are propagated
 bodies_to_propagate = ["Section 2"]
-
-
-### Define the thrust and accelerations
-"""
-The thrust for the second section is of a magnitude of 2.25 kN and a specific impulse of 273 seconds.
-
-The second section has a constant thrust orientation of 90 degrees from the vertical (it is horizontal).
-
-Also, this section has a dry mass of 38.25kg, meaning that 46.75kg of propellant can be used.
-"""
 
 # Define the acceleration models for the second rocket section
 acceleration_models = create_section_accelerations("Section 2")
@@ -591,7 +585,7 @@ Additionally, a termination setting is configured to stop the termination in cas
 
 integrator_settings = define_integrator_settings()
 
-termination_surface_impact_settings = (
+surface_impact_termination_settings = (
     propagation_setup.propagator.dependent_variable_termination(
         propagation_setup.dependent_variable.altitude("Section 2", "Mars"),
         limit_value=500,
@@ -602,7 +596,7 @@ termination_surface_impact_settings = (
 # Combine both termination settings into a hybrid termination
 combined_termination_settings_section_2 = (
     propagation_setup.propagator.hybrid_termination(
-        [termination_surface_impact_settings, termination_max_time_settings],
+        [surface_impact_termination_settings, termination_max_time_settings],
         fulfill_single_condition=True,
     )
 )
@@ -697,24 +691,31 @@ ax1.plot(times_since_launch / 60, altitudes / 1e3)
 ax1.grid()
 ax1.set_xlabel("Time since launch [min]")
 ax1.set_ylabel("Altitude [km]")
+ax1.axvline(
+    stage_separation_epoch_mins, color="red", linestyle="--", label="Stage separation"
+)
+ax1.legend()
 
 # Plot the airspeed history
 ax2.plot(times_since_launch / 60, airspeeds)
 ax2.grid()
 ax2.set_xlabel("Time since launch [min]")
 ax2.set_ylabel("Airspeed [m/s]")
+ax2.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the mass history in the first 10 minutes
 ax3.plot(times_since_launch[:idx_crop] / 60, mass[:idx_crop])
 ax3.grid()
 ax3.set_xlabel("Time since launch [min]")
 ax3.set_ylabel("Rocket mass [kg]")
+ax3.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the dynamic pressure history in the first 10 minutes
 ax4.plot(times_since_launch[:idx_crop] / 60, dyna_pressures[:idx_crop] / 1e3)
 ax4.grid()
 ax4.set_xlabel("Time since launch [min]")
 ax4.set_ylabel("Dynamic pressure [kPa]")
+ax4.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the accelerations history in the first 10 minutes
 ax5.plot(
@@ -731,6 +732,7 @@ ax5.grid()
 ax5.set_xlabel("Time since launch [min]")
 ax5.set_ylabel("Acceleration [m/s$^2$]")
 # ax5.set_yscale("log") # (uncomment this to see the distinction between the accelerations more clearly)
+ax5.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 ax5.legend()
 
 # Save some space using a tight layout, and show the figure
@@ -746,20 +748,20 @@ Finally, we can analyse the plot that we produce, giving various insights in our
 
 #### Altitude over time
 """
-In the first plot on the top left, we can see the altitude plotted as a function of time. This shows that the rocket progressively gains more and more altitude, as its accelerates. After stage separation, at around 9min, when the second stage ignites, the rocket does not gain significantly more altitude. This is because the second stage fires only horizontally. Because it does so at apoapsis, it fires only prograde, increasing the prograde (horizontal) velocity of the rocket, without increasing its radial (vertical) velocity. Afterwards, we see oscillations between around 150km and 900km. This shows that our vehicle is now in orbit.
+In the first plot on the top left, we can see the altitude plotted as a function of time. This shows that the rocket progressively gains more and more altitude, as its accelerates. After stage separation, at around 8min, when the second stage ignites, the rocket does not gain significantly more altitude. This is because the second stage fires only horizontally. Because it does so at apoapsis, it fires only prograde, increasing the prograde (horizontal) velocity of the rocket, without increasing its radial (vertical) velocity. Afterwards, we see oscillations between around 150km and 900km. This shows that our vehicle is now in orbit.
 
 """
 
 #### Airspeed over time
 """
-The second plot on the top right clearly shows that the rocket gains considerable speed in the first seconds, when the first stage fires. At first stage burnout, the velocity starts decreasing. This is because we loose velocity for altitude, until we reach apoapsis. At apoapsis, the second stage ignites, and the velocity increases considerably again. Afterwards, we see oscillations between around 3.4 and 2.7 km/s, showing that our vehicle is at orbital velocity around Mars.
+The second plot on the top right clearly shows that the rocket gains considerable speed in the first seconds, when the first stage fires. At first stage burnout, the velocity starts decreasing. This is because we lose velocity for altitude, until we reach apoapsis. At apoapsis, the second stage ignites, and the velocity increases considerably again. Afterwards, we see oscillations between around 3.4 and 2.7 km/s, showing that our vehicle is at orbital velocity around Mars.
 
 """
 
 #### Rocket mass over time
 """
-The thrust plot in the middle left shows the mass of our rocket over time in its first 10 minutes. We can clearly identify the two moments where the rocket burns propellant, indicated by the two sections where the mass linearly decreases, from 0min to 2min, and from 9min to 10min. During the burns, since the rocket has a thrust magnitude that is 1.75 times higher in the first 15 seconds, it also looses propellant 1.75 times faster. This can be seen by the higher mass rate at the beginning of the ignition of both stages.
-Finally, we can see at around 9min that the two stages separate, because our rocket mass instantaneously changes from 185kg to 85kg.
+The thrust plot in the middle left shows the mass of our rocket over time in its first 10 minutes. We can clearly identify the two moments where the rocket burns propellant, indicated by the two sections where the mass linearly decreases, from 0min to 2min, and from 8min to 9min. During the burns, since the rocket has a thrust magnitude that is 1.75 times higher in the first 15 seconds, it also looses propellant 1.75 times faster. This can be seen by the higher mass rate at the beginning of the ignition of both stages.
+Finally, we can see at around 8min that the two stages separate, because our rocket mass instantaneously changes from 185kg to 85kg.
 
 """
 
