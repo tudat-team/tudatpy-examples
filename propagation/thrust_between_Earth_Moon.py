@@ -1,10 +1,8 @@
 # Thrust between the Earth and the Moon
 """
-
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-## Context
+## Objectives
 """
 
 This example demonstrates the basic use of thrust in the Earth-Moon system.
@@ -91,18 +89,19 @@ bodies_to_create = ["Sun", "Earth", "Moon"]
 # Create bodies in simulation
 """
 body_settings = environment_setup.get_default_body_settings(bodies_to_create)
+system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 
 
 ### Create the vehicle
 """
 
-Let's now create the 5000 kg Vehicle for which the trajectory between the Earth and the Moon will be propagated.
+Let's now create the 5000 kg Vehicle for which the trajectory bewteen the Earth and the Moon will be propagated.
 """
 
 # # Create the vehicle body in the environment
-body_settings.add_empty_settings("Vehicle")
-body_settings.get("Vehicle").constant_mass = 5000
+system_of_bodies.create_empty_body("Vehicle")
+system_of_bodies.get_body("Vehicle").set_constant_mass(5e3)
 
 
 ### Define the thrust guidance settings
@@ -121,9 +120,7 @@ rotation_model_settings = environment_setup.rotation_model.orbital_state_directi
         direction_is_opposite_to_vector=False,
         base_frame = "",
         target_frame = "VehicleFixed" )
-body_settings.get("Vehicle").rotation_model_settings = rotation_model_settings
-
-system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
+environment_setup.add_rotation_model( system_of_bodies, 'Vehicle', rotation_model_settings )
 
 thrust_magnitude_settings = (
     propagation_setup.thrust.constant_thrust_magnitude(
@@ -155,7 +152,6 @@ central_bodies = ["Earth"]
 
 First off, the acceleration settings that act on the Vehicle are to be defined.
 In this case, these consist of the followings:
-
 - Acceleration from the constant thrust, using the settings defined earlier.
 - Gravitational acceleration from the Earth, the Moon, and the Sun, all modeled as point masses.
 
@@ -211,7 +207,7 @@ system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
 
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
+[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
 """
 
 # # Create a dependent variable to save the altitude of the vehicle w.r.t. Earth over time
@@ -234,7 +230,6 @@ dependent_variables_to_save = [vehicle_altitude_dep_var, vehicle_mass_dep_var]
 Let's now define a set of termination settings. In this setup, once any single one of them is fulfilled, the propagation stops.
 
 These settings are the following:
-
 - Stop when the altitude get above 100,000 km.
 - Stop when the Vehicle has a mass of 4,000 kg (burned 1,000 kg of propellant).
 - Stop when the Vehicle reaches the specified end epoch (after 30 days).
@@ -255,7 +250,7 @@ termination_mass_settings = propagation_setup.propagator.dependent_variable_term
 # Create a termination setting to stop at the specified simulation end epoch
 termination_time_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
-# Setup a hybrid termination setting to stop the simulation when one of the aforementioned termination setting is reached
+# Setup a hybrid termination setting to stop the simulation when one of the aforementionned termination setting is reached
 termination_settings = propagation_setup.propagator.hybrid_termination(
     [termination_distance_settings, termination_mass_settings, termination_time_settings],
     fulfill_single_condition = True)
@@ -358,7 +353,6 @@ This function requires the `system_of_bodies` and `propagator_settings` that hav
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
-
 - Column 0: Time history, in seconds since J2000.
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
@@ -373,8 +367,8 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 
 # Extract the state and dependent variable history
 """
-state_history = dynamics_simulator.propagation_results.state_history
-dependent_variable_history = dynamics_simulator.propagation_results.dependent_variable_history
+state_history = dynamics_simulator.state_history
+dependent_variable_history = dynamics_simulator.dependent_variable_history
 """
 
 # Convert the dictionaries to multi-dimensional arrays
@@ -395,7 +389,7 @@ moon_states_from_spice = {
     epoch:spice.get_body_cartesian_state_at_epoch("Moon", "Earth", "J2000", "None", epoch)
     for epoch in list(state_history.keys())
 }
-# Convert the dictionary to a multi-dimensional array
+# Convert the dictionary to a mutli-dimensional array
 """
 moon_array = result2array(moon_states_from_spice)
 """
