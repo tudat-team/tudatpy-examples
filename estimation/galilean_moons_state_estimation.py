@@ -1,21 +1,28 @@
-# Galilean Satellites - Initial State Estimation
+# Initial State Estimation Using NOE-5 Ephemeris
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 """
 
-## Context
+## Objectives
 """
-Within this example, we will dive into using ephemeris states of celestial bodies as 'artificial' observations in order to improve their respective simulation quality over long arcs of propagation and hence counteract minor shortcomings in the implemented physical (acceleration) models. We will showcase how we can enhance the accuracy of predicted orbits of the Galilean moons based on the most current ephemerides (NOE-5) published by IMCEE.
+This example illustrates how to optimize the **initial conditions** of a fixed dynamical model to **better match the available ephemeris of a celestial body**, using them as **"artificial" observations**. By adjusting the initial state, the goal is to minimize the discrepancy between the model’s predicted orbit and the ephemeris provided orbit over time. 
 
-In particular, this entails simulating observations based on the ephemerides of the Galilean moons, estimating an improved initial state for all four moons (with the original a-priori state taken from the NOE-5 ephemeris), and finally inspecting the (correct) representation and stability of the Laplace resonance between the inner three moons (Io, Europa, and Ganymede).
+We will showcase how we can **enhance the accuracy of predicted orbits of the Galilean moons** based on the most current ephemerides (**NOE-5**) published by [Institut de mécanique céleste et de calcul des éphémérides](https://www.imcce.fr/institut/presentation/) (IMCEE).
+
+In particular, we will:
+
+1) **simulate observations** based on the ephemerides of the Galilean moons;
+2) **estimate an improved initial state** for all four moons, such that
+   the propagated orbit **minimizes the observations (ephemeris) residuals**
+4) inspecting the (correct) representation and stability of the **Laplace resonance** between the inner three moons (Io, Europa, and Ganymede).
 """
 
 ## Import Statements
 """
 Typically - in the most pythonic way - all required modules are imported at the very beginning.
 
-Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Within this example, while no particular new functionality of `tudatpy` will be introduced, we will nevertheless explore the already known parts of the `estimation` module in more depth and how it can be applied to intricate problems.
+Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Within this example, while no particular new functionality of `tudatpy` will be introduced, we will nevertheless explore the already known parts of the `estimation` module in more depth and how it can be applied to **intricate problems**.
 """
 
 # General imports
@@ -38,13 +45,16 @@ from tudatpy.astro.time_conversion import DateTime
 
 ## Orbital Simulation
 """
-Entirely independent of the upcoming estimation-process, we first have to define the general settings of the simulation, create the environment, and define all relevant settings of the propagation.
+Entirely independent of the upcoming estimation-process, we first have to:
+* define the **general settings of the simulation**
+* create the **environment**
+* define all relevant **propagation settings**
 
 """
 
 ### Simulation Settings
 """
-Besides importing tudat's standard kernels - which handily already include a version of the NOE-5 ephemeris, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
+Besides importing tudat's standard kernels - which handily already include a version of the **NOE-5 ephemeris**, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
 """
 
 # Load spice kernels
@@ -57,7 +67,9 @@ simulation_end_epoch   = DateTime(2035, 4, 20).epoch()
 
 ### Create the Environment
 """
-For the problem at hand, the environment consists of the Jovian system with its four largest moons - Io, Europa, Ganymede, and Callisto - as well as Saturn and the Sun which will be relevant when creating some perturbing accelerations afterwards. While slightly altering the standard settings of the moons, such that their rotation around their own main axis resembles a synchronous rotation, we will also apply a tabulated ephemeris based on every current (standard) ephemeris to the moons' settings. While, at first glance, this does not add any value to the simulation, this step is crucial in order to later be able to simulate the moons states purely based on their ephemerides without having to propagate their states.
+For the problem at hand, the **environment** consists of the Jovian system with its four largest moons - Io, Europa, Ganymede, and Callisto - as well as Saturn and the Sun which will be relevant when creating some **perturbing accelerations** afterwards. 
+
+While slightly altering the standard settings of the moons, such that their rotation around their own main axis resembles a synchronous rotation, we will also apply a tabulated ephemeris based on every current (standard) ephemeris to the moons' settings. While, at first glance, this does not add any value to the simulation, this step is crucial in order to later be able to simulate the moons states purely based on their ephemerides without having to propagate their states.
 """
 
 # Create default body settings for selected celestial bodies
@@ -98,9 +110,14 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ### Create Propagator Settings
 """
-Trivially, in order to estimate 'better' initial states for the Galilean moons we have to include all four of them in our propagation. Acceleration-wise - apart from the individual numbers - they are moreover modelled entirely identical: mutual spherical harmonic acceleration due to Jupiter, tidal dissipation on both the moons and the primary, mutual spherical harmonic acceleration due to the remaining three moons, and point mass gravity attraction by both Saturn and the Sun.
+Trivially, in order to **estimate 'better' initial states** for the Galilean moons (as for to the objectives discussed above), we have to include all four of them in our propagation. Acceleration-wise, they are moreover modelled in the same fashion: 
 
-The initial states of the moons are taken from the NOE-5 ephemeris and will later also serve as a-priori information and input to the estimator. We will further use a Dormand-Prince 8th order integrator (RKDP8) with a fixed step-size of 30 minutes. Note that while this example saves the Kepler elements of all four moons as dependent variables, this is not strictly necessary for the estimation as such, but purely serves as means of better post-processing visualization of the results.
+* mutual spherical harmonic acceleration due to Jupiter,
+* tidal dissipation on both the moons and the primary,
+* mutual spherical harmonic acceleration due to the remaining three moons,
+* and point mass gravity attraction by both Saturn and the Sun.
+
+The **initial states** of the moons are taken from the **NOE-5 ephemeris** and will later also serve as **a-priori information and input to the estimator**. We will use a **Dormand-Prince 8th order integrator (RKDP8)** with a fixed step-size of **30 minutes**. Note that, while this example saves the Kepler elements of all four moons as dependent variables, this is not strictly necessary for the estimation, but purely serves as means of **better post-processing visualization** of the results.
 """
 
 # Define bodies that are propagated, and their central bodies of propagation
@@ -209,7 +226,7 @@ propagator_settings = propagation_setup.propagator. \
 
 ## Orbital Estimation
 """
-Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required link ends for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
+Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required **link ends** for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
 
 """
 
@@ -297,7 +314,7 @@ ephemeris_satellite_states = estimation.simulate_observations(
 
 ### Define Estimable Parameters
 """
-Given the problem at hand - minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations - we are mainly interested in an improved initial state of all four Galilean moons. We will thus restrict the set of estimable parameters to the moons' initial states.
+Given the problem at hand - **minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations by selection of an *optimal initial state***, we will restrict the set of estimable parameters to the moons' initial states.
 """
 
 parameters_to_estimate_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
@@ -307,7 +324,7 @@ original_parameter_vector = parameters_to_estimate.parameter_vector
 
 ### Perform the Estimation
 """
-Using the set of artificial cartesian 'observations' of the moons' ephemerides we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end we will make use of the known estimation functionality of tudat - nevertheless, note that in order to easily post-process the results we have changed the associated settings such that the moons' state histories will be saved for every iteration of the estimation. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
+Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
 """
 
 print('Running propagation...')
@@ -334,11 +351,11 @@ print(f'Updated initial states: {initial_states_updated}')
 
 ## Post-Processing
 """
-With the initial states updated, the estimation is finished. In the following we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution.
+With the initial states updated, the estimation is finished. In the following, we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution (selected as **"ground truth" solution**).
 
-To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as 'ground-truth' solution.
+To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as "ground-truth" solution.
 
-Finally, we will graphically compare the absolute difference of our estimated solution as well as the behaviour of the Laplace resonance between the three inner moons - Io, Europa, Ganymede - with the ephemeris-solution.
+Finally, we will graphically compare the absolute difference of our estimated solution as well as the behaviour of the **Laplace resonance** between the three inner moons - Io, Europa, Ganymede - with the ephemeris-solution.
 """
 
 ### LOAD DATA ###
@@ -400,7 +417,7 @@ ax1.set_ylabel(r'Difference [km]')
 ax1.legend();
 
 
-# Overall, for the inner three moons trapped in resonance (for more details see below) the above results lie within the expected range of achievable accuracy given the rather rudimentary set-up of the environment and especially associated acceleration models. However, what is striking is that the performance of Callisto falls short compared to the other satellites. Thus, hypothetically, to enhance the estimated solution of the orbit of Callisto with respect to the underlying ephemeris, one could opt to estimate its gravity field alongside the initial state, which could lead to significantly improved results. However, this path left as an adventure to be followed and explored by the reader.
+# Overall, for the inner three moons trapped in resonance (for more details see below) the above results lie within the expected range of achievable accuracy given the rather rudimentary set-up of the environment and especially associated acceleration models. However, what is striking is that the performance of Callisto falls short compared to the other satellites. Thus, hypothetically, to enhance the estimated solution of the orbit of Callisto with respect to the underlying ephemeris, one could opt to estimate its gravity field alongside the initial state, which could lead to significantly improved results. However, this path is left as an adventure to be followed and explored by the reader.
 
 def calculate_mean_longitude(kepler_elements: dict):
     # Calculate dictionary for moon-wise longitudes
@@ -470,7 +487,7 @@ for epoch in epochs_julian_seconds:
     time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-
+ 
 ax1.plot(time2plt, laplace_stability_prop * 180 / math.pi, label='Propagated', c='#A50034')
 ax1.plot(time2plt, laplace_stability_ephem * 180 / math.pi, label='NOE 5 Ephemeris', c='#EC6842',
          linestyle=(0, (5, 10)))
@@ -484,4 +501,7 @@ ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
+
+
+
 

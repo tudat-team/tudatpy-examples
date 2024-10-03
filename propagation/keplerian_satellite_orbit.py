@@ -1,18 +1,17 @@
 # Keplerian satellite orbit
 """
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 """
 
-## Context
+## Objectives
 """
-This example demonstrates the basic propagation of a (quasi-massless) body under the influence of a central point-mass attractor. It therefore resembles the classic two-body problem.
+This example demonstrates the **basic propagation** of a (quasi-massless) body under the influence of a **central point-mass attractor**. It therefore resembles the classic **two-body problem**.
 
-Due to the quasi-massless nature of the propagated body, no accelerations have to be modelled on the central body, which is therefore not propagated.
-As one expects from this setup, the trajectory of the propagated quasi-massless body describes a Keplerian orbit.
+Due to the quasi-massless nature of the propagated body, **no accelerations have to be modelled on the central body**, which is therefore **not propagated**.
+As one would expect from this setup, the trajectory of the propagated quasi-massless body describes a **Keplerian orbit**.
 
-Amongst others, the example showcases the creation of bodies using properties from standard SPICE data `get_default_body_settings()` as well as the element conversion functionalities `keplerian_to_cartesian_elementwise()` of tudat.
-It also demonstrates how the results of the propagation can be accessed and processed.
+Amongst others, the example showcases the creation of bodies using properties from standard SPICE data `get_default_body_settings()`, as well as the element conversion functionalities `keplerian_to_cartesian_elementwise()` of tudat.
+It also demonstrates how the results of the propagation can be **accessed and processed**.
 """
 
 ## Import statements
@@ -68,7 +67,9 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+
+Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 """
 
 # Create default body settings for "Earth"
@@ -80,20 +81,17 @@ global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
 
+# Create system of bodies (in this case only Earth)
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
-### Create the vehicle settings
+
+### Create the vehicle
 """
 Let's now create the massless satellite for which the orbit around Earth will be propagated.
 """
 
-# Add empty settings to body settings
-body_settings.add_empty_settings("Delfi-C3")
-
-
-# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
-
-# Create system of bodies (in this case only Earth)
-bodies = environment_setup.create_system_of_bodies(body_settings)
+# Add vehicle object to system of bodies
+bodies.create_empty_body("Delfi-C3")
 
 
 ## Propagation setup
@@ -138,7 +136,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 """
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
 
 In this case, let's make use of the `keplerian_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Keplerian elements, and then converted in Cartesian elements.
 """
@@ -174,7 +172,9 @@ termination_settings = propagation_setup.propagator.time_termination(simulation_
 
 # Create numerical integrator settings
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    time_step = 10.0,
+    coefficient_set = propagation_setup.integrator.rk_4 )
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -192,12 +192,11 @@ propagator_settings = propagation_setup.propagator.translational(
 """
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
 This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
-
 - Column 0: Time history, in seconds since J2000.
 - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
 - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
@@ -209,7 +208,7 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
 )
 
 # Extract the resulting state history and convert it to an ndarray
-states = dynamics_simulator.propagation_results.state_history
+states = dynamics_simulator.state_history
 states_array = result2array(states)
 
 
@@ -234,7 +233,7 @@ The initial velocity vector of Delfi-C3 is [km/s]: \n{
 \nAfter {simulation_end_epoch} seconds the position vector of Delfi-C3 is [km]: \n{
     states[simulation_end_epoch][:3] / 1E3}
 And the velocity vector of Delfi-C3 is [km/s]: \n{
-    states[simulation_start_epoch][3:] / 1E3}
+    states[simulation_end_epoch][3:] / 1E3}
     """
 )
 
