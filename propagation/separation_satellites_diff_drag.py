@@ -1,11 +1,9 @@
 # Separation of satellites via differential drag
 """
 
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-
 """
 
-## Context
+## Objectives
 """
 
 This file was adapted from the tudatpy example application _Perturbed Satellite Orbit_.
@@ -34,12 +32,12 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice
+from tudatpy.interface import spice_interface
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
 from tudatpy.astro.time_conversion import DateTime
 
 # Load spice kernels
-spice.load_standard_kernels()
+spice_interface.load_standard_kernels()
 
 
 ## Creation of the environment
@@ -73,25 +71,27 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_origin,
     global_frame_orientation)
 
+# Create system of selected celestial bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
 
 ### Creation of vehicle settings
 """
 
 We create two identical vehicles, called asterix and obelix, we set the mass and the aerodynamic coefficient 
 interface (one satellite has 3X the surface of the other satellite). The main vehicle properties are:
-
 - mass: 5 kg
 - drag surface: 0.03 and 0.01 $m^2$
 - aerodynamic coefficient: 1.2
 """
 
 # Create vehicle objects.
-body_settings.add_empty_settings("asterix")
-body_settings.add_empty_settings("obelix")
+bodies.create_empty_body("asterix")
+bodies.create_empty_body("obelix")
 
 # Set mass of satellites
-body_settings.get("asterix").constant_mass = 5.0
-body_settings.get("obelix").constant_mass = 5.0
+bodies.get("asterix").mass = 5.0
+bodies.get("obelix").mass = 5.0
 
 # Create aerodynamic coefficient interface settings and add it to the first satellite
 reference_area = 0.1 * 0.1
@@ -99,7 +99,8 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-body_settings.get("asterix").aerodynamic_coefficient_settings = aero_coefficient_settings
+environment_setup.add_aerodynamic_coefficient_interface(
+    bodies, "asterix", aero_coefficient_settings)
 
 # Create aerodynamic coefficient interface settings and add it to the second satellite (3x surface area)
 reference_area = 3 * 0.1 * 0.1
@@ -107,11 +108,8 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-body_settings.get("obelix").aerodynamic_coefficient_settings = aero_coefficient_settings
-
-
-# Create system of selected bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
+environment_setup.add_aerodynamic_coefficient_interface(
+    bodies, "obelix", aero_coefficient_settings)
 
 
 ## Creation of propagation settings
@@ -124,7 +122,6 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 We set the (identical) accelerations acting on the satellites.
 The dynamical model includes the following accelerations:
-
 - spherical harmonic gravity exerted by the Earth, up to degree 2 and order 0
 - aerodynamic
 - point mass gravity of the Sun and the Moon
@@ -183,14 +180,13 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     longitude_of_ascending_node=np.deg2rad(23.4),
     true_anomaly=np.deg2rad(139.87)
 )
-# Both satellites have the same initial state
+# Both satellites have the same inital state
 initial_states = np.concatenate((initial_state, initial_state))
 
 
 ### Set dependent variables to save
 """
 These include (for both satellites):
-
 - the keplerian states
 - the norm of the aerodynamic drag
 """
@@ -212,7 +208,6 @@ dependent_variables_to_save = [
 """
 
 The simulation terminates when one of the two occurs:
-
 - simulation time reaches 60 days
 - angular separation between two satellites reaches 20 degrees
 
@@ -250,7 +245,7 @@ class AngleSeparationTermination:
         self.bodies = bodies
         self.maximum_angular_separation = maximum_angular_separation
         # Create container to store separation angle
-        # The first element is needed because at the first epoch the termination settings are not checked
+        # The first element is neeeded because at the first epoch the termination settings are not checked
         self.separation_angle_history = [0.0]
         # Create termination reason to understand if time or angular separation triggered the termination
         self.termination_reason = "Final epoch of the propagation was reached."
@@ -389,8 +384,8 @@ With these commands, we execute the simulation and retrieve the output.
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings)
-states = dynamics_simulator.propagation_results.state_history
-dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
+states = dynamics_simulator.state_history
+dependent_variables = dynamics_simulator.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)
@@ -400,7 +395,6 @@ print("Termination reason:" + angular_separation.termination_reason)
 """
 
 The output is processed to produce the following figures:
-
 1. kepler elements
 2. drag acceleration norm
 3. semi-major axis, with linear regression to see the difference in decay of both satellites
