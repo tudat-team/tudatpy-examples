@@ -428,15 +428,17 @@ Let's now create integrator settings. These use a RK78 integration scheme with a
 
 - An initial time step of 0.25 seconds.
 - A minimum time step of 1e-4 seconds.
-- A maximum time step of 100 seconds.
+- A maximum time step of 10 seconds.
 - A relative and absolute error tolerance of 1e-14.
+
+Note: The example seems particularly sensitive to the integrator choice. In a more sophisticated analysis, the integrator and its parameters needs to selected carefully and verified for different mission scenarios.
 """
 
 # Define integrator settings with the initial integration epoch
 def define_integrator_settings():
     initial_time_step = 0.25
     minimum_time_step = 1e-4
-    maximum_time_step = 100
+    maximum_time_step = 10
     tolerance = 1e-14
 
     control_settings = propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance( tolerance, tolerance )
@@ -555,7 +557,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = ThrustModel(2250, 290, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+current_thrust_model = ThrustModel(2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
