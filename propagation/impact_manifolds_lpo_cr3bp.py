@@ -1,18 +1,12 @@
 # Impact Manifolds of Lagrange Point Orbits in CR3BP(-Polyhedron)
 """
 
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and
-binary forms, with or without modification, are permitted exclusively
-under the terms of the Modified BSD license. You should have received
-a copy of the license with this file. If not, please or visit:
-http://tudat.tudelft.nl/LICENSE.
-
 """
 
-## Context
+## Objectives
 """
 
-This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionally, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
+This example demonstrates the setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with polyhedral secondary. Additionaly, it demonstrates the propagation of trajectories up to a surface impact (with the polyhedron), using hybrid termination conditions.
 
 The invariant manifolds of a planar Lyapunov orbit around the L2 point of the Mars-Phobos system are computed. The system is modeled using the CR3BP with Mars' gravity being described by a point mass and Phobos' gravity by a polyhedron (since Phobos is a small, irregular moon). Phobos is considered to be tidally locked. The invariant manifolds are propagated until a maximum time, maximum distance to Phobos, or impact with Phobos (whatever happens first). The trajectories are propagated using a dimensionless state (with the typical CR3BP units of length and time).
 
@@ -73,7 +67,7 @@ def cr3bp_unit_of_time (gravitational_parameter_primary: float,
 
 ########################################################################################################################
 # Get full-state rotation matrix from inertial frame to body-fixed frame
-def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -89,7 +83,7 @@ def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.
 
 ########################################################################################################################
 # Get full-state rotation matrix from body-fixed frame to inertial frame
-def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -106,7 +100,7 @@ def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.
 ########################################################################################################################
 # Conversion of state from inertial to body-fixed frame
 def convert_state_history_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_inertial: dict) -> dict:
 
@@ -122,7 +116,7 @@ def convert_state_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion of state from body-fixed to inertial frame
 def convert_state_history_body_fixed_to_inertial(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         state_history_body_fixed: dict) -> dict:
 
@@ -138,7 +132,7 @@ def convert_state_history_body_fixed_to_inertial(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_history_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_history_inertial: dict) -> dict:
 
@@ -156,7 +150,7 @@ def convert_stm_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.kernel.numerical_simulation.environment.SystemOfBodies,
         body_name: str,
         stm_inertial: np.ndarray,
         time_initial: float,
@@ -506,7 +500,7 @@ stm_history_lpo_body_fixed = convert_stm_history_inertial_to_body_fixed(
 
 ## Propagation of the invariant manifolds
 """
-Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but using a negative time step instead (backward propagation). 
+Having propagated an unstable Lagrange point orbit, its invariant manifolds are now computed. Only the unstable invariant manifolds are propagated; the stable ones can be obtained in a similar way, but unsing a negative time step instead (backward propagation). 
 
 The initial state of each manifold branch can be obtained by perturbing the state at a node of the orbit with the most unstable eigenvector of the monodromy matrix associated with that node, which corresponds to the eigenvector associated with the eigenvalue with the largest norm.
 
