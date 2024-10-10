@@ -6,7 +6,7 @@
 # ## Objectives
 # 
 # The present example will demonstrate the use of a multi-type propagator in Tudat. For that, we will consider the problem of simulating the coupled translational-rotational dynamics of Phobos around Mars, including the definition of a realistic initial state. Let's begin by talking about the forces and torques that we'll be considering as part of our dynamical problem.
-
+## Key API References
 # ## Phobos' dynamics in the Martian system
 # Due to the relative complexity of this example, it is useful to provide the explicit equations of motion. More details can be found in the [Tudat mathematical model description](https://github.com/tudat-team/tudat-space/raw/master/Tudat_mathematical_model_definition.pdf), and a number of sources in literature, most notably:
 # 
@@ -80,7 +80,7 @@ spice.load_standard_kernels()
 
 
 # ## Auxiliary functions
-# In order to keep the main code neat and clean, several auxiliary functions will be used that need to be defined before the main code. Feel free to skip them now and come back to them when they are used in the script. [TODO, add proper comments to each function (specifying what it does, what goes in, what goes out) before the function ... ... DONE].
+# In order to keep the main code neat and clean, several auxiliary functions will be used that need to be defined before the main code. Feel free to skip them now and come back to them when they are used in the script.
 # ### Gravitational field definition
 # Tudat's environment defaults don't include much information about Phobos, so we will have to create it ourselves from scratch. Part of this process is assigning Phobos a gravitational field, which takes a few lines. Thus, the corresponding code will be separated from the main script into the function below.
 

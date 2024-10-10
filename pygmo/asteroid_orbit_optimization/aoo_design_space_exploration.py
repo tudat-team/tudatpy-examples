@@ -875,5 +875,5 @@ for i, combi in enumerate(combi_list):
     ax.set_zlabel('Mean Latitude [rad]', labelpad=10)
     ax.set_title('%s - %s '%(combi, title_list[i]), y=1.0, pad=10)
     ax.view_init(10, -140)
-plt.show()
 
+plt.show()

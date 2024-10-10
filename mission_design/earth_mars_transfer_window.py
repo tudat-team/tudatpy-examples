@@ -1,32 +1,33 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Earth-Mars transfer window design using Porkchop Plots
+"""
+Copyright (c) 2010-2023, Delft University of Technology
+All rigths reserved
+This file is part of the Tudat. Redistribution and use in source and 
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
 
-# # Earth-Mars transfer window design using Porkchop Plots
-# Copyright (c) 2010-2023, Delft University of Technology
-# All rigths reserved
-# This file is part of the Tudat. Redistribution and use in source and 
-# binary forms, with or without modification, are permitted exclusively
-# under the terms of the Modified BSD license. You should have received
-# a copy of the license with this file. If not, please or visit:
-# http://tudat.tudelft.nl/LICENSE.
-# 
-# ## Objectives
-# This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
-# 
-# By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
-# 
-# Users can provide a custom function to calculate the $\Delta V$ required for any given transfer. This can be done by supplying a `callable` (a function) to the `porkchop` function via the argument
-# 
-#     function_to_calculate_delta_v
-# 
-# This opens the possibility to calculate the $\Delta V$ required for any transfer; potential applications include: low-thrust transfers, perturbed transfers with course correction manoeuvres, transfers making use of Gravity Assists, and more.
+"""
 
-# ## Import statements
-# 
-# The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
+## Objectives
+"""
+This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
 
-# In[1]:
+By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
 
+Users can provide a custom function to calculate the $\Delta V$ required for any given transfer. This can be done by supplying a `callable` (a function) to the `porkchop` function via the argument
+
+    function_to_calculate_delta_v
+
+This opens the possibility to calculate the $\Delta V$ required for any transfer; potential applications include: low-thrust transfers, perturbed transfers with course correction manoeuvres, transfers making use of Gravity Assists, and more.
+"""
+
+## Import statements
+"""
+
+The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
+"""
 
 # General imports
 import os
@@ -40,12 +41,11 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
 
-# ## Environment setup
-# 
-# We proceed to set up the simulation environment, by loading the standard Spice kernels, defining the origin of the global frame and creating all necessary bodies. 
+## Environment setup
+"""
 
-# In[2]:
-
+We proceed to set up the simulation environment, by loading the standard Spice kernels, defining the origin of the global frame and creating all necessary bodies. 
+"""
 
 # Load spice kernels
 spice.load_standard_kernels( )
@@ -63,11 +63,10 @@ body_settings = environment_setup.get_default_body_settings(
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
-# ## Porkchop Plots
-# The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
-
-# In[3]:
-
+## Porkchop Plots
+"""
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+"""
 
 departure_body = 'Earth'
 target_body = 'Mars'
@@ -81,9 +80,6 @@ latest_arrival_time     = DateTime(2006, 12,  21)
 
 # To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
-# In[4]:
-
-
 # Set time resolution IN DAYS as 0.5% of the smallest window (be it departure, or arrival)
 # This will result in fairly good time resolution, at a runtime of approximately 10 seconds
 # Tune the time resolution to obtain results to your liking!
@@ -95,9 +91,6 @@ time_resolution = time_resolution = min(
 
 
 # Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
-
-# In[5]:
-
 
 # File
 data_file = 'porkchop.pkl'
@@ -114,9 +107,6 @@ print()
 # - The optimal departure-arrival date combination
 # - The constant time-of-flight isochrones
 # - And more
-
-# In[6]:
-
 
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     # Regenerate plot
@@ -151,16 +141,15 @@ else:
     )
 
 
-# ### Variations
-# The Tudat `porkchop` module allows us to
-# 
-# - Save the $\Delta V$ map returned by `porkchop` and plot it again without recalculating with the `plot_porkchop` function
-# - Plot $\Delta V$ (default) or C3 (specific energy), as well as choose whether to plot departure and arrival $\Delta V$ together as the total $\Delta V$ required for the transfer (default), or separately (in those cases in which the manoeuvre is performed in two burns, one at departure and one at arrival to the target planet).
-# 
-# Let's make use of `plot_porkchop` to see all four combinations!
+### Variations
+"""
+The Tudat `porkchop` module allows us to
 
-# In[7]:
+- Save the $\Delta V$ map returned by `porkchop` and plot it again without recalculating with the `plot_porkchop` function
+- Plot $\Delta V$ (default) or C3 (specific energy), as well as choose whether to plot departure and arrival $\Delta V$ together as the total $\Delta V$ required for the transfer (default), or separately (in those cases in which the manoeuvre is performed in two burns, one at departure and one at arrival to the target planet).
 
+Let's make use of `plot_porkchop` to see all four combinations!
+"""
 
 cases = [
     {'C3': False, 'total': False, 'threshold': 15 , 'filename': 'figures/ΔV.png'},
@@ -179,4 +168,7 @@ for case in cases:
         save             = False,
         **case
     )
+
+
+
 

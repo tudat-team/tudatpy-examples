@@ -520,8 +520,7 @@ for element_number in range(6):
     if element_number == 0:
         current_ax.legend()
         
-plt.tight_layout()
-plt.show()
+plt.tight_layout()        
 
 
 # ### Drag acceleration norm
@@ -552,7 +551,6 @@ ax.grid()
 ax.set_title("Drag acceleration")
 ax.legend()
 plt.tight_layout()
-plt.show()
 
 
 # As expected, the drag acceleration experienced by the satellite orbiting at a higher altitude (Asterix) is lower than
@@ -602,7 +600,6 @@ ax.set_ylabel("Semi-major axis [km")
 ax.grid()
 ax.legend(loc='lower left')
 plt.tight_layout()
-plt.show()
 
 
 # Due to the larger drag acceleration experienced by Obelix, the satellites decays at a faster rate.
