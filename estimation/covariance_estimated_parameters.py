@@ -465,7 +465,7 @@ diagonal_covariance = np.diag(formal_errors**2)
 print(f'Formal Error Matrix:\n\n{diagonal_covariance}\n')
 
 sigma = 3  # Confidence level
-original_eigenvalues, original_eigenvectors = np.linalg.eig(initial_covariance)
+original_eigenvalues, original_eigenvectors = np.linalg.eig(diagonal_covariance)
 original_diagonal_eigenvalues, original_diagonal_eigenvectors = np.linalg.eig(diagonal_covariance)
 print(f'Estimated state and parameters:\n\n {parameters_to_estimate.parameter_vector}\n')
 print(f'Eigenvalues of Covariance Matrix:\n\n {original_eigenvalues}\n')

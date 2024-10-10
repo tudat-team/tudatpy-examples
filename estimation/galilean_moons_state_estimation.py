@@ -1,28 +1,29 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Initial State Estimation Using NOE-5 Ephemeris
+"""
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
-# # Initial State Estimation Using NOE-5 Ephemeris
-# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-# 
-# ## Objectives
-# This example illustrates how to optimize the **initial conditions** of a fixed dynamical model to **better match the available ephemeris of a celestial body**, using them as **"artificial" observations**. By adjusting the initial state, the goal is to minimize the discrepancy between the model’s predicted orbit and the ephemeris provided orbit over time. 
-# 
-# We will showcase how we can **enhance the accuracy of predicted orbits of the Galilean moons** based on the most current ephemerides (**NOE-5**) published by [Institut de mécanique céleste et de calcul des éphémérides](https://www.imcce.fr/institut/presentation/) (IMCEE).
-# 
-# In particular, we will:
-# 
-# 1) **simulate observations** based on the ephemerides of the Galilean moons;
-# 2) **estimate an improved initial state** for all four moons, such that
-#    the propagated orbit **minimizes the observations (ephemeris) residuals**
-# 4) inspecting the (correct) representation and stability of the **Laplace resonance** between the inner three moons (Io, Europa, and Ganymede).
+"""
 
-# ## Import Statements
-# Typically - in the most pythonic way - all required modules are imported at the very beginning.
-# 
-# Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Within this example, while no particular new functionality of `tudatpy` will be introduced, we will nevertheless explore the already known parts of the `estimation` module in more depth and how it can be applied to **intricate problems**.
+## Objectives
+"""
+This example illustrates how to optimize the **initial conditions** of a fixed dynamical model to **better match the available ephemeris of a celestial body**, using them as **"artificial" observations**. By adjusting the initial state, the goal is to minimize the discrepancy between the model’s predicted orbit and the ephemeris provided orbit over time. 
 
-# In[1]:
+We will showcase how we can **enhance the accuracy of predicted orbits of the Galilean moons** based on the most current ephemerides (**NOE-5**) published by [Institut de mécanique céleste et de calcul des éphémérides](https://www.imcce.fr/institut/presentation/) (IMCEE).
 
+In particular, we will:
+
+1) **simulate observations** based on the ephemerides of the Galilean moons;
+2) **estimate an improved initial state** for all four moons, such that
+   the propagated orbit **minimizes the observations (ephemeris) residuals**
+4) inspecting the (correct) representation and stability of the **Laplace resonance** between the inner three moons (Io, Europa, and Ganymede).
+"""
+
+## Import Statements
+"""
+Typically - in the most pythonic way - all required modules are imported at the very beginning.
+
+Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`. Within this example, while no particular new functionality of `tudatpy` will be introduced, we will nevertheless explore the already known parts of the `estimation` module in more depth and how it can be applied to **intricate problems**.
+"""
 
 # General imports
 import math
@@ -42,17 +43,19 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.astro.time_conversion import DateTime
 
 
-# ## Orbital Simulation
-# Entirely independent of the upcoming estimation-process, we first have to:
-# * define the **general settings of the simulation**
-# * create the **environment**
-# * define all relevant **propagation settings**
-# 
-# ### Simulation Settings
-# Besides importing tudat's standard kernels - which handily already include a version of the **NOE-5 ephemeris**, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
+## Orbital Simulation
+"""
+Entirely independent of the upcoming estimation-process, we first have to:
+* define the **general settings of the simulation**
+* create the **environment**
+* define all relevant **propagation settings**
 
-# In[2]:
+"""
 
+### Simulation Settings
+"""
+Besides importing tudat's standard kernels - which handily already include a version of the **NOE-5 ephemeris**, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
+"""
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -62,13 +65,12 @@ simulation_start_epoch = DateTime(2031, 7,  2).epoch()
 simulation_end_epoch   = DateTime(2035, 4, 20).epoch()
 
 
-# ### Create the Environment
-# For the problem at hand, the **environment** consists of the Jovian system with its four largest moons - Io, Europa, Ganymede, and Callisto - as well as Saturn and the Sun which will be relevant when creating some **perturbing accelerations** afterwards. 
-# 
-# While slightly altering the standard settings of the moons, such that their rotation around their own main axis resembles a synchronous rotation, we will also apply a tabulated ephemeris based on every current (standard) ephemeris to the moons' settings. While, at first glance, this does not add any value to the simulation, this step is crucial in order to later be able to simulate the moons states purely based on their ephemerides without having to propagate their states.
+### Create the Environment
+"""
+For the problem at hand, the **environment** consists of the Jovian system with its four largest moons - Io, Europa, Ganymede, and Callisto - as well as Saturn and the Sun which will be relevant when creating some **perturbing accelerations** afterwards. 
 
-# In[3]:
-
+While slightly altering the standard settings of the moons, such that their rotation around their own main axis resembles a synchronous rotation, we will also apply a tabulated ephemeris based on every current (standard) ephemeris to the moons' settings. While, at first glance, this does not add any value to the simulation, this step is crucial in order to later be able to simulate the moons states purely based on their ephemerides without having to propagate their states.
+"""
 
 # Create default body settings for selected celestial bodies
 jovian_moons_to_create = ['Io', 'Europa', 'Ganymede', 'Callisto']
@@ -106,18 +108,17 @@ for moon_idx, moon in enumerate(jovian_moons_to_create):
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
-# ### Create Propagator Settings
-# Trivially, in order to **estimate 'better' initial states** for the Galilean moons (as for to the objectives discussed above), we have to include all four of them in our propagation. Acceleration-wise, they are moreover modelled in the same fashion: 
-# 
-# * mutual spherical harmonic acceleration due to Jupiter,
-# * tidal dissipation on both the moons and the primary,
-# * mutual spherical harmonic acceleration due to the remaining three moons,
-# * and point mass gravity attraction by both Saturn and the Sun.
-# 
-# The **initial states** of the moons are taken from the **NOE-5 ephemeris** and will later also serve as **a-priori information and input to the estimator**. We will use a **Dormand-Prince 8th order integrator (RKDP8)** with a fixed step-size of **30 minutes**. Note that, while this example saves the Kepler elements of all four moons as dependent variables, this is not strictly necessary for the estimation, but purely serves as means of **better post-processing visualization** of the results.
+### Create Propagator Settings
+"""
+Trivially, in order to **estimate 'better' initial states** for the Galilean moons (as for to the objectives discussed above), we have to include all four of them in our propagation. Acceleration-wise, they are moreover modelled in the same fashion: 
 
-# In[4]:
+* mutual spherical harmonic acceleration due to Jupiter,
+* tidal dissipation on both the moons and the primary,
+* mutual spherical harmonic acceleration due to the remaining three moons,
+* and point mass gravity attraction by both Saturn and the Sun.
 
+The **initial states** of the moons are taken from the **NOE-5 ephemeris** and will later also serve as **a-priori information and input to the estimator**. We will use a **Dormand-Prince 8th order integrator (RKDP8)** with a fixed step-size of **30 minutes**. Note that, while this example saves the Kepler elements of all four moons as dependent variables, this is not strictly necessary for the estimation, but purely serves as means of **better post-processing visualization** of the results.
+"""
 
 # Define bodies that are propagated, and their central bodies of propagation
 bodies_to_propagate = ['Io', 'Europa', 'Ganymede', 'Callisto']
@@ -223,14 +224,16 @@ propagator_settings = propagation_setup.propagator. \
                   output_variables=dependent_variables_to_save)
 
 
-# ## Orbital Estimation
-# Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required **link ends** for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
-# 
-# ### Create Link Ends for the Moons
-# Since we will be using the [cartesian_position](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.cartesian_position) type of observable to simulate the ephemeris-states of the moons, we will have to define the link-ends for all four moons to be of the `observed_body` type. Finally, we will also have to create the complete set of link definitions for each moon individually.
+## Orbital Estimation
+"""
+Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required **link ends** for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
 
-# In[5]:
+"""
 
+### Create Link Ends for the Moons
+"""
+Since we will be using the [cartesian_position](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.cartesian_position) type of observable to simulate the ephemeris-states of the moons, we will have to define the link-ends for all four moons to be of the `observed_body` type. Finally, we will also have to create the complete set of link definitions for each moon individually.
+"""
 
 link_ends_io = dict()
 link_ends_io[estimation_setup.observation.observed_body] = estimation_setup.observation.\
@@ -260,11 +263,10 @@ link_definition_dict = {
 }
 
 
-# ### Observation Model Settings
-# As mentioned above, we will 'observe' the state of the moons at every epoch as being perfectly cartesian and handily available to the user. However, note that the `cartesian_position` observable is typically not realized in reality but mainly serves verification or analysis purposes.
-
-# In[6]:
-
+### Observation Model Settings
+"""
+As mentioned above, we will 'observe' the state of the moons at every epoch as being perfectly cartesian and handily available to the user. However, note that the `cartesian_position` observable is typically not realized in reality but mainly serves verification or analysis purposes.
+"""
 
 position_observation_settings = [estimation_setup.observation.cartesian_position(link_definition_io),
                                  estimation_setup.observation.cartesian_position(link_definition_europa),
@@ -272,13 +274,12 @@ position_observation_settings = [estimation_setup.observation.cartesian_position
                                  estimation_setup.observation.cartesian_position(link_definition_callisto)]
 
 
-# ### Observation Simulation Settings
-# To simulate the states of the moons at every given epochs, we will have to define the simulation settings for all moons. For the problem at hand, they will be entirely identical - we have to define the correct `observable_type` that is associated with the `cartesian_position` observable, give the above-realised `link_definition`, and finally define the epochs at which we want to take the states from the respective ephemerides.
-# 
-# Finally, realise that the default setting for the `reference_link_end_type` argument of the [`tabulated_simulation_settings`](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings) function is set to `LinkEndType`.receiver. However, to satisfy the estimators expectation when using the `position_observable_type` the default value has to be overwritten and set to `observed_body`. This might be different on a case-by-case situation and should carefully be evaluated when using different types of observables, since the estimation will crash otherwise.
+### Observation Simulation Settings
+"""
+To simulate the states of the moons at every given epochs, we will have to define the simulation settings for all moons. For the problem at hand, they will be entirely identical - we have to define the correct `observable_type` that is associated with the `cartesian_position` observable, give the above-realised `link_definition`, and finally define the epochs at which we want to take the states from the respective ephemerides.
 
-# In[7]:
-
+Finally, realise that the default setting for the `reference_link_end_type` argument of the [`tabulated_simulation_settings`](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings) function is set to `LinkEndType`.receiver. However, to satisfy the estimators expectation when using the `position_observable_type` the default value has to be overwritten and set to `observed_body`. This might be different on a case-by-case situation and should carefully be evaluated when using different types of observables, since the estimation will crash otherwise.
+"""
 
 # Define epochs at which the ephemerides shall be checked
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 3.0 * 3600)
@@ -293,13 +294,12 @@ for moon in link_definition_dict.keys():
         reference_link_end_type=estimation_setup.observation.observed_body))
 
 
-# ### Simulate Ephemeris' States of Satellites
-# In a nutshell, what we want to do is to check the ephemeris every three hours - as defined just above - and take the associated (cartesian) state of all four moons at that moment as our observable. However, in order to automatically satisfy all requirements in terms of inputs to the estimator, we have to manually create an `observation_simulator` object, since we explicitly do not want to use the (propagating) simulators that get created alongside the estimator.
-# 
-# The way custom-implemented observation simulators are implemented is that they do not propagate any bodies themselves but simulate the observations based on the (tabulated) ephemerides of all involved bodies. To this end, while setting up the environment we have already set the NOE-5 ephemeris as tabulated ephemerides for all Galilean moons. Thanks to this, we can directly create the required observation simulator object and finally simulate the observations according to the above-defined settings.
+### Simulate Ephemeris' States of Satellites
+"""
+In a nutshell, what we want to do is to check the ephemeris every three hours - as defined just above - and take the associated (cartesian) state of all four moons at that moment as our observable. However, in order to automatically satisfy all requirements in terms of inputs to the estimator, we have to manually create an `observation_simulator` object, since we explicitly do not want to use the (propagating) simulators that get created alongside the estimator.
 
-# In[8]:
-
+The way custom-implemented observation simulators are implemented is that they do not propagate any bodies themselves but simulate the observations based on the (tabulated) ephemerides of all involved bodies. To this end, while setting up the environment we have already set the NOE-5 ephemeris as tabulated ephemerides for all Galilean moons. Thanks to this, we can directly create the required observation simulator object and finally simulate the observations according to the above-defined settings.
+"""
 
 # Create observation simulators
 ephemeris_observation_simulators = estimation_setup.create_observation_simulators(
@@ -312,30 +312,25 @@ ephemeris_satellite_states = estimation.simulate_observations(
     bodies)
 
 
-# ### Define Estimable Parameters
-# Given the problem at hand - **minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations by selection of an *optimal initial state***, we will restrict the set of estimable parameters to the moons' initial states.
-
-# In[9]:
-
+### Define Estimable Parameters
+"""
+Given the problem at hand - **minimising the discrepancy between the NOE-5 ephemeris and the states of the moons when propagated under the influence of the above-defined accelerations by selection of an *optimal initial state***, we will restrict the set of estimable parameters to the moons' initial states.
+"""
 
 parameters_to_estimate_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
 parameters_to_estimate = estimation_setup.create_parameter_set(parameters_to_estimate_settings, bodies)
 original_parameter_vector = parameters_to_estimate.parameter_vector
 
 
-# ### Perform the Estimation
-# Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
-
-# In[10]:
-
+### Perform the Estimation
+"""
+Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
+"""
 
 print('Running propagation...')
 with util.redirect_std():
     estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
                                                position_observation_settings, propagator_settings)
-
-
-# In[11]:
 
 
 # Create input object for the estimation
@@ -347,9 +342,6 @@ print('Performing the estimation...')
 print(f'Original initial states: {original_parameter_vector}')
 
 
-# In[12]:
-
-
 with util.redirect_std(redirect_out=False):
     estimation_output = estimator.perform_estimation(estimation_input)
 initial_states_updated = parameters_to_estimate.parameter_vector
@@ -357,15 +349,14 @@ print('Done with the estimation...')
 print(f'Updated initial states: {initial_states_updated}')
 
 
-# ## Post-Processing
-# With the initial states updated, the estimation is finished. In the following, we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution (selected as **"ground truth" solution**).
-# 
-# To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as "ground-truth" solution.
-# 
-# Finally, we will graphically compare the absolute difference of our estimated solution as well as the behaviour of the **Laplace resonance** between the three inner moons - Io, Europa, Ganymede - with the ephemeris-solution.
+## Post-Processing
+"""
+With the initial states updated, the estimation is finished. In the following, we will thus be left with analysing how well the propagation of the improved initial states performs compared to the ephemeris solution (selected as **"ground truth" solution**).
 
-# In[13]:
+To this end, we first have to save both the state and dependent variable history of the estimation's final iteration followed by a loop over all respective epochs in order to save all associated ephemeris-states and Keplerian elements. These will subsequently be used as "ground-truth" solution.
 
+Finally, we will graphically compare the absolute difference of our estimated solution as well as the behaviour of the **Laplace resonance** between the three inner moons - Io, Europa, Ganymede - with the ephemeris-solution.
+"""
 
 ### LOAD DATA ###
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
@@ -428,9 +419,6 @@ ax1.legend();
 
 # Overall, for the inner three moons trapped in resonance (for more details see below) the above results lie within the expected range of achievable accuracy given the rather rudimentary set-up of the environment and especially associated acceleration models. However, what is striking is that the performance of Callisto falls short compared to the other satellites. Thus, hypothetically, to enhance the estimated solution of the orbit of Callisto with respect to the underlying ephemeris, one could opt to estimate its gravity field alongside the initial state, which could lead to significantly improved results. However, this path is left as an adventure to be followed and explored by the reader.
 
-# In[14]:
-
-
 def calculate_mean_longitude(kepler_elements: dict):
     # Calculate dictionary for moon-wise longitudes
     mean_longitude_dict = dict()
@@ -457,9 +445,6 @@ def calculate_mean_longitude(kepler_elements: dict):
         mean_longitude_dict[moon] = mean_longitude_per_moon
 
     return mean_longitude_dict
-
-
-# In[15]:
 
 
 ### LAPLACE STABILITY ###

@@ -279,6 +279,7 @@ ax1.set_ylim([-2.5E11, 2.5E11])
 ax1.set_zlabel('z [m]')
 ax1.set_zlim([-2.5E11, 2.5E11])
 plt.tight_layout()
+plt.show()
 
 
 # ### Plot the hierarchical system evolution in 3D
@@ -335,3 +336,4 @@ for ax, ax_lim in zip(axs, ax_lims):
     
 plt.tight_layout()
 plt.show()
+

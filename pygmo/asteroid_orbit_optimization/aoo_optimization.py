@@ -533,7 +533,7 @@ pop = pg.population(prob, size=population_size, seed=fixed_seed)
 # 
 # In a loop, we thus call `algo.evolve(pop)` 25 times to make the population evolve 25 times. During each generation, we also save the list of fitness and of design variables.
 
-# In[16]:
+# In[29]:
 
 
 # Set the number of evolutions
@@ -553,6 +553,7 @@ for gen in range(number_of_evolutions):
     # Store the fitness values and design variables for all individuals
     fitness_list.append(pop.get_f())
     population_list.append(pop.get_x())
+
     
 print("Evolving population is finished!")
 

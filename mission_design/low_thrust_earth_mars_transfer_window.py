@@ -1,32 +1,32 @@
-#!/usr/bin/env python
-# coding: utf-8
+# Earth-Mars transfer window design using Porkchop Plots
+"""
 
-# # Earth-Mars transfer window design using Porkchop Plots
-# 
-# Copyright (c) 2010-2024, Delft University of Technology
-# All rigths reserved
-# This file is part of the Tudat. Redistribution and use in source and 
-# binary forms, with or without modification, are permitted exclusively
-# under the terms of the Modified BSD license. You should have received
-# a copy of the license with this file. If not, please or visit:
-# http://tudat.tudelft.nl/LICENSE.
+Copyright (c) 2010-2024, Delft University of Technology
+All rigths reserved
+This file is part of the Tudat. Redistribution and use in source and 
+binary forms, with or without modification, are permitted exclusively
+under the terms of the Modified BSD license. You should have received
+a copy of the license with this file. If not, please or visit:
+http://tudat.tudelft.nl/LICENSE.
+"""
 
-# ## Objectives
-# 
-# This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for a **low-thrust** Earth-Mars transfer mission.
-# By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
-# Users can provide a custom function to calculate the $\Delta V$ required for any given transfer. This can be done by supplying a `callable` (a function) to the `porkchop` function via the argument
-# 
-#     function_to_calculate_delta_v
-# 
-# In this example, this option will be used to choose (make a preliminary choice, that is) the optimal departure and arrival date of a low-thrust transfer from the Earth to Mars.
+## Objectives
+"""
 
-# ## Import statements
-# 
-# The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
+This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for a **low-thrust** Earth-Mars transfer mission.
+By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
+Users can provide a custom function to calculate the $\Delta V$ required for any given transfer. This can be done by supplying a `callable` (a function) to the `porkchop` function via the argument
 
-# In[1]:
+    function_to_calculate_delta_v
 
+In this example, this option will be used to choose (make a preliminary choice, that is) the optimal departure and arrival date of a low-thrust transfer from the Earth to Mars.
+"""
+
+## Import statements
+"""
+
+The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
+"""
 
 # General imports
 import os
@@ -51,13 +51,12 @@ from tudatpy.numerical_simulation.propagation import create_dependent_variable_d
 from tudatpy.util import result2array
 
 
-# ## Environment setup
-# 
-# The simulation environment is set up here: the standard Spice kernels are loaded, the origin of the global frame is defined, and all necessary bodies are created. 
-# 
+## Environment setup
+"""
 
-# In[2]:
+The simulation environment is set up here: the standard Spice kernels are loaded, the origin of the global frame is defined, and all necessary bodies are created. 
 
+"""
 
 # Load spice kernels
 spice.load_standard_kernels( )
@@ -93,18 +92,17 @@ environment_setup.add_engine_model(
     'Vehicle', 'LowThrustEngine', thrust_magnitude_settings, bodies )
 
 
-# ## Shape-based low-thrust trajectory optimization
-# 
-# Define the necessary parameters of the low-thrust trajectory:
-# 
-# - Number of revolutions around the Sun
-# - Free parameters for radial shaping functions
-# - Free parameters for normal shaping functions
-# - Free parameters for axial shaping functions
-# 
+## Shape-based low-thrust trajectory optimization
+"""
 
-# In[3]:
+Define the necessary parameters of the low-thrust trajectory:
 
+- Number of revolutions around the Sun
+- Free parameters for radial shaping functions
+- Free parameters for normal shaping functions
+- Free parameters for axial shaping functions
+
+"""
 
 number_of_revolutions = 2
 
@@ -122,13 +120,12 @@ axial_velocity_shaping_free_coefficients = [
 ]
 
 
-# ### Velocity shaping functions
-# 
-# Define a factory function to obtain the radial velocity shaping functions
-# 
+### Velocity shaping functions
+"""
 
-# In[4]:
+Define a factory function to obtain the radial velocity shaping functions
 
+"""
 
 def get_radial_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
@@ -176,9 +173,6 @@ def get_radial_velocity_shaping_functions(trajectory_parameters: list,
 
 # Define a factory function to obtain the normal velocity shaping functions
 
-# In[5]:
-
-
 def get_normal_velocity_shaping_functions(trajectory_parameters: list,
                                           frequency: float,
                                           scale_factor: float,
@@ -224,9 +218,6 @@ def get_normal_velocity_shaping_functions(trajectory_parameters: list,
 
 
 # Define a factory function to obtain the axial velocity shaping functions
-
-# In[6]:
-
 
 def get_axial_velocity_shaping_functions(trajectory_parameters: list,
                                          frequency: float,
@@ -275,12 +266,11 @@ def get_axial_velocity_shaping_functions(trajectory_parameters: list,
             free_coefficients)
 
 
-# ### Low-thrust Trajectory Optimization solution
-# 
-# Define a function to obtain the LTTO solution
+### Low-thrust Trajectory Optimization solution
+"""
 
-# In[7]:
-
+Define a function to obtain the LTTO solution
+"""
 
 def create_hodographic_trajectory(
         trajectory_parameters: list,
@@ -371,9 +361,6 @@ def create_hodographic_trajectory(
 
 # Create function to obtain transfer $\Delta V$
 
-# In[8]:
-
-
 def hodographic_low_thrust_trajectory_delta_v(
         bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
         departure_body: str,
@@ -436,12 +423,11 @@ def hodographic_low_thrust_trajectory_delta_v(
     return ΔV
 
 
-# ## Porkchop Plots
-# 
-# The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+## Porkchop Plots
+"""
 
-# In[9]:
-
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+"""
 
 departure_body = 'Earth'
 target_body = 'Mars'
@@ -455,9 +441,6 @@ latest_arrival_time     = DateTime(2021,  9,   1)
 
 # To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
 
-# In[10]:
-
-
 time_window_percentage = 0.5
 time_resolution = time_resolution = min(
         latest_departure_time.epoch() - earliest_departure_time.epoch(),
@@ -466,9 +449,6 @@ time_resolution = time_resolution = min(
 
 
 # Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
-
-# In[11]:
-
 
 # File
 data_file = 'porkchop.pkl'
@@ -485,9 +465,6 @@ print()
 # - The optimal departure-arrival date combination
 # - The constant time-of-flight isochrones
 # - And more
-
-# In[12]:
-
 
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     # Regenerate plot
@@ -523,17 +500,16 @@ else:
     )
 
 
-# ### Variations
-# 
-# The Tudat `porkchop` module allows us to
-# 
-# - Save the $\Delta V$ porkchop returned by `porkchop` and plot it again without recalculating with the `plot_porkchop` function
-# - Plot $\Delta V$ (default) or C3 (specific energy), as well as choose whether to plot departure and arrival $\Delta V$ together as the total $\Delta V$ required for the transfer (default), or separately (in those cases in which the manoeuvre is performed in two burns, one at departure and one at arrival to the target planet).
-# 
-# Let's make use of `plot_porkchop` to see all four combinations!
+### Variations
+"""
 
-# In[13]:
+The Tudat `porkchop` module allows us to
 
+- Save the $\Delta V$ porkchop returned by `porkchop` and plot it again without recalculating with the `plot_porkchop` function
+- Plot $\Delta V$ (default) or C3 (specific energy), as well as choose whether to plot departure and arrival $\Delta V$ together as the total $\Delta V$ required for the transfer (default), or separately (in those cases in which the manoeuvre is performed in two burns, one at departure and one at arrival to the target planet).
+
+Let's make use of `plot_porkchop` to see all four combinations!
+"""
 
 cases = [
     {'C3': False, 'total': True,  'threshold': 80,   'filename': 'figures/Δ_tot.png'},
@@ -552,24 +528,25 @@ for case in cases:
     )
 
 
-# # Verification
-# 
-# Interestingly, discontinuities appear in the $\Delta V$/$C_3$ porkchop. To ensure that the porkchop can be trusted -that it is possible to choose a transfer window based on our porkchop-, we will proceed to investigate two transfers:
-# 
-# - The (approximately) minimum $\Delta V$ transfer: `2016-11-16`-`2020-6-11`
-# - A high $\Delta V$ transfer in the dark red region of the porkchop: `2016-10-22`-`2021-01-21`
+# Verification
+"""
 
-# ## Trajectory visualization
-# 
-# Provided with a transfer window, the following function will obtain the shape-based low thrust trajectory from the Earth to Mars, numerically propagate a trajectory using a low-thrust thrust model for our spacecraft, and plot the: 
-# 
-# - Cartesian coordinates of the spacecraft, as a function of time, both for the analytical and integrated trajectory
-# - The Cartesian coordinates as a function of time of the Earth and Mars
-# - The thrust acceleration on the spacecraft as a function of time
-# - And a 3D plot showing the complete manoeuvre
+Interestingly, discontinuities appear in the $\Delta V$/$C_3$ porkchop. To ensure that the porkchop can be trusted -that it is possible to choose a transfer window based on our porkchop-, we will proceed to investigate two transfers:
 
-# In[14]:
+- The (approximately) minimum $\Delta V$ transfer: `2016-11-16`-`2020-6-11`
+- A high $\Delta V$ transfer in the dark red region of the porkchop: `2016-10-22`-`2021-01-21`
+"""
 
+## Trajectory visualization
+"""
+
+Provided with a transfer window, the following function will obtain the shape-based low thrust trajectory from the Earth to Mars, numerically propagate a trajectory using a low-thrust thrust model for our spacecraft, and plot the: 
+
+- Cartesian coordinates of the spacecraft, as a function of time, both for the analytical and integrated trajectory
+- The Cartesian coordinates as a function of time of the Earth and Mars
+- The thrust acceleration on the spacecraft as a function of time
+- And a 3D plot showing the complete manoeuvre
+"""
 
 def inspect_low_thrust_trajectory(
         departure_date: DateTime,
@@ -900,19 +877,18 @@ def inspect_low_thrust_trajectory(
     plt.show()
 
 
-# ## Observations and conclusions
-# 
-# Notice that there is a change in the number of revolutions around the Sun between the two transfers: the low $\Delta V$ transfer has close to 3 revolutions around the Sun, while the high $\Delta V$ transfer greatly "stretches" its second revolution around the Sun to reach Mars. This is expected as the chosen number of revolutions (2) allows trajectories with between 2 and 3 revolutions around the Sun: thus, a discontinuity appears as trajectories approach 3 revolutions, and are from that point on forced to use 2; this is the case for the high $\Delta V$ trajectory.
-# The thrust acceleration of the high $\Delta V$ trajectory is 2 orders of magnitude higher than that for the low $\Delta V$ trajectory. This is expected as the orbit of the spacecraft in the high $\Delta V$ trajectory is distorted considerably more than in the low $\Delta V$ case.
-# 
-# The discontinuities observed in the $\Delta V$ porkchops are explained by a discontinuous change in the number of revolutions required for the low-thrust transfer. The porkchops generated are thus reasonable, and can be used to identify a preliminary transfer window for our low-thrust spacecraft, as well as obtain a preliminary estimate of the $\Delta V$ required for the mission.
-# Next steps in mission design should be the optimization of the shaping function parameters (`radial_velocity_shaping_free_coefficients`, `normal_velocity_shaping_free_coefficients` and `axial_velocity_shaping_free_coefficients`) and number of revolutions around the Sun, which were fixed in this example, analyzing disturbing perturbations along the trajectory, analyzing the impact of navigation uncertainties on the trajectory, et cétera.
-# 
+## Observations and conclusions
+"""
+
+Notice that there is a change in the number of revolutions around the Sun between the two transfers: the low $\Delta V$ transfer has close to 3 revolutions around the Sun, while the high $\Delta V$ transfer greatly "stretches" its second revolution around the Sun to reach Mars. This is expected as the chosen number of revolutions (2) allows trajectories with between 2 and 3 revolutions around the Sun: thus, a discontinuity appears as trajectories approach 3 revolutions, and are from that point on forced to use 2; this is the case for the high $\Delta V$ trajectory.
+The thrust acceleration of the high $\Delta V$ trajectory is 2 orders of magnitude higher than that for the low $\Delta V$ trajectory. This is expected as the orbit of the spacecraft in the high $\Delta V$ trajectory is distorted considerably more than in the low $\Delta V$ case.
+
+The discontinuities observed in the $\Delta V$ porkchops are explained by a discontinuous change in the number of revolutions required for the low-thrust transfer. The porkchops generated are thus reasonable, and can be used to identify a preliminary transfer window for our low-thrust spacecraft, as well as obtain a preliminary estimate of the $\Delta V$ required for the mission.
+Next steps in mission design should be the optimization of the shaping function parameters (`radial_velocity_shaping_free_coefficients`, `normal_velocity_shaping_free_coefficients` and `axial_velocity_shaping_free_coefficients`) and number of revolutions around the Sun, which were fixed in this example, analyzing disturbing perturbations along the trajectory, analyzing the impact of navigation uncertainties on the trajectory, et cétera.
+
+"""
 
 # **Low $\Delta V$ trajectory**
-
-# In[15]:
-
 
 inspect_low_thrust_trajectory(
     DateTime(2016,11,16),
@@ -921,9 +897,6 @@ inspect_low_thrust_trajectory(
 
 
 # **High $\Delta V$ trajectory**
-
-# In[16]:
-
 
 inspect_low_thrust_trajectory(
     DateTime(2016,10,22),
