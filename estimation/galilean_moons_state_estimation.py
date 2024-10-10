@@ -517,9 +517,3 @@ ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
 
-
-# In[ ]:
-
-
-
-

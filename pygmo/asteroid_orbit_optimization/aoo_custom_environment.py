@@ -1,36 +1,32 @@
-# Asteroid orbit optimization with PyGMO - Custom Environment
-"""
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+#!/usr/bin/env python
+# coding: utf-8
 
-"""
+# # Asteroid orbit optimization with PyGMO - Custom Environment
+# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+# 
+# ## Objectives
+# The aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with tudatpy. The problem describes the orbit design around a small body; the [Itokawa asteroid](https://en.wikipedia.org/wiki/25143_Itokawa). This example consists of three parts that build on each other to ultimately perform an orbit optimization. The three parts are built up as follows: Custom Environment (this page), [Design Space Exploration](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_design_space_exploration.html), and [Optimization](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_optimization.html).
+# 
+# **This part of the example is focussed on the creation of a custom environment, using manually defined rotation, ephemeris, gravity field, and shape settings**. A PyGMO compatible Problem class is also created for the next parts of the example. Using this problem class, a propagation is conducted to show a possible trajectory orbiting Itokawa.
+# 
+# 
+# ### NOTE
+# 
+# It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
+# correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
+# PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
 
-## Context
-"""
-The aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with tudatpy. The problem describes the orbit design around a small body; the [Itokawa asteroid](https://en.wikipedia.org/wiki/25143_Itokawa). This example consists of three parts that build on each other to ultimately perform an orbit optimization. The three parts are built up as follows: Custom Environment (this page), [Design Space Exploration](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_design_space_exploration.html), and [Optimization](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_optimization.html).
+# ## Import statements
+# The required import statements are made here, at the very beginning.
+# 
+# Some standard modules are first loaded. These are `os`, `numpy` and `matplotlib.pyplot`.
+# 
+# Then, the different modules of `tudatpy` that will be used are imported.
+# 
+# Finally, in this example, we also need to import the `pygmo` library.
 
-**This part of the example is focussed on the creation of a custom environment, using manually defined rotation, ephemeris, gravity field, and shape settings**. A PyGMO compatible Problem class is also created for the next parts of the example. Using this problem class, a propagation is conducted to show a possible trajectory orbiting Itokawa.
+# In[1]:
 
-
-"""
-
-### NOTE
-"""
-
-It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
-correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
-PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
-"""
-
-## Import statements
-"""
-The required import statements are made here, at the very beginning.
-
-Some standard modules are first loaded. These are `os`, `numpy` and `matplotlib.pyplot`.
-
-Then, the different modules of `tudatpy` that will be used are imported.
-
-Finally, in this example, we also need to import the `pygmo` library.
-"""
 
 # Load standard modules
 import os
@@ -58,26 +54,25 @@ import pygmo as pg
 current_dir = os.path.abspath('')
 
 
-## Creation of Custom Environment
-"""
+# ## Creation of Custom Environment
+# 
+# Below a few helper functions are defined that create various custom environment models. These functions are used later in the example to create the simulation
+# 
 
-Below a few helper functions are defined that create various custom environment models. These functions are used later in the example to create the simulation
+# ### Itokawa rotation settings
+# The first helper function that is setup is `get_itokawa_rotation_settings()`. This function can be called to get Itokawa rotation settings, of type [environment_setup.rotation_model.RotationModelSettings](https://tudatpy.readthedocs.io/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.RotationModelSettings), using a constant angular velocity.
+# 
+# This function only take the name of the body frame of Itokawa as an input.
+# In addition, some fixed parameters are defined in this function:
+# 
+# - The orientation of Itokawa pole, as:
+#     - The pole declination of -66.3 deg.
+#     - The pole right ascension 90.53 deg.
+#     - The meridian fixed at 0 deg.
+# - The rotation rate of Itokawa of 712.143 deg/Earth day.
 
-"""
+# In[2]:
 
-### Itokawa rotation settings
-"""
-The first helper function that is setup is `get_itokawa_rotation_settings()`. This function can be called to get Itokawa rotation settings, of type [environment_setup.rotation_model.RotationModelSettings](https://tudatpy.readthedocs.io/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.RotationModelSettings), using a constant angular velocity.
-
-This function only take the name of the body frame of Itokawa as an input.
-In addition, some fixed parameters are defined in this function:
-
-- The orientation of Itokawa pole, as:
-    - The pole declination of -66.3 deg.
-    - The pole right ascension 90.53 deg.
-    - The meridian fixed at 0 deg.
-- The rotation rate of Itokawa of 712.143 deg/Earth day.
-"""
 
 def get_itokawa_rotation_settings(itokawa_body_frame_name):
     # Definition of initial Itokawa orientation conditions through the pole orientation
@@ -109,22 +104,23 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
 
-### Itokawa ephemeris settings
-"""
-The next helper function defined, `get_itokawa_ephemeris_settings()`, that can be used to set the ephemeris of Itokawa.
+# ### Itokawa ephemeris settings
+# The next helper function defined, `get_itokawa_ephemeris_settings()`, that can be used to set the ephemeris of Itokawa.
+# 
+# The ephemeris for Itokawa are set using a Keplerian orbit around the Sun. To do this, the initial position at a certain epoch is needed. This position is defined inside the function by the following kepler elements:
+# 
+# - Semi-major axis of $\approx$ 1.324 Astronomical Units ($\approx$ 1.98E+8 km).
+# - Eccentricity of $\approx$ 0.28.
+# - Inclination of $\approx$ 1.62 deg.
+# - Inclination of $\approx$ 1.62 deg.
+# - Argument of periapsis of $\approx$ 162.8 deg.
+# - Longitude of ascending node of $\approx$ 69.1 deg.
+# - Mean anomaly of $\approx$ 187.6 deg.
+# 
+# The only input that this function takes is the gravitational parameter of the Sun, which can be obtained using `spice.get_body_gravitational_parameter("Sun")`.
 
-The ephemeris for Itokawa are set using a Keplerian orbit around the Sun. To do this, the initial position at a certain epoch is needed. This position is defined inside the function by the following kepler elements:
+# In[3]:
 
-- Semi-major axis of $\approx$ 1.324 Astronomical Units ($\approx$ 1.98E+8 km).
-- Eccentricity of $\approx$ 0.28.
-- Inclination of $\approx$ 1.62 deg.
-- Inclination of $\approx$ 1.62 deg.
-- Argument of periapsis of $\approx$ 162.8 deg.
-- Longitude of ascending node of $\approx$ 69.1 deg.
-- Mean anomaly of $\approx$ 187.6 deg.
-
-The only input that this function takes is the gravitational parameter of the Sun, which can be obtained using `spice.get_body_gravitational_parameter("Sun")`.
-"""
 
 def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
     # Define Itokawa initial Kepler elements
@@ -157,12 +153,13 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         "ECLIPJ2000")
 
 
-### Itokawa gravity field settings
-"""
-The `get_itokawa_gravity_field_settings()` helper function can be used to get the gravity field settings of Itokawa.
+# ### Itokawa gravity field settings
+# The `get_itokawa_gravity_field_settings()` helper function can be used to get the gravity field settings of Itokawa.
+# 
+# It creates a Spherical Harmonics gravity field model expanded up to order 4 and degree 4. Normalized coefficients are hardcoded (see `normalized_cosine_coefficients` and `normalized_sine_coefficients`), as well as the gravitational parameter (2.36). The reference radius and the Itokawa body fixed frame are to be given as inputs to this function.
 
-It creates a Spherical Harmonics gravity field model expanded up to order 4 and degree 4. Normalized coefficients are hardcoded (see `normalized_cosine_coefficients` and `normalized_sine_coefficients`), as well as the gravitational parameter (2.36). The reference radius and the Itokawa body fixed frame are to be given as inputs to this function.
-"""
+# In[4]:
+
 
 def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius):
     itokawa_gravitational_parameter = 2.36
@@ -186,22 +183,24 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
         associated_reference_frame=itokawa_body_fixed_frame)
 
 
-### Itokawa shape settings
-"""
-The next helper function defined, `get_itokawa_shape_settings()` return the shape settings object for Itokawa. It uses a simple spherical model, and take the radius of Itokawa as input.
-"""
+# ### Itokawa shape settings
+# The next helper function defined, `get_itokawa_shape_settings()` return the shape settings object for Itokawa. It uses a simple spherical model, and take the radius of Itokawa as input.
+
+# In[5]:
+
 
 def get_itokawa_shape_settings(itokawa_radius):
     # Creates spherical shape settings
     return environment_setup.shape.spherical(itokawa_radius)
 
 
-### Simulation bodies
-"""
-Next, the `create_simulation_bodies()` function is setup, that returns an [environment.SystemOfBodies](https://tudatpy.readthedocs.io/en/latest/environment.html#tudatpy.numerical_simulation.environment.SystemOfBodies) object. This object contains all the body settings and body objects required by the simulation. Only one input is required to this function: the radius of Itokawa.
+# ### Simulation bodies
+# Next, the `create_simulation_bodies()` function is setup, that returns an [environment.SystemOfBodies](https://tudatpy.readthedocs.io/en/latest/environment.html#tudatpy.numerical_simulation.environment.SystemOfBodies) object. This object contains all the body settings and body objects required by the simulation. Only one input is required to this function: the radius of Itokawa.
+# 
+# Moreover, in the system of bodies that is returned, a `Spacecraft` body is included, with a mass of 400kg, and a radiation pressure interface. This body is the one for which an orbit is to be optimised around Itokawa.
 
-Moreover, in the system of bodies that is returned, a `Spacecraft` body is included, with a mass of 400kg, and a radiation pressure interface. This body is the one for which an orbit is to be optimised around Itokawa.
-"""
+# In[6]:
+
 
 def create_simulation_bodies(itokawa_radius):
     ### CELESTIAL BODIES ###
@@ -256,16 +255,17 @@ def create_simulation_bodies(itokawa_radius):
     return bodies
 
 
-### Acceleration models
-"""
-The `get_acceleration_models()` helper function returns the acceleration models to be used during the astrodynamic simulation. The following accelerations are included:
+# ### Acceleration models
+# The `get_acceleration_models()` helper function returns the acceleration models to be used during the astrodynamic simulation. The following accelerations are included:
+# 
+# - Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
+# - Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
+# - Radiation pressure from the Sun using a simplified cannonball model.
+# 
+# This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
 
-- Gravitational acceleration modelled as a Point Mass from the Sun, Jupiter, Saturn, Mars, and the Earth.
-- Gravitational acceleration modelled as Spherical Harmonics up to degree and order 4 from Itokawa.
-- Radiation pressure from the Sun using a simplified cannonball model.
+# In[7]:
 
-This function takes as input the list of bodies that will be propagated, the list of central bodies related to the propagated bodies, and the system of bodies used.
-"""
 
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
     # Define accelerations acting on Spacecraft
@@ -290,14 +290,15 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
         central_bodies)
 
 
-### Termination settings
-"""
-The termination settings for the simulation are defined by the `get_termination_settings()` helper.
+# ### Termination settings
+# The termination settings for the simulation are defined by the `get_termination_settings()` helper.
+# 
+# Nominally, the simulation terminates when a final epoch is reached. However, this can happen in advance if the
+# spacecraft breaks out of the predefined altitude range.
+# This is defined by the four inputs that this helper function takes, related to the mission timing and the mission altitude range.
 
-Nominally, the simulation terminates when a final epoch is reached. However, this can happen in advance if the
-spacecraft breaks out of the predefined altitude range.
-This is defined by the four inputs that this helper function takes, related to the mission timing and the mission altitude range.
-"""
+# In[8]:
+
 
 def get_termination_settings(mission_initial_time, 
                              mission_duration,
@@ -332,10 +333,11 @@ def get_termination_settings(mission_initial_time,
                                                            fulfill_single_condition=True)
 
 
-### Dependent variables to save
-"""
-Finally, the `get_dependent_variables_to_save()` helper function returns a pre-defined list of dependent variables to save during the propagation, alongside the propagated state. This function can be expanded, but contains by default only the position of the spacecraft with respect to the Itokawa asteroid expressed in spherical coordinates.
-"""
+# ### Dependent variables to save
+# Finally, the `get_dependent_variables_to_save()` helper function returns a pre-defined list of dependent variables to save during the propagation, alongside the propagated state. This function can be expanded, but contains by default only the position of the spacecraft with respect to the Itokawa asteroid expressed in spherical coordinates.
+
+# In[9]:
+
 
 def get_dependent_variables_to_save():
     dependent_variables_to_save = [
@@ -346,20 +348,21 @@ def get_dependent_variables_to_save():
     return dependent_variables_to_save
 
 
-## Optimisation problem formulation 
-"""
-The optimisation problem can now be defined. This has to be done in a class that is compatible to what the PyGMO library can expect from this User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/problem.html#pygmo.problem) from the PyGMO documentation as a reference. In this example, this class is called `AsteroidOrbitProblem`.
+# ## Optimisation problem formulation 
+# The optimisation problem can now be defined. This has to be done in a class that is compatible to what the PyGMO library can expect from this User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/problem.html#pygmo.problem) from the PyGMO documentation as a reference. In this example, this class is called `AsteroidOrbitProblem`.
+# 
+# The `AsteroidOrbitProblem.__init__()` method is used to setup the problem. Most importantly, many problem-related objects are saved through it: the system of bodies, the propagator settings, the parameters that will later be used for the termination settings, and the design variables boundaries. The input arguments that refer to functions are defined using a lambda function. While this seems unnecessary, it is **essential**: PyGMO internally pickles its user defined objects and some objects including the ones here cannot be pickled properly without using lambda functions.
+# 
+# Then, the `AsteroidOrbitProblem.get_bounds()` function is used by PyGMO to define the search space. This function returns the boundaries of each design variable, as defined in the [pygmo.problem.get_bounds](https://esa.github.io/pygmo2/problem.html#pygmo.problem.get_bounds) documentation.
+# 
+# The `AsteroidOrbitProblem.get_nobj()` function is also used by PyGMO. It returns the number of objectives in the problem, in this case 2.
+# 
+# The last function used by PyGMO is `AsteroidOrbitProblem.fitness()`. As mentioned in the [pygmo.problem.fitness](https://esa.github.io/pygmo2/problem.html#pygmo.problem.fitness) documentation, PyGMO will input a given set of design variable to this function, that is expected to return a score associated with them. This is thus the cost function of the problem. In this case, this `AsteroidOrbitProblem.fitness()` runs a simulation using TudatPy based on the orbital elements that PyGMO inputs as design variables. Then, the score relative to the two optimisation objectives is computed and returned. Note that, in PyGMO, this fitness function will always be **minimised**. To **maximise** objectives instead, the fitness that is returned will have to be for instance inversed. This is why, because we want to maximise the coverage, the fitness for this objective is computed as the inverse of the mean latitudes. If the mean of the latitudes is high, the coverage is high, which is closer to the optimum. Because this better value is higher than worse values, we return the fitness as the inverse of the mean latitudes.
+# 
+# One more function is included, `AsteroidOrbitProblem.get_last_run_dynamics_simulator()`. This allows to get the dynamic simulator of the last simulation that was run in the problem.
 
-The `AsteroidOrbitProblem.__init__()` method is used to setup the problem. Most importantly, many problem-related objects are saved through it: the system of bodies, the propagator settings, the parameters that will later be used for the termination settings, and the design variables boundaries. The input arguments that refer to functions are defined using a lambda function. While this seems unnecessary, it is **essential**: PyGMO internally pickles its user defined objects and some objects including the ones here cannot be pickled properly without using lambda functions.
+# In[10]:
 
-Then, the `AsteroidOrbitProblem.get_bounds()` function is used by PyGMO to define the search space. This function returns the boundaries of each design variable, as defined in the [pygmo.problem.get_bounds](https://esa.github.io/pygmo2/problem.html#pygmo.problem.get_bounds) documentation.
-
-The `AsteroidOrbitProblem.get_nobj()` function is also used by PyGMO. It returns the number of objectives in the problem, in this case 2.
-
-The last function used by PyGMO is `AsteroidOrbitProblem.fitness()`. As mentioned in the [pygmo.problem.fitness](https://esa.github.io/pygmo2/problem.html#pygmo.problem.fitness) documentation, PyGMO will input a given set of design variable to this function, that is expected to return a score associated with them. This is thus the cost function of the problem. In this case, this `AsteroidOrbitProblem.fitness()` runs a simulation using TudatPy based on the orbital elements that PyGMO inputs as design variables. Then, the score relative to the two optimisation objectives is computed and returned. Note that, in PyGMO, this fitness function will always be **minimised**. To **maximise** objectives instead, the fitness that is returned will have to be for instance inversed. This is why, because we want to maximise the coverage, the fitness for this objective is computed as the inverse of the mean latitudes. If the mean of the latitudes is high, the coverage is high, which is closer to the optimum. Because this better value is higher than worse values, we return the fitness as the inverse of the mean latitudes.
-
-One more function is included, `AsteroidOrbitProblem.get_last_run_dynamics_simulator()`. This allows to get the dynamic simulator of the last simulation that was run in the problem.
-"""
 
 class AsteroidOrbitProblem:
     
@@ -447,31 +450,30 @@ class AsteroidOrbitProblem:
         return self.dynamics_simulator_function()
 
 
-### Setup orbital simulation
-"""
-Before running the optimisation, some aspect of the orbital simulation around Itokawa still need to be setup.
-Most importantly, the simulation bodies, acceleration models, integrator settings, and propagator settings, all have to be defined. To do so, the helpers that were defined above are used.
-"""
+# ### Setup orbital simulation
+# Before running the optimisation, some aspect of the orbital simulation around Itokawa still need to be setup.
+# Most importantly, the simulation bodies, acceleration models, integrator settings, and propagator settings, all have to be defined. To do so, the helpers that were defined above are used.
 
-#### Simulation settings
-"""
-The simulation settings are first defined.
+# #### Simulation settings
+# The simulation settings are first defined.
+# 
+# The SPICE kernels are loaded, so that we can access the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
+# 
+# The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
+# 
+# Follows the definition of the design variable range, that PyGMO will use during the optimisation. This range is as follows:
+# 
+# - Initial semi-major axis between 300 and 2000 meters.
+# - Initial eccentricity between 0 and 0.3.
+# - Initial inclination between 0 and 180 deg.
+# - Initial longitude of the ascending node between 0 and 360 deg.
+#  
+# The system of bodies is then setup using the `create_simulation_bodies()` helper, and a radius for Itokawa of 161.915 meters.
+# 
+# Finally, the acceleration models are setup using the `get_acceleration_models()` helper.
 
-The SPICE kernels are loaded, so that we can access the gravitational parameter of the Sun in the `create_simulation_bodies()` function.
+# In[11]:
 
-The definition of the termination parameters follows, with a maximum mission duration of 5 Earth days. The altitude range above Itokawa is also defined between 150 meters and 5 km.
-
-Follows the definition of the design variable range, that PyGMO will use during the optimisation. This range is as follows:
-
-- Initial semi-major axis between 300 and 2000 meters.
-- Initial eccentricity between 0 and 0.3.
-- Initial inclination between 0 and 180 deg.
-- Initial longitude of the ascending node between 0 and 360 deg.
- 
-The system of bodies is then setup using the `create_simulation_bodies()` helper, and a radius for Itokawa of 161.915 meters.
-
-Finally, the acceleration models are setup using the `get_acceleration_models()` helper.
-"""
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -502,12 +504,13 @@ central_bodies = ["Itokawa"]
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
 
-#### Dependent variables, termination settings, and orbit parameters
-"""
-To define the propagator settings in the subsequent sections, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the dependent variables and termination settings.
+# #### Dependent variables, termination settings, and orbit parameters
+# To define the propagator settings in the subsequent sections, we first call the `get_dependent_variables_to_save()` and `get_termination_settings()` helpers to define the dependent variables and termination settings.
+# 
+# The `orbit_parameters` list is defined from a `final_population.dat` file from the optimization. These values are not crucial, but do help for a 'relatively' stable orbit.
 
-The `orbit_parameters` list is defined from a `final_population.dat` file from the optimization. These values are not crucial, but do help for a 'relatively' stable orbit.
-"""
+# In[12]:
+
 
 # Define list of dependent variables to save
 dependent_variables_to_save = get_dependent_variables_to_save()
@@ -519,17 +522,18 @@ termination_settings = get_termination_settings(
 orbit_parameters = [1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02]
 
 
-#### Integrator and Propagator settings
-"""
-Let's now define the integrator settings. In this case, a variable step integration scheme is used, with the followings:
+# #### Integrator and Propagator settings
+# Let's now define the integrator settings. In this case, a variable step integration scheme is used, with the followings:
+# 
+# - RKF7(8) coefficient set.
+# - Initial time step of 1 sec.
+# - Minimum and maximum time steps of 1E-6 sec and 1 Earth day.
+# - Relative and absolute error tolerances of 1E-8.
+# 
+# Then, we define pure translational propagation settings with a Cowell propagator. The initial state is set to 0 for both the position and the velocity. This is because the initial state will later be changed in the `AsteroidOrbitProblem.fitness()` function during the optimisation.
 
-- RKF7(8) coefficient set.
-- Initial time step of 1 sec.
-- Minimum and maximum time steps of 1E-6 sec and 1 Earth day.
-- Relative and absolute error tolerances of 1E-8.
+# In[13]:
 
-Then, we define pure translational propagation settings with a Cowell propagator. The initial state is set to 0 for both the position and the velocity. This is because the initial state will later be changed in the `AsteroidOrbitProblem.fitness()` function during the optimisation.
-"""
 
 # Create numerical integrator settings
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
@@ -555,18 +559,19 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          dependent_variables_to_save)
 
 
-## Propagating Orbit
-"""
+# ## Propagating Orbit
+# 
+# To finalise this part of the example, a simple orbit is propagated to show the plausibility of the simulation. The PyGMO compatible problem class is created, after which the fitness function is called which creates the dynamics simulator and subsequently returns the data that can be used for post-processing.
+# 
+# The 4 design variables are:
+# 
+# - initial values of the semi-major axis.
+# - initial eccentricity.
+# - initial inclination.
+# - initial longitude of the ascending node.
 
-To finalise this part of the example, a simple orbit is propagated to show the plausibility of the simulation. The PyGMO compatible problem class is created, after which the fitness function is called which creates the dynamics simulator and subsequently returns the data that can be used for post-processing.
+# In[14]:
 
-The 4 design variables are:
-
-- initial values of the semi-major axis.
-- initial eccentricity.
-- initial inclination.
-- initial longitude of the ascending node.
-"""
 
 orbitProblem = AsteroidOrbitProblem(bodies,
                                     propagator_settings,
@@ -578,10 +583,11 @@ design_variable_vector = np.array([1.20940330e+03, 2.61526215e-01, 7.53126558e+0
 orbitProblem.fitness(design_variable_vector)
 
 
-### Visualizing orbit
-"""
-With a little bit of post-processing, the orbit can be plotted. You can see that with only 2 full orbits that the trajectory is already very perturbed. This has to do with all the perturbations that are in the model, which poses a challenge for the optimization in the next two parts of the example.
-"""
+# ### Visualizing orbit
+# With a little bit of post-processing, the orbit can be plotted. You can see that with only 2 full orbits that the trajectory is already very perturbed. This has to do with all the perturbations that are in the model, which poses a challenge for the optimization in the next two parts of the example.
+
+# In[15]:
+
 
 state_history = orbitProblem.get_last_run_dynamics_simulator().propagation_results.state_history
 state_history = np.vstack(list(state_history.values()))
@@ -604,4 +610,5 @@ ax.set_xlim([-1000,1000])
 ax.set_ylim([-1000,1000])
 ax.set_zlim([-1000,1000])
 ax.grid()
+plt.show()
 

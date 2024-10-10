@@ -4,22 +4,22 @@
 # # Covariance Analysis with DELFI-C3
 # ## Objectives
 # This example will guide you through the set-up of an orbit estimation routine, which usually comprises the **estimation of the covariance**, as well as the **estimation of the initial parameters**. In this example we will **focus on the former**, and you'll learn:
-#
+# 
 # * how to **set up the estimation** of a covariance matrix;
 # * how to **plot the correlation coefficients**;
 # * how to **plot the uncertainty ellipsoids**.
-#
+# 
 # For the **full estimation** of some selected parameteres, such as initial state, drag coefficient, and radiation pressure coefficient of a spacecraft, see [DELFI-C3 - Parameter Estimation Example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
-#
+# 
 # To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of instantaneous unbiased one-way Doppler range-rate measurements with uncertainty of 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
-#
+# 
 # The first part of this example deals with the setup of all relevant (environment, propagation, and estimation) modules, so feel free to skip these steps if you're already familiar with them!
 
 # ## Import statements
 # Typically - in the most pythonic way - all required modules are imported at the very beginning.
-#
+# 
 # Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`.
-#
+# 
 # Then, the different modules of `tudatpy` that will be used are imported. Most notably, the `estimation`, `estimation_setup`, and `observations` modules will be used and demonstrated within this example.
 
 # In[1]:
@@ -44,11 +44,11 @@ from tudatpy.astro import element_conversion
 
 # ## Configuration
 # First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodies such as the Earth, the Sun, or the Moon known to `tudatpy`.
-#
+# 
 # Subsequently, the start and end epoch of the simulation and observations are defined.* Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of four days.
-#
+# 
 # For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
-#
+# 
 # *Please note that it is always a good practice to separate the observation start and end epochs from the simulated ones. This way, we ensure that the times at which the observations are simulated all fall within the simulation timespan, especially given the geometry of the problem and the time difference at the two link ends (receiver and transmitter are separated by a certain distance). For this reason, we will set the first observation start epoch at one day after the simulation start epoch, and the observation end epoch at one day before the end of the simulation.
 
 # In[2]:
@@ -67,13 +67,11 @@ observation_end_epoch   = DateTime(2000, 1, 4).epoch()
 
 # ## Set up the environment
 # We will now create and define the settings for the environment of our simulation. In particular, this covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-#
+# 
 # ### Create the main bodies
 # To create the systems of bodies for the simulation, one first has to define a list of strings of all bodies that are to be included. Note that the default body settings (such as atmosphere, body shape, rotation model) are taken from the `SPICE` kernel.
-#
+# 
 # These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-#
-# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
 # In[3]:
 
@@ -94,10 +92,9 @@ body_settings = environment_setup.get_default_body_settings(
 # In[4]:
 
 
-# Create empty body settings for the satellite
+# Create vehicle objects.
 body_settings.add_empty_settings("Delfi-C3")
-
-body_settings.get("Delfi-C3").constant_mass = 2.2
+body_settings.get("Delfi-C3").constant_mass = 2.2 #kg
 
 # Create aerodynamic coefficient interface settings
 reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -105,23 +102,19 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
-
-# Add the aerodynamic interface to the body settings
+# Add the aerodynamic interface to the environment
 body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
 reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies_dict = dict()
-occulting_bodies_dict["Sun"] = ["Earth"]
-vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
-    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
+occulting_bodies = dict()
+occulting_bodies["Sun"] = ["Earth"]
+radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
 
-# Add the radiation pressure interface to the body settings
-body_settings.get("Delfi-C3").radiation_pressure_target_settings = vehicle_target_settings
-
-
-# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
+# Add the radiation pressure interface to the environment
+body_settings.get("Delfi-C3").radiation_pressure_target_settings = radiation_pressure_settings
 
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -139,19 +132,21 @@ bodies_to_propagate = ["Delfi-C3"]
 # Define central bodies of propagation
 central_bodies = ["Earth"]
 
-### Create the acceleration model
-"""
-Subsequently, all accelerations (and there settings) that act on `Delfi-C3` have to be defined. In particular, we will consider:
 
-* Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
-* Aerodynamic acceleration for Earth.
-* Gravitational acceleration using a simple point mass model for:
-
-    - The Sun
-    - The Moon
-    - Mars
-
-* Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
+# ### Create the acceleration model
+# Subsequently, all accelerations (and there settings) that act on `Delfi-C3` have to be defined. In particular, we will consider:
+# 
+# * Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
+# * Aerodynamic acceleration for Earth.
+# * Gravitational acceleration using a simple point mass model for:
+# 
+#     - The Sun
+#     - The Moon
+#     - Mars
+# 
+# * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
+# 
+# The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
 
 # In[6]:
 
@@ -594,10 +589,4 @@ diagonal_ax.legend(loc = 'upper right')
 
 plt.legend()
 plt.show()
-
-
-# In[ ]:
-
-
-
 
