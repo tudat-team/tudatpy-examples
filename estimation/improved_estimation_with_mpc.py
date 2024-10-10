@@ -1,18 +1,19 @@
-# Improved state estimation with MPC
-"""
-Copyright (c) 2010-2024, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
+#!/usr/bin/env python
+# coding: utf-8
 
-"""
+# # Improved state estimation with MPC
+# Copyright (c) 2010-2024, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
+# 
+# ## Objectives
+# This example extends the previous [Initial state estimation with Minor Planet Center Observations](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation. 
+# 
+# As in the previous example we will estimate the initial state of [433 Eros](https://en.wikipedia.org/wiki/433_Eros). In addition to observation data from MPC and metadata from SBDB, we now also use ephemeris data from JPL Horizons to retrieve position data for observing space telescopes, additional perturbing bodies and as a method of comparison. This is accomplished using Tudat's HorizonsQuery Interface.
 
-## Objectives
-"""
-This example extends the previous [Initial state estimation with Minor Planet Center Observations](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation. 
+# ## Import statements
 
-As in the previous example we will estimate the initial state of [433 Eros](https://en.wikipedia.org/wiki/433_Eros). In addition to observation data from MPC and metadata from SBDB, we now also use ephemeris data from JPL Horizons to retrieve position data for observing space telescopes, additional perturbing bodies and as a method of comparison. This is accomplished using Tudat's HorizonsQuery Interface.
-"""
+# In[1]:
 
-## Import statements
-"""
+
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
@@ -22,7 +23,6 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
-"""
 
 # import MPC, SBDB and Horizons interface
 from tudatpy.data.mpc import BatchMPC
@@ -43,22 +43,21 @@ import matplotlib.cm as cm
 spice.load_standard_kernels()
 
 
-## Preparing the environment and observations
-"""
-"""
+# ## Preparing the environment and observations
 
-### Setting the input constants
-"""
-Let's setup some constants that are used throughout the tutorial. The MPC code for Eros is 433. We also set a start and end date for our observations, the number of iterations for our estimation, a timestep for our integrator and a 1 month buffer to avoid interpolation errors in our analysis.
-
-We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
-
-For our frame origin we use the Solar System Barycentre. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
-
-For this extended example, a longer observation period of 9 years is used.
-"""
+# ### Setting the input constants
+# Let's setup some constants that are used throughout the tutorial. The MPC code for Eros is 433. We also set a start and end date for our observations, the number of iterations for our estimation, a timestep for our integrator and a 1 month buffer to avoid interpolation errors in our analysis.
+# 
+# We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
+# 
+# For our frame origin we use the Solar System Barycentre. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
+# 
+# For this extended example, a longer observation period of 9 years is used.
 
 # Direct inputs:
+
+# In[2]:
+
 
 target_mpc_code = "433"
 
@@ -81,6 +80,9 @@ global_frame_orientation = "J2000"
 
 # Derived inputs:
 
+# In[3]:
+
+
 target_sbdb = SBDBquery(target_mpc_code)
 
 mpc_codes = [target_mpc_code]  # the BatchMPC interface requires a list.
@@ -90,21 +92,22 @@ target_name = target_sbdb.shortname  # the ID used by the
 print(f"SPK ID for {target_name} is: {target_spkid}")
 
 
-### Combinations and additional body setup
-"""
-There are various ways to change our estimation. We can create a system of setups to compare those various options and to facilitate comparison. Throughout the example, the following options are considered:
-- [`accel_levels`] Different acceleration settings, for this example, 3 options are created in increasing order of realism
-    - LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
-    - LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
-    - LVL 3 - LVL 2 + SHG for the Earth and point-mass gravity for Triton, Titania, Pluto, the mayor Near Earth Asteroids (NEA) and largest Main Body Asteroids (MBA). These additional bodies are retrieved through the JPL Horizons interface.
-- [`use_sat_data`] Observations by space telescope WISE
-- [`use_catalog_cor`] Star catalog corrections as described in "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
-- [`use_weighting`] Estimation weights as described in "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
+# ### Combinations and additional body setup
+# There are various ways to change our estimation. We can create a system of setups to compare those various options and to facilitate comparison. Throughout the example, the following options are considered:
+# - [`accel_levels`] Different acceleration settings, for this example, 3 options are created in increasing order of realism
+#     - LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
+#     - LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
+#     - LVL 3 - LVL 2 + SHG for the Earth and point-mass gravity for Triton, Titania, Pluto, the mayor Near Earth Asteroids (NEA) and largest Main Body Asteroids (MBA). These additional bodies are retrieved through the JPL Horizons interface.
+# - [`use_sat_data`] Observations by space telescope WISE
+# - [`use_catalog_cor`] Star catalog corrections as described in "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
+# - [`use_weighting`] Estimation weights as described in "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
+# 
+# A function, `perform_estimation`, is be created below which will perform the estimation based on these settings. The settings are described by a series of lists below, with a list of setup names to describe them.
+# 
+# The acceleration model is expected to have the most effect on the simulation. For the first round of comparison, only the acceleration models will be changed with the remainder all set to False. Three setups are constructed below. We also define constants to later set up satellite data.
 
-A function, `perform_estimation`, is be created below which will perform the estimation based on these settings. The settings are described by a series of lists below, with a list of setup names to describe them.
+# In[4]:
 
-The acceleration model is expected to have the most effect on the simulation. For the first round of comparison, only the acceleration models will be changed with the remainder all set to False. Three setups are constructed below. We also define constants to later set up satellite data.
-"""
 
 setup_names = ["LVL1 Accelerations", "LVL2 Accelerations", "LVL3 Accelerations"]
 
@@ -131,8 +134,14 @@ satellites_Horizons_codes = ["-163"]  # -163 is the query ID for WISE in Horizon
 # 
 # All NEAs from the archive are retrieved, as well as all MBA with a mass greater than 1e20 kg. Consider altering this filter to see the effects.
 
+# In[5]:
+
+
 lvl3_extra_bodies = ["999", "Triton", "Titania"] # here 999 is Pluto in JPL Horizons
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
+
+
+# In[6]:
 
 
 file = "SiMDA_240512.csv"
@@ -158,13 +167,14 @@ print(f"Number of additional bodies from SiMDA: {len(simda)}")
 simda
 
 
-### Retrieving the observations
-"""
-As in the previous example, we retrieve observation data using BatchMPC and the initial position using spice. 
+# ### Retrieving the observations
+# As in the previous example, we retrieve observation data using BatchMPC and the initial position using spice. 
+# 
+# In the previous example, a random offset was added to the position and velocity of the initial position. To enable better comparison, this random offset has been omitted for this example:
+# 
 
-In the previous example, a random offset was added to the position and velocity of the initial position. To enable better comparison, this random offset has been omitted for this example:
+# In[7]:
 
-"""
 
 batch = BatchMPC()
 batch.get_observations(mpc_codes)
@@ -192,12 +202,13 @@ print("Summary of space telescopes in batch:")
 print(batch.observatories_table(only_space_telescopes=True))
 
 
-### Retrieving satellite and astroid ephemerides from JPL Horizons
-"""
-Below we retrieve and store satellite and asteroid ephemerides from JPL Horizons. The HorizonsQuery class included with Tudat's data module provides quick access to ephemeris data for many objects in our solar system. For this example, we provide a start and end date based on the buffered first and last observation dates. We then request the state of the target object at every timestep, centered at our global frame origin and with our global frame orientation. The `.create_ephemeris_tabulated()` method then creates an ephemeris in Tudat format which is then stored for later use.
+# ### Retrieving satellite and astroid ephemerides from JPL Horizons
+# Below we retrieve and store satellite and asteroid ephemerides from JPL Horizons. The HorizonsQuery class included with Tudat's data module provides quick access to ephemeris data for many objects in our solar system. For this example, we provide a start and end date based on the buffered first and last observation dates. We then request the state of the target object at every timestep, centered at our global frame origin and with our global frame orientation. The `.create_ephemeris_tabulated()` method then creates an ephemeris in Tudat format which is then stored for later use.
+# 
+# Tudat uses interpolation to generate an ephemeris model from the tabulated positions and velocities retrieved from JPL Horizons. To speed up the process, we increase the timestep to 5x24 hours. For the satellites we keep the original timestep as their fast dynamics (Geocentric orbits), would yield inaccurate interpolations.
 
-Tudat uses interpolation to generate an ephemeris model from the tabulated positions and velocities retrieved from JPL Horizons. To speed up the process, we increase the timestep to 5x24 hours. For the satellites we keep the original timestep as their fast dynamics (Geocentric orbits), would yield inaccurate interpolations.
-"""
+# In[8]:
+
 
 timestep_horizons = timestep_global * 5
 
@@ -253,12 +264,13 @@ for code in lvl3_extra_bodies:
     )
 
 
-### Set up the environment
-"""
-As in the previous example, we use `get_default_body_settings()` to retrieve body settings for the main bodies from SPICE. Additional bodies are added using the `add_empty_settings()` method, which then gets ammended with our ephemerides retrieved previously. For the additional perturbing bodies, we add a central point mass gravity field, which takes a gravitational parameter, here calculated from the masses obtained from simda and elsewhere. We use the same body settings for every setup in this example, altering the effects by means of differing acceleration settings.
+# ### Set up the environment
+# As in the previous example, we use `get_default_body_settings()` to retrieve body settings for the main bodies from SPICE. Additional bodies are added using the `add_empty_settings()` method, which then gets ammended with our ephemerides retrieved previously. For the additional perturbing bodies, we add a central point mass gravity field, which takes a gravitational parameter, here calculated from the masses obtained from simda and elsewhere. We use the same body settings for every setup in this example, altering the effects by means of differing acceleration settings.
+# 
+# We again also retrieve the bodies to propagate and central bodies required for our integrator.
 
-We again also retrieve the bodies to propagate and central bodies required for our integrator.
-"""
+# In[9]:
+
 
 # List of bodies to be retrieved through SPICE.
 bodies_SPICE = [
@@ -324,16 +336,17 @@ bodies_to_propagate = batch.MPC_objects
 central_bodies = [global_frame_origin] * len(batch.MPC_objects)
 
 
-### Creating the acceleration settings
-"""
-Differing acceleration settings will allow us to see how addititional perturbations affect our estimation. As mentioned before the following acceleration sets are used:
+# ### Creating the acceleration settings
+# Differing acceleration settings will allow us to see how addititional perturbations affect our estimation. As mentioned before the following acceleration sets are used:
+# 
+# - LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
+# - LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
+# - LVL 3 - LVL 2 + SHG for the Earth and point-mass gravity for Triton, Titania, Pluto, the mayor Near Earth Asteroids (NEA) and largest Main Body Asteroids (MBA). 
+# 
+# Note that LVL 1 represents the same acceleration settings used for the first example.
 
-- LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
-- LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
-- LVL 3 - LVL 2 + SHG for the Earth and point-mass gravity for Triton, Titania, Pluto, the mayor Near Earth Asteroids (NEA) and largest Main Body Asteroids (MBA). 
+# In[10]:
 
-Note that LVL 1 represents the same acceleration settings used for the first example.
-"""
 
 # LVL 1, from the basic example
 accelerations_1 = {
@@ -434,10 +447,11 @@ accelerations_3 = (accelerations_3 | asteroid_accelerations) | other_acceleratio
 acceleration_sets = {1: accelerations_1, 2: accelerations_2, 3:accelerations_3}
 
 
-### Finalising the propagation setup
-"""
-We use the same fixed timestep RKF-7(8) integrator as before, with the buffered start and termination times and global timestep.
-"""
+# ### Finalising the propagation setup
+# We use the same fixed timestep RKF-7(8) integrator as before, with the buffered start and termination times and global timestep.
+
+# In[11]:
+
 
 # Create numerical integrator settings
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
@@ -454,19 +468,20 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
 termination_condition = propagation_setup.propagator.time_termination(epoch_end_buffer)
 
 
-## Estimation and plotting functions
-"""
-To enable standardised comparison of the different setups, we create estimation and plotting functions for our estimations. The estimation itself largely follows the same steps as the previous example, with the exception of the added satellite configuration and the enabling of the weights and the star catalog corrections. The following four functions are made:
- - [`perform_estimation`] takes a set of options defined by us to perform an estimation, returning the `estimator`, `pod_output`, `batch` and `observation_collection` for subsequent analysis.
- - [`plot_residuals`] plots the obtained residuals for a collection of setups
- - [`plot_cartesian`] plots the carthesian error with respect to SPICE and JPL Horizons for a collection of setups.
- - [`plot_cartesian_single`] plots a more detailed verion of the above for a single setup.
+# ## Estimation and plotting functions
+# To enable standardised comparison of the different setups, we create estimation and plotting functions for our estimations. The estimation itself largely follows the same steps as the previous example, with the exception of the added satellite configuration and the enabling of the weights and the star catalog corrections. The following four functions are made:
+#  - [`perform_estimation`] takes a set of options defined by us to perform an estimation, returning the `estimator`, `pod_output`, `batch` and `observation_collection` for subsequent analysis.
+#  - [`plot_residuals`] plots the obtained residuals for a collection of setups
+#  - [`plot_cartesian`] plots the carthesian error with respect to SPICE and JPL Horizons for a collection of setups.
+#  - [`plot_cartesian_single`] plots a more detailed verion of the above for a single setup.
+# 
+# 
+
+# #### Estimation Function
+
+# In[12]:
 
 
-"""
-
-#### Estimation Function
-"""
 def perform_estimation(
     bodies,
     acceleration_level:int,
@@ -474,15 +489,14 @@ def perform_estimation(
     apply_star_catalog_debias: bool,
     apply_weighting_scheme: bool,
 ):
-    The satellites are present in the integration of all setups, 
-    the included satellitess parameter in to_tudat() dictates whether a satellite's observations are used.
+    # The satellites are present in the integration of all setups, 
+    # the included satellitess parameter in to_tudat() dictates whether a satellite's observations are used.
     if use_satellite_data:
         included_satellites = {
             mpc: name for mpc, name in zip(satellites_MPC_codes, satellites_names)
         }
     else:
         included_satellites = None
-"""
 
     # As in the first example, the observation collection is created with BatchMPC.to_tudat()
     # This time, the star catalog biases and weights are enabled,
@@ -572,15 +586,17 @@ def perform_estimation(
     return pod_output, batch_temp, observation_collection, estimator
 
 
-#### Plotting Functions
-"""
+# #### Plotting Functions
+
+# In[13]:
+
+
 def plot_residuals(
     setup_names: list,
     pod_output_set: list,
     observation_collection_set: list,
 ):
     number_of_columns = len(pod_output_set)
-"""
 
     iters_to_use = list(range(0, number_of_pod_iterations))
     number_of_rows = len(iters_to_use)
@@ -648,6 +664,9 @@ def plot_residuals(
     axs[0, 0].legend()
 
     plt.show()
+
+
+# In[14]:
 
 
 def plot_cartesian(
@@ -734,6 +753,9 @@ def plot_cartesian(
     fig.set_tight_layout(True)
 
     plt.show()
+
+
+# In[15]:
 
 
 def plot_cartesian_single(
@@ -847,10 +869,11 @@ def plot_cartesian_single(
     plt.show()
 
 
-## Comparison Round 1: Acceleration models
-"""
-With our core estimation and plotting functions ready, we can now perform a comparison of the three acceleration models. For this first comparison, we turn the remaining options: including satelite data, star catalog corrections and observations weights off. The setups can be described as follows:
-"""
+# ## Comparison Round 1: Acceleration models
+# With our core estimation and plotting functions ready, we can now perform a comparison of the three acceleration models. For this first comparison, we turn the remaining options: including satelite data, star catalog corrections and observations weights off. The setups can be described as follows:
+
+# In[16]:
+
 
 setup_names = ["LVL1 Accelerations", "LVL2 Accelerations", "LVL3 Accelerations"]
 
@@ -860,10 +883,11 @@ use_catalog_cor = [False, False, False]
 use_weighting = [False, False, False]
 
 
-#### Perfoming the estimation
-"""
-We can then run the setups using `perform_estimation` to retrieve our pod_outputs, observation collections, estimator objects and also retrieve the state at a set of times for later comparison with SPICE and horizons.
-"""
+# #### Perfoming the estimation
+# We can then run the setups using `perform_estimation` to retrieve our pod_outputs, observation collections, estimator objects and also retrieve the state at a set of times for later comparison with SPICE and horizons.
+
+# In[17]:
+
 
 pod_output_set = []
 batch_set = []
@@ -898,32 +922,32 @@ for idx, setup_name in enumerate(setup_names):
     state_estimates_set.append(state_estimates)
 
 
-#### Visualising the results
-"""
-The result of the estimation is plotted below. The first plot shows similar residuals for all three setups, with all setups converging within 6 iteration. In terms of the cartesian errors, adding the additional moons in LVL2 greatly reduces the error, however additions added beyond that in LVL3 have almost no effect.
-"""
+# #### Visualising the results
+# The result of the estimation is plotted below. The first plot shows similar residuals for all three setups, with all setups converging within 6 iteration. In terms of the cartesian errors, adding the additional moons in LVL2 greatly reduces the error, however additions added beyond that in LVL3 have almost no effect.
+
+# In[18]:
+
 
 plot_residuals(setup_names, pod_output_set, observation_collection_set)
 plot_cartesian(state_estimates_set, setup_names, observation_collection_set)
 
 
-## Comparison Round 2: Weighting, Star Catalog Corrections and Satellite data
-"""
-"""
+# ## Comparison Round 2: Weighting, Star Catalog Corrections and Satellite data
 
-#### Weights and Star Catalog Biases
-"""
-Before running the next round, lets have a quick look at the star catalog corrections and obsertvation weights which are based on the following literature:
-- "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
-- "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
+# #### Weights and Star Catalog Biases
+# Before running the next round, lets have a quick look at the star catalog corrections and obsertvation weights which are based on the following literature:
+# - "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
+# - "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
+# 
+# Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `apply_star_catalog_debias` option in `BatchMPC.to_tudat().
+# 
+# Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection().
+# `
+# 
+# The plots below show star catalog corrections and observation weights for the observation period. Note in the star catalog correction graph how the number of corrections required (non-zero points) quickly reduces after 2016 once operators start implementing GAIA. Note also how a large clump of satellite observations in 2021 gets deweighted to prevent bias towards the satellite.
 
-Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `apply_star_catalog_debias` option in `BatchMPC.to_tudat().
+# In[19]:
 
-Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection().
-`
-
-The plots below show star catalog corrections and observation weights for the observation period. Note in the star catalog correction graph how the number of corrections required (non-zero points) quickly reduces after 2016 once operators start implementing GAIA. Note also how a large clump of satellite observations in 2021 gets deweighted to prevent bias towards the satellite.
-"""
 
 temp = batch.copy()
 temp.to_tudat(bodies=bodies, included_satellites=None, apply_weights_VFCC17=True)
@@ -950,11 +974,12 @@ fig.suptitle("Observation Weights (per RA/DEC pair) (bigger = more impact) [red=
 fig.set_tight_layout(True)
 
 
-#### Running the comparison
-"""
-Lets now run some new setups with those features. As the difference between LVL2 and 3 accelerations is small, we use LVL 2 for all the remaining setups to save on runtime. Using level 2 as a baseline, we then succesively add the star catalog correction, observation weights and finally the satellite observations. The new estimation setups are defined below.
+# #### Running the comparison
+# Lets now run some new setups with those features. As the difference between LVL2 and 3 accelerations is small, we use LVL 2 for all the remaining setups to save on runtime. Using level 2 as a baseline, we then succesively add the star catalog correction, observation weights and finally the satellite observations. The new estimation setups are defined below.
+# 
 
-"""
+# In[20]:
+
 
 setup_names_2 = [
     "LVL2",
@@ -967,6 +992,9 @@ accel_levels_2 = [2, 2, 2, 2]
 use_catalog_cor_2 = [False, True, True, True]
 use_weighting_2 = [False, False, True, True]
 use_sat_data_2 = [False, False, False, True]
+
+
+# In[21]:
 
 
 pod_output_set_2 = []
@@ -1000,11 +1028,12 @@ for idx, setup_name in enumerate(setup_names_2):
     state_estimates_set_2.append(state_estimates)
 
 
-#### The results
-"""
-Before looking at the plots, lets look at the formal errors. We can see that the formal errors are reduced when the weights are applied, indicating that it is working.
+# #### The results
+# Before looking at the plots, lets look at the formal errors. We can see that the formal errors are reduced when the weights are applied, indicating that it is working.
+# 
 
-"""
+# In[22]:
+
 
 for name, p_out in zip(setup_names_2, pod_output_set_2):
     print(name, " | ", list(p_out.formal_errors))
@@ -1014,18 +1043,22 @@ for name, p_out in zip(setup_names_2, pod_output_set_2):
 # 
 # Since the remaining setups do not show a strong difference, let take a closer look at the setup `LVL2 + star catalog + weighting` for the remainder of the example.
 
+# In[23]:
+
+
 plot_residuals(setup_names_2, pod_output_set_2, observation_collection_set_2)
 plot_cartesian(state_estimates_set_2, setup_names_2, observation_collection_set_2)
 
 
-## The Final setup
-"""
-Below we plot a more detailed version of the setup `LVL2 + star catalog + weighting` in both Cartesian and RSW frames and compared to both JPL Horizons and SPICE. From the first plot we can already clearly see that there is a strong difference between the error when compared to SPICE and Horizons. Eventhough we consider both to be "ground-truth" throughout the example, it is important to note that both systems are also estimations. Writers of the `CODES_300ast...` spice kernel, created in 2010, [recommend using Horizons](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/asteroids/AAREADME_Asteroids_SPKs.txt) for a more up to date ephemeris of asteroids.
+# ## The Final setup
+# Below we plot a more detailed version of the setup `LVL2 + star catalog + weighting` in both Cartesian and RSW frames and compared to both JPL Horizons and SPICE. From the first plot we can already clearly see that there is a strong difference between the error when compared to SPICE and Horizons. Eventhough we consider both to be "ground-truth" throughout the example, it is important to note that both systems are also estimations. Writers of the `CODES_300ast...` spice kernel, created in 2010, [recommend using Horizons](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/asteroids/AAREADME_Asteroids_SPKs.txt) for a more up to date ephemeris of asteroids.
+# 
+# The accuracy of Horizons' ephemeris of 433 eros is given in the [SBDB](https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=433) gives a 1-sigma uncertainty of about 1.6e-10 AU = 24 meters for the semi major axis and about 1.2e-6 degrees in inclination (about 4.5 km at maximum). Looking at the error in the RSW frame shows that we are off in the order of 10s of kilometers. Indeed looking at the RSW error for Horizons we can clearly see a periodicity in the error. This indicates that there is potentially an acceleration that is modelled differently between our estimation and that of Horizons. We can also see hat the error is highest in the cross track direction. While the introduction of additional bodies in our acceleration models yielded no effects, it may be that Horizons models some of the mayor bodies (such as Jupiter) differently.
+# 
+# Running the setup for a longer period of time and analysing the frequency domain may yield answers as to where the discrepancy lies.
 
-The accuracy of Horizons' ephemeris of 433 eros is given in the [SBDB](https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=433) gives a 1-sigma uncertainty of (~1.6e-10 AU = ~24 meters) for the semi major axis and ~1.2e-6 degrees in inclination (~4.5 km at maximum). Looking at the error in the RSW frame shows that we are off in the order of 10s of kilometers. Indeed looking at the RSW error for Horizons we can clearly see a periodicity in the error. This indicates that there is potentially an acceleration that is modelled differently between our estimation and that of Horizons. We can also see hat the error is highest in the cross track direction. While the introduction of additional bodies in our acceleration models yielded no effects, it may be that Horizons models some of the mayor bodies (such as Jupiter) differently.
+# In[24]:
 
-Running the setup for a longer period of time and analysing the frequency domain may yield answers as to where the discrepancy lies.
-"""
 
 chosen_setup_index = 2
 chosen_setup_index = 3 # consider trying index 3 to analyse at the satellite setup more closely. 
@@ -1039,23 +1072,26 @@ final_pod_output = pod_output_set_2[chosen_setup_index]
 print(f"Final setup: {final_setup_name}")
 
 
+# In[25]:
+
+
 plot_cartesian_single(final_state_estimate, final_setup_name, final_observation_collection, in_RSW_frame=False)
 plot_cartesian_single(final_state_estimate, final_setup_name, final_observation_collection, in_RSW_frame=True)
 
 
 # This concludes the main part of this example. Consider experimenting with the setup: using different space telescopes, trying out longer runtimes, different target bodies and different acceleration models.
 
-## Additional plots
-"""
-Below are the same comparison plots used in the original example. Consider comparing the results to the previous example. Also consider running the changing the plots to the final setup with satellites to compare the residuals.
-"""
+# ## Additional plots
+# Below are the same comparison plots used in the original example. Consider comparing the results to the previous example. Also consider running the changing the plots to the final setup with satellites to compare the residuals.
 
-#### Final residuals highlighted per observatory
-"""
+# #### Final residuals highlighted per observatory
+
+# In[26]:
+
+
 # Corellation can be retrieved using the CovarianceAnalysisInput class:
 covariance_input = estimation.CovarianceAnalysisInput(final_observation_collection)
 covariance_output = final_estimator.compute_covariance(covariance_input)
-"""
 
 correlations = covariance_output.correlations
 
@@ -1086,17 +1122,22 @@ fig.suptitle(f"Correlations for estimated parameters for {target_name}")
 fig.set_tight_layout(True)
 
 
-#### Final residuals highlighted per observatory
-"""
+# #### Final residuals highlighted per observatory
+
+# In[27]:
+
+
 num_observatories = 10
 consider_satellites = use_sat_data_2[chosen_setup_index]
-"""
 
 residual_history = final_pod_output.residual_history
 residual_times = (
     np.array(final_observation_collection.concatenated_times) / (86400 * 365.25) + 2000
 )
 finalresiduals = np.array(residual_history[:, -1])
+
+
+# In[28]:
 
 
 # This piece of code collects the 10 largest observatories
@@ -1133,6 +1174,9 @@ mask_not_top = [
 # get the number of observations by the other observatories
 # (divide by two because the observations are concatenated RA,DEC in this list)
 n_obs_not_top = int(sum(mask_not_top) / 2)
+
+
+# In[29]:
 
 
 fig, axs = plt.subplots(2, 1, figsize=(13, 9))
@@ -1196,13 +1240,18 @@ fig.set_tight_layout(True)
 plt.show()
 
 
-#### Histograms per observatory
-"""
+# #### Histograms per observatory
+
+# In[30]:
+
+
 num_observatories = 6
 nbins = 20
 number_of_columns = 2
 transparency = 0.6
-"""
+
+
+# In[31]:
 
 
 number_of_rows = (
