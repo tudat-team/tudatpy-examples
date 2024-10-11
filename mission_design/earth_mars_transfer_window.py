@@ -10,7 +10,7 @@ http://tudat.tudelft.nl/LICENSE.
 
 """
 
-## Summary
+## Objectives
 """
 This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
 
@@ -168,4 +168,7 @@ for case in cases:
         save             = False,
         **case
     )
+
+
+
 
