@@ -1,13 +1,14 @@
 # Two-stage rocket ascent
 """
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 """
 
-## Objectives
+## Context
 """
 This example demonstrates the simulation of the ascent trajectory of a two stage rocket on Mars. Two simulations are carried: one for each stage. In these simulations, both the dynamic state and the mass of the vehicle are propagated.
 
-To ascent to orbit, the rocket needs thrust. This example thus also focuses on demonstrating various ascpect of thrust that are available in Tudat(Py). More specifically, dual thrust is implemented, simulating a solid propellant which burns with a magnitude 1.75 times higher in the 15 first seconds.
+To ascent to orbit, the rocket needs thrust. This example thus also focuses on demonstrating various aspect of thrust that are available in Tudat(Py). More specifically, dual thrust is implemented, simulating a solid propellant which burns with a magnitude 1.75 times higher in the 15 first seconds.
 
 Aerodynamic guidance is also included, as to very simply update the angle of attack of the vehicle over time, simulating an oscillation between -2deg and 2deg.
 
@@ -68,7 +69,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refere to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
 
 For our central body Mars, a predefined exponential atmosphere is then loaded.
 
@@ -127,6 +128,7 @@ create_rocket_section("Section 1", 370.0)
 
 
 # To account for the aerodynamic of the first section, let's add an aerodynamic interface to the environment setup, taking the followings into account:
+# 
 # - A constant drag coefficient of 0.85.
 # - No sideslip coefficient (equal to 0).
 # - A lift coefficient of 0.4.
@@ -197,7 +199,7 @@ $$
 $$
 """
 
-class thrust_model:
+class ThrustModel:
 
     def __init__(self, magnitude, Isp, vertical_angle, propagated_body, section_dry_mass):
         self.magnitude = magnitude               # Thrust magnitude [N]
@@ -215,7 +217,11 @@ class thrust_model:
         # If we are in the 15 first seconds, return 1.75 times the magnitude
         if self.t0 is None:
             self.t0 = time
-        if time - self.t0 < 15:
+
+        if self.propagated_body.mass <= self.section_dry_mass:
+            return 0
+
+        if (time - self.t0) < 15:
             return 1.75*self.magnitude
         return self.magnitude
 
@@ -247,6 +253,7 @@ class thrust_model:
 Using the `ThrustModel` class that was defined earlier, we can now define thrust acceleration settings for the first rocket section.
 
 For this first section, the following parameters are used for the thrust:
+
 - A thrust magnitude of 4.25 kN.
 - A specific impulse of 275 seconds.
 - A constant thrust angle of 40 deg from the vertical.
@@ -278,7 +285,7 @@ def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
 
 
 # Setup the thrust model for the first section
-current_thrust_model = thrust_model(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185)
+current_thrust_model = ThrustModel(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185.0)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
 
@@ -286,7 +293,8 @@ create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 """
 First off, the acceleration settings from the environment that act on the rocket are to be defined.
 In this case, these consist in the two followings:
-- Graviational acceleration of Mars modeled as Spherical Harmonics, taken up to a degree and order 4.
+
+- Gravitational acceleration of Mars modeled as Spherical Harmonics, taken up to a degree and order 4.
 - Aerodynamic acceleration caused by the atmosphere of Mars (using the aerodynamic interface defined earlier).
 
 Additional accelerations are then added for the first rocket section, containing the thrust acceleration settings that were defined earlier.
@@ -324,7 +332,7 @@ acceleration_models = create_section_accelerations("Section 1")
 """
 The initial state of the rocket for which the ascent will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements reprensenting the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
 
 In this case, let's make use of the `spherical_to_cartesian_elementwise()` function that is included in the `element_conversion` module, so that the initial state can be input as Spherical elements, and then converted in Cartesian elements.
 
@@ -349,7 +357,7 @@ initial_inertial_state = environment.transform_to_inertial_orientation(
 
 ### Define dependent variables to save
 """
-Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularily interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
+Different dependent variables can be saved alongside the state of the vehicle during the propagation. In this example, we are particularly interested in saving the altitude, airspeed, dynamic pressure, and mass of the first rocket section. In addition, various acceleration norms are defined to be saved as dependent variables.
 """
 
 # Define a function to return the list of dependent variables to save for a given section
@@ -357,7 +365,7 @@ def define_dependent_variables_to_save(section_name):
     return [
         propagation_setup.dependent_variable.altitude( section_name, "Mars" ),
         propagation_setup.dependent_variable.airspeed( section_name, "Mars" ),
-        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars"),
+        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars" ),
         propagation_setup.dependent_variable.body_mass( section_name ),
         propagation_setup.dependent_variable.total_acceleration_norm( section_name ),
         propagation_setup.dependent_variable.single_acceleration_norm(
@@ -377,6 +385,7 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 Termination settings define the conditions that, once reached, will stop the propagation.
 
 In this case, for the first rocket section, two termination settings are used:
+
 - Stop when the vehicle starts falling again, indicating that it reached apogee.
 - Stop 225 minutes after lift-off.
 """
@@ -407,7 +416,7 @@ end_epoch = simulation_start_epoch + 225*60
 termination_max_time_settings = propagation_setup.propagator.time_termination(end_epoch)
 
 # Combine both termination settings into a hybrid termination
-combined_termination_settings = propagation_setup.propagator.hybrid_termination(
+combined_termination_settings_section_1 = propagation_setup.propagator.hybrid_termination(
     [termination_apogee_settings, termination_max_time_settings],
     fulfill_single_condition=True
 )
@@ -415,7 +424,8 @@ combined_termination_settings = propagation_setup.propagator.hybrid_termination(
 
 ### Create integrator settings
 """
-Let's now create integrator settings. These use a RK78 intergration scheme with a variable step size. The following settings are used:
+Let's now create integrator settings. These use a RK78 integration scheme with a variable step size. The following settings are used:
+
 - An initial time step of 0.25 seconds.
 - A minimum time step of 1e-4 seconds.
 - A maximum time step of 10 seconds.
@@ -437,10 +447,8 @@ def define_integrator_settings():
     return propagation_setup.integrator.runge_kutta_variable_step(
         initial_time_step,
         propagation_setup.integrator.rkf_78,
-        minimum_time_step,
-        maximum_time_step,
-        relative_error_tolerance=1e-14,
-        absolute_error_tolerance=1e-14)
+        step_size_control_settings = control_settings,
+        step_size_validation_settings = validation_settings)
 
 # Define the integrator settings
 integrator_settings = define_integrator_settings()
@@ -451,7 +459,7 @@ integrator_settings = define_integrator_settings()
 The acceleration models, the initial state, the dependent variables, and the termination settings can now all be combined to define translational propagation settings.
 Also, in this case, a Cowell propagator is selected.
 
-Since we use thrust, we also define mass propagation settings, with the mass rate being setup to be consistant with the thrust.
+Since we use thrust, we also define mass propagation settings, with the mass rate being setup to be consistent with the thrust.
 
 The translational and mass propagation settings are combined together, to propagate both in the same propagation.
 """
@@ -470,7 +478,7 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
         propagation_setup.propagator.cowell,
         output_variables=dependent_variables_to_save
     )
-    # Define a mass rate model so that the mass lost by the rocket is consistant with its thrust and specific impulse
+    # Define a mass rate model so that the mass lost by the rocket is consistent with its thrust and specific impulse
     mass_rate_settings = {section_name:[propagation_setup.mass_rate.from_thrust()]}
     mass_rate_models = propagation_setup.create_mass_rate_models(
         bodies,
@@ -496,14 +504,14 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
     )
     
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings, integrator_settings)
+propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings_section_1, integrator_settings)
 
 
 ### Run the first section ascent
 """
 With everything being now setup, we can finally run the ascent simulation of the first rocket section (containing both the first and the second stage). This is done by calling the `create_dynamics_simulator()` function.
 
-The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the apochs.
+The state and dependent variables history is then extracted from the dynamics simulator, and converted to multi-dimensional numpy arrays, using the `result2array()` from tudatpy utils. Do mind that using `result2array` will shift all elements by 1 column to the right, since a first column will be added, containing the epochs.
 """
 
 # Run the numerical simulation of the first rocket section
@@ -512,9 +520,9 @@ dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     propagator_settings
 )
 # Extract the propagated states and dependent variables and convert them to numpy arrays
-states = dynamics_simulator.state_history
+states = dynamics_simulator.propagation_results.state_history
 states_array_section_1 = result2array(states)
-dep_vars = dynamics_simulator.dependent_variable_history
+dep_vars = dynamics_simulator.propagation_results.dependent_variable_history
 dep_vars_array_section_1 = result2array(dep_vars)
 
 
@@ -549,7 +557,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = thrust_model(2250, 273, np.deg2rad(90), bodies.get("Section 2"), 38.25)
+current_thrust_model = ThrustModel(2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
@@ -572,7 +580,9 @@ dependent_variables_to_save = define_dependent_variables_to_save("Section 2")
 
 ### Define integrator settings
 """
-A RK4 integration scheme is also used for this second rocket section, with a half a second time step. However, this initial integration epoch is now setup as the final epoch of the first section.
+The same integrator settings as for section 1 are used for section 2. However, this initial integration epoch is now setup as the final epoch of the first section.
+
+Additionally, a termination setting is configured to stop the termination in case the rocket does not reach orbital velocity.
 """
 
 integrator_settings = define_integrator_settings()
@@ -603,7 +613,7 @@ Also, the initial mass of the second section is set as 85kg for the mass propaga
 """
 
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, termination_max_time_settings, integrator_settings)
+propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, combined_termination_settings_section_2, integrator_settings)
 
 
 ### Run second section simulation
@@ -663,22 +673,23 @@ Let's plot all of the dependent variables over time.
 Do note that some of the plots are cropped after 10 minutes, to effectively zoom in on their most interesting part.
 """
 
-print("Stage separation occured after %.2f minutes." % ((final_epoch_section_1-times[0])/60))
+stage_separation_epoch_mins = (final_epoch_section_1 - times[0]) / 60
+print(f"Stage separation occurred after {stage_separation_epoch_mins:.2f} minutes.")
 
 # Compute the index at which the time since launch gets above 10 minutes
-idx_crop = np.where(times_since_launch/60 >= 10)[0][0]
+idx_crop = np.where(times_since_launch / 60 >= 10)[0][0]
 
 # Create a figure with 5 subplots: a grid of 2x2, then one horizontal one at the bottom
 fig = plt.figure(figsize=(9, 11))
 gs = fig.add_gridspec(3, 2)
 ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[0, 1])
-ax3 =fig.add_subplot(gs[1, 0])
+ax3 = fig.add_subplot(gs[1, 0])
 ax4 = fig.add_subplot(gs[1, 1])
 ax5 = fig.add_subplot(gs[2, :])
 
 # Plot the altitude history
-ax1.plot(times_since_launch/60, altitudes/1e3)
+ax1.plot(times_since_launch / 60, altitudes / 1e3)
 ax1.grid()
 ax1.set_xlabel("Time since launch [min]")
 ax1.set_ylabel("Altitude [km]")
@@ -688,31 +699,37 @@ ax1.axvline(
 ax1.legend()
 
 # Plot the airspeed history
-ax2.plot(times_since_launch/60, airspeeds)
+ax2.plot(times_since_launch / 60, airspeeds)
 ax2.grid()
 ax2.set_xlabel("Time since launch [min]")
 ax2.set_ylabel("Airspeed [m/s]")
 ax2.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the mass history in the first 10 minutes
-ax3.plot(times_since_launch[:idx_crop]/60, mass[:idx_crop])
+ax3.plot(times_since_launch[:idx_crop] / 60, mass[:idx_crop])
 ax3.grid()
 ax3.set_xlabel("Time since launch [min]")
 ax3.set_ylabel("Rocket mass [kg]")
 ax3.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the dynamic pressure history in the first 10 minutes
-ax4.plot(times_since_launch[:idx_crop]/60, dyna_pressures[:idx_crop]/1e3)
+ax4.plot(times_since_launch[:idx_crop] / 60, dyna_pressures[:idx_crop] / 1e3)
 ax4.grid()
 ax4.set_xlabel("Time since launch [min]")
 ax4.set_ylabel("Dynamic pressure [kPa]")
 ax4.axvline(stage_separation_epoch_mins, color="red", linestyle="--")
 
 # Plot the accelerations history in the first 10 minutes
-ax5.plot(times_since_launch[:idx_crop]/60, total_a[:idx_crop], label="Total", linestyle="dotted", color="black")
-ax5.plot(times_since_launch[:idx_crop]/60, SH_a[:idx_crop], label="SH D/O 4")
-ax5.plot(times_since_launch[:idx_crop]/60, thrust_a[:idx_crop], label="Thrust")
-ax5.plot(times_since_launch[:idx_crop]/60, aero_a[:idx_crop], label="Aerodynamic")
+ax5.plot(
+    times_since_launch[:idx_crop] / 60,
+    total_a[:idx_crop],
+    label="Total",
+    linestyle="dotted",
+    color="black",
+)
+ax5.plot(times_since_launch[:idx_crop] / 60, SH_a[:idx_crop], label="SH D/O 4")
+ax5.plot(times_since_launch[:idx_crop] / 60, thrust_a[:idx_crop], label="Thrust")
+ax5.plot(times_since_launch[:idx_crop] / 60, aero_a[:idx_crop], label="Aerodynamic")
 ax5.grid()
 ax5.set_xlabel("Time since launch [min]")
 ax5.set_ylabel("Acceleration [m/s$^2$]")
@@ -758,6 +775,6 @@ The fourth plot, in the middle right, shows the dynamic pressure over time in fr
 
 #### Accelerations over time
 """
-Finally, the plot at the bottom shows various accelerations over time. Clearly, thrust gives the acceleration of the highest magnitude. Once again, we can see that the thrust was each time of a mgnitude 1.75 times higher in the first 15 seconds. Also, we can see that the thrust acceleration increases over time furing each of the burn. This can be expected: the acceleration that results in the thrust force becomes higher over time as our rocket mass becomes lower.
-The Martian gravitational acceleration comes second in magnitude. While it appears constant, because its magnitude is much lower than the one of the thrst, this gravitational acceleration decreases as altitude increases.
+Finally, the plot at the bottom shows various accelerations over time. Clearly, thrust gives the acceleration of the highest magnitude. Once again, we can see that the thrust was each time of a magnitude 1.75 times higher in the first 15 seconds. Also, we can see that the thrust acceleration increases over time during each of the burn. This can be expected: the acceleration that results in the thrust force becomes higher over time as our rocket mass becomes lower.
+The Martian gravitational acceleration comes second in magnitude. While it appears constant, because its magnitude is much lower than the one of the thrust, this gravitational acceleration decreases as altitude increases.
 Finally, the aerodynamic acceleration is only significant in the first 2min of the ascent. One may realise that this acceleration follows a similar shape as the dynamic pressure over time. This is because the aerodynamic acceleration relies purely on the aerodynamic coefficients (which are constant in this case), the angle of attack (that varies only between -2deg and 2deg), and the dynamic pressure.
