@@ -22,13 +22,13 @@ The following asteroids will be used in the example:
 
 ### Import statements
 """
-In this example we do not perform an estimation, so we only need the `BatchMPC`  class from `data` , `environment_setup`  and `observation`  to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation ouput and load the standard `SPICE` kernels.
+In this example we do not perform an estimation, as such we only need the `BatchMPC`  class from `data` , `environment_setup`  and `observation`  to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation ouput and load the standard `SPICE` kernels.
 """
 
 from tudatpy.data.mpc import BatchMPC
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation.estimation_setup import observation
-from tudatpy.kernel.interface import spice
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.interface import spice
 
 from tudatpy.data.horizons import HorizonsQuery
 
@@ -77,10 +77,10 @@ print(obs_by_WISE)
 From the summary we can see that even the first observations from the 1890s are included. This is not ideal. We might want to exclude some observatories. To fix this we can use the `.filter()` method. Dates can be filtered using the standard seconds since J2000 TDB format or through python's datetime standard library in UTC for simplicity. Additionally, specific bands can be selected and observatories can explicitly be included or excluded. The `.filter()` method alters the original batch in place, an alternative is shown in the Additional Features section.
 """
 
-observatories_to_exlude = ["000", "C59"] # chosen as an example
+observatories_to_exclude = ["000", "C59"] # chosen as an example
 
 print(f"Size before filter: {batch1.size}")
-batch1.filter(observatories_exclude=observatories_to_exlude, epoch_start=datetime(2018, 1, 1), epoch_end=746013855.0)
+batch1.filter(observatories_exclude=observatories_to_exclude, epoch_start=datetime(2018, 1, 1), epoch_end=746013855.0)
 print(f"Size after filter: {batch1.size}")
 
 batch1.summary()
@@ -112,13 +112,13 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 # 
 # The `.to_tudat()` does the following for us:
 # 
-# 1. **Creates an empty body for each minor planet** with their MPC code as a name.
-# 2. **Adds this body to the system of bodies** inputted to the method.
-# 3. **Retrieves the global position of the terrestrial observatories** in the batch and **adds these stations to the Tudat environment**.
-# 4. **Creates link definitions** between each unique terrestrial observatory/ minor planet combination in the batch.
-# 5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires an addional input.
-# 6. **Creates a `SingleObservationSet`** object for each unique link that includes all observations for that link.
-# 7. **Returns an `ObservationCollection`** object.
+# 1. Creates an empty body for each minor planet with their MPC code as a name.
+# 2. Adds this body to the system of bodies inputted to the method.
+# 3. Retrieves the global position of the terrestrial observatories in the batch and adds these stations to the Tudat environment.
+# 4. Creates link definitions between each unique terrestrial observatory/ minor planet combination in the batch.
+# 5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires an additional input.
+# 6. Creates a `SingleObservationSet` object for each unique link that includes all observations for that link.
+# 7. Returns an `ObservationCollection` object.
 # 
 # If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `.to_tudat()` method. The `.to_tudat()`method does not alter the batch object itself.
 
@@ -160,7 +160,7 @@ As validation, let's compare these interpolated RA and DEC to MPC's values for *
 
 # Let's simplify by using only 329 Svea and removing observations from space telescopes
 target = "329"
-target_horizons = target + ";" # ; specificies minor bodies
+target_horizons = target + ";" # ; specifies minor bodies
 
 batch_eros = BatchMPC()
 batch_eros.get_observations([target])
@@ -221,7 +221,7 @@ plt.show()
 
 ### Using satellite observations.
 """
-Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemirides from a SPICE kernel or propagate the satellite. This body must then be linked to the MPC code for that space telescope when calling the `to_tudat()` method. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
+Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. This body must then be linked to the MPC code for that space telescope when calling the `to_tudat()` method. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
 """
 
 # Note that we are using the add_empty_settings() method instead of add_empty_body().
@@ -252,7 +252,7 @@ observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict, 
 
 ### Manual retrieval from astroquery
 """
-Those familiar with **astroquery** (or those who have existing filitering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
+Those familiar with astroquery (or those who have existing filtering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
 """
 
 mpc_code_hypatia = 238
@@ -265,7 +265,7 @@ data = MPC.get_observations(mpc_code_hypatia)
 batch2 = BatchMPC()
 batch2.from_astropy(data)
 
-# alternative if pandas is preffered:
+# alternative if pandas is preferred:
 # data_pandas = data.to_pandas()
 # batch2.from_astropy(data_pandas)
 
@@ -283,7 +283,7 @@ batch3.summary()
 
 ### Copying and non in-place filtering
 """
-We may want to compare results between batches. In that case it is usefull to copy a batch or perform non-destructive filtering:
+We may want to compare results between batches. In that case it is useful to copy a batch or perform non-destructive filtering:
 """
 
 # Copying existing batches:

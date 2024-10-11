@@ -106,7 +106,7 @@ We can now specify any required **ancillary settings**; in this case, we use the
 
 Recall that the observations were made using the MRO spacecraft, but **already corrected for Mars system barycenter**. You could consider that there might be slightly **difference between Mars itself and the system barycenter**, but since both **Deimos and Phobos are very small** (7 and 8 orders of magnitude less massive than Mars), **this difference is negligible** for the example.
 
-An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artifically create such a collection from a simiulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
+An `ObservationCollection` is the useful type for Tudat to perform all its estimation functionality. You can read up on it in [the documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#creating-observations). In this case, we obtained that collection from real tracking data, but it is also possible to artificially create such a collection from a simulation or from known ephemerides, which is what we will demonstrate [below](#simulation).
 
 """
 
@@ -150,7 +150,8 @@ spice.load_standard_kernels()
 ## Create Bodies
 """
 
-We then continue to **set up the environment** by creating the relavant bodies and applying their **default body settings**. A global frame with origin at Solar System Barycenter (SSB) and J2000 orientation is chosen. For this example, we want to show the **influence of adding a more precise rotation model**, so a simple utility function is introduced to create the bodies.
+We then continue to set up the environment by creating the relevant bodies and applying their default body settings. A global frame with origin at Solar System Barycenter (SSB) and J2000 orientation is chosen. For this example, we want to show the influence of adding a more precise rotation model, so a simple utility function is introduced to create the bodies.
+
 """
 
 def create_bodies(use_itrf_rotation_model: bool = False) -> environment.SystemOfBodies:
@@ -183,10 +184,11 @@ bodies = create_bodies()
 ## Create Simulated observations
 """
 
-To **simulate observations**, we need three main things:
-* **Observation simulators**, defining which observation types need to be simulated and which linkends need to be used.
-* **Observation simulation settings**, defining the times at which to simulate the observations.
-* The **system of bodies** relevant for the simulation
+To simulate observations, we need three main things:
+
+* Observation simulators, defining which observation types need to be simulated and which linkends need to be used.
+* Observation simulation settings, defining the times at which to simulate the observations.
+* The system of bodies relevant for the simulation
 
 Do check out the [documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_estimation/observation_simulation.html#simulating-the-observations) for a more rigorous explanation of the technicalities.
 
@@ -220,7 +222,7 @@ simulated_observations_simple = create_observations(observation_model_settings, 
 
 ### Simple simulation
 """
-For the first attempt, we **won't include any corrections**. This implies that the simulation will simply calculate the Euclidean distance that the light travels between the link ends. Plotting the difference between that and the observations reveals an error that grows with the distance between Earth and Mars. **The larger the distance, the more that range is underestimated by the simple simulation**. Additionally, **there is some spread of the residuals**, that seems to be related to a phenomenon of much higher frequency.
+For the first attempt, we don't include any corrections. This implies that the simulation will simply calculate the Euclidean distance that the light travels between the link ends. Plotting the difference between that and the observations reveals an error that grows with the distance between Earth and Mars. The larger the distance, the more that range is underestimated by the simple simulation. Additionally, there is some spread of the residuals, that seems to be related to a phenomenon of much higher frequency.
 """
 
 residuals_simple = simulated_observations_simple.concatenated_observations - observation_vals
@@ -258,7 +260,7 @@ plt.show()
 ## Adding light time corrections
 """
 
-After adjusting the rotation model, it is clear that **the simulation systematically underestimates the range**. This seems to behave assymptotically as the distance between Mars and Earth increases, but notice that there are no measurements in the most extreme regions. At those times, **the Sun is in the way**, preventing useful observations. This also indicates that **the presence of the Sun influences the travel time of the light**. 
+After adjusting the rotation model, it is clear that the simulation systematically underestimates the range. This seems to behave asymptotically as the distance between Mars and Earth increases, but notice that there are no measurements in the most extreme regions. At those times, the Sun is in the way, preventing useful observations. This also indicates that the presence of the Sun influences the travel time of the light. 
 
 To account for the **relativistic effects due to the Sun**, we can add a *light time correction* to the settings of the observation model. 
 Doing this and once more plotting the residuals shows that **the error signal related to the Earth-Mars synodic period is removed**, leaving a residual that oscillates annually in the order **a few hundreds of meters**. 

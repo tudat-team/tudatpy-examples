@@ -4,7 +4,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 """
 
-## Context
+## Objectives
 """
 The aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with tudatpy. The problem describes the orbit design around a small body; the [Itokawa asteroid](https://en.wikipedia.org/wiki/25143_Itokawa). This example consists of three parts that build on each other to ultimately perform an orbit optimization. The three parts are built up as follows: Custom Environment (this page), [Design Space Exploration](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_design_space_exploration.html), and [Optimization](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_optimization.html).
 
@@ -604,4 +604,5 @@ ax.set_xlim([-1000,1000])
 ax.set_ylim([-1000,1000])
 ax.set_zlim([-1000,1000])
 ax.grid()
+plt.show()
 

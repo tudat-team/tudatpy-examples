@@ -72,8 +72,6 @@ observation_end_epoch   = DateTime(2000, 1, 4).epoch()
 # To create the systems of bodies for the simulation, one first has to define a list of strings of all bodies that are to be included. Note that the default body settings (such as atmosphere, body shape, rotation model) are taken from the `SPICE` kernel.
 # 
 # These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
-# 
-# Finally, the system of bodies is created using the settings. This system of bodies is stored into the variable `bodies`.
 
 # In[3]:
 
@@ -99,10 +97,10 @@ body_settings.add_empty_settings("Delfi-C3")
 body_settings.get("Delfi-C3").constant_mass = 2.2 #kg
 
 # Create aerodynamic coefficient interface settings
-reference_area = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
 # Add the aerodynamic interface to the environment
 body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficient_settings
@@ -137,12 +135,15 @@ central_bodies = ["Earth"]
 
 # ### Create the acceleration model
 # Subsequently, all accelerations (and there settings) that act on `Delfi-C3` have to be defined. In particular, we will consider:
+# 
 # * Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
 # * Aerodynamic acceleration for Earth.
 # * Gravitational acceleration using a simple point mass model for:
+# 
 #     - The Sun
 #     - The Moon
 #     - Mars
+# 
 # * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 # 
 # The defined acceleration settings are then applied to `Delfi-C3` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
@@ -464,7 +465,7 @@ diagonal_covariance = np.diag(formal_errors**2)
 print(f'Formal Error Matrix:\n\n{diagonal_covariance}\n')
 
 sigma = 3  # Confidence level
-original_eigenvalues, original_eigenvectors = np.linalg.eig(initial_covariance)
+original_eigenvalues, original_eigenvectors = np.linalg.eig(diagonal_covariance)
 original_diagonal_eigenvalues, original_diagonal_eigenvectors = np.linalg.eig(diagonal_covariance)
 print(f'Estimated state and parameters:\n\n {parameters_to_estimate.parameter_vector}\n')
 print(f'Eigenvalues of Covariance Matrix:\n\n {original_eigenvalues}\n')
@@ -588,10 +589,4 @@ diagonal_ax.legend(loc = 'upper right')
 
 plt.legend()
 plt.show()
-
-
-# In[ ]:
-
-
-
 
