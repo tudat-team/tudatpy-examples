@@ -4,7 +4,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 """
 
-## Context
+## Objectives
 """
 This aim of this tutorial is to illustrate the functionalities of PyGMO through the minimization problem of an analytical
 function (Himmelblau function).

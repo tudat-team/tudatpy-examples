@@ -18,12 +18,12 @@ Let's start with importing the required modules. Most - if not all - of them (sp
 """
 
 # Tudat imports for propagation and estimation
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.numerical_simulation import estimation, estimation_setup
-from tudatpy.kernel.numerical_simulation.estimation_setup import observation
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.numerical_simulation import estimation, estimation_setup
+from tudatpy.numerical_simulation.estimation_setup import observation
 
 # import MPC interface
 from tudatpy.data.mpc import BatchMPC
@@ -60,8 +60,10 @@ Let's setup some constants that are used throughout the tutorial. The **MPC code
 
 We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
 
-For our **frame origin** we use the **Solar System Barycentre**. The data from MPC is presented in the **J2000 reference frame** (this is actually our only choice here: currently,`BatchMPC` does not support conversion to other reference frames and as such we match it in our environment). 
+For our frame origin we use the Solar System Barycenter. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
 """
+
+# Direct inputs:
 
 target_mpc_code = 433
 
@@ -133,7 +135,7 @@ print(obs_by_WISE)
 
 ### Set up the environment
 """
-We now set up the environment, including the bodies to use, the reference frame and frame origin. The epherides for all major planets as well as the Earth's Moon are retrieved using spice. 
+We now set up the environment, including the bodies to use, the reference frame and frame origin. The ephemerides for all major planets as well as the Earth's Moon are retrieved using spice. 
 
 BatchMPC will automatically generate the body object for Eros, but we still need to specify the bodies to propagate and their central bodies. We can retrieve the list from the BatchMPC object.
 """
@@ -159,7 +161,7 @@ body_settings = environment_setup.get_default_body_settings(
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
-# Retrieve Eros' body name from BatchMPC and set its centre to enable its propapgation
+# Retrieve Eros' body name from BatchMPC and set its centre to enable its propagation
 bodies_to_propagate = batch.MPC_objects
 central_bodies = [global_frame_origin]
 
@@ -170,8 +172,8 @@ Now that our system of bodies is ready, we can retrieve the observation collecti
 """
 
 # Transform the MPC observations into a tudat compatible format.
-# note that we explicitly exlude all satellite observations in this step by setting included satellites to None.
-observation_collection = batch.to_tudat(bodies=bodies, included_satellites=None, apply_star_catalog_debias = False)
+# note that we explicitly exclude all satellite observations in this step by setting included satellites to None.
+observation_collection = batch.to_tudat(bodies=bodies, included_satellites=None)
 
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
@@ -246,14 +248,14 @@ initial_states = spice.get_body_cartesian_state_at_epoch(
 )
 
 # Add random offset for initial guess
-np.random.seed = 1
+rng = np.random.default_rng(seed=1)
 
 initial_position_offset = 1e6 * 1000
 initial_velocity_offset = 100
 
 initial_guess = initial_states.copy()
-initial_guess[0:3] += (2 * np.random.rand(3) - 1) * initial_position_offset
-initial_guess[3:6] += (2 * np.random.rand(3) - 1) * initial_velocity_offset
+initial_guess[0:3] += (2 * rng.random(3) - 1) * initial_position_offset
+initial_guess[3:6] += (2 * rng.random(3) - 1) * initial_velocity_offset
 
 print("Error between the real initial state and our initial guess:")
 print(initial_guess - initial_states)
@@ -367,9 +369,7 @@ print(
 
 #### Change in residuals per iteration
 """
-Let's visualise the **residuals**, splitting them between Right Ascension and Declination. Internally, `concatentated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatentated_observations`, i.e. by slicing [::2].
-
-As seen previously, the estimation converges around iteration 4.
+We want to visualise the residuals, splitting them between Right Ascension and Declination. Internally, `concatenated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatenated_observations`, i.e. by slicing [::2].
 """
 
 residual_history = pod_output.residual_history
@@ -435,12 +435,12 @@ axs[0, 0].legend()
 plt.show()
 
 
-#### Residuals Corellations Matrix
+#### Residuals Correlations Matrix
 """
-Lets also check out the corellation of the estimated parameters.
+Lets check out the correlation of the estimated parameters.
 """
 
-# Corellation can be retrieved using the CovarianceAnalysisInput class:
+# Correlation can be retrieved using the CovarianceAnalysisInput class:
 covariance_input = estimation.CovarianceAnalysisInput(observation_collection)
 covariance_output = estimator.compute_covariance(covariance_input)
 
@@ -541,7 +541,7 @@ ax.legend(ncol=1)
 
 plt.tight_layout()
 
-ax.set_ylabel("Carthesian Error [km]")
+ax.set_ylabel("Cartesian Error [km]")
 ax.set_xlabel("Year")
 
 fig.suptitle(f"Error vs SPICE over time for {target_name}")
@@ -560,9 +560,9 @@ This plot shows the final iteration of the residuals, highlighting the 10 observ
 # 10 observatories with most observations
 num_observatories = 10
 
-finalresiduals = np.array(residual_history[:, -1])
+final_residuals = np.array(residual_history[:, -1])
 # if you would like to check the iteration 1 residuals, use:
-# finalresiduals = np.array(residual_history[:, 0])
+# final_residuals = np.array(residual_history[:, 0])
 
 
 # This piece of code collects the 10 largest observatories
@@ -608,7 +608,7 @@ fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 # RA
 axs[0].scatter(
     residual_times[mask_not_top][::2],
-    finalresiduals[mask_not_top][::2],
+    final_residuals[mask_not_top][::2],
     marker=".",
     s=30,
     label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
@@ -617,7 +617,7 @@ axs[0].scatter(
 # DEC
 axs[1].scatter(
     residual_times[mask_not_top][1::2],
-    finalresiduals[mask_not_top][1::2],
+    final_residuals[mask_not_top][1::2],
     marker=".",
     s=30,
     label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
@@ -629,7 +629,7 @@ for observatory in top_observatories:
     name = f"{observatory} | {observatory_names.loc[observatory].Name} | {int(observatory_names.loc[observatory]['count'])} obs"
     axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
-        finalresiduals[concatenated_receiving_observatories == observatory][::2],
+        final_residuals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
         label=name,
@@ -637,7 +637,7 @@ for observatory in top_observatories:
     )
     axs[1].scatter(
         residual_times[concatenated_receiving_observatories == observatory][1::2],
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2],
+        final_residuals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
         label=name,
@@ -686,16 +686,16 @@ observatory_names_box = (
 
 top_observatories_box = observatory_names_box.index.tolist()
 
-# retrieve the data for RA and DEC seperately
+# retrieve the data for RA and DEC separately
 for observatory in top_observatories_box[::-1]:
     name = f"{observatory} | {observatory_names_box.loc[observatory].Name} | {int(observatory_names_box.loc[observatory]['count'])} obs"
     names.append(name)
     data_per_observatory_list_RA.append(
-        finalresiduals[concatenated_receiving_observatories == observatory][::2]
+        final_residuals[concatenated_receiving_observatories == observatory][::2]
     )
 
     data_per_observatory_list_DEC.append(
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2]
+        final_residuals[concatenated_receiving_observatories == observatory][1::2]
     )
 
 # positioning the boxes
@@ -794,13 +794,13 @@ for idx, observatory in enumerate(top_observatories_hist):
     name = f"{observatory} | {observatory_names_hist.loc[observatory].Name} | {int(observatory_names_hist.loc[observatory]['count'])} obs"
 
     axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][0::2],
+        final_residuals[concatenated_receiving_observatories == observatory][0::2],
         bins=nbins,
         alpha=transparency + 0.05,
         label="Right Ascension",
     )
     axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2],
+        final_residuals[concatenated_receiving_observatories == observatory][1::2],
         bins=nbins,
         alpha=transparency,
         label="Declination",
@@ -823,6 +823,3 @@ plt.show()
 # That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the **dynamical model** and the **estimation settings**. Consider for example adding weights and biases on observations and links, as well as improved integrator settings and perturbations. 
 # 
 # If you wanna get more hands-on experience, consider rerunning the script for some other object by changing the `target_mpc_code` variable and seeing how the results change.
-
-
-

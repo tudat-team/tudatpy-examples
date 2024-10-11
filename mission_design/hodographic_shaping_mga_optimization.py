@@ -3,7 +3,7 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-## Context 
+## Objectives 
 """
 
 This example illustrates the usage of PyGMO to optimize a low-thrust interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat. The low-thrust legs are simulated using hodographic shaping. The spacecraft is considered to depart from the edge of the sphere of influence (SOI) of the Earth, execute swingbys at the Mars and Earth, and arrive at the edge of Jupiter's SOI. Thus, the transfer includes 3 legs and 2 swingbys.
@@ -500,162 +500,163 @@ if __name__ == '__main__':
     arrival_eccentricity = 0.0
 
 
-### Optimization Setup 
-"""
-Next, the bounds of the optimized parameters are selected. The bounds used here were not tuned, therefore further tuning them might allow better optimization results to be found.
+    ### Optimization Setup
+    """
+    Next, the bounds of the optimized parameters are selected. The bounds used here were not tuned, therefore further tuning them might allow better optimization results to be found.
+    
+    The lower and upper bounds for the departure and arrival velocities are all taken to have the value 0; as such, these free variables are not optimized.
+    """
 
-The lower and upper bounds for the departure and arrival velocities are all taken to have the value 0; as such, these free variables are not optimized.
-"""
+    ###########################################################################
+    # Select optimization bounds
+    ###########################################################################
 
-###########################################################################
-# Select optimization bounds
-###########################################################################
+    julian_day = constants.JULIAN_DAY
 
-julian_day = constants.JULIAN_DAY
+    # Select bounds
+    departure_date_lb = 9000 * julian_day # s
+    departure_date_ub = 9200 * julian_day # s
+    departure_velocity_lb = 0.0 # m/s
+    departure_velocity_ub = 0.0 # m/s
+    arrival_velocity_lb = 0.0 # m/s
+    arrival_velocity_ub = 0.0 # m/s
+    leg_tof_lb = 200 * julian_day # s
+    leg_tof_ub = 1200 * julian_day # s
+    swingby_incoming_velocity_lb = 0 # m/s
+    swingby_incoming_velocity_ub = 7000 # m/s
+    swingby_periapsis_altitude_lb = 2e2 # m
+    swingby_periapsis_altitude_ub = 2e11 # m
+    leg_free_coefficient_lb = -1e4 # -
+    leg_free_coefficient_ub = 1e4 # -
+    leg_number_of_revolutions_lb = 0 # -
+    leg_number_of_revolutions_ub = 4 # -
 
-# Select bounds
-departure_date_lb = 9000 * julian_day # s
-departure_date_ub = 9200 * julian_day # s
-departure_velocity_lb = 0.0 # m/s
-departure_velocity_ub = 0.0 # m/s
-arrival_velocity_lb = 0.0 # m/s
-arrival_velocity_ub = 0.0 # m/s
-leg_tof_lb = 200 * julian_day # s
-leg_tof_ub = 1200 * julian_day # s
-swingby_incoming_velocity_lb = 0 # m/s
-swingby_incoming_velocity_ub = 7000 # m/s
-swingby_periapsis_altitude_lb = 2e2 # m
-swingby_periapsis_altitude_ub = 2e11 # m
-leg_free_coefficient_lb = -1e4 # -
-leg_free_coefficient_ub = 1e4 # -
-leg_number_of_revolutions_lb = 0 # -
-leg_number_of_revolutions_ub = 4 # -
-
-bounds = [
-    [departure_date_lb, departure_velocity_lb, arrival_velocity_lb, leg_tof_lb, swingby_incoming_velocity_lb,
-     swingby_periapsis_altitude_lb, leg_free_coefficient_lb, leg_number_of_revolutions_lb],
-    [departure_date_ub, departure_velocity_ub, arrival_velocity_ub, leg_tof_ub, swingby_incoming_velocity_ub,
-     swingby_periapsis_altitude_ub, leg_free_coefficient_ub, leg_number_of_revolutions_ub]]
-
-
-# To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `MGAHodographicShapingTrajectoryOptimizationProblem`, is given to PyGMO trough the `pg.problem()` method.
-# 
-# The optimiser is selected to be the Simple Genetic Algorithm (SGA) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.sga)), and is created by calling `pg.algorithm()`. A fixed seed is used to ensure that the results are reproducible.
-# 
-# Since a large population is being optimized (1000 individuals), the `pg.island` class is used instead of `pg.population`. The island serves as a wrapper to the population, allowing the population to be evolved simultaneously in multiple threads, multiple processes, or even multiple machines. Here, as the type os island is not selected explicitly, usually the evolution will occur in multiple processes (though it depends on the operating systems), meaning that multiple CPUs will be used simultaneously. A seed is also specified when creating the island (this seed is used when creating the initial population).
-
-###########################################################################
-# Setup optimization
-###########################################################################
-
-seed = 42
-pop_size = 1000
-
-# Create Pygmo problem
-transfer_optimization_problem = MGAHodographicShapingTrajectoryOptimizationProblem(
-    central_body, transfer_body_order, bounds, departure_semi_major_axis, departure_eccentricity,
-    arrival_semi_major_axis, arrival_eccentricity)
-problem = pg.problem(transfer_optimization_problem)
-
-# Create algorithm and define its seed
-algorithm = pg.algorithm(pg.sga(gen=1))
-algorithm.set_seed(seed)
-
-# Create island
-island = pg.island(algo=algorithm, prob=problem, size=pop_size, seed=seed)
+    bounds = [
+        [departure_date_lb, departure_velocity_lb, arrival_velocity_lb, leg_tof_lb, swingby_incoming_velocity_lb,
+         swingby_periapsis_altitude_lb, leg_free_coefficient_lb, leg_number_of_revolutions_lb],
+        [departure_date_ub, departure_velocity_ub, arrival_velocity_ub, leg_tof_ub, swingby_incoming_velocity_ub,
+         swingby_periapsis_altitude_ub, leg_free_coefficient_ub, leg_number_of_revolutions_ub]]
 
 
-### Run Optimization 
-"""
-Finally, the optimization can be executed by successively evolving the island. To do so, the method `island.evolve()` is called the desired number of times inside a loop. After starting each evolution of the island, the method `island.wait_check()` is called, which makes the program wait for all the evolutions running in parallel to finish. After each evolution is finished, the best fitness and parameters vector are saved.
-"""
+    ###########################################################################
+    # Setup optimization
+    ###########################################################################
 
-###########################################################################
-# Run optimization
-###########################################################################
+    seed = 42
+    pop_size = 1000
 
-num_gen = 40
+    # Create Pygmo problem
+    transfer_optimization_problem = MGAHodographicShapingTrajectoryOptimizationProblem(
+        central_body, transfer_body_order, bounds, departure_semi_major_axis, departure_eccentricity,
+        arrival_semi_major_axis, arrival_eccentricity)
+    problem = pg.problem(transfer_optimization_problem)
 
-# Initialize lists with the best individual per generation
-list_of_champion_f = [island.get_population().champion_f]
-list_of_champion_x = [island.get_population().champion_x]
+    # Create algorithm and define its seed
+    algorithm = pg.algorithm(pg.sga(gen=1))
+    algorithm.set_seed(seed)
 
-# freeze_support needs to be called when using multiprocessing on windows
-# If called from other operating systems, freeze_support doesn't have any effect
-mp.freeze_support()
-
-for i in range(num_gen):
-    print('Evolution: %i / %i' % (i+1, num_gen))
-
-    island.evolve() # Evolve island
-    island.wait_check() # Wait until all evolution tasks in the island finish
-
-    # Save current champion
-    list_of_champion_x.append(island.get_population().champion_x)
-    list_of_champion_f.append(island.get_population().champion_f)
-print('Evolution finished')
+    # Create island
+    island = pg.island(algo=algorithm, prob=problem, size=pop_size, seed=seed)
 
 
-## Results Analysis
-"""
-Having finished the optimisation, it is now possible to analyse the results. An optimum of 41.7 km/s was found, which is a very significant improvement with respect to the best fitness in the initial population (above 200 km/s). The evolution of the minimum $\Delta V$ throughout the optimization is plotted.
-"""
+    # To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `MGAHodographicShapingTrajectoryOptimizationProblem`, is given to PyGMO trough the `pg.problem()` method.
+    #
+    # The optimiser is selected to be the Simple Genetic Algorithm (SGA) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.sga)), and is created by calling `pg.algorithm()`. A fixed seed is used to ensure that the results are reproducible.
+    #
+    # Since a large population is being optimized (1000 individuals), the `pg.island` class is used instead of `pg.population`. The island serves as a wrapper to the population, allowing the population to be evolved simultaneously in multiple threads, multiple processes, or even multiple machines. Here, as the type os island is not selected explicitly, usually the evolution will occur in multiple processes (though it depends on the operating systems), meaning that multiple CPUs will be used simultaneously. A seed is also specified when creating the island (this seed is used when creating the initial population).
 
-###########################################################################
-# Extract the best individual and plot fitness evolution
-###########################################################################
+    ### Run Optimization
+    """
+    Finally, the optimization can be executed by successively evolving the island. To do so, the method `island.evolve()` is called the desired number of times inside a loop. After starting each evolution of the island, the method `island.wait_check()` is called, which makes the program wait for all the evolutions running in parallel to finish. After each evolution is finished, the best fitness and parameters vector are saved.
+    """
 
-print('\n########### CHAMPION INDIVIDUAL ###########\n')
-print('Total Delta V [m/s]: ', island.get_population().champion_f[0])
-print("Parameters vector [various]: ", island.get_population().champion_x)
+    ###########################################################################
+    # Run optimization
+    ###########################################################################
 
-# Plot fitness over generations
-fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-ax.plot(np.arange(0, num_gen+1), np.float_(list_of_champion_f) / 1000)
+    num_gen = 40
 
-# Prettify
-ax.set_xlim((0, num_gen))
-ax.grid('major')
-ax.set_title('Best individual over generations')
-ax.set_xlabel('Number of generation')
-ax.set_ylabel('$\Delta V$ [km/s]')
+    # Initialize lists with the best individual per generation
+    list_of_champion_f = [island.get_population().champion_f]
+    list_of_champion_x = [island.get_population().champion_x]
+
+    # freeze_support needs to be called when using multiprocessing on windows
+    # If called from other operating systems, freeze_support doesn't have any effect
+    mp.freeze_support()
+
+    for i in range(num_gen):
+        print('Evolution: %i / %i' % (i+1, num_gen))
+
+        island.evolve() # Evolve island
+        island.wait_check() # Wait until all evolution tasks in the island finish
+
+        # Save current champion
+        list_of_champion_x.append(island.get_population().champion_x)
+        list_of_champion_f.append(island.get_population().champion_f)
+    print('Evolution finished')
 
 
-#### Plot the transfer
-"""
+    ## Results Analysis
+    """
+    Having finished the optimisation, it is now possible to analyse the results. An optimum of 41.7 km/s was found, which is a very significant improvement with respect to the best fitness in the initial population (above 200 km/s). The evolution of the minimum $\Delta V$ throughout the optimization is plotted.
+    """
 
-The transfer trajectory object associated with a given design parameter vector can be retrieved from the PyGMO problem class through the `get_transfer_trajectory_object` object. The returned object is already evaluated. Using the transfer trajectory object one can, for example, retrieve the state and thrust acceleration history throughout the transfer and plot them.
-"""
+    ###########################################################################
+    # Extract the best individual and plot fitness evolution
+    ###########################################################################
 
-###########################################################################
-# Extract the champion trajectory object and plot trajectory
-###########################################################################
+    print('\n########### CHAMPION INDIVIDUAL ###########\n')
+    print('Total Delta V [m/s]: ', island.get_population().champion_f[0])
+    print("Parameters vector [various]: ", island.get_population().champion_x)
 
-design_parameters = island.get_population().champion_x
-champion_transfer_trajectory_object = transfer_optimization_problem.get_transfer_trajectory_object(design_parameters)
-champion_node_times = transfer_optimization_problem.get_node_times(design_parameters)
+    # Plot fitness over generations
+    fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
+    ax.plot(np.arange(0, num_gen+1), np.float_(list_of_champion_f) / 1000)
 
-# Extract the state history
-state_history = champion_transfer_trajectory_object.states_along_trajectory(100)
-fly_by_states = np.array([state_history[champion_node_times[i]] for i in range(len(champion_node_times))])
-state_history = result2array(state_history)
-acceleration_history = champion_transfer_trajectory_object.inertial_thrust_accelerations_along_trajectory(100)
-acceleration_history = result2array(acceleration_history)
-au = 1.5e11
+    # Prettify
+    ax.set_xlim((0, num_gen))
+    ax.grid('major')
+    ax.set_title('Best individual over generations')
+    ax.set_xlabel('Number of generation')
+    ax.set_ylabel('$\Delta V$ [km/s]')
 
-# Plot the state history
-fig, ax = plt.subplots(figsize=(8,5), constrained_layout=True)
-ax.plot(state_history[:, 1] / au, state_history[:, 2] / au)
-ax.quiver(state_history[:, 1] / au, state_history[:, 2] / au,
-          acceleration_history[:, 1], acceleration_history[:, 2], label="Thrust acceleration", zorder=10, alpha=0.6)
-ax.grid()
-ax.scatter(fly_by_states[0, 0] / au, fly_by_states[0, 1] / au, color='blue', label='Earth departure')
-ax.scatter(fly_by_states[1, 0] / au, fly_by_states[1, 1] / au, color='green', label='Mars fly-by')
-ax.scatter(fly_by_states[2, 0] / au, fly_by_states[2, 1] / au, color='brown', label='Earth fly-by')
-ax.scatter(fly_by_states[3, 0] / au, fly_by_states[3, 1] / au, color='red', label='Jupiter arrival')
-ax.scatter([0], [0], color='orange', label='Sun')
-ax.set_xlabel('x [AU]')
-ax.set_ylabel('y [AU]')
-ax.set_aspect('equal')
-ax.legend(bbox_to_anchor=[1, 1])
+
+    #### Plot the transfer
+    """
+    
+    The transfer trajectory object associated with a given design parameter vector can be retrieved from the PyGMO problem class through the `get_transfer_trajectory_object` object. The returned object is already evaluated. Using the transfer trajectory object one can, for example, retrieve the state and thrust acceleration history throughout the transfer and plot them.
+    """
+
+    ###########################################################################
+    # Extract the champion trajectory object and plot trajectory
+    ###########################################################################
+
+    design_parameters = island.get_population().champion_x
+    champion_transfer_trajectory_object = transfer_optimization_problem.get_transfer_trajectory_object(design_parameters)
+    champion_node_times = transfer_optimization_problem.get_node_times(design_parameters)
+
+    # Extract the state history
+    state_history = champion_transfer_trajectory_object.states_along_trajectory(100)
+    fly_by_states = np.array([state_history[champion_node_times[i]] for i in range(len(champion_node_times))])
+    state_history = result2array(state_history)
+    acceleration_history = champion_transfer_trajectory_object.inertial_thrust_accelerations_along_trajectory(100)
+    acceleration_history = result2array(acceleration_history)
+    au = 1.5e11
+
+    # Plot the state history
+    fig, ax = plt.subplots(figsize=(8,5), constrained_layout=True)
+    ax.plot(state_history[:, 1] / au, state_history[:, 2] / au)
+    ax.quiver(state_history[:, 1] / au, state_history[:, 2] / au,
+              acceleration_history[:, 1], acceleration_history[:, 2], label="Thrust acceleration", zorder=10, alpha=0.6)
+    ax.grid()
+    ax.scatter(fly_by_states[0, 0] / au, fly_by_states[0, 1] / au, color='blue', label='Earth departure')
+    ax.scatter(fly_by_states[1, 0] / au, fly_by_states[1, 1] / au, color='green', label='Mars fly-by')
+    ax.scatter(fly_by_states[2, 0] / au, fly_by_states[2, 1] / au, color='brown', label='Earth fly-by')
+    ax.scatter(fly_by_states[3, 0] / au, fly_by_states[3, 1] / au, color='red', label='Jupiter arrival')
+    ax.scatter([0], [0], color='orange', label='Sun')
+    ax.set_xlabel('x [AU]')
+    ax.set_ylabel('y [AU]')
+    ax.set_aspect('equal')
+    ax.legend(bbox_to_anchor=[1, 1])
+    plt.show()
 
