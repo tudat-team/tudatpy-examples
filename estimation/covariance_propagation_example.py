@@ -546,6 +546,3 @@ for ax in axs3.flat:
 plt.tight_layout()
 plt.show()
 
-
-
-

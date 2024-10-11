@@ -1,37 +1,37 @@
-# Basic thrust model for satellite engines
-"""
+#!/usr/bin/env python
+# coding: utf-8
 
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
-"""
+# # Basic thrust model for satellite engines
+# 
+# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
 
-## Objectives
-"""
+# ## Objectives
+# 
+# This example demonstrates the application of a basic custom class to model the thrust of a satellite. 
+# 
+# Consider the orbit of JUICE with respect to Ganymede. The goal will be to increase the inclination of the orbit, while keeping the nodes constant. Theoretically speaking, the easiest way to do this is by one or more impulsive maneuvers at the nodes of the orbit. Naturally, in reality this thrust will not be impulsive, but the thrust will be applied over a finite duration.
+# 
+# In this example, thrust is implemented to be provided when the true longitude of the spacecraft is within 2 degrees of one of the nodes. Note that parametrizing the thrust as a function of the true longitude is likely not an optimal choice, but it will suffice for this example. The maximum thrust magnitude $T_{max}$ is used when the thrust is on. Introducing such a discontinuity in the dynamical model is again likely not an optimal choice, but will suffice.
+# In addition to the acceleration from the thrust, a basic model is set up, consisting of the following accelerations: \
+# · Spherical harmonic gravity accelerations from Ganymede and Jupiter. Their gravity fields will be expanded to D/O 2/2 and 4/0 respectively. \
+# · Third body forces will include those of the Sun, Saturn, Europa, Io and Callisto. 
+# 
+# The mass of the vehicle is propagated using a mass rate model consistent with the engine thrust used.
+# 
+# How to set up dependent variables to save the mass and altitude of the vehicle over time is demonstrated.
+# 
+# Finally, some post-processing is performed to analyze the retrieved results.
 
-This example demonstrates the application of a basic custom class to model the thrust of a satellite. 
+# ## Import statements
+# 
+# The required import statements are made here at the beginning of the code.
+# 
+# Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`.
+# 
+# The different modules of `tudatpy` that will be used are then imported. We include here the loading of the standard spice kernels as well as the JUICE spice kernel. This is not a standard kernel included in SPICE, and hence an associated file will need to be provided as input, containing the relevant data.
 
-Consider the orbit of JUICE with respect to Ganymede. The goal will be to increase the inclination of the orbit, while keeping the nodes constant. Theoretically speaking, the easiest way to do this is by one or more impulsive maneuvers at the nodes of the orbit. Naturally, in reality this thrust will not be impulsive, but the thrust will be applied over a finite duration.
+# In[1]:
 
-In this example, thrust is implemented to be provided when the true longitude of the spacecraft is within 2 degrees of one of the nodes. Note that parametrizing the thrust as a function of the true longitude is likely not an optimal choice, but it will suffice for this example. The maximum thrust magnitude $T_{max}$ is used when the thrust is on. Introducing such a discontinuity in the dynamical model is again likely not an optimal choice, but will suffice.
-In addition to the acceleration from the thrust, a basic model is set up, consisting of the following accelerations: \
-· Spherical harmonic gravity accelerations from Ganymede and Jupiter. Their gravity fields will be expanded to D/O 2/2 and 4/0 respectively. \
-· Third body forces will include those of the Sun, Saturn, Europa, Io and Callisto. 
-
-The mass of the vehicle is propagated using a mass rate model consistent with the engine thrust used.
-
-How to set up dependent variables to save the mass and altitude of the vehicle over time is demonstrated.
-
-Finally, some post-processing is performed to analyze the retrieved results.
-"""
-
-## Import statements
-"""
-
-The required import statements are made here at the beginning of the code.
-
-Some standard modules are first loaded: `numpy` and `matplotlib.pyplot`.
-
-The different modules of `tudatpy` that will be used are then imported. We include here the loading of the standard spice kernels as well as the JUICE spice kernel. This is not a standard kernel included in SPICE, and hence an associated file will need to be provided as input, containing the relevant data.
-"""
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -50,17 +50,16 @@ spice.load_standard_kernels()
 spice.load_kernel("input/juice_mat_crema_5_1_150lb_v01.bsp")
 
 
-## Environment setup
-"""
+# ## Environment setup
+# 
+# Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
 
-Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
-"""
+# ### Create the bodies
+# 
+# The required bodies will first be created. Note that this involves creation of a simple atmosphere for Ganymede as well as including the radiation pressure settings for JUICE. Please refer to the [Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html) in the user guide for more details.
 
-### Create the bodies
-"""
+# In[2]:
 
-The required bodies will first be created. Note that this involves creation of a simple atmosphere for Ganymede as well as including the radiation pressure settings for JUICE. Please refer to the [Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html) in the user guide for more details.
-"""
 
 # Create settings for celestial bodies
 bodies_to_create = ["Ganymede", "Sun", "Jupiter", "Saturn", "Europa", "Io", "Callisto"]
@@ -88,15 +87,16 @@ body_settings.get("JUICE").radiation_pressure_target_settings = environment_setu
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
-### Define the thrust guidance settings
-"""
+# ### Define the thrust guidance settings
+# 
+# Let's now define the aspects of the body related to thrust: its orientation and its engine. This is done by defining a `ThrustGuidance` class that will contain functions that will calculate the thrust magnitude and thrust direction at any point in time.
+# 
+# The class takes as input `maximum_thrust`, which defines what the constant value of the thrust will be when turned on in Newtons; `true_longitude_threshold`, which defines the range in degrees within which the thrust will be turned on, as measured from either of the nodes; `bodies` is the list of bodies created of type `SystemOfBodies`. Note that, in this class the thrust direction and magnitude are computed entirely independently (despite the fact that some computations are then done twice) to reduce the complexity of the example.
+# 
+# Then, the `rotation_model_settings` and `thrust_magnitude_settings` are set up, which complete the thrust model.
 
-Let's now define the aspects of the body related to thrust: its orientation and its engine. This is done by defining a `ThrustGuidance` class that will contain functions that will calculate the thrust magnitude and thrust direction at any point in time.
+# In[3]:
 
-The class takes as input `maximum_thrust`, which defines what the constant value of the thrust will be when turned on in Newtons; `true_longitude_threshold`, which defines the range in degrees within which the thrust will be turned on, as measured from either of the nodes; `bodies` is the list of bodies created of type `SystemOfBodies`. Note that, in this class the thrust direction and magnitude are computed entirely independently (despite the fact that some computations are then done twice) to reduce the complexity of the example.
-
-Then, the `rotation_model_settings` and `thrust_magnitude_settings` are set up, which complete the thrust model.
-"""
 
 class ThrustGuidance:
 
@@ -175,6 +175,9 @@ class ThrustGuidance:
             return 0.0
 
 
+# In[4]:
+
+
 # Create thrust guidance object (e.g. object that calculates direction/magnitude of thrust)
 thrust_magnitude = 1  # N
 true_longitude_threshold = 2  # degrees
@@ -198,14 +201,15 @@ rotation_model_settings = environment_setup.rotation_model.custom_inertial_direc
 environment_setup.add_rotation_model(bodies, "JUICE", rotation_model_settings)
 
 
-## Propagation setup
-"""
+# ## Propagation setup
+# 
+# Now that the environment is created, the propagation setup is defined.
+# 
+# First, the bodies to be propagated and the central bodies will be defined.
+# Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
 
-Now that the environment is created, the propagation setup is defined.
+# In[5]:
 
-First, the bodies to be propagated and the central bodies will be defined.
-Central bodies are the bodies with respect to which the state of the respective propagated bodies is defined.
-"""
 
 # Define bodies that are propagated
 bodies_to_propagate = ["JUICE"]
@@ -214,15 +218,16 @@ bodies_to_propagate = ["JUICE"]
 central_bodies = ["Ganymede"]
 
 
-### Create the acceleration model
-"""
+# ### Create the acceleration model
+# 
+# First off, the acceleration settings that act on the JUICE are to be defined, which consists of the accelerations previously mentioned.
+# 
+# The defined acceleration settings are then applied to JUICE in a dictionary.
+# 
+# Finally, this dictionary is input to the propagation setup to create the acceleration models.
 
-First off, the acceleration settings that act on the JUICE are to be defined, which consists of the accelerations previously mentioned.
+# In[6]:
 
-The defined acceleration settings are then applied to JUICE in a dictionary.
-
-Finally, this dictionary is input to the propagation setup to create the acceleration models.
-"""
 
 # Define accelerations acting on vehicle.
 
@@ -269,13 +274,14 @@ acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies)
 
 
-### Define the initial state
-"""
+# ### Define the initial state
+# 
+# The initial state of JUICE that will be propagated is now defined. 
+# 
+# In this example, the initial state is retrieved from the JUICE spice kernel for a certain epoch, as defined at the start of the script. The final epoch is also given, making the propagation last a little over two weeks.
 
-The initial state of JUICE that will be propagated is now defined. 
+# In[7]:
 
-In this example, the initial state is retrieved from the JUICE spice kernel for a certain epoch, as defined at the start of the script. The final epoch is also given, making the propagation last a little over two weeks.
-"""
 
 simulation_start_date = time_conversion.DateTime(2035,7,28,14,24)
 simulation_start_epoch = simulation_start_date.epoch()
@@ -290,15 +296,16 @@ system_initial_state = spice.get_body_cartesian_state_at_epoch(
     ephemeris_time=simulation_start_epoch)
 
 
-### Define dependent variables to save
-"""
+# ### Define dependent variables to save
+# 
+# In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
+# 
+# [This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+# 
+# We will save the keplerian state of JUICE with respect to Ganymede, to verify whether we really do raise the inclincation of the orbit. We will also save the mass of JUICE over time to ensure our mass propagation is also correctly performed. Lastly, we save norm of the thrust acceleration to verify whether the thrust we have set is indeed equal to 1N.
 
-In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
+# In[8]:
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
-
-We will save the keplerian state of JUICE with respect to Ganymede, to verify whether we really do raise the inclincation of the orbit. We will also save the mass of JUICE over time to ensure our mass propagation is also correctly performed. Lastly, we save norm of the thrust acceleration to verify whether the thrust we have set is indeed equal to 1N.
-"""
 
 # Define required outputs
 dependent_variables_to_save = [
@@ -310,25 +317,27 @@ dependent_variables_to_save = [
 ]
 
 
-### Create the termination settings
-"""
+# ### Create the termination settings
+# 
+# Let's now define a set of termination settings. In this setup, we only define a single termination setting:
+# - Stop when JUICE reaches the specified end epoch (after a little over 14 days).
+# 
+# In a more realistic scenario, you may want to set multiple termination settings; next to terminating on time you can also choose to terminate at a certain mass (e.g. when you run out of propellant) or a certain altitude. For simplicity, we simply let the propagation run its full course and we will analyse the results after.
 
-Let's now define a set of termination settings. In this setup, we only define a single termination setting:
-- Stop when JUICE reaches the specified end epoch (after a little over 14 days).
+# In[9]:
 
-In a more realistic scenario, you may want to set multiple termination settings; next to terminating on time you can also choose to terminate at a certain mass (e.g. when you run out of propellant) or a certain altitude. For simplicity, we simply let the propagation run its full course and we will analyse the results after.
-"""
 
 termination_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 
-### Create the integrator settings
-"""
+# ### Create the integrator settings
+# 
+# The last step before starting the simulation is to set up the integrator that will be used.
+# 
+# In this case, an RK4 fixed step size integrator is used, with a given step size of 10 s. This is one of the most simple and reliable integrators available, and usually works good enough for a wide number of applications, provided there are relatively stable dynamics.
 
-The last step before starting the simulation is to set up the integrator that will be used.
+# In[10]:
 
-In this case, an RK4 fixed step size integrator is used, with a given step size of 10 s. This is one of the most simple and reliable integrators available, and usually works good enough for a wide number of applications, provided there are relatively stable dynamics.
-"""
 
 # Create numerical integrator settings.
 fixed_step_size = 10.0
@@ -337,27 +346,25 @@ integrator_settings = propagation_setup.integrator.runge_kutta_4(
 )
 
 
-### Create the propagator settings
-"""
+# ### Create the propagator settings
+# 
+# The propagator settings are now defined.
+# 
+# As usual, translational propagation settings are defined, using a Cowell propagator.
+# 
+# Next, mass propagation settings are also defined. The mass rate from the vehicle is set up to be consistent with the thrust used. The vehicle then loses mass as it loses propellant.
+# 
+# Finally, a multitype propagator is defined, encompassing both the translational and the mass propagators.
+# 
+# ## Coupled dynamics
+# If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
+# 
+# As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational), [mass](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.mass) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
+# 
+# Below, we will begin by creating these common inputs and will then move on to the propagator-specific inputs.
 
-The propagator settings are now defined.
+# In[11]:
 
-As usual, translational propagation settings are defined, using a Cowell propagator.
-
-Next, mass propagation settings are also defined. The mass rate from the vehicle is set up to be consistent with the thrust used. The vehicle then loses mass as it loses propellant.
-
-Finally, a multitype propagator is defined, encompassing both the translational and the mass propagators.
-
-"""
-
-## Coupled dynamics
-"""
-If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
-
-As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational), [mass](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.mass) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
-
-Below, we will begin by creating these common inputs and will then move on to the propagator-specific inputs.
-"""
 
 # Create propagation settings.
 translational_propagator_settings = propagation_setup.propagator.translational(
@@ -400,23 +407,24 @@ propagator_settings = propagation_setup.propagator.multitype(
 propagator_settings.print_settings.print_initial_and_final_conditions = True
 
 
-## Propagate the orbit
-"""
+# ## Propagate the orbit
+# 
+# The orbit of JUICE around Ganymede is now ready to be propagated.
+# 
+# This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+# This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
+# 
+# After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
+# This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
+# - Column 0: Time history, in seconds since J2000.
+# - Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
+# - Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
+# 
+# The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dependent_variables_to_save` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
+# Do pay attention that converting to an `ndarray` using the `result2array()` utility will shift these indexes because the first column (index 0) will then be the times.
 
-The orbit of JUICE around Ganymede is now ready to be propagated.
+# In[12]:
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
-This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
-
-After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
-This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
-- Column 0: Time history, in seconds since J2000.
-- Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
-- Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
-
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dependent_variables_to_save` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
-Do pay attention that converting to an `ndarray` using the `result2array()` utility will shift these indexes because the first column (index 0) will then be the times.
-"""
 
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
@@ -430,13 +438,14 @@ state_history = propagation_results.state_history
 dependent_variable_history = propagation_results.dependent_variable_history
 
 
-## Let's look at plots
-"""
+# ## Let's look at plots
+# 
+# We are now ready to do some post-processing, and look at our results! As mentioned before, we are interested in validating whether our maneuver was performed successfully, and whether the mass propagation has accurately kept track of the mass of JUICE over time.
+# 
+# As such, we'll plot the inclination, the mass of JUICE over time and add several plots to gain some confidence in the correct implementation of the thrust direction and magnitude, such as a plot of the magnitude as a function of the true longitude.
 
-We are now ready to do some post-processing, and look at our results! As mentioned before, we are interested in validating whether our maneuver was performed successfully, and whether the mass propagation has accurately kept track of the mass of JUICE over time.
+# In[13]:
 
-As such, we'll plot the inclination, the mass of JUICE over time and add several plots to gain some confidence in the correct implementation of the thrust direction and magnitude, such as a plot of the magnitude as a function of the true longitude.
-"""
 
 ## PLOTS
 
