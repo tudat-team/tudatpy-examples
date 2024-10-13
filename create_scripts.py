@@ -90,7 +90,10 @@ def generate_script(notebook, clean_script: bool = True):
     Use custom clean_py template in conversion if clean_script is True.
     See https://nbconvert.readthedocs.io/en/latest/customizing.html for nbconvert template documentation.
     """
-    command_args = ["jupyter", "nbconvert", notebook, "--to", "script"]
+
+    # convert to python instead of generic script
+    # see https://stackoverflow.com/questions/48568388/nbconvert-suddenly-producing-txt-instead-of-py
+    command_args = ["jupyter", "nbconvert", notebook, "--to", "python"]
 
     if clean_script:
         command_args += ["--template", "templates/clean_py"]
