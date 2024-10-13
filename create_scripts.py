@@ -8,7 +8,8 @@ http://tudat.tudelft.nl/LICENSE.
 
 # PLEASE NOTE:
 # This script is NOT a tudatpy example.
-# It is a script to clean the .py files that are generated from Jupyter notebooks, using the following option: File > Download as > Python (.py)
+# It is a script to create and clean .py files from Jupyter notebooks.
+# See python create_scripts.py -h for more information.
 # Running it will automatically edit all the .py example files (please check the changes made before pushing them to the repository).
 
 # Standard library imports
@@ -37,124 +38,26 @@ def usage() -> None:
     )
     print("  --no-clean                  Do not clean the scripts after conversion")
     print("  --no-check                  Do not check the scripts for syntax errors")
-    print("  --run                       Run the scripts after conversion")
+    print("  --no-run                    Do not run the scripts after conversion")
 
 
-# Utilities
-def request_confirmation(message):
-    message = f"{message} [y/N]"
-    width = max(60, len(message) + 20)
-    return (
-        input(f'{"="*width}\n{message:^{width}}\n{"="*width}\n').strip().lower() == "y"
-    )
+def parse_cli_arguments(cli_args: list[str]) -> dict:
 
-
-def generate_script(notebook):
-    """
-    Transform each notebook into a python script using
-    the jupyter nbconvert command line utility
-    """
-    subprocess.run(["jupyter", "nbconvert", "--to", "script", notebook])
-
-
-def clean_script(script):
-    print(f"Cleaning example:              {script}")
-
-    with open(script, "r+") as file:
-
-        # Read example
-        example_content = file.readlines()
-
-        # Remove file type and encoding
-        if "!/usr/bin/env python" in example_content[0]:
-            example_content = example_content[3:]
-
-        # State
-        checking_comment_end = False
-        skip_next = False
-
-        # Indentation
-        indentation = ""
-
-        # Go trough each line in the example
-        for i, line in enumerate(example_content):
-
-            if skip_next:
-                skip_next = False
-                continue
-
-            # --> Remove the "In[x]" notebook inputs
-            if "In[" in line:
-                # Also remove the two lines after
-                [example_content.pop(i) for _ in range(3)]
-
-            # --> End of MD cell
-            elif checking_comment_end:
-                # --> End of cell: if the line is empty, the markdown cell is finished
-                if line == "\n":
-                    # Add """ to close the string comment, then an empty line
-                    example_content[i] = '"""\n'
-                    example_content.insert(i + 1, "\n")
-                    checking_comment_end = False
-                # --> Second title: detect if we have a second title in the same markdown cell, and mark the separation
-                elif "##" in line:
-                    example_content[i] = line.replace("# ", "", 1)
-                    example_content.insert(i, '"""\n\n')
-                    example_content.insert(i + 2, '"""\n')
-                    skip_next = True
-                # If we are still in the markdown cell, remove the simple # that indicates a comment line
-                else:
-                    example_content[i] = line.replace("# ", "", 1)
-
-            # --> Start of MD cell: if the line starts with # #, we are in a markdown cell that starts with a title
-            elif "# #" in line:
-                # Replace the first line to keep the title with a comment #
-                example_content[i] = line.replace("# ", "", 1)
-                example_content.insert(i + 1, '"""\n')
-                if example_content[i + 2] == "\n":
-                    example_content.pop(i + 2)
-                checking_comment_end = True  # Start looking for the end of the cell
-
-            # --> Remove the lines that made the plots interactive
-            elif "# make plots interactive" in line:
-                [example_content.pop(i) for _ in range(2)]
-
-            # We're in a code cell, so we record the indentation level
-            else:
-
-                # Retrieve the last non-empty line
-                last_nonempty_line = next(
-                    line
-                    for line in example_content[i - 1 :: -1]
-                    if re.match(r"^( {4}){0,2}\S", line)
-                )
-
-                # Keep track of current indentation
-                indentation = " " * (
-                    len(last_nonempty_line) - len(last_nonempty_line.lstrip())
-                )
-
-        file.seek(0)
-        file.writelines(example_content)
-        file.truncate()
-
-
-if __name__ == "__main__":
-
+    # default arguments
     ARGUMENTS = {
         "NOTEBOOKS": None,
         "CLEAN_SCRIPTS": True,
         "CHECK_SCRIPTS": True,
-        "RUN_SCRIPTS": False,
+        "RUN_SCRIPTS": True,
     }
 
-    if len(sys.argv) < 2:
+    if len(cli_args) < 2:
         print("Please provide a notebook file to convert.")
         usage()
         exit(1)
 
     # Parse input
-    args = iter(sys.argv[1:])
+    args = iter(cli_args[1:])
     for ii, arg in enumerate(args):
         if ii == 0:
             if Path(arg).resolve().exists():
@@ -169,12 +72,53 @@ if __name__ == "__main__":
             ARGUMENTS["CLEAN_SCRIPTS"] = False
         elif arg == "--no-check":
             ARGUMENTS["CHECK_SCRIPTS"] = False
-        elif arg == "--run":
-            ARGUMENTS["RUN_SCRIPTS"] = True
+        elif arg == "--no-run":
+            ARGUMENTS["RUN_SCRIPTS"] = False
         else:
             print("Invalid command")
             usage()
             exit(1)
+
+    return ARGUMENTS
+
+
+# Utilities
+def generate_script(notebook, clean_script: bool = True):
+    """
+    Transform each notebook into a python script using
+    the jupyter nbconvert command line utility.
+    Use custom clean_py template in conversion if clean_script is True.
+    See https://nbconvert.readthedocs.io/en/latest/customizing.html for nbconvert template documentation.
+    """
+    command_args = ["jupyter", "nbconvert", notebook, "--to", "script"]
+
+    if clean_script:
+        command_args += ["--template", "templates/clean_py"]
+
+    subprocess.run(command_args)
+
+
+def clean_script(script):
+    print(f"Cleaning example:              {script}")
+
+    with open(script, "r+") as file:
+
+        # Read example
+        example_content = file.readlines()
+
+        if "plt.show()" not in example_content:
+            example_content.append("\nplt.show()")
+
+        file.seek(0)
+        file.writelines(example_content)
+        file.truncate()
+
+
+if __name__ == "__main__":
+
+    cli_args = sys.argv
+
+    ARGUMENTS = parse_cli_arguments(cli_args)
 
     example_notebooks = ARGUMENTS["NOTEBOOKS"]
     example_scripts = [
@@ -185,17 +129,16 @@ if __name__ == "__main__":
     Generate Python scripts from Jupyter notebooks
     """
     for notebook in tqdm(example_notebooks):
-        generate_script(notebook)
+        generate_script(notebook, ARGUMENTS["CLEAN_SCRIPTS"])
 
     if ARGUMENTS["CLEAN_SCRIPTS"]:
         """
-        Clean up the python scripts
+        Clean Python scripts
         """
         for example_python_script in example_scripts:
-
             clean_script(example_python_script)
 
-    if ARGUMENTS["CLEAN_SCRIPTS"]:
+    if ARGUMENTS["CHECK_SCRIPTS"]:
         """
         Check Python scripts for syntax errors
         """
