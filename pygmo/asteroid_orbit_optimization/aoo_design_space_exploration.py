@@ -1,36 +1,35 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""
+# Asteroid orbit optimization with PyGMO - Design Space Exploration
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
-# # Asteroid orbit optimization with PyGMO - Design Space Exploration
-# Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-# 
-# ## Objectives
-# This tutorial is the second part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example, without the explanation, after which a Design Space Exploration (DSE) is done**. The DSE is collection of methods with which an optimization problem can be analyzed, and better understood, without having to execute an optimization or test randomly.
-# 
-# ## Problem definition
-# 
-# The 4 design variables are:
-# 
-# - initial values of the semi-major axis.
-# - initial eccentricity.
-# - initial inclination.
-# - initial longitude of the ascending node.
-#  
-# The 2 objectives are:
-# 
-# - good coverage (maximizing the mean value of the absolute longitude w.r.t. Itokawa over the full propagation).
-# - good resolution (the mean value of the distance should be minimized).
-#  
-# The constraints are set on the altitude: all the sets of design variables leading to an orbit.
-# 
-# #### NOTE
-# It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
-# correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
-# PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
+## Objectives
+This tutorial is the second part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example, without the explanation, after which a Design Space Exploration (DSE) is done**. The DSE is collection of methods with which an optimization problem can be analyzed, and better understood, without having to execute an optimization or test randomly.
 
-# ## Import statements
+## Problem definition
 
-# In[1]:
+The 4 design variables are:
+
+- initial values of the semi-major axis.
+- initial eccentricity.
+- initial inclination.
+- initial longitude of the ascending node.
+ 
+The 2 objectives are:
+
+- good coverage (maximizing the mean value of the absolute longitude w.r.t. Itokawa over the full propagation).
+- good resolution (the mean value of the distance should be minimized).
+ 
+The constraints are set on the altitude: all the sets of design variables leading to an orbit.
+
+#### NOTE
+It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
+correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
+PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
+"""
+
+"""
+## Import statements
+"""
 
 
 # Load standard modules
@@ -59,11 +58,13 @@ import pygmo as pg
 current_dir = os.path.abspath('')
 
 
-# ## Creation of Custom Environment
+"""
+## Creation of Custom Environment
+"""
 
-# ### Itokawa rotation settings
-
-# In[2]:
+"""
+### Itokawa rotation settings
+"""
 
 
 def get_itokawa_rotation_settings(itokawa_body_frame_name):
@@ -96,9 +97,9 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
         "ECLIPJ2000", itokawa_body_frame_name, initial_orientation_eclipj2000, 0.0, rotation_rate)
 
 
-# ### Itokawa ephemeris settings
-
-# In[3]:
+"""
+### Itokawa ephemeris settings
+"""
 
 
 def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
@@ -132,9 +133,9 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         "ECLIPJ2000")
 
 
-# ### Itokawa gravity field settings
-
-# In[4]:
+"""
+### Itokawa gravity field settings
+"""
 
 
 def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius):
@@ -159,9 +160,9 @@ def get_itokawa_gravity_field_settings(itokawa_body_fixed_frame, itokawa_radius)
         associated_reference_frame=itokawa_body_fixed_frame)
 
 
-# ### Itokawa shape settings
-
-# In[5]:
+"""
+### Itokawa shape settings
+"""
 
 
 def get_itokawa_shape_settings(itokawa_radius):
@@ -169,9 +170,9 @@ def get_itokawa_shape_settings(itokawa_radius):
     return environment_setup.shape.spherical(itokawa_radius)
 
 
-# ### Simulation bodies
-
-# In[6]:
+"""
+### Simulation bodies
+"""
 
 
 def create_simulation_bodies(itokawa_radius):
@@ -229,9 +230,9 @@ def create_simulation_bodies(itokawa_radius):
     return bodies
 
 
-# ### Acceleration models
-
-# In[7]:
+"""
+### Acceleration models
+"""
 
 
 def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
@@ -257,9 +258,9 @@ def get_acceleration_models(bodies_to_propagate, central_bodies, bodies):
         central_bodies)
 
 
-# ### Termination settings
-
-# In[8]:
+"""
+### Termination settings
+"""
 
 
 def get_termination_settings(mission_initial_time, 
@@ -295,9 +296,9 @@ def get_termination_settings(mission_initial_time,
                                                            fulfill_single_condition=True)
 
 
-# ### Dependent variables to save
-
-# In[9]:
+"""
+### Dependent variables to save
+"""
 
 
 def get_dependent_variables_to_save():
@@ -309,9 +310,9 @@ def get_dependent_variables_to_save():
     return dependent_variables_to_save
 
 
-# ## Optimisation problem formulation 
-
-# In[10]:
+"""
+## Optimisation problem formulation 
+"""
 
 
 class AsteroidOrbitProblem:
@@ -406,12 +407,14 @@ class AsteroidOrbitProblem:
         return self.dynamics_simulator_function()
 
 
-# ### Setup orbital simulation
-# 
+"""
+### Setup orbital simulation
 
-# #### Simulation settings
+"""
 
-# In[11]:
+"""
+#### Simulation settings
+"""
 
 
 # Load spice kernels
@@ -443,9 +446,9 @@ central_bodies = ["Itokawa"]
 acceleration_models = get_acceleration_models(bodies_to_propagate, central_bodies, bodies)
 
 
-# #### Dependent variables, termination settings, and orbit parameters
-
-# In[12]:
+"""
+#### Dependent variables, termination settings, and orbit parameters
+"""
 
 
 # Define list of dependent variables to save
@@ -458,9 +461,9 @@ termination_settings = get_termination_settings(
 orbit_parameters = [1.20940330e+03, 2.61526215e-01, 7.53126558e+01, 2.60280587e+02]
 
 
-# #### Integrator and Propagator settings
-
-# In[13]:
+"""
+#### Integrator and Propagator settings
+"""
 
 
 # Create numerical integrator settings
@@ -487,24 +490,28 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
                                                                          dependent_variables_to_save)
 
 
-# ## Design Space Exploration
-# 
-# **From here on out the example is new compared to the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example.**
-# 
-# Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
-# 
-# - Monte Carlo Analysis
-# - Fractional Factorial Design
-# - Factorial Design
+"""
+## Design Space Exploration
 
-# ### Monte Carlo Analysis
-# Starting with the method that requires the least amount of thinking; a Monte Carlo Analysis. By varying input parameters randomly, and propagating many trajectories, one can discover trends; how the semi-major axis influences the mean latitude objective, for example. The difficulty arises in that the results are not conclusive; design variables can be coupled by definition.
+**From here on out the example is new compared to the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example.**
 
-# #### Variable Definitions
-# 
-# A number of variables have to be defined. The number of runs per design variable, this quantity is a trade-off between resolution of your results and time spent. The seed is defined for reproducibility of the results. A number of arrays are defined for saving the data relevant for post-processing. 
+Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
 
-# In[14]:
+- Monte Carlo Analysis
+- Fractional Factorial Design
+- Factorial Design
+"""
+
+"""
+### Monte Carlo Analysis
+Starting with the method that requires the least amount of thinking; a Monte Carlo Analysis. By varying input parameters randomly, and propagating many trajectories, one can discover trends; how the semi-major axis influences the mean latitude objective, for example. The difficulty arises in that the results are not conclusive; design variables can be coupled by definition.
+"""
+
+"""
+#### Variable Definitions
+
+A number of variables have to be defined. The number of runs per design variable, this quantity is a trade-off between resolution of your results and time spent. The seed is defined for reproducibility of the results. A number of arrays are defined for saving the data relevant for post-processing. 
+"""
 
 
 no_of_runs = 500
@@ -521,11 +528,11 @@ constraint_values = np.zeros((no_of_runs, len(orbit_param_names)))
 parameters = np.zeros((no_of_runs, len(orbit_param_names)))
 
 
-# #### Monte Carlo loop
-# 
-# The Monte Carlo variation is made with two nested loops; one for the various orbit parameters that will be changed, and one for each run. As explained before, only one parameter is changed per run, so for each parameter, a set of random numbers is produced equal to the number of simulations. This new combination is throughput into the fitness function of the `AsteroidOrbitProblem` class. Regarding that `AsteroidOrbitProblem` class, for the sake of consistency, the (UDP) Problem class from PyGMO is used. This class is by no means necessary for running the analysis. After the fitness is evaluated, a number of relevant quantities are saved to the previously defined arrays.
+"""
+#### Monte Carlo loop
 
-# In[15]:
+The Monte Carlo variation is made with two nested loops; one for the various orbit parameters that will be changed, and one for each run. As explained before, only one parameter is changed per run, so for each parameter, a set of random numbers is produced equal to the number of simulations. This new combination is throughput into the fitness function of the `AsteroidOrbitProblem` class. Regarding that `AsteroidOrbitProblem` class, for the sake of consistency, the (UDP) Problem class from PyGMO is used. This class is by no means necessary for running the analysis. After the fitness is evaluated, a number of relevant quantities are saved to the previously defined arrays.
+"""
 
 
 for i in range(len(orbit_parameters)): 
@@ -594,10 +601,10 @@ for i in range(len(orbit_parameters)):
         constraint_values[j, i] = constraint_val
 
 
-# ####  Monte Carlo Post-processing
-# A few dictionaries are defined for labelling purposes and the parameters are scattered against the objective values. A color map is used to indicate how close the solutions are to the distance constraint value. Many results are made, but only the semi-major axis variation data is plotted. Remove `break` in the nested loop below to obtain all results.
-
-# In[16]:
+"""
+####  Monte Carlo Post-processing
+A few dictionaries are defined for labelling purposes and the parameters are scattered against the objective values. A color map is used to indicate how close the solutions are to the distance constraint value. Many results are made, but only the semi-major axis variation data is plotted. Remove `break` in the nested loop below to obtain all results.
+"""
 
 
 # Create dictionaries defining the design variables
@@ -619,8 +626,6 @@ design_variable_units = {0: r' m',
                            3: r' deg'}
 
 
-# In[17]:
-
 
 obj_arrays = [mean_latitude_all_param, mean_distance_all_param]
 objective_names = ['Latitude', 'Distance']
@@ -641,20 +646,20 @@ for obj in range(2): #number of objectives
         break
 
 
-# ### Fractional Factorial Design
-# The Fractional Factorial Design (FFD) method has a number of pros and cons relative to the Monte Carlo method. The concept is based on orthogonality of a design matrix, with which you can extract information efficiently without running a ton of simulations. In other words, a selection of corners of the design space hypercube are explored. The advantage of the orthogonal array, based on Latin Squares, is that it is computationally very light, thereby of course sacrificing knowledge about your design space. The information per run is high with FFD.
-# 
-# #### Orthogonal Array
-# 
-# A function, `get_orthogonal_array()`,  is used that calculates the orthogonal array depending on the number of levels (2 or 3) and number of factors (design variables) that any specific problem has. The algorithm is based on the Latin Square and the array is systematically built from there. The content of this array can sometimes be confusing, but it is quite straightforward; the rows represent experiments, the columns represent the factors, and the entries represent the discretized value of the factor — in the two-level case -1 becomes the minimum bound and 1 becomes the maximum bound. If you print the array that rolls out, you can get a feel for the structure of the method and the reason why it is efficient.
-# 
-# #### Fractional Factorial Design Loop 
-# 
-# The FFD module is similar to that of the Monte Carlo in that there are two loops including one that changes the design variables and one that loops over the various runs. Within the two loops the `AsteroidOrbitProblem` is defined again and the objective values are extracted after evaluating the fitness function.
-# 
-# The difference is in how the orbit parameters are assigned. Instead of creating vectors of random numbers, the values in the orthogonal array, -1 and 1 for 2-level analysis, map to minimum and maximum orbit parameter values respectively.
+"""
+### Fractional Factorial Design
+The Fractional Factorial Design (FFD) method has a number of pros and cons relative to the Monte Carlo method. The concept is based on orthogonality of a design matrix, with which you can extract information efficiently without running a ton of simulations. In other words, a selection of corners of the design space hypercube are explored. The advantage of the orthogonal array, based on Latin Squares, is that it is computationally very light, thereby of course sacrificing knowledge about your design space. The information per run is high with FFD.
 
-# In[18]:
+#### Orthogonal Array
+
+A function, `get_orthogonal_array()`,  is used that calculates the orthogonal array depending on the number of levels (2 or 3) and number of factors (design variables) that any specific problem has. The algorithm is based on the Latin Square and the array is systematically built from there. The content of this array can sometimes be confusing, but it is quite straightforward; the rows represent experiments, the columns represent the factors, and the entries represent the discretized value of the factor — in the two-level case -1 becomes the minimum bound and 1 becomes the maximum bound. If you print the array that rolls out, you can get a feel for the structure of the method and the reason why it is efficient.
+
+#### Fractional Factorial Design Loop 
+
+The FFD module is similar to that of the Monte Carlo in that there are two loops including one that changes the design variables and one that loops over the various runs. Within the two loops the `AsteroidOrbitProblem` is defined again and the objective values are extracted after evaluating the fitness function.
+
+The difference is in how the orbit parameters are assigned. Instead of creating vectors of random numbers, the values in the orthogonal array, -1 and 1 for 2-level analysis, map to minimum and maximum orbit parameter values respectively.
+"""
 
 
 no_of_factors = 4 # This leads to an 8x7 orthogonal array. Meaning 7 contribution percentages will be given in the ANOVA.
@@ -702,22 +707,24 @@ for i in range(len(FFD_array)):
     mean_dependent_variables_list[i, 1] = mean_latitude
 
 
-# #### Post-processing FFD
-# As not many runs are done, plotting any data is not sensible. An Analysis of Variance (ANOVA) can be done to determine percentage contributions of each parameter. For example, one would find that the eccentricity—one of the design variables—has a x% contribution to the distance objective.
-# 
-# This ANOVA analysis can also be done on the Factorial Design method discussed below, and so in the interest of space it is only applied there.
+"""
+#### Post-processing FFD
+As not many runs are done, plotting any data is not sensible. An Analysis of Variance (ANOVA) can be done to determine percentage contributions of each parameter. For example, one would find that the eccentricity—one of the design variables—has a x% contribution to the distance objective.
 
-# ### Factorial Design
-# 
-# Factorial design (FD) is another systematic approach to exploring the design space. It can be very useful as far fewer assumptions are made about the results; FD is complete in that all corners—and potentially intermediate points—of the hypercube are tested. Whereas with FFD an orthogonal array was created with Latin Squares, here the array is built using Yates algorithm. Some information can be found [here](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35i.htm).
-# 
-# #### Yates Array
-# The Yates array is similar to the orthogonal array in that it is orthogonal, and the rows, columns, and entries correspond to the same things (experiments, factors, and discretised values, respectively). The Yates array has significantly more rows, because it is complete, as mentioned before.
-# 
-# #### FD loop
-# The orbit parameters are now assigned using the input from Yates array discussed before. Otherwise the structure is the same as Monte Carlo and FFD.
+This ANOVA analysis can also be done on the Factorial Design method discussed below, and so in the interest of space it is only applied there.
+"""
 
-# In[19]:
+"""
+### Factorial Design
+
+Factorial design (FD) is another systematic approach to exploring the design space. It can be very useful as far fewer assumptions are made about the results; FD is complete in that all corners—and potentially intermediate points—of the hypercube are tested. Whereas with FFD an orthogonal array was created with Latin Squares, here the array is built using Yates algorithm. Some information can be found [here](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35i.htm).
+
+#### Yates Array
+The Yates array is similar to the orthogonal array in that it is orthogonal, and the rows, columns, and entries correspond to the same things (experiments, factors, and discretised values, respectively). The Yates array has significantly more rows, because it is complete, as mentioned before.
+
+#### FD loop
+The orbit parameters are now assigned using the input from Yates array discussed before. Otherwise the structure is the same as Monte Carlo and FFD.
+"""
 
 
 no_of_levels = 7 # make 7 for the response surfaces
@@ -782,11 +789,11 @@ for i in range(len(yates_array)): # Run through yates array
     mean_latitudes[i] = mean_latitude
 
 
-# #### Anova Analysis
-# 
-# Now that yates array has been created and the objective values have been obtained, these two pieces of data can be combined to calculate what the contribution is of a certain variable or interaction to an objective, using an ANOVA analysis. Individual, linear, and quadratic effects are can be taken into account when determining the contributions.
+"""
+#### Anova Analysis
 
-# In[20]:
+Now that yates array has been created and the objective values have been obtained, these two pieces of data can be combined to calculate what the contribution is of a certain variable or interaction to an objective, using an ANOVA analysis. Individual, linear, and quadratic effects are can be taken into account when determining the contributions.
+"""
 
 
 # Anova analysis
@@ -797,30 +804,32 @@ i, ij, ijk, err = util.anova_analysis(mean_distances, #can also be mean_latitude
             level_of_interactions=2)
 
 
-# #### ANOVA Results
-# In the tables below, the individual, linear, and quadratic contributions to the distance objective can be found in percentages, which follows from the anova_analysis function. NOTE: These results were made with the 2-level yates array, because the  interaction columns are calculated with -1 and 1. This doesn't work with 7 levels.
-# 
-# |    |  Semi-major Axis  |Eccentricity|Inclination|Longitude of the Node|
-# |----|----|----|----|----|
-# |Individual Contribution [%]|99.7|0.101|0.037|1.38e-4|
-# 
-# |    |Sma-Ecc|Sma-Inc|Sma-Lon|Ecc-Inc|Ecc-Lon|Inc-Lon|
-# |----|----|----|----|----|----|----|
-# |Linear Interaction [%]|6.06e-5|0.037|1.38e-4|2.51e-2|3.55e-4|2.28e-4|
-# 
-# |    |  Sma-Ecc-Inc  |Sma-Ecc-Lon|Sma-Inc-Lon|Ecc-Inc-Lon|
-# |----|----|----|----|----|
-# |Quadratic Contribution [%]|2.51e-2|3.55e-4|2.28e-4|6.42e-5|
+"""
+#### ANOVA Results
+In the tables below, the individual, linear, and quadratic contributions to the distance objective can be found in percentages, which follows from the anova_analysis function. NOTE: These results were made with the 2-level yates array, because the  interaction columns are calculated with -1 and 1. This doesn't work with 7 levels.
 
-# #### Response Surface Post-processing
-# With factorial design, a response surface can also be plotted. These surfaces are generally only useful if the resolution is higher than 2, as you can only see linear trends with two levels. The problem can easily be too large (too many design variables) to run the problem with 7 levels, but for this problem it is doable. The following results are thus created by setting the no_of_levels to 7.
-# 
-# As plotting all the data obtained with the FD is rather verbose, and probably not the best way, each combination of two variables is plotted for the trajectories where the other two parameters are at their minimum—the 0th index.
-# 
-# A few lists are created for labelling, and the iterators for each response surface plot are set to 0. The 6 combinations with their conditions as explained before are implemented, after which the 49 points are plotted (`no_of_levels**2`).
-# 
+|    |  Semi-major Axis  |Eccentricity|Inclination|Longitude of the Node|
+|----|----|----|----|----|
+|Individual Contribution [%]|99.7|0.101|0.037|1.38e-4|
 
-# In[21]:
+|    |Sma-Ecc|Sma-Inc|Sma-Lon|Ecc-Inc|Ecc-Lon|Inc-Lon|
+|----|----|----|----|----|----|----|
+|Linear Interaction [%]|6.06e-5|0.037|1.38e-4|2.51e-2|3.55e-4|2.28e-4|
+
+|    |  Sma-Ecc-Inc  |Sma-Ecc-Lon|Sma-Inc-Lon|Ecc-Inc-Lon|
+|----|----|----|----|----|
+|Quadratic Contribution [%]|2.51e-2|3.55e-4|2.28e-4|6.42e-5|
+"""
+
+"""
+#### Response Surface Post-processing
+With factorial design, a response surface can also be plotted. These surfaces are generally only useful if the resolution is higher than 2, as you can only see linear trends with two levels. The problem can easily be too large (too many design variables) to run the problem with 7 levels, but for this problem it is doable. The following results are thus created by setting the no_of_levels to 7.
+
+As plotting all the data obtained with the FD is rather verbose, and probably not the best way, each combination of two variables is plotted for the trajectories where the other two parameters are at their minimum—the 0th index.
+
+A few lists are created for labelling, and the iterators for each response surface plot are set to 0. The 6 combinations with their conditions as explained before are implemented, after which the 49 points are plotted (`no_of_levels**2`).
+
+"""
 
 
 it1, it2, it3, it4, it5, it6 = 0, 0, 0, 0, 0, 0
@@ -875,5 +884,6 @@ for i, combi in enumerate(combi_list):
     ax.set_zlabel('Mean Latitude [rad]', labelpad=10)
     ax.set_title('%s - %s '%(combi, title_list[i]), y=1.0, pad=10)
     ax.view_init(10, -140)
+
 
 plt.show()

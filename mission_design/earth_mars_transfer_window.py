@@ -1,5 +1,5 @@
-# Earth-Mars transfer window design using Porkchop Plots
 """
+# Earth-Mars transfer window design using Porkchop Plots
 Copyright (c) 2010-2023, Delft University of Technology
 All rigths reserved
 This file is part of the Tudat. Redistribution and use in source and 
@@ -8,10 +8,7 @@ under the terms of the Modified BSD license. You should have received
 a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 
-"""
-
 ## Objectives
-"""
 This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
 
 By default, the porkchop module uses a Lambert arc to compute the $\Delta V$ required to depart from the departure body (Earth in this case) and be captured by the target body (in this case Mars).
@@ -23,11 +20,12 @@ Users can provide a custom function to calculate the $\Delta V$ required for any
 This opens the possibility to calculate the $\Delta V$ required for any transfer; potential applications include: low-thrust transfers, perturbed transfers with course correction manoeuvres, transfers making use of Gravity Assists, and more.
 """
 
-## Import statements
 """
+## Import statements
 
 The required import statements are made here, starting with standard imports (`os`, `pickle` from the Python Standard Library), followed by tudatpy imports.
 """
+
 
 # General imports
 import os
@@ -41,11 +39,12 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
 
-## Environment setup
 """
+## Environment setup
 
 We proceed to set up the simulation environment, by loading the standard Spice kernels, defining the origin of the global frame and creating all necessary bodies. 
 """
+
 
 # Load spice kernels
 spice.load_standard_kernels( )
@@ -63,10 +62,11 @@ body_settings = environment_setup.get_default_body_settings(
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 
-## Porkchop Plots
 """
+## Porkchop Plots
 The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
 """
+
 
 departure_body = 'Earth'
 target_body = 'Mars'
@@ -78,7 +78,10 @@ earliest_arrival_time   = DateTime(2005, 11,  16)
 latest_arrival_time     = DateTime(2006, 12,  21)
 
 
-# To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
+"""
+To ensure the porkchop plot is rendered with good resolution, the time resolution of the plot is defined as 0.5% of the smallest time window (either the arrival or the departure window):
+"""
+
 
 # Set time resolution IN DAYS as 0.5% of the smallest window (be it departure, or arrival)
 # This will result in fairly good time resolution, at a runtime of approximately 10 seconds
@@ -90,7 +93,10 @@ time_resolution = time_resolution = min(
 ) / constants.JULIAN_DAY * time_window_percentage / 100
 
 
-# Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
+"""
+Generating a high-resolution plot may be time-consuming: reusing saved data might be desirable; we proceed to ask the user whether to reuse saved data or generate the plot from scratch.
+"""
+
 
 # File
 data_file = 'porkchop.pkl'
@@ -102,11 +108,14 @@ RECALCULATE_delta_v = input(
 print()
 
 
-# Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
-# 
-# - The optimal departure-arrival date combination
-# - The constant time-of-flight isochrones
-# - And more
+"""
+Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
+
+- The optimal departure-arrival date combination
+- The constant time-of-flight isochrones
+- And more
+"""
+
 
 if not os.path.isfile(data_file) or RECALCULATE_delta_v:
     # Regenerate plot
@@ -141,8 +150,8 @@ else:
     )
 
 
-### Variations
 """
+### Variations
 The Tudat `porkchop` module allows us to
 
 - Save the $\Delta V$ map returned by `porkchop` and plot it again without recalculating with the `plot_porkchop` function
@@ -150,6 +159,7 @@ The Tudat `porkchop` module allows us to
 
 Let's make use of `plot_porkchop` to see all four combinations!
 """
+
 
 cases = [
     {'C3': False, 'total': False, 'threshold': 15 , 'filename': 'figures/ΔV.png'},
@@ -172,3 +182,6 @@ for case in cases:
 
 
 
+
+
+plt.show()
