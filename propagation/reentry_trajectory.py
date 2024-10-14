@@ -1,5 +1,5 @@
 """
-# Re-entry trajectory
+# Re-entry trajectory using custom aerodynamic guidance
 
 ## Objectives
 
