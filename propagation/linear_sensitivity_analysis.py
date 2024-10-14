@@ -1,5 +1,5 @@
 """
-# Linear sensitivity analysis of perturbed orbit
+# Linear sensitivity analysis using variational equations
 
 ## Objectives
 This example is an extension of the Perturbed Satellite Orbit Application. It adopts the simulation setup from the Perturbed Satellite Orbit, considering a slightly reduced set of perturbing accelerations for the propagation of the vehicle.
@@ -7,7 +7,6 @@ This example is an extension of the Perturbed Satellite Orbit Application. It ad
 The script demonstrates how the basic numerical simulation setup (aiming to propagate the state of the system) can swiftly be extended to enable a study of the system's sensitivity.
 
 Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
-
 
 The availability of variational equations in tudat enables many more, advanced functionalities, such as covariance analysis and precise orbit determination.
 """

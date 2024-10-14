@@ -424,7 +424,7 @@ estimation_output = estimator.perform_estimation(estimation_input)
 
 
 """
-# True Errors, Formal Errors
+## True Errors, Formal Errors
 
 Since we have now estimated the actual parameters - unlike when only getting the initial covariance matrix over the course of the orbit, as done in [Delfi-C3 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html) - we are able to qualitatively compare the goodness-of-fit of the found parameters with the known ground truth ones. 
 
