@@ -27,6 +27,7 @@ Examples related to state estimation.
 
 Examples related to mission design.
 
+- ``mga_trajectories``: simulation of Multiple Gravity Assist (MGA) transfer trajectories using high- and low-thrust transfers, as well as deep space maneuvers (DSMs).
 - ``cassini1_mga_optimization``: using PyGMO to optimize an interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat.
 - ``hodographic_shaping_mga_optimization``: extension of the ``cassini1_mga_optimization`` example. Optimization of a low-thrust interplanetary transfer trajectory using the hodographic shaping method for the low-thrust legs.
 - ``earth_mars_transfer_window``: usage of the Tudatpy's `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
@@ -52,7 +53,6 @@ Advanced examples:
 - ``separation_satellites_diff_drag``: shows the effects of differential drag for CubeSats in LEO.
 - ``coupled_translational_rotational_dynamics``: using a multi-type propagator to simulate the coupled translational-rotational dynamics of Phobos around Mars.
 - ``impact_manifolds_lpo_cr3bp``: setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with a polyhedral secondary body.
-- ``mga_trajectories``: simulation of Multiple Gravity Assist (MGA) transfer trajectories using high- and low-thrust transfers, as well as deep space maneuvers (DSMs).
 
 ### Pygmo
 
