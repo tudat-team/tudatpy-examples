@@ -1,10 +1,13 @@
+"""
 # Cassini 1 (MGA transfer) optimization with PyGMO
+"""
+
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-## Objectives 
 """
+## Objectives 
 
 This example illustrates the usage of PyGMO to optimize an interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat. The trajectory optimization of the Cassini 1 problem, which corresponds to a simplified version of the real Cassini mission, is here solved. The Cassini 1 problem departs from the edge of Earth's SOI, executes gravity assists at Venus, Venus, Earth, and Jupiter, and finally is inserted into an orbit around Saturn with eccentricity $e = 0.98$ and semi-major axis $a = 1.0895e8 / 0.02$ km. Each transfer leg (i.e. between each two planets) is considered to be unpowered, with $\Delta V$ s applied only during the gravity assists. Hence, the transfer is modeled as an [MGA with unpowered unperturbed legs](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.mga_settings_unpowered_unperturbed_legs).
 
@@ -20,11 +23,12 @@ The Cassini 1 problem (among others) has been proposed and solved by ESA Advance
 PyGMO is used in this example. It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html#about-pygmo).
 """
 
-## Import statements
 """
+## Import statements
 
 The required import statements are made here, at the very beginning. Some standard modules are first loaded (numpy, matplotlib and typing). Then, the different modules of tudatpy that will be used are imported. Finally, in this example, we also need to import the pygmo library.
 """
+
 
 # General imports
 import numpy as np
@@ -43,14 +47,20 @@ from tudatpy.astro.time_conversion import DateTime
 import pygmo as pg
 
 
+"""
 ## Helpers
+"""
+
 """
 First of all, let us define a helper function which is used throughout this example.
 """
 
-# The design variables in the current optimization problem are the departure time and the time of flight between transfer nodes. However, to evaluate an MGA trajectory in Tudat it is necessary to specify a different set of parameters: node times, node free parameters, leg free parameters. This function converts a vector of design variables to the parameters which are used as input to the MGA trajectory object.
-# 
-# The node times are easily computed based on the departure time and the time of flight between nodes. Since an MGA transfer with unpowered legs is used, no node and leg free parameters are required; thus, these are defined as empty lists.
+"""
+The design variables in the current optimization problem are the departure time and the time of flight between transfer nodes. However, to evaluate an MGA trajectory in Tudat it is necessary to specify a different set of parameters: node times, node free parameters, leg free parameters. This function converts a vector of design variables to the parameters which are used as input to the MGA trajectory object.
+
+The node times are easily computed based on the departure time and the time of flight between nodes. Since an MGA transfer with unpowered legs is used, no node and leg free parameters are required; thus, these are defined as empty lists.
+"""
+
 
 def convert_trajectory_parameters(
     transfer_trajectory_object: tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory,
@@ -85,7 +95,10 @@ def convert_trajectory_parameters(
     return node_times, leg_free_parameters, node_free_parameters
 
 
+"""
 ## Optimisation problem
+"""
+
 """
 The core of the optimization process is realized by PyGMO, which requires the definition of a problem class.
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `TransferTrajectoryProblem`.
@@ -97,6 +110,7 @@ There are four mandatory methods that must be implemented in the class:
 * `get_bounds(self)`: Returns the bounds for each optimized parameter. These are provided as an input to `__init__()`. Their values are defined later in this example.
 * `fitness(self, x)`: Returns the cost associated with a vector of design parameters. Here, the fitness is the $\Delta V$ required to execute the transfer.
 """
+
 
 ###########################################################################
 # CREATE PROBLEM CLASS ####################################################
@@ -192,10 +206,14 @@ class TransferTrajectoryProblem:
         return [delta_v]
 
 
+"""
 ## Simulation Setup 
+"""
+
 """
 Before running the optimisation, it is first necessary to setup the simulation. In this case, this consists of creating an MGA object. This object is created according to the procedure described in the [MGA trajectory example](https://docs.tudat.space/en/stable/_src_getting_started/_src_examples/notebooks/propagation/mga_dsm_analysis.html). The object is created using the central body, transfer bodies order, departure orbit, and arrival orbit specified in the Cassini 1 problem statement (presented above).
 """
+
 
 ###########################################################################
 # Define transfer trajectory properties
@@ -237,15 +255,18 @@ transfer_trajectory_object = transfer_trajectory.create_transfer_trajectory(
 )
 
 
+"""
 ## Optimization
 """
-"""
 
+"""
 ### Optimization Setup 
 """
+
+"""
+Before executing the optimization, it is necessary to select the bounds for the optimized parameters (departure date and time of flight per transfer leg). These are selected according to the values in the Cassini 1 problem statement [(Vinkó et al, 2007)](https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2007-BenchmarkingDifferentGlobalOptimisationTechniques.pdf).
 """
 
-# Before executing the optimization, it is necessary to select the bounds for the optimized parameters (departure date and time of flight per transfer leg). These are selected according to the values in the Cassini 1 problem statement [(Vinkó et al, 2007)](https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2007-BenchmarkingDifferentGlobalOptimisationTechniques.pdf).
 
 # Lower and upper bound on departure date
 departure_date_lb = DateTime(1997, 4, 6).epoch()
@@ -271,11 +292,14 @@ legs_tof_lb[4] = 1000 * constants.JULIAN_DAY
 legs_tof_ub[4] = 6000 * constants.JULIAN_DAY
 
 
-# To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `TransferTrajectoryProblem`, is given to PyGMO trough the `pg.problem()` method.
-# 
-# The optimiser is selected to be the Differential Evolution (DE) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.de)). When selecting the algorithm, here the coefficient F is selected to have the value 0.5, instead of the default 0.8. Additionally, a fixed seed is selected; since PyGMO uses a random number generator, this ensures that PyGMO's results are reproducible.
-# 
-# Finally, the initial population is created, with a size of 20 individuals.
+"""
+To setup the optimization, it is first necessary to initialize the optimization problem. This problem, defined through the class `TransferTrajectoryProblem`, is given to PyGMO trough the `pg.problem()` method.
+
+The optimiser is selected to be the Differential Evolution (DE) algorithm (its documentation can be found [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.de)). When selecting the algorithm, here the coefficient F is selected to have the value 0.5, instead of the default 0.8. Additionally, a fixed seed is selected; since PyGMO uses a random number generator, this ensures that PyGMO's results are reproducible.
+
+Finally, the initial population is created, with a size of 20 individuals.
+"""
+
 
 ###########################################################################
 # Setup optimization
@@ -314,12 +338,16 @@ population_size = 20
 pop = pg.population(prob, size=population_size, seed=optimization_seed)
 
 
+"""
 ### Run Optimization 
+"""
+
 """
 Finally, the optimization can be executed by successively evolving the defined population.
 
 A total number of evolutions of 800 is selected. Thus, the method `algo.evolve()` is called 800 times inside a loop. After each evolution, the best fitness and the list with the best design variables are saved.
 """
+
 
 ###########################################################################
 # Run optimization
@@ -343,7 +371,10 @@ for i in range(number_of_evolutions):
 print("The optimization has finished")
 
 
+"""
 ## Results Analysis
+"""
+
 """
 Having finished the optimisation, it is now possible to analyse the results.
 
@@ -353,6 +384,7 @@ The executed optimization process results in a final objective function value of
 
 The evolution of the minimum $\Delta V$ throughout the optimization process can be plotted.
 """
+
 
 ###########################################################################
 # Results post-processing
@@ -399,10 +431,11 @@ plt.tight_layout()
 plt.legend()
 
 
-### Plot the transfer
 """
+### Plot the transfer
 Finally, the position history throughout the transfer can be retrieved from the transfer trajectory object and plotted.
 """
+
 
 # Reevaluate the transfer trajectory using the champion design variables
 node_times, leg_free_parameters, node_free_parameters = convert_trajectory_parameters(
@@ -460,3 +493,5 @@ ax.set_aspect("equal")
 ax.legend(bbox_to_anchor=[1, 1])
 plt.show()
 
+
+plt.show()
