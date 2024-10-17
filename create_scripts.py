@@ -13,6 +13,7 @@ http://tudat.tudelft.nl/LICENSE.
 # Running it will automatically edit all the .py example files (please check the changes made before pushing them to the repository).
 
 # Standard library imports
+import argparse
 import glob
 import re
 import subprocess
@@ -23,63 +24,54 @@ from pathlib import Path
 from tqdm import tqdm
 
 
-def usage() -> None:
-    """Print usage information for the script."""
+class ErrorCatchingArgumentParser(argparse.ArgumentParser):
+    """
+    Instantiating this class will print the help message and
+    exit if an error occurs while parsing the arguments.
+    """
 
-    print(
-        "Usage: python create_scripts.py path/to/notebook.ipynb [OPTIONS]", end="\n\n"
+    def error(self, message):
+        print(f"Error occurred while parsing arguments: {message}\n")
+        self.print_help()
+        exit(2)
+
+
+def parse_cli_arguments() -> dict:
+
+    parser = ErrorCatchingArgumentParser(
+        description="Create and clean .py files from Jupyter notebooks.",
+        exit_on_error=False,
     )
-    print("Arguments:")
-    print("  path/to/notebook.ipynb      Path to the notebook to convert to a script")
-    print("Options:")
-    print("  -h | --help                 Show this message")
-    print(
-        "  -a | --all                  Create scripts for all notebooks. Ignores the path argument"
+
+    # either provide a notebook path or use the --all flag
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "notebook_path", nargs="?", help="Path to the notebook to convert to a script"
     )
-    print("  --no-clean                  Do not clean the scripts after conversion")
-    print("  --no-check                  Do not check the scripts for syntax errors")
-    print("  --no-run                    Do not run the scripts after conversion")
+    group.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Create scripts for all notebooks. Ignores the path argument",
+    )
 
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="Do not clean the scripts after conversion",
+    )
+    parser.add_argument(
+        "--no-check",
+        action="store_true",
+        help="Do not check the scripts for syntax errors",
+    )
+    parser.add_argument(
+        "--no-run", action="store_true", help="Do not run the scripts after conversion"
+    )
 
-def parse_cli_arguments(cli_args: list[str]) -> dict:
+    args = parser.parse_args()
 
-    # default arguments
-    ARGUMENTS = {
-        "NOTEBOOKS": None,
-        "CLEAN_SCRIPTS": True,
-        "CHECK_SCRIPTS": True,
-        "RUN_SCRIPTS": True,
-    }
-
-    if len(cli_args) < 2:
-        print("Please provide a notebook file to convert.")
-        usage()
-        exit(1)
-
-    # Parse input
-    args = iter(cli_args[1:])
-    for ii, arg in enumerate(args):
-        if ii == 0:
-            if Path(arg).resolve().exists():
-                ARGUMENTS["NOTEBOOKS"] = [arg]
-                continue
-        if arg in ("-h", "--help"):
-            usage()
-            exit(0)
-        elif arg in ("-a", "--all"):
-            ARGUMENTS["NOTEBOOKS"] = glob.glob("**/*.ipynb", recursive=True)
-        elif arg == "--no-clean":
-            ARGUMENTS["CLEAN_SCRIPTS"] = False
-        elif arg == "--no-check":
-            ARGUMENTS["CHECK_SCRIPTS"] = False
-        elif arg == "--no-run":
-            ARGUMENTS["RUN_SCRIPTS"] = False
-        else:
-            print("Invalid command")
-            usage()
-            exit(1)
-
-    return ARGUMENTS
+    return args
 
 
 # Utilities
@@ -119,29 +111,31 @@ def clean_script(script):
 
 if __name__ == "__main__":
 
-    cli_args = sys.argv
+    args = parse_cli_arguments()
 
-    ARGUMENTS = parse_cli_arguments(cli_args)
+    if args.all:
+        notebooks_to_clean = glob.glob("**/*.ipynb", recursive=True)
+    else:
+        notebooks_to_clean = [args.notebook_path]
 
-    example_notebooks = ARGUMENTS["NOTEBOOKS"]
     example_scripts = [
-        notebook.replace(".ipynb", ".py") for notebook in example_notebooks
+        notebook.replace(".ipynb", ".py") for notebook in notebooks_to_clean
     ]
 
     """
     Generate Python scripts from Jupyter notebooks
     """
-    for notebook in tqdm(example_notebooks):
-        generate_script(notebook, ARGUMENTS["CLEAN_SCRIPTS"])
+    for notebook in tqdm(notebooks_to_clean):
+        generate_script(notebook, (not args.no_clean))
 
-    if ARGUMENTS["CLEAN_SCRIPTS"]:
+    if not args.no_clean:
         """
         Clean Python scripts
         """
         for example_python_script in example_scripts:
             clean_script(example_python_script)
 
-    if ARGUMENTS["CHECK_SCRIPTS"]:
+    if not args.no_check:
         """
         Check Python scripts for syntax errors
         """
@@ -168,7 +162,7 @@ if __name__ == "__main__":
 
         print("")
 
-    if ARGUMENTS["RUN_SCRIPTS"]:
+    if not args.no_run:
         """
         Test python scripts
         """
