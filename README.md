@@ -132,6 +132,28 @@ conda activate tudat-examples
 The following guidelines should be followed when creating a new example application.
 
 1. Any modification or addition to this set of examples should be made in a personal fork of the current repository. No changes are to be done directly on a local clone of this repo.
-2. The example should be written directly on a Jupyter notebook (`.ipynb` file). Then, the following command can be run from the CLI to create a `.py` file with the same code as the notebook file: `jupyter nbconvert --to python mynotebook.ipynb`. Make sure to change `mynotebook` to the name of the notebook file.
-3. The markdown blocks are not optimally converted. Thus, once the `.py` file is created as described above, the script `create_scripts.py` is to be executed. This file reformats the markdown blocks in the `.py` files into a more readable look. Sometimes this cleanup is not perfect, so manually check the `.py` file to make sure everything is fine and correct anything that is not.
+2. The example should be written directly on a Jupyter notebook (`.ipynb` file).
+3. Convert the finished `.ipynb` example to a `.py` file with the `create_scripts.py` CLI utility:
+    1. Activate the virtual environment:
+
+        ```bash
+        conda activate tudat-examples
+        ```
+
+    2. Use the `create_scripts.py` CLI application to convert your notebook:
+
+        ```bash
+        python create_scripts.py path/to/your/notebook.ipynb
+        ```
+
+        By default, this converts the `.ipynb` notebook to a `.py` file, cleans it, checks for syntax errors and runs it.
+
+    3. Use the `-h` flag to see the available options of the CLI utility. A common set of options is
+
+        ```bash
+        python create_scripts.py -a --no-run
+        ```
+
+        That converts all `.ipynb` files to `.py` files, cleans and checks them for syntax errors but does not run them.
+
 4. At this point, the example is complete. You are ready to create a pull request from your personal fork to the current repository, and the admins will take it from there.
