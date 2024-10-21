@@ -293,11 +293,11 @@ hierarchical_system_state_array = result2array(results_hierarchical)
 fig1 = plt.figure(figsize=(8, 20))
 ax1 = fig1.add_subplot(311, projection='3d')
 ax1.set_title(f'Trajectory of the Sun w.r.t SSB')
-ax1.scatter(0, 0, 0, marker='x', label="Sun")
+ax1.scatter(0, 0, 0, marker='x', label="SSB")
 
 ax2 = fig1.add_subplot(312, projection='3d')
 ax2.set_title(f'System state evolution w.r.t Sun')
-ax2.scatter(0, 0, 0, marker='x', label="SSB")
+ax2.scatter(0, 0, 0, marker='x', label="Sun")
 
 ax3 = fig1.add_subplot(313, projection='3d')
 ax3.set_title(f'Trajectory of the Moon w.r.t Earth')
