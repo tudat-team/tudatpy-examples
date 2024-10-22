@@ -77,7 +77,7 @@ timestep_global = 24 * 3600
 time_buffer = 2 * 31 * 86400
 
 # define the frame origin and orientation.
-global_frame_origin = "Sun"
+global_frame_origin = "SSB"
 global_frame_orientation = "J2000"
 
 
@@ -187,6 +187,9 @@ batch.filter(
 # Retrieve the first and final observation epochs and add the buffer
 epoch_start_nobuffer = batch.epoch_start
 epoch_end_nobuffer = batch.epoch_end
+
+# This samples the cartesian state at 500 points over the observation time:
+times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
 
 epoch_start_buffer = epoch_start_nobuffer - time_buffer
 epoch_end_buffer = epoch_end_nobuffer + time_buffer
@@ -631,7 +634,7 @@ def plot_residuals(
                 residual_times[::2],
                 residual_history[
                     ::2,
-                    idx,
+                    i,
                 ],
                 marker="+",
                 s=30,
@@ -641,7 +644,7 @@ def plot_residuals(
                 residual_times[1::2],
                 residual_history[
                     1::2,
-                    idx,
+                    i,
                 ],
                 marker="+",
                 s=30,
@@ -826,7 +829,7 @@ def plot_cartesian_single(
     axs[0].plot(times_plot, error_spice[:, 2], label="Cross-Track" if in_RSW_frame else "Z")
     axs[0].plot(
         times_plot,
-        np.sqrt(np.square(error_spice).sum(axis=1)),
+        np.linalg.norm(error_spice[:, :3], axis=1),
         label="magnitude",
         linestyle="--",
         color="k",
@@ -836,7 +839,7 @@ def plot_cartesian_single(
     axs[1].plot(times_plot, error_jpl[:, 1])
     axs[1].plot(times_plot, error_jpl[:, 2])
     axs[1].plot(
-        times_plot, np.sqrt(np.square(error_jpl).sum(axis=1)), linestyle="--", color="k"
+        times_plot, np.linalg.norm(error_jpl[:, :3], axis=1), linestyle="--", color="k"
     )
 
     for idx, ax in enumerate(axs.flatten()):
@@ -894,9 +897,6 @@ observation_collection_set = []
 estimator_set = []
 state_estimates_set = []
 
-# This samples the cartesian state at 500 points over the observation time:
-times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
-
 for idx, setup_name in enumerate(setup_names):
     print(f"\n### Running setup #{idx+1} | {setup_name} ###")
 
@@ -936,12 +936,12 @@ plot_cartesian(state_estimates_set, setup_names, observation_collection_set)
 """
 
 """
-#### Weights and Star Catalog Biases
+### Weights and Star Catalog Biases
 Before running the next round, lets have a quick look at the star catalog corrections and obsertvation weights which are based on the following literature:
 - "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
 - "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
 
-Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `apply_star_catalog_debias` option in `BatchMPC.to_tudat().
+Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()`.
 
 Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection().
 `
@@ -976,7 +976,7 @@ fig.set_tight_layout(True)
 
 
 """
-#### Running the comparison
+### Running the comparison
 Lets now run some new setups with those features. As the difference between LVL2 and 3 accelerations is small, we use LVL 2 for all the remaining setups to save on runtime. Using level 2 as a baseline, we then succesively add the star catalog correction, observation weights and finally the satellite observations. The new estimation setups are defined below.
 
 """
@@ -1028,7 +1028,7 @@ for idx, setup_name in enumerate(setup_names_2):
 
 
 """
-#### The results
+### The results
 Before looking at the plots, lets look at the formal errors. We can see that the formal errors are reduced when the weights are applied, indicating that it is working.
 
 """
@@ -1060,7 +1060,7 @@ Running the setup for a longer period of time and analysing the frequency domain
 
 
 chosen_setup_index = 2
-chosen_setup_index = 3 # consider trying index 3 to analyse at the satellite setup more closely. 
+# chosen_setup_index = 3 # consider trying index 3 to analyse at the satellite setup more closely.
 
 final_state_estimate = state_estimates_set_2[chosen_setup_index]
 final_setup_name = setup_names_2[chosen_setup_index]
@@ -1086,7 +1086,7 @@ Below are the same comparison plots used in the original example. Consider compa
 """
 
 """
-#### Final residuals highlighted per observatory
+### Residuals Correlation Matrix
 """
 
 
@@ -1124,7 +1124,7 @@ fig.set_tight_layout(True)
 
 
 """
-#### Final residuals highlighted per observatory
+### Final residuals highlighted per observatory
 """
 
 
@@ -1238,7 +1238,7 @@ plt.show()
 
 
 """
-#### Histograms per observatory
+### Histograms per observatory
 """
 
 
