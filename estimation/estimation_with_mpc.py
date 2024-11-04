@@ -4,9 +4,9 @@
 ## Objectives
 This example highlights a **simple orbit estimation routine** using **real angular observation data** from the  [Minor Planet Center](https://www.minorplanetcenter.net/) (MPC). 
 
-In the [DELFI-C3 - Parameter Estimation Example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we saw how to set up and run an **orbit estimation routine**, and we did so by using **simulated observational data**. While simulating observational data is certainly useful for a variety of purposes, in real life we want to estimate an orbit starting from **real data** coming from radio or optical observations.
+In the [DELFI-C3 - Parameter Estimation Example](full_estimation_example.ipynb), we saw how to set up and run an **orbit estimation routine**, and we did so by using **simulated observational data**. While simulating observational data is certainly useful for a variety of purposes, in real life we want to estimate an orbit starting from **real data** coming from radio or optical observations.
 
-We will estimate the initial state of [Eros](https://en.wikipedia.org/wiki/433_Eros), a near-Earth asteroid also visited by the NEAR Shoemaker probe in 1998. We will use the `Tudat BatchMPC` interface to retrieve and process the data. For a more in depth explanation of this interface we recommend first checking out the [Retrieving observation data from the Minor Planet Centre](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/retrieving_mpc_observation_data.html) example. We will also briefly use the SBDBquery class which interfaces JPL's [Small Body DataBase (SBDB)](https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html).
+We will estimate the initial state of [Eros](https://en.wikipedia.org/wiki/433_Eros), a near-Earth asteroid also visited by the NEAR Shoemaker probe in 1998. We will use the `Tudat BatchMPC` interface to retrieve and process the data. For a more in depth explanation of this interface we recommend first checking out the [Retrieving observation data from the Minor Planet Centre](retrieving_mpc_observation_data.ipynb) example. We will also briefly use the SBDBquery class which interfaces JPL's [Small Body DataBase (SBDB)](https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html).
 """
 
 """
@@ -180,7 +180,7 @@ central_bodies = [global_frame_origin]
 
 """
 ### Convert the observations to Tudat
-Now that our system of bodies is ready, we can retrieve the observation collection from the observations batch using the `to_tudat()` method. By setting the `included_satellites` to `None`, we filter out all space-based observations. From the **observation collection** we can also retrieve **observation links**. As you already know from [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), we use the links to define our **observations settings**. This is also where you would add the **bias settings**. For the purpose of this example, we will use the plain **angular position observation settings**, which can process observations with Right Ascension and Declination. We can also retrieve the times for the first and final observations from the batch object in seconds since J2000 TDB, which is what tudat uses internally. We here add our buffer, set previously, to avoid interpolation errors down the line.
+Now that our system of bodies is ready, we can retrieve the observation collection from the observations batch using the `to_tudat()` method. By setting the `included_satellites` to `None`, we filter out all space-based observations. From the **observation collection** we can also retrieve **observation links**. As you already know from [Covariance estimation example](covariance_estimated_parameters.ipynb), we use the links to define our **observations settings**. This is also where you would add the **bias settings**. For the purpose of this example, we will use the plain **angular position observation settings**, which can process observations with Right Ascension and Declination. We can also retrieve the times for the first and final observations from the batch object in seconds since J2000 TDB, which is what tudat uses internally. We here add our buffer, set previously, to avoid interpolation errors down the line.
 """
 
 
@@ -212,6 +212,7 @@ epoch_end_buffer = epoch_end_nobuffer + time_buffer
 """
 ### Creating the acceleration settings
 In order to estimate the orbit of Eros, we need to **propagate its initial state**. The propagation can only be performed upon definition of a **dynamical model**. Thus, we need to define the settings of the forces acting on Eros, which will determine its trajectory. We will include:
+
 * **point mass gravity accelerations** for each of the bodies defined before,
 * Schwarzschild **relativistic corrections** for the Sun.
 
@@ -389,7 +390,7 @@ print(
 """
 ## Visualising the results
 
-#### Change in residuals per iteration
+### Change in residuals per iteration
 We want to visualise the residuals, splitting them between Right Ascension and Declination. Internally, `concatenated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatenated_observations`, i.e. by slicing [::2].
 """
 
@@ -458,7 +459,7 @@ plt.show()
 
 
 """
-#### Residuals Correlations Matrix
+### Residuals Correlations Matrix
 Lets check out the correlation of the estimated parameters.
 """
 
@@ -496,7 +497,7 @@ fig.set_tight_layout(True)
 
 
 """
-#### Orbit error vs spice over time
+### Orbit error vs spice over time
 Next, lets take a look at the error of the orbit over time, using spice as a reference.
 
 We saw in the residuals graph that there are two large gaps in observations, for 2022 and around Jan 2020. Lets collect those gaps and overlay them on to our error plot.
@@ -580,7 +581,7 @@ Please note that a lack of observations in an area of time does not necessarily 
 """
 
 """
-#### Final residuals highlighted per observatory
+### Final residuals highlighted per observatory
 This plot shows the final iteration of the residuals, highlighting the 10 observatories with the most observations.
 """
 
@@ -694,7 +695,7 @@ plt.show()
 
 
 """
-#### Residual Boxplots per observatory
+### Residual Boxplots per observatory
 Let's visualise these residuals as boxplots as well, again splitting for right ascension and declination. Note that some low level Matplotlib is used for this plot. Consider using the simplified [seaborn boxplot](https://seaborn.pydata.org/generated/seaborn.boxplot.html) implementation if this format is relevant to your use case.
 """
 
@@ -786,7 +787,7 @@ plt.show()
 
 
 """
-#### Histograms per observatory
+### Histograms per observatory
 Finally, lets get the residual histogram for the top 6 observatories, splitting again for right ascension and declination.
 """
 

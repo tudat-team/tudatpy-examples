@@ -49,7 +49,7 @@ NAIF's `SPICE` kernels are first loaded so that the position of various bodies s
 Then the start and end simulation epochs are set up. In this case, the start epoch is set to `1e7`, which corresponds to 10 million seconds ($\approx$ 115.74 days) after the 1st of January 2000.
 
 The times should always be specified in seconds since the epoch of J2000.
-Please refer to the API documentation of the `time_conversion module` [here](https://tudatpy.readthedocs.io/en/latest/time_conversion.html) for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
 """
 
 
@@ -76,7 +76,7 @@ Bodies can be created by making a list of strings with the bodies that are to be
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 
 Finally, the system of bodies is created using the settings. This system of bodies is stored in the variable `bodies`.
 """
@@ -205,7 +205,7 @@ system_initial_state = np.array([8.0e6, 0, 0, 0, 7.5e3, 0])
 
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
+[This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 """
 
 

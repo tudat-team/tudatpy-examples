@@ -41,7 +41,7 @@ from tudatpy.astro.time_conversion import DateTime
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth, the Sun, the Moon, Venus, or Mars, can be make known to `tudatpy`.
 
 Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
-Please refer to the API documentation of the `time_conversion module` [here](https://tudatpy.readthedocs.io/en/latest/time_conversion.html) for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
 """
 
 
@@ -62,7 +62,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 """
 
 
@@ -243,10 +243,10 @@ propagator_settings = propagation_setup.propagator.translational(
 """
 ### Setup the variational equations
 In addition to the state of the satellite, variation equations will also be propagated.
-A detailed explanation on variational equations is given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/running_variational_simulation.html).
+A detailed explanation on variational equations is given in [tudatpy user guide](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagating_variational_simulation.html).
 
 In this example, both the initial state transition matrix and the sensitivity matrix are to be propagated.
-The list of the available estimated parameters for the sensitivity matrix are also given in [tudatpy user guide](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/sensitivity_analysis/available_parameters.html).
+The list of the available estimated parameters for the sensitivity matrix are also given in [tudatpy user guide](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagating_variational_equations/available_parameters.html).
 """
 
 

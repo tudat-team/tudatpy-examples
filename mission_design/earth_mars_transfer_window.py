@@ -180,8 +180,4 @@ for case in cases:
     )
 
 
-
-
-
-
 plt.show()

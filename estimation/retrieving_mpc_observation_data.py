@@ -3,7 +3,7 @@
 ## Objectives
 The [Minor Planet Centre](https://www.minorplanetcenter.net/) (MPC) provides positional elements and observation data for minor planets, comets and outer irregular natural satellites of the major planets. Tudat's `BatchMPC` class allows for the retrieval and processing of observational data for these objects. 
 
-This example highlights the complete functionality of the `BatchMPC` class. The [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example showcases how to perform an estimation using MPC observations, but **we recommend going through this example first**.
+This example highlights the complete functionality of the `BatchMPC` class. The [Estimation with MPC](estimation_with_mpc.ipynb) example showcases how to perform an estimation using MPC observations, but **we recommend going through this example first**.
 
 
 
@@ -11,7 +11,7 @@ MPC receives and stores observations from observatories across the world. These 
 
 The following asteroids will be used in the example:
 
-- [433 Eros](https://en.wikipedia.org/wiki/433_Eros) (also the main focus of the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example)
+- [433 Eros](https://en.wikipedia.org/wiki/433_Eros) (also the main focus of the [Estimation with MPC](estimation_with_mpc.ipynb) example)
 - [238 Hypatia](https://en.wikipedia.org/wiki/238_Hypatia)
 - [329 Svea](https://en.wikipedia.org/wiki/329_Svea)
 
@@ -97,7 +97,7 @@ batch1.summary()
 
 """
 ### Set up the system of bodies
-A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
+A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](estimation_with_mpc.ipynb) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
 """
 
 
@@ -236,7 +236,7 @@ plt.show()
 
 
 """
-That's it! Next, check out the [Estimation with MPC](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features of the BatchMPC interface.
+That's it! Next, check out the [Estimation with MPC](estimation_with_mpc.ipynb) example to try estimation with the observations we have retrieved here. The remainder of the example discusses additional features of the BatchMPC interface.
 """
 
 """
