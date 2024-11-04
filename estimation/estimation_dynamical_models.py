@@ -1,7 +1,7 @@
 """
 # Simulation and Estimation Using Different Dynamical Models
 ## Objectives
-Within this example, we will go beyond the earlier introduced basic steps of setting up an orbit estimation routine. In particular, using several orbits of the **Mars Express (MEX)** spacecraft around the Red Planet, we will introduce different **new types of observables**, **observation constraints**, and finally focus on how to apply **different dynamical models** to the simulation of observations and the estimation, respectively. Since no further explanation with respect to already introduced functionalities will be given in this example, the reader is advised - if not already done so - to first browse to the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
+Within this example, we will go beyond the earlier introduced basic steps of setting up an orbit estimation routine. In particular, using several orbits of the **Mars Express (MEX)** spacecraft around the Red Planet, we will introduce different **new types of observables**, **observation constraints**, and finally focus on how to apply **different dynamical models** to the simulation of observations and the estimation, respectively. Since no further explanation with respect to already introduced functionalities will be given in this example, the reader is advised - if not already done so - to first browse to the [Parameter estimation example](full_estimation_example.ipynb).
 
 Using **different dynamical models** for the simulation of observations and the subsequent estimation comes in handy when trying to **emulate what effects an imperfect dynamical model will have on the estimation** of selected parameters based on real-world data. 
 
@@ -147,7 +147,7 @@ environment_setup.add_ground_station(
 ### Define Observation Model Settings
 Within this example - as it is common practice when tracking deep-space missions using the ESTRACK system - Mars Express will be tracked using an **n-way Doppler measurement** (realised as two-way link ends in this example). This means that the signal travels from Earth to the spacecraft where it gets **re-transmitted** and subsequently has to travel back to Earth where it is **recorded and processed**. In particular, we will model **two-way range** and **range-rate (Doppler) observables**.
 
-Moreover, expanding upon the knowledge from the [previous examples](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
+Moreover, expanding upon the knowledge from the [Parameter estimation example](full_estimation_example.ipynb), we will introduce how to introduce the settings for the light time correction of the signal due to the **relativistic effects of the Sun**, as well as how to impose a **constant bias** on one of the two observables.
 """
 
 
@@ -298,8 +298,8 @@ integrator_settings = propagation_setup.integrator.\
 termination_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 ### Propagator Settings ###
-propagator_settings_simulation = propagation_setup.propagator. \
-    translational(central_bodies=central_bodies,
+propagator_settings_simulation = propagation_setup.propagator.translational(
+                  central_bodies=central_bodies,
                   acceleration_models=acceleration_models_simulation,
                   bodies_to_integrate=bodies_to_propagate,
                   initial_states=initial_state,
@@ -346,8 +346,8 @@ acceleration_models_estimation = propagation_setup.create_acceleration_models(
     central_bodies)
 
 # Create updated propagator settings
-propagator_settings_estimation = propagation_setup.propagator. \
-    translational(central_bodies=central_bodies,
+propagator_settings_estimation = propagation_setup.propagator.translational(
+                  central_bodies=central_bodies,
                   acceleration_models=acceleration_models_estimation,
                   bodies_to_integrate=bodies_to_propagate,
                   initial_states=initial_state,

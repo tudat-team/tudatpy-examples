@@ -12,7 +12,7 @@ In particular, we will:
 1) **simulate observations** based on the ephemerides of the Galilean moons;
 2) **estimate an improved initial state** for all four moons, such that
    the propagated orbit **minimizes the observations (ephemeris) residuals**
-4) inspecting the (correct) representation and stability of the **Laplace resonance** between the inner three moons (Io, Europa, and Ganymede).
+3) inspecting the (correct) representation and stability of the **Laplace resonance** between the inner three moons (Io, Europa, and Ganymede).
 """
 
 """
@@ -44,12 +44,13 @@ from tudatpy.astro.time_conversion import DateTime
 """
 ## Orbital Simulation
 Entirely independent of the upcoming estimation-process, we first have to:
+
 * define the **general settings of the simulation**
 * create the **environment**
 * define all relevant **propagation settings**
 
 ### Simulation Settings
-Besides importing tudat's standard kernels - which handily already include a version of the **NOE-5 ephemeris**, for more details see also [here](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
+Besides importing tudat's standard kernels - which handily already include a version of the **NOE-5 ephemeris**, for more details see also the `load_standard_kernels` function - in terms of time-wise settings we have (arbitrarily) chosen to make use of the nominal duration of ESA's JUICE mission as scope of our simulation. Nonetheless, note that any other reasonably long time-span would have been equally sufficient.
 """
 
 
@@ -211,8 +212,8 @@ dependent_variables_to_save = [propagation_setup.dependent_variable.keplerian_st
                                propagation_setup.dependent_variable.keplerian_state('Callisto', 'Jupiter')]
 
 ### Propagator Settings ###
-propagator_settings = propagation_setup.propagator. \
-    translational(central_bodies=central_bodies,
+propagator_settings = propagation_setup.propagator.translational(
+                  central_bodies=central_bodies,
                   acceleration_models=acceleration_models,
                   bodies_to_integrate=bodies_to_propagate,
                   initial_states=initial_states,
@@ -232,23 +233,19 @@ Since we will be using the [cartesian_position](https://py.api.tudat.space/en/la
 
 
 link_ends_io = dict()
-link_ends_io[estimation_setup.observation.observed_body] = estimation_setup.observation.\
-    body_origin_link_end_id('Io')
+link_ends_io[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Io')
 link_definition_io = estimation_setup.observation.LinkDefinition(link_ends_io)
 
 link_ends_europa = dict()
-link_ends_europa[estimation_setup.observation.observed_body] = estimation_setup.observation.\
-    body_origin_link_end_id('Europa')
+link_ends_europa[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Europa')
 link_definition_europa = estimation_setup.observation.LinkDefinition(link_ends_europa)
 
 link_ends_ganymede = dict()
-link_ends_ganymede[estimation_setup.observation.observed_body] = estimation_setup.observation.\
-    body_origin_link_end_id('Ganymede')
+link_ends_ganymede[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Ganymede')
 link_definition_ganymede = estimation_setup.observation.LinkDefinition(link_ends_ganymede)
 
 link_ends_callisto = dict()
-link_ends_callisto[estimation_setup.observation.observed_body] = estimation_setup.observation.\
-    body_origin_link_end_id('Callisto')
+link_ends_callisto[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Callisto')
 link_definition_callisto = estimation_setup.observation.LinkDefinition(link_ends_callisto)
 
 link_definition_dict = {
@@ -275,7 +272,7 @@ position_observation_settings = [estimation_setup.observation.cartesian_position
 ### Observation Simulation Settings
 To simulate the states of the moons at every given epochs, we will have to define the simulation settings for all moons. For the problem at hand, they will be entirely identical - we have to define the correct `observable_type` that is associated with the `cartesian_position` observable, give the above-realised `link_definition`, and finally define the epochs at which we want to take the states from the respective ephemerides.
 
-Finally, realise that the default setting for the `reference_link_end_type` argument of the [`tabulated_simulation_settings`](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.tabulated_simulation_settings) function is set to `LinkEndType`.receiver. However, to satisfy the estimators expectation when using the `position_observable_type` the default value has to be overwritten and set to `observed_body`. This might be different on a case-by-case situation and should carefully be evaluated when using different types of observables, since the estimation will crash otherwise.
+Finally, realise that the default setting for the `reference_link_end_type` argument of the `tabulated_simulation_settings()` function is set to `LinkEndType`.receiver. However, to satisfy the estimators expectation when using the `position_observable_type` the default value has to be overwritten and set to `observed_body`. This might be different on a case-by-case situation and should carefully be evaluated when using different types of observables, since the estimation will crash otherwise.
 """
 
 
@@ -324,7 +321,7 @@ original_parameter_vector = parameters_to_estimate.parameter_vector
 
 """
 ### Perform the Estimation
-Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see [here](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings)).
+Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see the [API reference](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings) of the `define_estimation_settings` function).
 """
 
 
@@ -418,7 +415,7 @@ ax1.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax1.xaxis.set_minor_locator(mdates.MonthLocator())
 ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
 ax1.set_ylabel(r'Difference [km]')
-ax1.legend();
+ax1.legend()
 
 
 """
