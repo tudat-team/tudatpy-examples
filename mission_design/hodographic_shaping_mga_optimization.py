@@ -651,7 +651,7 @@ ax.set_ylabel('$\Delta V$ [km/s]')
 
 
 """
-#### Plot the transfer
+### Plot the transfer
 
 The transfer trajectory object associated with a given design parameter vector can be retrieved from the PyGMO problem class through the `get_transfer_trajectory_object` object. The returned object is already evaluated. Using the transfer trajectory object one can, for example, retrieve the state and thrust acceleration history throughout the transfer and plot them.
 """

@@ -3,6 +3,7 @@
 ## Objectives
 
 This example demonstrates how **Multiple Gravity Assist (MGA)** transfer trajectories can be simulated. Three types of transfers are analyzed:
+
 * High-thrust transfer with unpowered legs
 * High-thrust transfer with deep space maneuvers (DSMs) and manually-created legs and nodes
 * Low-thrust transfer with hodographic shaping
@@ -11,7 +12,7 @@ This example demonstrates how **Multiple Gravity Assist (MGA)** transfer traject
 In addition, this example show how the results, such as partial $\Delta V$'s, total $\Delta V$ and time of flight
 values can be retrieved from the transfer object.
 
-A complete guide on transfer trajectory design is given on [this page](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/astrodynamics/trajectory_design.html) of tudat user documentation.
+A complete guide on transfer trajectory design is given on [this page](https://docs.tudat.space/en/latest/_src_user_guide/prelim_mission_design/mga_transfer.html) of tudat user documentation.
 """
 
 """
@@ -581,7 +582,7 @@ transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_
 """
 In this case, there is a much larger list of free parameters than in the previous cases. As before, the first parameters are the node times, corresponding to the times when the spacecraft encounters each planet. Next, the node free parameters are required. These include the selection of the departure velocity at the departure node (3 parameters), the arrival velocity at each swingby node (3 parameters per node), the characteristics of each swingby (3 parameters per node), and the arrival velocity at the arrival node (3 parameters). Finally, it is necessary to specify the leg free parameters. These consist of the number of revolutions of each leg (1 parameter per leg), and of two free coefficients per velocity component per leg (6 parameters per leg).
 
-The parameters used in this example were determined via optimization, using PyGMO. The code used to optimize the transfer is analyzed in [this example](https://tudat-space.readthedocs.io/en/latest/src_getting_started/_src_examples/notebooks/pygmo/hodographic_shaping_mga_optimization.ipynb).
+The parameters used in this example were determined via optimization, using PyGMO. The code used to optimize the transfer is analyzed in [this example](hodographic_shaping_mga_optimization.ipynb).
 """
 
 

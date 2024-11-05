@@ -13,7 +13,7 @@ The example uses **range measurements** from the **Mars Reconnaissance Orbiter (
 
 ## Prerequisites
 
-To run this example, you need [the data file](https://ssd.jpl.nasa.gov/dat/planets/mrorange2006-2013.txt) from the NASA JPLand store it in a subfolder called [./data](./data). For your convenience, this file has been added to the example repository already
+To run this example, you need [the data file](https://ssd.jpl.nasa.gov/dat/planets/mrorange2006-2013.txt) from the NASA JPL and store it in a subfolder called ``./data``. For your convenience, this file [has been added to the example repository](./data/mrorange2006-2013.txt) already.
 
 """
 
@@ -72,7 +72,7 @@ After inspecting the data file, we can see that it contains the following column
 
 We can use the `read_tracking_txt_file` function to read this **raw data** and translate it into an **intermediate format** that takes care of appropriate unit conversions for known column identifiers.
 
-The file columns specified here are all known to Tudat, and can be used to **process the observation** (see [TDB LINK]()) for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
+The file columns specified here are all known to Tudat, and can be used to **process the observation** (see *TDB LINK* for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
 
 """
 
