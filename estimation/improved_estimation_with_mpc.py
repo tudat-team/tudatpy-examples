@@ -3,7 +3,7 @@
 Copyright (c) 2010-2024, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
 
 ## Objectives
-This example extends the previous [Initial state estimation with Minor Planet Center Observations](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/estimation_with_mpc.html). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation. 
+This example extends the previous [Initial state estimation with Minor Planet Center Observations](estimation_with_mpc.ipynb). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation. 
 
 As in the previous example we will estimate the initial state of [433 Eros](https://en.wikipedia.org/wiki/433_Eros). In addition to observation data from MPC and metadata from SBDB, we now also use ephemeris data from JPL Horizons to retrieve position data for observing space telescopes, additional perturbing bodies and as a method of comparison. This is accomplished using Tudat's HorizonsQuery Interface.
 """
@@ -98,10 +98,13 @@ print(f"SPK ID for {target_name} is: {target_spkid}")
 """
 ### Combinations and additional body setup
 There are various ways to change our estimation. We can create a system of setups to compare those various options and to facilitate comparison. Throughout the example, the following options are considered:
+
 - [`accel_levels`] Different acceleration settings, for this example, 3 options are created in increasing order of realism
+
     - LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
     - LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
     - LVL 3 - LVL 2 + SHG for the Earth and point-mass gravity for Triton, Titania, Pluto, the mayor Near Earth Asteroids (NEA) and largest Main Body Asteroids (MBA). These additional bodies are retrieved through the JPL Horizons interface.
+
 - [`use_sat_data`] Observations by space telescope WISE
 - [`use_catalog_cor`] Star catalog corrections as described in "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
 - [`use_weighting`] Estimation weights as described in "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
@@ -342,7 +345,7 @@ central_bodies = [global_frame_origin] * len(batch.MPC_objects)
 
 """
 ### Creating the acceleration settings
-Differing acceleration settings will allow us to see how addititional perturbations affect our estimation. As mentioned before the following acceleration sets are used:
+Differing acceleration settings will allow us to see how additional perturbations affect our estimation. As mentioned before the following acceleration sets are used:
 
 - LVL 1 - Only point-mass gravity for the sun and the 8 mayor planets as well as Schwarzschild relativistic correction for the sun.
 - LVL 2 - LVL 1 + point-mass gravity for the mayor moons of Jupiter, Saturn, Earth and Mars.
@@ -475,16 +478,17 @@ termination_condition = propagation_setup.propagator.time_termination(epoch_end_
 """
 ## Estimation and plotting functions
 To enable standardised comparison of the different setups, we create estimation and plotting functions for our estimations. The estimation itself largely follows the same steps as the previous example, with the exception of the added satellite configuration and the enabling of the weights and the star catalog corrections. The following four functions are made:
- - [`perform_estimation`] takes a set of options defined by us to perform an estimation, returning the `estimator`, `pod_output`, `batch` and `observation_collection` for subsequent analysis.
- - [`plot_residuals`] plots the obtained residuals for a collection of setups
- - [`plot_cartesian`] plots the carthesian error with respect to SPICE and JPL Horizons for a collection of setups.
- - [`plot_cartesian_single`] plots a more detailed verion of the above for a single setup.
+
+- [`perform_estimation`] takes a set of options defined by us to perform an estimation, returning the `estimator`, `pod_output`, `batch` and `observation_collection` for subsequent analysis.
+- [`plot_residuals`] plots the obtained residuals for a collection of setups
+- [`plot_cartesian`] plots the carthesian error with respect to SPICE and JPL Horizons for a collection of setups.
+- [`plot_cartesian_single`] plots a more detailed verion of the above for a single setup.
 
 
 """
 
 """
-#### Estimation Function
+### Estimation Function
 """
 
 
@@ -593,7 +597,7 @@ def perform_estimation(
 
 
 """
-#### Plotting Functions
+### Plotting Functions
 """
 
 
@@ -886,7 +890,7 @@ use_weighting = [False, False, False]
 
 
 """
-#### Perfoming the estimation
+### Performing the estimation
 We can then run the setups using `perform_estimation` to retrieve our pod_outputs, observation collections, estimator objects and also retrieve the state at a set of times for later comparison with SPICE and horizons.
 """
 
@@ -922,7 +926,7 @@ for idx, setup_name in enumerate(setup_names):
 
 
 """
-#### Visualising the results
+### Visualising the results
 The result of the estimation is plotted below. The first plot shows similar residuals for all three setups, with all setups converging within 6 iteration. In terms of the cartesian errors, adding the additional moons in LVL2 greatly reduces the error, however additions added beyond that in LVL3 have almost no effect.
 """
 
@@ -937,7 +941,8 @@ plot_cartesian(state_estimates_set, setup_names, observation_collection_set)
 
 """
 ### Weights and Star Catalog Biases
-Before running the next round, lets have a quick look at the star catalog corrections and obsertvation weights which are based on the following literature:
+Before running the next round, lets have a quick look at the star catalog corrections and observation weights which are based on the following literature:
+
 - "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
 - "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
 

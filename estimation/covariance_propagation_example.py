@@ -2,7 +2,7 @@
 # Covariance Propagation Using `Starlink-32101`
 
 ## Objectives
-This example will show you how to **propagate the covariance**. We will simulate a series of **one-way**  open loop observing sessions of the ``Starlink-32101`` satellite, and we will see simulating a different number of observations affects the evolution of the **formal errors** over time. This example builds up on the [Starlink-32101 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), so go check that out if you haven't already! 
+This example will show you how to **propagate the covariance**. We will simulate a series of **one-way**  open loop observing sessions of the ``Starlink-32101`` satellite, and we will see simulating a different number of observations affects the evolution of the **formal errors** over time. This example builds up on the [Starlink-32101 Covariance Analysis example](covariance_estimated_parameters.ipynb), so go check that out if you haven't already! 
 """
 
 """
@@ -46,7 +46,7 @@ As already mentioned, within this example we want to show how to propagate the c
 * **Single observation session**: from August 29, 2024 to `simulation_end_epoch`
 
 Please note that, in general, the satellite might not be visible during a full osbervation session. 
-For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
+For more information on J2000 and the conversion between different temporal reference frames, please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module.
 """
 
 
@@ -72,7 +72,7 @@ We will now create and define the settings for the environment of our simulation
 ### Create the main bodies
 To create the systems of bodies for the simulation, one first has to define a list of strings of all bodies that are to be included. Note that the default body settings (such as atmosphere, body shape, rotation model) are taken from the `SPICE` kernel.
 
-These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 """
 
 
@@ -139,12 +139,15 @@ central_bodies = ["Earth"]
 """
 ### Create the acceleration model
 Subsequently, all accelerations (and there settings) that act on ``Starlink-32101`` have to be defined. In particular, we will consider:
+
 * Gravitational acceleration using a spherical harmonic approximation up to 8th degree and order for Earth.
 * Aerodynamic acceleration for Earth.
 * Gravitational acceleration using a simple point mass model for:
+
     - The Sun
     - The Moon
     - Mars
+
 * Radiation pressure experienced by the spacecraft - shape-wise approximated as a spherical cannonball - due to the Sun.
 
 The defined acceleration settings are then applied to ``Starlink-32101`` by means of a dictionary, which is finally used as input to the propagation setup to create the acceleration models.
@@ -236,7 +239,7 @@ Having set the underlying dynamical model of the simulated orbit, we can define 
 ### Add a ground station
 Trivially, the simulation of observations requires the extension of the current environment by at least one observer - a ground station. For this example, we will model a single ground station located in Delft, Netherlands, at an altitude of 0m, 52.00667°N, 4.35556°E.
 
-More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
+More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 """
 
 
@@ -255,7 +258,7 @@ environment_setup.add_ground_station(
 
 """
 ### Define Observation Links and Types
-To establish the links between our ground station and ``Starlink-32101``, we will make use of the [observation module](https://py.api.tudat.space/en/latest/observation.html#observation) of tudat. In particular, we choose a one-way doppler observation mode, which means that the spacecraft effectively acts as a transmitter, while the antenna is the receiver. As already done in the [Starlink-32101 Covariance Analysis example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/covariance_estimated_parameters.html), we will select an Earth Tracking Station located in Delft as a receiver. 
+To establish the links between our ground station and ``Starlink-32101``, we will make use of the [observation module](https://py.api.tudat.space/en/latest/observation.html#observation) of tudat. In particular, we choose a one-way doppler observation mode, which means that the spacecraft effectively acts as a transmitter, while the antenna is the receiver. As already done in the [Starlink-32101 Covariance Analysis example](covariance_estimated_parameters.ipynb), we will select an Earth Tracking Station located in Delft as a receiver. 
 
 To fully define an observation model for a given link, we have to create a list of the observation model settings of all desired observable types and their associated links. This list will later be used as input to the actual estimator object.
 
@@ -280,6 +283,7 @@ The set up of the estimation process and the covariance propagation is outlined 
 
 #### 1 - Define Observation Simulation Settings
 The observation simulation settings:
+
 1) allows for setting up of the **time intervals** at which observations are simulated (keep in mind the **three different observation scenarios** we want to simulate!);
 2) allows for the definition of a noise level to simulate noisy observations
 3) allows for the definition of the **viability criteria** and noise of the observation (we will set a minimum required elevation angle of **15 degrees**)
@@ -288,13 +292,13 @@ The observation simulation settings:
 For this example estimation, we decided to estimate the initial state of `Starlink-32101`, its drag coefficient, and the gravitational parameter of Earth. A comprehensive list of parameters available for estimation is provided at [this link (TudatPy API Reference)](https://py.api.tudat.space/en/latest/parameter.html).
 
 #### 3 - Perform the observations simulation
-Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
+Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 
 #### 4 - Define the Input Covariance
 We collect all relevant inputs in the form of a covariance input, with the variance represented by the noise levels we chose earlier. This will be given as an input to the estimation process, to obtain `covariance_output = estimator.compute_covariance(covariance_input)`. The `covariance_output` will then become the initial covariance to be propagated by subsequent applications of the **state transition matrix**, initialized by the function `state_transition_interface` of the `estimator` object. 
 
 #### 5 - Propagate the Covariances and the Formal Errors
-Covariances and Formal Errors are propagated at the `output_times = simulation_times`, using the functions `propagate_covariance_split_output`, `propagate_formal_errors_split_output` (or `propagate_covariance`, `propagate_formal_errors`) of the estimation class, and through the above-defined state transition matrix. Please note that, in principle, one does not need to propagate the **formal errors** if the **propagated covariance** is already available. This is because the formal errors constitute the diagonal elements (**variances**) of the covariance matrix (to learn more about this, also check the [Starlink-32101 Parameter Estimation example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).)
+Covariances and Formal Errors are propagated at the `output_times = simulation_times`, using the functions `propagate_covariance_split_output`, `propagate_formal_errors_split_output` (or `propagate_covariance`, `propagate_formal_errors`) of the estimation class, and through the above-defined state transition matrix. Please note that, in principle, one does not need to propagate the **formal errors** if the **propagated covariance** is already available. This is because the formal errors constitute the diagonal elements (**variances**) of the covariance matrix (to learn more about this, also check the [Starlink-32101 Parameter Estimation example](full_estimation_example.ipynb).)
 
 #### 6 - Append Results
 We append the formal errors and the covariance obtained for each scenario to the respective lists: `formal_errors_list`, `covariances_list`.
