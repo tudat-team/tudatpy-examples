@@ -2,14 +2,10 @@
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
-from turtledemo.forest import start
 
 ## Context
 """
 """
-
-import sys
-sys.path.insert(0, "/home/mfayolle/Tudat/tudat-bundle/cmake-build-release-2/tudatpy")
 
 # Load required standard modules
 import multiprocessing as mp
@@ -424,23 +420,20 @@ def run_estimation(inputs):
 
         if input_index == 0:
 
-            # Create observation parser to retrieve observation-related quantities over the first week of data
-            first_week_parser = estimation.observation_parser((start_time.to_float(), start_time.to_float() + 8.0 * 86400.0))
+            # Create observation parser to retrieve observation-related quantities over the first day of data
+            first_day_parser = estimation.observation_parser((start_time.to_float() + 1.0 * 86400.0, start_time.to_float() + 2.0 * 86400.0))
 
-            # Retrieve residuals, observation times and dependent variables over the first week
-            first_week_observation_times = compressed_observations.get_concatenated_float_observation_times(first_week_parser)
-            first_week_residuals = compressed_observations.get_concatenated_residuals(first_week_parser)
-            first_week_elevation_angles = compressed_observations.concatenated_dependent_variable(
-                elevation_angle_settings, observation_parser=first_week_parser)[0]
-            first_week_link_ends_ids = compressed_observations.get_concatenated_link_definition_ids(first_week_parser)
+            # Retrieve residuals, observation times and dependent variables over the first day
+            first_day_observation_times = compressed_observations.get_concatenated_float_observation_times(first_day_parser)
+            first_day_residuals = compressed_observations.get_concatenated_residuals(first_day_parser)
+            first_day_elevation_angles = compressed_observations.concatenated_dependent_variable(
+                elevation_angle_settings, observation_parser=first_day_parser)[0]
+            first_day_link_ends_ids = compressed_observations.get_concatenated_link_definition_ids(first_day_parser)
 
-            print('residuals', len(first_week_residuals))
-            print('times', len(first_week_observation_times))
-
-            np.savetxt('mro_first_week_residuals.dat', first_week_residuals, delimiter=',')
-            np.savetxt('mro_first_week_times.dat', first_week_observation_times, delimiter=',')
-            np.savetxt('mro_first_week_link_end_ids.dat', first_week_link_ends_ids, delimiter=',')
-            np.savetxt('mro_first_week_elevation_angles.dat', first_week_elevation_angles, delimiter=',')
+            np.savetxt('mro_first_day_residuals.dat', first_day_residuals, delimiter=',')
+            np.savetxt('mro_first_day_times.dat', first_day_observation_times, delimiter=',')
+            np.savetxt('mro_first_day_link_end_ids.dat', first_day_link_ends_ids, delimiter=',')
+            np.savetxt('mro_first_day_elevation_angles.dat', first_day_elevation_angles, delimiter=',')
 
 
 
@@ -468,19 +461,19 @@ if __name__ == "__main__":
 
     trajectory_kernels = []
 
-    for i in range(nb_cores):
-        clock_files_to_load, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load = (
-            get_mro_files("mro_kernels/", start_dates[i], end_dates[i]))
-
-        inputs.append([i, start_dates[i], end_dates[i], odf_files_to_load, clock_files_to_load, orientation_files_to_load,
-                       tro_files_to_load, ion_files_to_load])
-
-
-    print('inputs', inputs)
-
-    # Run parallel MC analysis
-    with mp.get_context("fork").Pool(nb_cores) as pool:
-        pool.map(run_estimation, inputs)
+    # for i in range(nb_cores):
+    #     clock_files_to_load, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load = (
+    #         get_mro_files("mro_kernels/", start_dates[i], end_dates[i]))
+    #
+    #     inputs.append([i, start_dates[i], end_dates[i], odf_files_to_load, clock_files_to_load, orientation_files_to_load,
+    #                    tro_files_to_load, ion_files_to_load])
+    #
+    #
+    # print('inputs', inputs)
+    #
+    # # Run parallel MC analysis
+    # with mp.get_context("fork").Pool(nb_cores) as pool:
+    #     pool.map(run_estimation, inputs)
 
 
     # Load and concatenated results from all parallel analyses
@@ -518,11 +511,11 @@ if __name__ == "__main__":
     time_bounds = np.concatenate(time_bounds_list, axis=0)
     time_bounds_filtered = np.concatenate(time_bounds_filtered_list, axis=0)
 
-    # Load first week detailed results
-    first_week_residuals = np.loadtxt("mro_first_week_residuals.dat")
-    first_week_times = np.loadtxt("mro_first_week_times.dat")
-    first_week_elevation_angles = np.loadtxt("mro_first_week_elevation_angles.dat")
-    first_week_link_ends_ids = np.loadtxt("mro_first_week_link_end_ids.dat")
+    # Load first day detailed results
+    first_day_residuals = np.loadtxt("mro_first_day_residuals.dat")
+    first_day_times = np.loadtxt("mro_first_day_times.dat")
+    first_day_elevation_angles = np.loadtxt("mro_first_day_elevation_angles.dat")
+    first_day_link_ends_ids = np.loadtxt("mro_first_day_link_end_ids.dat")
 
 
     # Plot residuals over time
@@ -592,15 +585,15 @@ if __name__ == "__main__":
 
     # Plot residuals and elevation angles over one day
     fig3, ax1 =  plt.subplots()
-    ax1.scatter((first_week_times - np.min(first_week_times)) / 3600.0, first_week_residuals,
-                c=first_week_link_ends_ids, s=10)
+    ax1.scatter((first_day_times - np.min(first_day_times)) / 3600.0, first_day_residuals,
+                c=first_day_link_ends_ids, s=10)
     ax1.set_ylim([-0.02, 0.02])
     ax1.set_ylabel('Residuals [Hz]')
 
     ax2 = ax1.twinx()
     color = 'tab:red'
     ax2.set_ylabel('Elevation angle [deg]', color=color)
-    ax2.plot((first_week_times - np.min(first_week_times)) / 3600.0, first_week_elevation_angles*180/np.pi, '.',
+    ax2.plot((first_day_times - np.min(first_day_times)) / 3600.0, first_day_elevation_angles*180/np.pi, '.',
              markersize=1, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
 
