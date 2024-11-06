@@ -14,6 +14,7 @@ boost-numpy-eigen-*-Linux.tar.Z
 boost-numpy-eigen-*-Linux.tar.gz
 *.o
 *.so
+data/
 
 # Common build output folders
 cmake-build-debug/
@@ -32,8 +33,12 @@ cmake-build-*/
 .pydevproject
 *.sublime-project
 *.sublime-workspace
+.vscode/
+
 # Rever
 rever/
+
+.dat
 
 __pycache__/*
 __pycache__*
@@ -47,5 +52,5 @@ __pycache__*
 */jupyter-lab.log
 jupyter-lab.log
 
-# Data files
+**/*.pkl
 *.dat
