@@ -1,4 +1,4 @@
-# MARS EXPRESS - Using Different Dynamical Models for the Simulation of Observations and the Estimation
+# MRO - Comparing Doppler measurements from ODF files to simulated observables
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
@@ -7,71 +7,76 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 """
 """
 
+import sys
+sys.path.insert(0, "/home/mfayolle/Tudat/tudat-bundle/cmake-build-release-2/tudatpy")
+
 # Load required standard modules
 import multiprocessing as mp
 import os
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import axes3d
 
 # Load required tudatpy modules
-from tudatpy import constants
-from tudatpy.io import save2txt
-# from tudatpy.io import grail_mass_level_0_file_reader
-# from tudatpy.io import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
 from tudatpy.astro import time_conversion
-from tudatpy.astro import frame_conversion
-from tudatpy.astro import element_conversion
 from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation
-from tudatpy.numerical_simulation.environment_setup import radiation_pressure
-from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation import create_dynamics_simulator
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
-from datetime import datetime, timedelta
+from datetime import datetime
 from urllib.request import urlretrieve
 
 current_directory = os.getcwd()
 
-
+# This function retrieves all relevant files necessary to run the example over the time interval of interest
+# (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
+# relevant clock files, orientation kernels, tropospheric correction files, ionospheric correction files and odf files
+# that should be loaded.
 def get_mro_files(local_path, start_date, end_date):
-    all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
 
-    # Clock files
+    # Clock file (a single file is necessary)
     print('---------------------------------------------')
-    print('Download MRO clock files')
+    print('Download MRO clock ')
     clock_files = ["mro_sclkscet_00112_65536.tsc"]
+    # Define url where clock files can be downloaded for MRO
     url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/sclk/"
     for file in clock_files:
+        # Check if the relevant clock file exists locally
         if (os.path.exists(local_path + file) == False):
             print('download', local_path + file)
+            # If not, download it
             urlretrieve(url_clock_files + file, local_path + file)
 
+    # Print and store all relevant clock file names
     print('relevant clock files')
     for k in range(len(clock_files)):
         clock_files[k] = local_path + clock_files[k]
         print(clock_files[k])
 
-    # Orientation files
+
+    # Orientation files (multiple orientation kerneks are required, typically covering intervals of a few days)
+    # For this MRO example, orientation kernels should be loaded both for the spacecraft and for the MRO antenna specifically.
     print('---------------------------------------------')
     print('Download MRO orientation kernels')
+    # Define url where orientation kernels can be downloaded for MRO
     url_orientation_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/ck/"
+    # Retrieve the names of all spacecraft orientation kernels required to cover the time interval of interest, and download them if they
+    # do not exist locally yet.
     orientation_files_to_load = download_url_files_time_interval(
         local_path=local_path, filename_format='mro_sc_psp_*.bc', start_date=start_date, end_date=end_date,
         url=url_orientation_files, time_interval_format='%y%m%d_%y%m%d')
 
+    # Retrieve the names of all antenna orientation kernels required to cover the time interval of interest, and download them if they
+    # do not exist locally yet
     antenna_files_to_load = download_url_files_time_interval(
         local_path=local_path, filename_format='mro_hga_psp_*.bc', start_date=start_date, end_date=end_date,
         url=url_orientation_files, time_interval_format='%y%m%d_%y%m%d')
 
+    # Print and store all relevant orientation file names (both for the MRO spacecraft and antenna)
     for file in antenna_files_to_load:
         orientation_files_to_load.append(file)
 
@@ -79,77 +84,87 @@ def get_mro_files(local_path, start_date, end_date):
     for f in orientation_files_to_load:
         print(f)
 
-    # Tropospheric corrections
+
+    # Tropospheric corrections (multiple tropospheric correction files are required, typically covering intervals of a few days)
     print('---------------------------------------------')
     print('Download MRO tropospheric corrections files')
+    # Define url where tropospheric correction files can be downloaded for MRO
     url_tro_files = "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/ancillary/tro/"
+    # Retrieve the names of all tropospheric correction files required to cover the time interval of interest, and download them if they
+    # do not exist locally yet
     tro_files_to_load = download_url_files_time_interval(
         local_path=local_path, filename_format='mromagr*.tro', start_date=start_date,
         end_date=end_date, url=url_tro_files, time_interval_format='%Y_%j_%Y_%j')
 
+    # Print all relevant tropospheric correction file names
     print('relevant tropospheric corrections files')
     for f in tro_files_to_load:
         print(f)
 
-    # Ionospheric corrections
+
+    # Ionospheric corrections (multiple ionospheric correction files are required, typically covering intervals of a few days)
     print('---------------------------------------------')
     print('Download MRO ionospheric corrections files')
+    # Define url where ionospheric correction files can be downloaded for MRO
     url_ion_files = "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/ancillary/ion/"
-    ion_files_to_load = download_url_files_time_interval(local_path=local_path, filename_format='mromagr*.ion',
-                                                         start_date=start_date,
-                                                         end_date=end_date, url=url_ion_files,
-                                                         time_interval_format='%Y_%j_%Y_%j')
+    # Retrieve the names of all ionospheric correction files required to cover the time interval of interest, and download them if they
+    # do not exist locally yet
+    ion_files_to_load = download_url_files_time_interval(
+        local_path=local_path, filename_format='mromagr*.ion', start_date=start_date,
+        end_date=end_date, url=url_ion_files, time_interval_format='%Y_%j_%Y_%j')
 
+    # Print all relevant ionospheric correction file names
     print('relevant ionospheric corrections files')
     for f in ion_files_to_load:
         print(f)
 
-    # ODF files
+
+    # ODF files (multiple ODF files are required, typically one per day)
     print('---------------------------------------------')
     print('Download MRO ODF files')
+    # Define url where ODF files can be downloaded for MRO
     url_odf = ("https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/odf/")
+    # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
     odf_files_to_load = download_url_files_time(
         local_path=local_path, filename_format='mromagr*_\w\w\w\wxmmmv1.odf', start_date=start_date,
-        end_date=end_date, url=url_odf, time_format='%Y_%j', filename_size=30, indices_date_filename=[7])
+        end_date=end_date, url=url_odf, time_format='%Y_%j', indices_date_filename=[7])
 
+    # Print the name of all relevant ODF files that have been identified over the time interval of interest
     print('relevant odf files')
     for f in odf_files_to_load:
         print(f)
 
+
+    # Retrieve filenames lists for clock files, orientation kernels, tropospheric and ionospheric corrections, and odf files.
     return clock_files, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load
 
 
-def get_rsw_state_difference(
-        estimated_state_history,
-        spacecraft_name,
-        spacecraft_central_body,
-        global_frame_orientation):
-    rsw_state_difference = dict()
-    counter = 0
-    for time in estimated_state_history:
-        current_estimated_state = estimated_state_history[time]
-        current_spice_state = spice.get_body_cartesian_state_at_epoch(spacecraft_name, spacecraft_central_body,
-                                                                      global_frame_orientation, "None", time)
-        current_state_difference = current_estimated_state - current_spice_state
-        current_position_difference = current_state_difference[0:3]
-        current_velocity_difference = current_state_difference[3:6]
-        rotation_to_rsw = frame_conversion.inertial_to_rsw_rotation_matrix(current_estimated_state)
-        current_rsw_state_difference = np.ndarray([6])
-        current_rsw_state_difference[0:3] = rotation_to_rsw @ current_position_difference
-        current_rsw_state_difference[3:6] = rotation_to_rsw @ current_velocity_difference
-        rsw_state_difference[time] = current_rsw_state_difference
-        counter = counter + 1
-    return rsw_state_difference
+# This function performs Doppler residual analysis for the MRO spacecraft by adopting the following approach:
+# 1) MRO Doppler measurements are loaded from the relevant ODF files
+# 2) Synthetic Doppler observables are simulated for all "real" observation times, using the spice kernels as reference for the MRO trajectory
+# 3) Residuals are computed as the difference between simulated and real Doppler observations.
+#
+# The "inputs" variable used as input argument is a list with eight entries:
+#   1- the index of the current run (the perform_residuals_analysis function being run in parallel on several cores in this example)
+#   2- the start date of the time interval under consideration
+#   3- the end date of the time interval under consideration
+#   4- the list of ODF files to be loaded to cover the above-mentioned time interval
+#   5- the list of clock files to be loaded
+#   6- the list of orientation kernels to be loaded
+#   7- the list of tropospheric correction files to be loaded
+#   8- the list of ionospheric correction files to be loaded
 
-
-def run_estimation(inputs):
+def perform_residuals_analysis(inputs):
 
     # Unpack various input arguments
     input_index = inputs[0]
 
-    # Convert start and end datetime objects to Tudat Time variables
-    start_time = time_conversion.datetime_to_tudat(inputs[1]).epoch()
-    end_time = time_conversion.datetime_to_tudat(inputs[2]).epoch()
+    # Convert start and end datetime objects to Tudat Time variables. A time buffer of one day is subtracted/added to the start/end date
+    # to ensure that the simulation environment covers the full time span of the loaded ODF files. This is mostly needed because some ODF
+    # files - while typically assigned to a certain date - actually spans over (slightly) longer than one day. Without this time buffer,
+    # some observation epochs might thus lie outside the time boundaries within which the dynamical environment is defined.
+    start_time = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float() - 86400.0
+    end_time = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float() + 86400.0
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)
@@ -198,44 +213,49 @@ def run_estimation(inputs):
                            time_conversion.DateTime(2012, 11, 6, 0, 0, 0),
                            time_conversion.DateTime(2012, 11, 7, 0, 0, 0)]
 
-        # CHECK IF STILL NECESSARY
+        # Remove latest ODF file.
+        # This step is necessary because some ODF observation sets - although time-tagged to a specific date - might spill over the next day.
+        # For the latest ODF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
         odf_files = odf_files[:-1]
 
-        # Load ODF file
+        # Load ODF files
         multi_odf_file_contents = estimation_setup.observation.process_odf_data_multiple_files(odf_files, 'MRO', True)
 
-        # Create observation collection from ODF file
+        # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
+        # multiple "observation sets". Within a given observation set, the observables are of the same type (here Doppler) and defined from the same link ends.
+        # However, within the "global" observation collection, multiple observation sets can typically be found for a given observable type and link ends, but they
+        # will cover different observation time intervals. When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
+        # set match those of the corresponding ODF file).
         original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
-            multi_odf_file_contents, list(),
+            multi_odf_file_contents, [estimation_setup.observation.dsn_n_way_averaged_doppler],
             [numerical_simulation.Time(0, np.nan), numerical_simulation.Time(0, np.nan)])
-        observation_time_limits = original_odf_observations.time_bounds
-        initial_time = observation_time_limits[0] - 3600.0
-        final_time = observation_time_limits[1] + 3600.0
+        # original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
+        #     multi_odf_file_contents, [estimation_setup.observation.dsn_n_way_averaged_doppler])
 
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []
         for date in dates_to_filter:
             dates_to_filter_float.append(date.epoch().to_float())
-            print('filter day', date.epoch().to_float())
-            print("filter day of year", date.day_of_year())
+            # Create filter object for specific date
             date_filter = estimation.observation_filter(
-                estimation.time_bounds_filtering, date.epoch().to_float() - 3600.0,
-                time_conversion.add_days_to_datetime(date, numerical_simulation.Time( 1 ) ).epoch().to_float() + 3600.0)
+                estimation.time_bounds_filtering, date.epoch().to_float() - 0.0,
+                time_conversion.add_days_to_datetime(date, numerical_simulation.Time( 1 ) ).epoch().to_float() + 0.0)
+            # Filter out observations from observation collection
             original_odf_observations.filter_observations(date_filter)
 
-        # Remove empty single observation sets, if there is any once the filtering is performed
+        # Remove empty observation sets, if there is any once the filtering is performed
         original_odf_observations.remove_empty_observation_sets()
 
-        # Split observation sets at dates when orientation kernels are incomplete
+        # Split observation sets at dates when orientation kernels are incomplete.
+        # While all problematic observation epochs have already been filtered out in the previous step, the splitting is still necessary
+        # to ensure that the time span of each observation set is fully covered by the available kernels. Without this additional step,
+        # one could not parse from the lower to upper time bounds of a given observation set without risking accessing unavailable information from spice.
+        # This step only becomes relevant when retrieving the position of the MRO antenna over the observation time intervals, as will be done later in the example.
         date_splitter = estimation.observation_set_splitter(estimation.time_tags_splitter, dates_to_filter_float)
         original_odf_observations.split_observation_sets(date_splitter)
 
-        # Remove empty single observation sets, if there is any once the splitting is performed
+        # Remove empty observation sets, if there is any once the splitting is performed
         original_odf_observations.remove_empty_observation_sets()
-
-        print('Initial time', initial_time.to_float())
-        print('Final time', final_time.to_float())
-        print('Time in hours: ', (final_time.to_float() - initial_time.to_float()) / 3600)
 
         print('original_odf_observations')
         original_odf_observations.print_observation_sets_start_and_size()
@@ -245,71 +265,85 @@ def run_estimation(inputs):
         global_frame_origin = "SSB"
         global_frame_orientation = "J2000"
         body_settings = environment_setup.get_default_body_settings_time_limited(
-            bodies_to_create, start_time.to_float(), end_time.to_float(),
-            global_frame_origin, global_frame_orientation)
+            bodies_to_create, start_time, end_time, global_frame_origin, global_frame_orientation)
 
         # Modify Earth default settings
         body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
         body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
             environment_setup.rotation_model.iau_2006, global_frame_orientation,
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 start_time.to_float(),
-                                                                 end_time.to_float(), 3600.0),
+                                                                 start_time, end_time, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 start_time.to_float(),
-                                                                 end_time.to_float(), 3600.0),
+                                                                 start_time, end_time, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 start_time.to_float(),
-                                                                 end_time.to_float(), 60.0))
+                                                                 start_time, end_time, 60.0))
         body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
         body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.dsn_stations()
 
-        # Create MRO spacecraft settings
+        # Create empty settings for the MRO spacecraft
         spacecraft_name = "MRO"
         spacecraft_central_body = "Mars"
         body_settings.add_empty_settings(spacecraft_name)
 
         # Retrieve translational ephemeris from SPICE
         body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-            start_time.to_float(), end_time.to_float(), 10.0, spacecraft_central_body,
-            global_frame_orientation)
+            start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
 
         # Retrieve rotational ephemeris from SPICE
         body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
             global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
 
-
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
 
-        # Define tabulated antenna MRO-fixed ephemeris wrt spacecraft centre-of-mass
-        com_position = np.array([0.0, -1.11, 0.0])
-
-        # Define tabulated position of the MRO antenna with respect to the spacecraft's centre-of-mass in the spacecraft-fixed frame
-        antenna_position_tabulated = dict()
-        # Parsing all single observation sets
-        for single_set_obs_times in original_odf_observations.get_observation_times():
-            # For each single observation set, compute the antenna position (spice ID "-74214")
-            # with respect to the origin of the MRO-fixed frame (spice ID "-74000") and retrieve the offset between the spacecraft's
-            # centre-of-mass and the spacecraft-fixed frame origin
-            time = single_set_obs_times[ 0 ].to_float() - 3600.0
-            while time <= single_set_obs_times[ -1].to_float() + 3600.0:
-                state = np.zeros((6, 1))
-                state[:3,0] = spice.get_body_cartesian_position_at_epoch("-74214", "-74000", "MRO_SPACECRAFT", "none", time) - com_position
-                antenna_position_tabulated[time] = state
-                time += 60.0
-        antenna_tabulated_settings = environment_setup.ephemeris.tabulated(antenna_position_tabulated, "-74000",  "MRO_SPACECRAFT")
-        antenna_tabulated_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_tabulated_settings, "Antenna")
-
-        # Update bodies based on ODF file
+        # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the MRO spacecraft
         estimation_setup.observation.set_odf_information_in_bodies(multi_odf_file_contents, bodies)
 
-        # Set MRO antenna ephemeris (expressed in the spacecraft-fixed frame once corrected for the centre-of-mass / MRO-fixed frame origin offset)
-        original_odf_observations.set_reference_point( bodies, antenna_tabulated_ephemeris, "Antenna", "MRO", observation.reflector1)
 
-        # Compress Doppler observations to 60.0 s
-        compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
-            original_odf_observations, 60, 10)
+        # Define MRO center-of-mass (COM) position w.r.t. the origin of the MRO-fixed reference frame (frame spice ID: MRO_SPACECRAFT)
+        # This value was taken from Konopliv et al. (2011) doi:10.1016/j.icarus.2010.10.004
+        # This is necessary to define the position of the antenna w.r.t. the COM, in the MRO-fixed frame (see below)
+        com_position = np.array([0.0, -1.11, 0.0])
+
+        # In the following lines, we create a tabulated history of the position of the MRO antenna with respect to the COM, in the MRO-fixed frame
+        # (MRO_SPACECRAFT). This will be used to create a tabulated ephemeris for the antenna, necessary to correct for the position of the spacecraft's
+        # reference point (antenna) when computing the Doppler observables.
+        # This (manual) extra step is required to account for the offset between the COM and the origin of the MRO-fixed frame, as using spice kernels directly
+        # would only provide the antenna position w.r.t. the origin of the MRO-fixed frame (no information on the COM position).
+        antenna_position_history = dict()
+
+        # Parsing the observation times in all observation sets.
+        # Note: we use a time buffer of one hour with respect to the start and end times of each observation set.
+        # This is to ensure that the antenna position history spans over a slightly extended time interval than the observation epochs
+        # of the given set. When simulating Doppler data to compute the MRO residuals, we might indeed need to access the antenna position
+        # slightly outside the exact time bounds defined by the observation epochs because of the light-time delay.
+        for obs_times in original_odf_observations.get_observation_times():
+            time = obs_times[0].to_float() - 3600.0
+            while time <= obs_times[-1].to_float() + 3600.0:
+                state = np.zeros((6, 1))
+
+                # For each observation epoch, retrieve the antenna position (spice ID "-74214") w.r.t. the origin of the MRO-fixed frame (spice ID "-74000")
+                state[:3,0] = spice.get_body_cartesian_position_at_epoch("-74214", "-74000", "MRO_SPACECRAFT", "none", time)
+
+                # Translate the antenna position to account for the offset between the origin of the MRO-fixed frame and the COM
+                state[:3,0] = state[:3,0] - com_position
+
+                # Store antenna position w.r.t. COM in the MRO-fixed frame
+                antenna_position_history[time] = state
+                time += 60.0
+
+        # Create tabulated ephemeris settings from antenna position history
+        antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-74000",  "MRO_SPACECRAFT")
+
+        # Create tabulated ephemeris for the MRO antenna
+        antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+
+        # Set the spacecraft's reference point position to that of the antenna (in the MRO-fixed frame)
+        original_odf_observations.set_reference_point( bodies, antenna_ephemeris, "Antenna", "MRO", observation.reflector1)
+
+
+        # Compress Doppler observations from 1.0 s integration time to 60.0 s
+        compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(original_odf_observations, 60, 10)
         print('Compressed observations: ')
         print(compressed_observations.concatenated_observations.size)
 
@@ -329,7 +363,9 @@ def run_estimation(inputs):
             estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files_to_load,
                                                                                          spacecraft_name_per_id))
 
-        # Create observation model settings
+        # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
+        # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
+        # added to each of these link ends.
         doppler_link_ends = compressed_observations.link_definitions_per_observable[
             estimation_setup.observation.dsn_n_way_averaged_doppler]
 
@@ -338,16 +374,9 @@ def run_estimation(inputs):
             observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
                 current_link_definition, light_time_correction_list))
 
-        # Create observation simulators
-        observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
 
-        per_set_time_bounds = compressed_observations.sorted_per_set_time_bounds
-        print('Arc times ================= ')
-        for observable_type in per_set_time_bounds:
-            for link_end_index in per_set_time_bounds[observable_type]:
-                current_times_list = per_set_time_bounds[observable_type][link_end_index]
-                for time_bounds in current_times_list:
-                    print('Arc times', observable_type, ' ', link_end_index, ' ', time_bounds)
+        # Create observation simulators.
+        observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
 
         # Add elevation and SEP angles dependent variables to the compressed observation collection
         elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
@@ -367,20 +396,21 @@ def run_estimation(inputs):
         np.savetxt('mro_unfiltered_residuals_mean_' + filename_suffix + '.dat',
                    np.vstack(mean_residuals), delimiter=',')
 
-        # Retrieve time bounds per observation set
+        # Retrieve the time bounds of each observation set within the observation collection
         time_bounds_per_set = compressed_observations.get_time_bounds_per_set()
         time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
         for j in range(len(time_bounds_per_set)):
             time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
             time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
 
+        # Save time bounds of the (unfiltered) observation sets
         np.savetxt('mro_time_bounds_' + filename_suffix + '.dat', time_bounds_array, delimiter=',')
 
-        # Filter out residuals > 0.1 Hz
+        # Filter out outliers (i.e., residuals > 0.1 Hz)
         filter_residuals = estimation.observation_filter(estimation.residual_filtering, 0.1)
         compressed_observations.filter_observations(filter_residuals)
 
-        # Remove empty single observation sets, if there is any once the filtering is performed
+        # Remove empty observation sets, if there is any once the filtering is performed
         compressed_observations.remove_empty_observation_sets()
 
         # Save unfiltered residuals, observation times and link end IDs.
@@ -393,6 +423,7 @@ def run_estimation(inputs):
         rms_filtered_residuals = compressed_observations.get_rms_residuals()
         mean_filtered_residuals = compressed_observations.get_mean_residuals()
 
+        # Save RMS and mean residuals
         np.savetxt('mro_filtered_residuals_rms_' + filename_suffix + '.dat',
                    np.vstack(rms_filtered_residuals), delimiter=',')
         np.savetxt('mro_filtered_residuals_mean_' + filename_suffix + '.dat',
@@ -405,6 +436,7 @@ def run_estimation(inputs):
             time_bounds_filtered_array[j, 0] = time_bounds_per_filtered_set[j][0].to_float()
             time_bounds_filtered_array[j, 1] = time_bounds_per_filtered_set[j][1].to_float()
 
+        # Save time bounds of each observation set
         np.savetxt('mro_filtered_time_bounds_' + filename_suffix + '.dat', time_bounds_filtered_array, delimiter=',')
 
 
@@ -414,6 +446,7 @@ def run_estimation(inputs):
         # Retrieve concatenated SEP angle dependent variables
         concatenated_sep_angles = compressed_observations.concatenated_dependent_variable(sep_angle_settings)[0]
 
+        # Save elevation and SEP angles
         np.savetxt('mro_elevation_angles_' + filename_suffix + '.dat', concatenated_elevation_angles, delimiter=',')
         np.savetxt('mro_sep_angles_' + filename_suffix + '.dat', concatenated_sep_angles, delimiter=',')
 
@@ -421,7 +454,7 @@ def run_estimation(inputs):
         if input_index == 0:
 
             # Create observation parser to retrieve observation-related quantities over the first day of data
-            first_day_parser = estimation.observation_parser((start_time.to_float() + 1.0 * 86400.0, start_time.to_float() + 2.0 * 86400.0))
+            first_day_parser = estimation.observation_parser((start_time + 2.0 * 86400.0, start_time + 3.0 * 86400.0))
 
             # Retrieve residuals, observation times and dependent variables over the first day
             first_day_observation_times = compressed_observations.get_concatenated_float_observation_times(first_day_parser)
@@ -430,6 +463,7 @@ def run_estimation(inputs):
                 elevation_angle_settings, observation_parser=first_day_parser)[0]
             first_day_link_ends_ids = compressed_observations.get_concatenated_link_definition_ids(first_day_parser)
 
+            # Save first day results
             np.savetxt('mro_first_day_residuals.dat', first_day_residuals, delimiter=',')
             np.savetxt('mro_first_day_times.dat', first_day_observation_times, delimiter=',')
             np.savetxt('mro_first_day_link_end_ids.dat', first_day_link_ends_ids, delimiter=',')
@@ -443,7 +477,11 @@ if __name__ == "__main__":
     print('Start')
     inputs = []
 
+    # Specify the number of cores over which this example is to run
     nb_cores = 6
+
+    # Define start and end dates for the six time intervals to be analysed in parallel computations.
+    # Each parallel run covers two months of data for the example to parse a total timespan of one year.
 
     start_dates = [datetime(2012, 1, 1),
                    datetime(2012, 3, 1),
@@ -461,22 +499,27 @@ if __name__ == "__main__":
 
     trajectory_kernels = []
 
-    # for i in range(nb_cores):
-    #     clock_files_to_load, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load = (
-    #         get_mro_files("mro_kernels/", start_dates[i], end_dates[i]))
-    #
-    #     inputs.append([i, start_dates[i], end_dates[i], odf_files_to_load, clock_files_to_load, orientation_files_to_load,
-    #                    tro_files_to_load, ion_files_to_load])
-    #
-    #
-    # print('inputs', inputs)
-    #
-    # # Run parallel MC analysis
-    # with mp.get_context("fork").Pool(nb_cores) as pool:
-    #     pool.map(run_estimation, inputs)
+    # For each parallel run
+    for i in range(nb_cores):
+
+        # First retrieve the names of all the relevant kernels and data files necessary to cover the specified time interval
+        clock_files_to_load, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load = (
+            get_mro_files("mro_kernels/", start_dates[i], end_dates[i]))
+
+        # Construct a list of input arguments containing the arguments needed this specific parallel run.
+        # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
+        inputs.append([i, start_dates[i], end_dates[i], odf_files_to_load, clock_files_to_load, orientation_files_to_load,
+                       tro_files_to_load, ion_files_to_load])
+
+    # Print the list of input arguments, sorted per parallel run
+    print('inputs', inputs)
+
+    # Run parallel residuals analyses over several cores
+    with mp.get_context("fork").Pool(nb_cores) as pool:
+        pool.map(perform_residuals_analysis, inputs)
 
 
-    # Load and concatenated results from all parallel analyses
+    # Create empty lists of results to store the outcomes of all parallel analyses
     filtered_residuals_list = []
     filtered_times_list = []
     elevation_angles_list = []
@@ -488,6 +531,7 @@ if __name__ == "__main__":
     time_bounds_list = []
     time_bounds_filtered_list = []
 
+    # Load and add results from all parallel analyses
     for i in range(nb_cores):
         filtered_times_list.append(np.loadtxt("mro_filtered_time_" + str(i) + ".dat"))
         filtered_residuals_list.append(np.loadtxt( "mro_filtered_residual_" + str(i) + ".dat" ))
@@ -500,6 +544,7 @@ if __name__ == "__main__":
         time_bounds_list.append(np.loadtxt("mro_time_bounds_" + str(i) + ".dat", delimiter=','))
         time_bounds_filtered_list.append(np.loadtxt("mro_filtered_time_bounds_" + str(i) + ".dat", delimiter=','))
 
+    # Concatenate the above results into single output variables
     filtered_times = np.concatenate(filtered_times_list, axis=0)
     filtered_residuals = np.concatenate(filtered_residuals_list, axis=0)
     elevation_angles = np.concatenate(elevation_angles_list, axis=0)
