@@ -3,7 +3,7 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 ## Objectives
-This tutorial is the second part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example, without the explanation, after which a Design Space Exploration (DSE) is done**. The DSE is collection of methods with which an optimization problem can be analyzed, and better understood, without having to execute an optimization or test randomly.
+This tutorial is the second part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](aoo_custom_environment.ipynb) **part of the example, without the explanation, after which a Design Space Exploration (DSE) is done**. The DSE is collection of methods with which an optimization problem can be analyzed, and better understood, without having to execute an optimization or test randomly.
 
 ## Problem definition
 
@@ -21,8 +21,8 @@ The 2 objectives are:
  
 The constraints are set on the altitude: all the sets of design variables leading to an orbit.
 
-#### NOTE
-It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
+### NOTE
+It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
 correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
 PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
 """
@@ -493,7 +493,7 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
 """
 ## Design Space Exploration
 
-**From here on out the example is new compared to the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example.**
+**From here on out the example is new compared to the** [Custom environment](aoo_custom_environment.ipynb) **part of the example.**
 
 Now that the simulation has been setup, the problem can actually be run and explored. While one could jump into the optimisation immediately, not much is known yet about the specific problem at hand. A design space exploration is done prior to the optimisation in order to better understand the behaviour of the system. The goal is to figure out and observe the link between the design space and the objective space. Numerous methods for exploring the design space are possible, a list of the implemented methods can be seen below. This selection covers various kinds of analysis, ranging from simple and brainless, to systematic and focussed. 
 

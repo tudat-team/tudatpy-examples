@@ -7,7 +7,7 @@ This example will guide you through the set-up of an orbit estimation routine, w
 * how to **plot the correlation coefficients**;
 * how to **plot the uncertainty ellipsoids**.
 
-For the **full estimation** of some selected parameteres, such as initial state, drag coefficient, and radiation pressure coefficient of a spacecraft, see [DELFI-C3 - Parameter Estimation Example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/notebooks/estimation/full_estimation_example.html).
+For the **full estimation** of some selected parameters, such as initial state, drag coefficient, and radiation pressure coefficient of a spacecraft, see [DELFI-C3 - Parameter Estimation Example](full_estimation_example.ipynb).
 
 To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of instantaneous unbiased one-way Doppler range-rate measurements with uncertainty of 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
 
@@ -47,7 +47,7 @@ First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodie
 
 Subsequently, the start and end epoch of the simulation and observations are defined.* Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of four days.
 
-For more information on J2000 and the conversion between different temporal reference frames, please refer to the API documentation of the [`time_conversion module`](https://tudatpy.readthedocs.io/en/latest/time_conversion.html).
+For more information on J2000 and the conversion between different temporal reference frames, please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module.
 
 *Please note that it is always a good practice to separate the observation start and end epochs from the simulated ones. This way, we ensure that the times at which the observations are simulated all fall within the simulation timespan, especially given the geometry of the problem and the time difference at the two link ends (receiver and transmitter are separated by a certain distance). For this reason, we will set the first observation start epoch at one day after the simulation start epoch, and the observation end epoch at one day before the end of the simulation.
 """
@@ -71,7 +71,7 @@ We will now create and define the settings for the environment of our simulation
 ### Create the main bodies
 To create the systems of bodies for the simulation, one first has to define a list of strings of all bodies that are to be included. Note that the default body settings (such as atmosphere, body shape, rotation model) are taken from the `SPICE` kernel.
 
-These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings, however, can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 """
 
 
@@ -235,7 +235,7 @@ Having set the underlying dynamical model of the simulated orbit, we can define 
 ### Add a ground station
 Trivially, the simulation of observations requires the extension of the current environment by at least one observer - a ground station. For this example, we will model a single ground station located in Delft, Netherlands, at an altitude of 0m, 52.00667°N, 4.35556°E.
 
-More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://tudatpy.readthedocs.io/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
+More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
 """
 
 
@@ -332,10 +332,10 @@ parameters_to_estimate = estimation_setup.create_parameter_set(parameter_setting
 ### Creating the Estimator object
 Ultimately, the `Estimator` object consolidates all relevant information required for the estimation of any system parameter:
     
-    1) the environment (bodies)
-    2) the parameter set (parameters_to_estimate)
-    3) observation models (observation_settings_list)
-    4) dynamical, numerical, and integrator setup (propagator_settings)
+1) the environment (`bodies`)
+2) the parameter set (`parameters_to_estimate`)
+3) observation models (`observation_settings_list`)
+4) dynamical, numerical, and integrator setup (`propagator_settings`)
 
 Underneath its hood, upon creation, the estimator automatically takes care of setting up the relevant Observation Simulator and Variational Equations which will subsequently be required for the simulation of observations and the estimation of parameters, respectively.
 """
@@ -351,7 +351,7 @@ estimator = numerical_simulation.Estimator(
 
 """
 ### Perform the observations simulation
-Using the created `Estimator` object, we can perform the simulation of observations by calling its [`simulation_observations()`](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations) function. Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
+Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 """
 
 
@@ -368,7 +368,7 @@ simulated_observations = estimation.simulate_observations(
 
 """
 ## Perform the covariance analysis
-Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is largely identical up to this point (see, for example, the [full estimation example](https://docs.tudat.space/en/latest/_src_getting_started/_src_examples/tudatpy-examples/estimation/full_estimation_example.html)).
+Having simulated the observations and created the `Estimator` object - containing the variational equations for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a covariance analysis or the full estimation of all parameters. It should be stressed that the general setup for either path to be followed is largely identical up to this point (see, for example, the [full estimation example](full_estimation_example.ipynb)).
 
 ### Set up the inversion
 To set up the inversion of the problem, we collect all relevant inputs in the form of a covariance input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
@@ -428,6 +428,7 @@ plt.show()
 """
 ## Post-Processing Results
 Perfect, we have got our results. Now it is time to make sense of them. To further process them, one can - exemplary - plot:
+
 1) the ellipsoidal confidence region defined by the covariance;
 2) the behaviour of the simulated observations over time;
 3) the history of the residuals;
@@ -478,6 +479,7 @@ In the following, we will get the **eigenvalues and eigenvectors** corresponding
 Please note that, in our case, the space of parameters has dimension 8 (initial state + drag coefficient + gravitational parameter), but we will plot the ellipsoid obtained by restricting the problem to the **3 spatial dimensions only** (unless you can find a way to plot an 8D ellipsoid in python!)
 
 The plots will show, for each of the two matrices:
+
 1) the 3-sigma ellipsoid
 2) the 1-sigma ellipsoid
 3) the projections of both 1) and 2) on the x,y,z axes.
