@@ -12,9 +12,10 @@ This example demonstrates the application of a basic custom class to model the t
 Consider the orbit of JUICE with respect to Ganymede. The goal will be to increase the inclination of the orbit, while keeping the nodes constant. Theoretically speaking, the easiest way to do this is by one or more impulsive maneuvers at the nodes of the orbit. Naturally, in reality this thrust will not be impulsive, but the thrust will be applied over a finite duration.
 
 In this example, thrust is implemented to be provided when the true longitude of the spacecraft is within 2 degrees of one of the nodes. Note that parametrizing the thrust as a function of the true longitude is likely not an optimal choice, but it will suffice for this example. The maximum thrust magnitude $T_{max}$ is used when the thrust is on. Introducing such a discontinuity in the dynamical model is again likely not an optimal choice, but will suffice.
-In addition to the acceleration from the thrust, a basic model is set up, consisting of the following accelerations: \
-· Spherical harmonic gravity accelerations from Ganymede and Jupiter. Their gravity fields will be expanded to D/O 2/2 and 4/0 respectively. \
-· Third body forces will include those of the Sun, Saturn, Europa, Io and Callisto. 
+In addition to the acceleration from the thrust, a basic model is set up, consisting of the following accelerations:
+
+- Spherical harmonic gravity accelerations from Ganymede and Jupiter. Their gravity fields will be expanded to D/O 2/2 and 4/0 respectively.
+- Third body forces will include those of the Sun, Saturn, Europa, Io and Callisto. 
 
 The mass of the vehicle is propagated using a mass rate model consistent with the engine thrust used.
 
@@ -302,9 +303,9 @@ system_initial_state = spice.get_body_cartesian_state_at_epoch(
 
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables that are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://tudatpy.readthedocs.io/en/latest/dependent_variable.html) of the tudatpy API website provides a detailled explanation of all the dependent variables that are available.
+[This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
 
-We will save the keplerian state of JUICE with respect to Ganymede, to verify whether we really do raise the inclincation of the orbit. We will also save the mass of JUICE over time to ensure our mass propagation is also correctly performed. Lastly, we save norm of the thrust acceleration to verify whether the thrust we have set is indeed equal to 1N.
+We will save the keplerian state of JUICE with respect to Ganymede, to verify whether we really do raise the inclination of the orbit. We will also save the mass of JUICE over time to ensure our mass propagation is also correctly performed. Lastly, we save norm of the thrust acceleration to verify whether the thrust we have set is indeed equal to 1N.
 """
 
 
