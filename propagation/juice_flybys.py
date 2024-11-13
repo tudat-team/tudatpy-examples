@@ -4,7 +4,7 @@
 # # JUICE Flybys of Jovian Moons
 # ## Objectives
 # 
-# This examples shows how to use **TUDAT functionalities** to retrieve **JUICE's position with respect to a given flyby moon** from their SPICE ephemerides, at a given time.
+# This example shows how to use **TUDAT functionalities** to retrieve **JUICE's position with respect to a given flyby moon** from their SPICE ephemerides, at a given time.
 
 # ## Import Statements
 # To start off, we import all the relevant modules.
