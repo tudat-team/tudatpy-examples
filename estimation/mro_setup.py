@@ -27,13 +27,36 @@ from load_pds_files import download_url_files_time, download_url_files_time_inte
 from datetime import datetime
 from urllib.request import urlretrieve
 
-current_directory = os.getcwd()
+
+### ------------------------------------------------------------------------------------------
+### IMPORTANT PRELIMINARY REMARKS
+### ------------------------------------------------------------------------------------------
+#
+# The following example can only be run with manually compiled Tudat kernels (see https://github.com/tudat-team/tudat-bundle
+# for how to perform to the installation and compilation). Before proceeding to the compilation and testing (i.e., before step
+# 6 of the readme), the file tudat-bundle/tudatpy/tudatpy/kernel/scalarTypes.h must be modified to specify how the time type
+# should be converted in tudatpy. Within this scalarTypes.h file, both TIME_TYPE and INTERPOLATOR_TIME_TYPE should be set to
+# tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
+#
+# Running the example automatically triggers the download of all required kernels and data files if they are not found locally
+# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+# measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
+# (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
+# each relevant file is already present locally and only proceeds to the download if it is not. This also means that running this
+# example implies downloading quite a few files to your machine or server.
+#
+### ------------------------------------------------------------------------------------------
+
 
 # This function retrieves all relevant files necessary to run the example over the time interval of interest
 # (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
-# relevant clock files, orientation kernels, tropospheric correction files, ionospheric correction files and odf files
-# that should be loaded.
+# relevant clock files, orientation kernels, tropospheric correction files, ionospheric correction files, odf files,
+# trajectory files, MRO reference frames file, and MRO structure file that should be loaded.
 def get_mro_files(local_path, start_date, end_date):
+
+    # Check if local_path designates an existing directory and creates the directory is not
+    if not os.path.isdir(local_path):
+        os.mkdir(local_path)
 
     # Clock file (a single file is necessary)
     print('---------------------------------------------')
@@ -63,22 +86,22 @@ def get_mro_files(local_path, start_date, end_date):
     url_orientation_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/ck/"
     # Retrieve the names of all spacecraft orientation kernels required to cover the time interval of interest, and download them if they
     # do not exist locally yet.
-    orientation_files_to_load = download_url_files_time_interval(
+    orientation_files = download_url_files_time_interval(
         local_path=local_path, filename_format='mro_sc_psp_*.bc', start_date=start_date, end_date=end_date,
         url=url_orientation_files, time_interval_format='%y%m%d_%y%m%d')
 
     # Retrieve the names of all antenna orientation kernels required to cover the time interval of interest, and download them if they
     # do not exist locally yet
-    antenna_files_to_load = download_url_files_time_interval(
+    antenna_files = download_url_files_time_interval(
         local_path=local_path, filename_format='mro_hga_psp_*.bc', start_date=start_date, end_date=end_date,
         url=url_orientation_files, time_interval_format='%y%m%d_%y%m%d')
 
     # Print and store all relevant orientation file names (both for the MRO spacecraft and antenna)
-    for file in antenna_files_to_load:
-        orientation_files_to_load.append(file)
+    for file in antenna_files:
+        orientation_files.append(file)
 
     print('relevant orientation files')
-    for f in orientation_files_to_load:
+    for f in orientation_files:
         print(f)
 
 
@@ -89,13 +112,13 @@ def get_mro_files(local_path, start_date, end_date):
     url_tro_files = "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/ancillary/tro/"
     # Retrieve the names of all tropospheric correction files required to cover the time interval of interest, and download them if they
     # do not exist locally yet
-    tro_files_to_load = download_url_files_time_interval(
+    tro_files = download_url_files_time_interval(
         local_path=local_path, filename_format='mromagr*.tro', start_date=start_date,
         end_date=end_date, url=url_tro_files, time_interval_format='%Y_%j_%Y_%j')
 
     # Print all relevant tropospheric correction file names
     print('relevant tropospheric corrections files')
-    for f in tro_files_to_load:
+    for f in tro_files:
         print(f)
 
 
@@ -106,13 +129,13 @@ def get_mro_files(local_path, start_date, end_date):
     url_ion_files = "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/ancillary/ion/"
     # Retrieve the names of all ionospheric correction files required to cover the time interval of interest, and download them if they
     # do not exist locally yet
-    ion_files_to_load = download_url_files_time_interval(
+    ion_files = download_url_files_time_interval(
         local_path=local_path, filename_format='mromagr*.ion', start_date=start_date,
         end_date=end_date, url=url_ion_files, time_interval_format='%Y_%j_%Y_%j')
 
     # Print all relevant ionospheric correction file names
     print('relevant ionospheric corrections files')
-    for f in ion_files_to_load:
+    for f in ion_files:
         print(f)
 
 
@@ -122,18 +145,79 @@ def get_mro_files(local_path, start_date, end_date):
     # Define url where ODF files can be downloaded for MRO
     url_odf = ("https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/odf/")
     # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
-    odf_files_to_load = download_url_files_time(
+    odf_files = download_url_files_time(
         local_path=local_path, filename_format='mromagr*_\w\w\w\wxmmmv1.odf', start_date=start_date,
         end_date=end_date, url=url_odf, time_format='%Y_%j', indices_date_filename=[7])
 
     # Print the name of all relevant ODF files that have been identified over the time interval of interest
     print('relevant odf files')
-    for f in odf_files_to_load:
+    for f in odf_files:
         print(f)
 
 
-    # Retrieve filenames lists for clock files, orientation kernels, tropospheric and ionospheric corrections, and odf files.
-    return clock_files, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load
+    # MRO trajectory files (multiple files are necessary to cover one entire year, typically each file covers ~ 3-4 months)
+    # Note that the file names hard coded below cover calendar year 2012. This should be modified in case the time interval
+    # of the example is modified.
+    print('---------------------------------------------')
+    print('Download MRO trajectory files')
+    trajectory_files = ["mro_psp21.bsp", "mro_psp22.bsp", "mro_psp23.bsp", "mro_psp24.bsp", "mro_psp25.bsp"]
+    # Define url where trajectory files can be downloaded for MRO
+    url_trajectory_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/spk/"
+    for file in trajectory_files:
+        # Check if the relevant trajectory file exists locally
+        if (os.path.exists(local_path + file) == False):
+            print('download', local_path + file)
+            # If not, download it
+            urlretrieve(url_trajectory_files + file, local_path + file)
+
+    # Print and store all relevant trajectory file names
+    print('relevant trajectory files')
+    for k in range(len(trajectory_files)):
+        trajectory_files[k] = local_path + trajectory_files[k]
+        print(trajectory_files[k])
+
+
+    # Frames definition file for the MRO spacecraft (only one file is necessary). This is useful for HGA and
+    # spacecraft-fixed frames definition.
+    print('---------------------------------------------')
+    print('Download MRO frames definition file')
+    frames_def_file = "mro_v16.tf"
+    # Define url where the frames definition file can be downloaded for MRO
+    url_frames_def_file = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/fk/"
+    # Check if the relevant frames definition file exists locally
+    if (os.path.exists(local_path + frames_def_file) == False):
+        print('download', local_path + frames_def_file)
+        # If not, download it
+        urlretrieve(url_frames_def_file + frames_def_file, local_path + frames_def_file)
+
+    # Print and store the frames definition file name
+    print('relevant MRO frames definition file')
+    frames_def_file = local_path + frames_def_file
+    print(frames_def_file)
+
+
+    # Structure file for the MRO spacecraft (only one file is necessary). This is useful to retrieve the antenna
+    # position in spacecraft-fixed frame.
+    print('---------------------------------------------')
+    print('Download MRO structure file')
+    structure_file = "mro_struct_v10.bsp"
+    # Define url where the MRO structure file can be downloaded
+    url_structure_file = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/spk/"
+    # Check if the relevant structure file exists locally
+    if (os.path.exists(local_path + structure_file) == False):
+        print('download', local_path + structure_file)
+        # If not, download it
+        urlretrieve(url_structure_file + structure_file, local_path + structure_file)
+
+    # Print and store the structure file name
+    print('relevant MRO structure file')
+    structure_file = local_path + structure_file
+    print(structure_file)
+
+
+    # Return filenames lists for clock files, orientation kernels, tropospheric and ionospheric corrections, odf files,
+    # trajectory files, MRO reference frames file, and MRO structure file.
+    return clock_files, orientation_files, tro_files, ion_files, odf_files, trajectory_files, frames_def_file, structure_file
 
 
 # This function performs Doppler residual analysis for the MRO spacecraft by adopting the following approach:
@@ -150,6 +234,9 @@ def get_mro_files(local_path, start_date, end_date):
 #   6- the list of orientation kernels to be loaded
 #   7- the list of tropospheric correction files to be loaded
 #   8- the list of ionospheric correction files to be loaded
+#   9- the list of MRO trajectory files to be loaded
+#   10- the MRO reference frames definition file to be loaded
+#   11- the MRO structure file to be loaded
 
 def perform_residuals_analysis(inputs):
 
@@ -166,11 +253,16 @@ def perform_residuals_analysis(inputs):
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)
     odf_files = inputs[3]
-    clock_files_to_load = inputs[4]
-    orientation_files_to_load = inputs[5]
-    tro_files_to_load = inputs[6]
-    ion_files_to_load = inputs[7]
+    clock_files = inputs[4]
+    orientation_files = inputs[5]
+    tro_files = inputs[6]
+    ion_files = inputs[7]
+    trajectory_files = inputs[8]
+    frames_def_file = inputs[9]
+    structure_file = inputs[10]
 
+
+    # Redirect the outputs of this run to a file names mro_estimation_output_x.dat, with x the run index
     with util.redirect_std('mro_estimation_output_' + str(input_index) + ".dat", True, True):
 
         print("input_index", input_index)
@@ -181,32 +273,31 @@ def perform_residuals_analysis(inputs):
         ### LOAD ALL REQUESTED KERNELS AND FILES
         ### ------------------------------------------------------------------------------------------
 
+        spice.load_standard_kernels()
+
         # Load MRO orientation kernels (over the entire relevant time period).
         # Note: each orientation kernel covers a certain time interval, usually spanning over a few days.
         # It must be noted, however, that some dates are not entirely covered, i.e., there is no orientation information available over
         # some short periods of time. This typically happens on dates coinciding with the transition from one orientation file to the
         # next one. As will be shown later in the examples, this requires the user to manually specify which dates should be overlooked,
         # and to filter out observations that were recorded on such dates.
-        spice.load_standard_kernels()
-        for orientation_file in orientation_files_to_load:
+        for orientation_file in orientation_files:
             spice.load_kernel(orientation_file)
 
         # Load MRO clock files
-        for clock_file in clock_files_to_load:
+        for clock_file in clock_files:
             spice.load_kernel(clock_file)
 
         # Load MRO frame definition file (useful for HGA and spacecraft-fixed frames definition)
-        spice.load_kernel(current_directory + "/mro_kernels/mro_v16.tf")
+        spice.load_kernel(frames_def_file)
 
-        # Load MRO trajectory kernel
-        spice.load_kernel(current_directory + "/mro_kernels/mro_psp21.bsp")
-        spice.load_kernel(current_directory + "/mro_kernels/mro_psp22.bsp")
-        spice.load_kernel(current_directory + "/mro_kernels/mro_psp23.bsp")
-        spice.load_kernel(current_directory + "/mro_kernels/mro_psp24.bsp")
-        spice.load_kernel(current_directory + "/mro_kernels/mro_psp25.bsp")
+        # Load MRO trajectory kernels
+        for trajectory_file in trajectory_files:
+            spice.load_kernel(trajectory_file)
 
         # Load MRO spacecraft structure file (for antenna position in spacecraft-fixed frame)
-        spice.load_kernel(current_directory + "/mro_kernels/mro_struct_v10.bsp")
+        spice.load_kernel(structure_file)
+
 
         # Dates to filter out because of incomplete spacecraft orientation kernels (see note when loading orientation kernels on line 168)
         dates_to_filter = [time_conversion.DateTime(2012, 10, 15, 0, 0, 0.0),
@@ -372,14 +463,13 @@ def perform_residuals_analysis(inputs):
 
         # Add tropospheric correction
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files_to_load))
+            estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files))
 
         # Add ionospheric correction
         spacecraft_name_per_id = dict()
         spacecraft_name_per_id[74] = "MRO"
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files_to_load,
-                                                                                         spacecraft_name_per_id))
+            estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files, spacecraft_name_per_id))
 
         # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
         # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
@@ -526,18 +616,18 @@ if __name__ == "__main__":
     for i in range(nb_cores):
 
         # First retrieve the names of all the relevant kernels and data files necessary to cover the specified time interval
-        clock_files_to_load, orientation_files_to_load, tro_files_to_load, ion_files_to_load, odf_files_to_load = (
+        clock_files, orientation_files, tro_files, ion_files, odf_files, trajectory_files, frames_def_file, structure_file = (
             get_mro_files("mro_kernels/", start_dates[i], end_dates[i]))
 
         # Construct a list of input arguments containing the arguments needed this specific parallel run.
         # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
-        inputs.append([i, start_dates[i], end_dates[i], odf_files_to_load, clock_files_to_load, orientation_files_to_load,
-                       tro_files_to_load, ion_files_to_load])
-
-    # Print the list of input arguments, sorted per parallel run
-    print('inputs', inputs)
+        inputs.append([i, start_dates[i], end_dates[i], odf_files, clock_files, orientation_files,
+                       tro_files, ion_files, trajectory_files, frames_def_file, structure_file])
 
     # Run parallel residuals analyses over several cores
+    print('---------------------------------------------')
+    print('The output of each parallel run is saved in a separate file named mro_estimation_output_x.dat, with x the index of the run '
+          '(these files are saved in the current working directory)')
     with mp.get_context("fork").Pool(nb_cores) as pool:
         pool.map(perform_residuals_analysis, inputs)
 
