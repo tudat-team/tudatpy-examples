@@ -3,8 +3,12 @@
 
 # # JUICE Flybys of Jovian Moons
 # ## Objectives
+#  
+# This examples shows how to use **TUDAT functionalities** to:
+# 1) retrieve **JUICE's position with respect to a given flyby moon** from their SPICE ephemerides, at a given time;
+# 2) propagate from the **midpoint of an arc** (both backwards and forwards);
+# 3) propagate using a **variable time step**;
 # 
-# This examples shows how to use **TUDAT functionalities** to retrieve **JUICE's position with respect to a given flyby moon** from their SPICE ephemerides, at a given time.
 
 # ## Import Statements
 # To start off, we import all the relevant modules.
@@ -145,7 +149,7 @@ spice.load_standard_kernels(kernels)
 # ### Set Epochs and Define Default Bodies Settings
 # According to the JUICE's mission timeline, the moon flybys will take place from **2032 to mid 2034**. Multiplying by `constants.JULIAN_YEAR` is a way to express a given epoch in julian seconds.
 # 
-# As for our framework, we need to create bodies for: Europa, Ganymede, Callisto, Jupiter and the Sun.
+# As for our framework, we need to create bodies for: Europa, Ganymede, Callisto, Io Jupiter and the Sun.
 # We will select Jupiter as origin of our global frame, and orient it according to the J2000. Next, the defualt body settings can be defined.
 
 # In[4]:
@@ -156,7 +160,7 @@ start_epoch = 32.0 * constants.JULIAN_YEAR
 end_epoch = 34.5 * constants.JULIAN_YEAR
 
 # Define default body settings
-bodies_to_create = ["Europa", "Ganymede", "Callisto", "Jupiter", "Sun"]
+bodies_to_create = ["Europa", "Ganymede", "Callisto", "Io", "Jupiter", "Sun"]
 global_frame_origin = "Jupiter"
 global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(bodies_to_create, global_frame_origin,
@@ -178,6 +182,9 @@ body_settings.get(flyby_moon).rotation_model_settings = environment_setup.rotati
 # Create empty settings for JUICE spacecraft
 body_settings.add_empty_settings("JUICE")
 
+# Add JUICE mass to body settings
+body_settings.get("JUICE").constant_mass = 5.0e3 #kg
+
 # Set empty ephemeris for JUICE
 empty_ephemeris_dict = dict()
 juice_ephemeris = environment_setup.ephemeris.tabulated(
@@ -186,34 +193,34 @@ juice_ephemeris = environment_setup.ephemeris.tabulated(
     global_frame_orientation)
 body_settings.get("JUICE").ephemeris_settings = juice_ephemeris
 
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-
-# Add JUICE spacecraft to system of bodies
-bodies.get("JUICE").mass = 5.0e3
-
 
 # ### Define Acceleration Model Settings
 # The **forces (accelerations)** acting on JUICE have to be defined.
 # In this case, they consist in the followings:
 # 
-# - **Gravitational acceleration of the Moons modeled as Spherical Harmonics**, taken up to degree 2 and order 2;
-# - **Gravitational acceleration of Jupiter modeled as Spherical Harmonics**, taken up to degree 2;
-# -  **Gravitational acceleration of the Sun modeled as Point Mass**;
+# - **Gravitational acceleration of the Europa, Callisto, Ganymede modeled as Spherical Harmonics**, taken up to degree 2 and order 2;
+# - **Gravitational acceleration of Io, modeled as a Point Mass**;
+# - **Gravitational acceleration of Jupiter modeled as Spherical Harmonics**, taken up to degree 8;
+# - **Gravitational acceleration of the Sun modeled as a Point Mass**;
 # - **Radiation pressure acceleration caused by the Sun** 
 # 
 # The acceleration settings defined are then applied to JUICE in a dictionary, which is finally input to the propagation setup to create the **acceleration models**.
 
-# In[6]:
+# In[7]:
 
 
 # Create radiation pressure settings
-ref_area = 100.0
-srp_coef = 1.2
+reference_area = 100.0
+radiation_pressure_coefficient = 1.2
 occulting_bodies = {"Sun": [flyby_moon]}
-juice_srp_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
-    ref_area, srp_coef, occulting_bodies)
-environment_setup.add_radiation_pressure_target_model(bodies, "JUICE", juice_srp_settings)
+juice_radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area, radiation_pressure_coefficient, occulting_bodies)
+
+# Add the radiation pressure interface to the body settings
+body_settings.get("JUICE").radiation_pressure_target_settings = juice_radiation_pressure_settings
+
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 # Find all JUICE flybys around the specified flyby moon.
 # This finding algorithm identifies all closest approaches of the JUICE spacecraft with respect to the flyby moon,
@@ -221,8 +228,8 @@ environment_setup.add_radiation_pressure_target_model(bodies, "JUICE", juice_srp
 closest_approaches_juice = find_closest_approaches(start_epoch, end_epoch, 2.0e7)
 
 # Extract number of JUICE flybys
-nb_flybys = len(closest_approaches_juice)
-print(f'Number of Flybys: {nb_flybys}')
+number_of_flybys = len(closest_approaches_juice)
+print(f'Number of Flybys: {number_of_flybys}')
 
 # Define accelerations acting on JUICE
 accelerations_settings_juice = dict(
@@ -235,8 +242,11 @@ accelerations_settings_juice = dict(
     Callisto=[
         propagation_setup.acceleration.spherical_harmonic_gravity(2, 2),
     ],
+    Io=[
+        propagation_setup.acceleration.point_mass_gravity(),
+    ],
     Jupiter=[
-        propagation_setup.acceleration.spherical_harmonic_gravity(2, 0)
+        propagation_setup.acceleration.spherical_harmonic_gravity(8, 0)
     ],
     Sun=[
         propagation_setup.acceleration.radiation_pressure(),
@@ -253,20 +263,47 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 
 # ## Propagation Setup
-# ### Create the propagator settings
-# At this stage, the propagator is set up. The integrator settings are defined using a RK78 integrator with the fixed step size of 10 seconds.
+# ### Create the integrator settings
+# At this stage, the integrator (propagator) is set up. First, we define the integrator settings. 
+# 
+# The integrator settings are defined using a RK78 integrator with a **variable step size** with 10 seconds initial step, 1E-12 **absolute and relative tolerances**, and **position/velocity block-wise tolerances**. 
+# 
+# You can find more information about the functionalities used in the following cell by simply clicking on their names in this markdown: 
+# - [`step_size_control_custom_blockwise_scalar_tolerance`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.step_size_control_blockwise_scalar_tolerance), 
+# - [`standard_cartesian_state_element_blocks`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.standard_cartesian_state_element_blocks),
+# - [`step_size_validation`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.step_size_validation),
+# - [`runge_kutta_variable_step`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.runge_kutta_variable_step)
+# - [`rkf_78`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.CoefficientSets)
+# 
+# or manually in the [Tudatpy API reference](https://py.api.tudat.space/en/latest/integrator.html#). 
+
+# In[8]:
+
+
+# Define integrator settings 
+control_settings = propagation_setup.integrator.step_size_control_custom_blockwise_scalar_tolerance(
+    propagation_setup.integrator.standard_cartesian_state_element_blocks,
+    1.0E-12, 1.0E-12)
+
+validation_settings = propagation_setup.integrator.step_size_validation(0.001, 1000.0)
+
+integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
+    initial_time_step = 10.0,
+    coefficient_set = propagation_setup.integrator.rkf_78,
+    step_size_control_settings = control_settings,
+    step_size_validation_settings = validation_settings )
+
+
+# ### Dependent Variables
 # **Dependent variables** such as **latitude, longitude and altitude** of JUICE with respect to the flyby moon are saved along the propagation (these will be used later in the plots).
 # 
-# The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 30 minutes backwards and forwards from that point. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**. 
+# ### Midpoint Backward and Forward Propagation
+# The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 30 minutes backwards and forwards from that point, using the [`time_termination`](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.time_termination) settings. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**. 
 # 
 # The **dynamics is finally propagated** based on the acceleration settings defined above.
 
-# In[7]:
+# In[9]:
 
-
-# Define integrator settings
-integrator = propagation_setup.integrator.runge_kutta_fixed_step_size(
-    initial_time_step=10.0, coefficient_set=propagation_setup.integrator.rkf_78)
 
 # Define dependent variables
 dependent_variables_names = [
@@ -277,7 +314,7 @@ dependent_variables_names = [
 
 # Define propagator settings for each arc (i.e., each flyby)
 propagator_settings_list = []
-for k in range(nb_flybys):
+for k in range(number_of_flybys):
     # The initial time of the propagation is set at the time of closest approach (obtained from SPICE), and the JUICE spacecraft is then
     # propagated backwards and forwards from that point.
     flyby_time = closest_approaches_juice[k]
@@ -295,7 +332,7 @@ for k in range(nb_flybys):
 
     # Define arc-wise propagator settings
     propagator_settings_list.append(propagation_setup.propagator.translational(
-        central_body, acceleration_models, body_to_propagate, initial_state, flyby_time, integrator,
+        central_body, acceleration_models, body_to_propagate, initial_state, flyby_time, integrator_settings,
         termination_condition,
         propagation_setup.propagator.cowell, dependent_variables_names))
 
@@ -308,9 +345,9 @@ propagation_results = simulator.propagation_results.single_arc_results
 
 
 # ## Flyby Visualization
-# Having propagated the dynamics and saved the Latitude, Longitude and Altitude of JUICE with respect to the flyby moon, we can finally produce a **ground track plot** of our spacecraft. A map of Callisto is added to the plot, just to make it even ✨ **cooler!** ✨
+# Having propagated the dynamics and saved the Latitude, Longitude and Altitude of JUICE with respect to the flyby moon, we can finally produce a **ground track plot** of our spacecraft. A map of Ganymede is added to the plot, just to make it even ✨ **cooler!** ✨
 
-# In[8]:
+# In[10]:
 
 
 # Plot flybys
@@ -319,7 +356,7 @@ img = plt.imread(moon_map)
 
 fig, ax = plt.subplots()
 ax.imshow(img, extent=[0, 360, -90, 90])
-for k in range(nb_flybys):
+for k in range(number_of_flybys):
     dependent_variables = result2array(propagation_results[k].dependent_variable_history)
 
     # Resolve 2pi ambiguity for longitude
@@ -337,5 +374,43 @@ plt.xticks(np.arange(0, 361, 40))
 plt.yticks(np.arange(-90, 91, 30))
 cb.set_label('Altitude [km]')
 plt.title('JUICE flybys at ' + flyby_moon)
+plt.show()
+
+
+# ## Time Step Evolution 
+# 
+# As we made use of a **variable time step** for our integration, it is instructive to check its **time evolution**.
+# The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the cumulative computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**. 
+
+# In[11]:
+
+
+num_plots = len(propagation_results)
+# Calculate the number of rows needed for two columns
+num_rows = (num_plots + 1) // 2  # This ensures enough rows for odd numbers of plots
+# Create a figure with subplots arranged in two columns
+fig, axes = plt.subplots(num_rows, 2, figsize=(10, 10))
+# Flatten axes array for easy indexing, in case num_plots is odd
+axes = axes.flatten()
+
+for i in range(num_plots):
+    time_steps = np.diff(list(propagation_results[i].cumulative_computation_time_history))
+    times = list(propagation_results[i].cumulative_computation_time_history)
+    flyby_time = closest_approaches_juice[i]
+    
+    ax = axes[i]
+    ax.plot(times[:-1], time_steps, label='Step Size')
+    ax.axvline(flyby_time, color='r', linestyle='--', label='Flyby Time')
+    ax.set_title(f"Step Size Evolution, {flyby_moon} Flyby n.{i+1}")
+    ax.set_xlabel("Cumulative Computation Time (s)")
+    ax.set_ylabel("Step Size")
+    ax.legend()
+
+# Hide any unused subplots if num_plots is odd
+for j in range(num_plots, len(axes)):
+    fig.delaxes(axes[j])
+
+# Adjust layout and show the figure with subplots
+plt.tight_layout()
 plt.show()
 
