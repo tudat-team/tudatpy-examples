@@ -7,7 +7,7 @@
 # This examples shows how to use **TUDAT functionalities** to:
 # 1) retrieve **JUICE's position with respect to a given flyby moon** from their SPICE ephemerides, at a given time;
 # 2) propagate from the **midpoint of an arc** (both backwards and forwards);
-# 3) propagate using a **variable time step**;
+# 3) propagate using a **variable time step**
 # 
 
 # ## Import Statements
@@ -206,7 +206,7 @@ body_settings.get("JUICE").ephemeris_settings = juice_ephemeris
 # 
 # The acceleration settings defined are then applied to JUICE in a dictionary, which is finally input to the propagation setup to create the **acceleration models**.
 
-# In[7]:
+# In[6]:
 
 
 # Create radiation pressure settings
@@ -266,7 +266,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # ### Create the integrator settings
 # At this stage, the integrator (propagator) is set up. First, we define the integrator settings. 
 # 
-# The integrator settings are defined using a RK78 integrator with a **variable step size** with 10 seconds initial step, 1E-12 **absolute and relative tolerances**, and **position/velocity block-wise tolerances**. 
+# The integrator settings are defined using a RK78 integrator with a **variable step size** with 200 seconds initial step, 1E-12 **absolute and relative tolerances**, and **position/velocity block-wise tolerances**. 
 # 
 # You can find more information about the functionalities used in the following cell by simply clicking on their names in this markdown: 
 # - [`step_size_control_custom_blockwise_scalar_tolerance`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.numerical_simulation.propagation_setup.integrator.step_size_control_blockwise_scalar_tolerance), 
@@ -277,7 +277,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # 
 # or manually in the [Tudatpy API reference](https://py.api.tudat.space/en/latest/integrator.html#). 
 
-# In[8]:
+# In[7]:
 
 
 # Define integrator settings 
@@ -288,7 +288,7 @@ control_settings = propagation_setup.integrator.step_size_control_custom_blockwi
 validation_settings = propagation_setup.integrator.step_size_validation(0.001, 1000.0)
 
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
-    initial_time_step = 10.0,
+    initial_time_step = 200.0,
     coefficient_set = propagation_setup.integrator.rkf_78,
     step_size_control_settings = control_settings,
     step_size_validation_settings = validation_settings )
@@ -298,11 +298,11 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
 # **Dependent variables** such as **latitude, longitude and altitude** of JUICE with respect to the flyby moon are saved along the propagation (these will be used later in the plots).
 # 
 # ### Midpoint Backward and Forward Propagation
-# The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 30 minutes backwards and forwards from that point, using the [`time_termination`](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.time_termination) settings. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**. 
+# The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 1 hour backwards and forwards from that point, using the [`time_termination`](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.time_termination) settings. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**. 
 # 
 # The **dynamics is finally propagated** based on the acceleration settings defined above.
 
-# In[9]:
+# In[8]:
 
 
 # Define dependent variables
@@ -324,8 +324,8 @@ for k in range(number_of_flybys):
     print('flyby altitude ',
           (np.linalg.norm(initial_state[:3]) - bodies.get(flyby_moon).shape_model.average_radius) / 1e3, 'km')
 
-    # Create termination settings (propagate between 30 min before and after closest approach)
-    time_around_closest_approach = 0.5 * 3600.0
+    # Create termination settings (propagate between 1 hour before and after closest approach)
+    time_around_closest_approach = 3600.0
     termination_condition = propagation_setup.propagator.non_sequential_termination(
         propagation_setup.propagator.time_termination(flyby_time + time_around_closest_approach),
         propagation_setup.propagator.time_termination(flyby_time - time_around_closest_approach))
@@ -347,7 +347,7 @@ propagation_results = simulator.propagation_results.single_arc_results
 # ## Flyby Visualization
 # Having propagated the dynamics and saved the Latitude, Longitude and Altitude of JUICE with respect to the flyby moon, we can finally produce a **ground track plot** of our spacecraft. A map of Ganymede is added to the plot, just to make it even ✨ **cooler!** ✨
 
-# In[10]:
+# In[9]:
 
 
 # Plot flybys
@@ -382,7 +382,7 @@ plt.show()
 # As we made use of a **variable time step** for our integration, it is instructive to check its **time evolution**.
 # The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the cumulative computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**. 
 
-# In[11]:
+# In[10]:
 
 
 num_plots = len(propagation_results)
