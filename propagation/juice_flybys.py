@@ -380,7 +380,7 @@ plt.show()
 # ## Time Step Evolution 
 # 
 # As we made use of a **variable time step** for our integration, it is instructive to check its **time evolution**.
-# The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the cumulative computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**. 
+# The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**. 
 
 # In[10]:
 
@@ -394,8 +394,8 @@ fig, axes = plt.subplots(num_rows, 2, figsize=(10, 10))
 axes = axes.flatten()
 
 for i in range(num_plots):
-    time_steps = np.diff(list(propagation_results[i].cumulative_computation_time_history))
-    times = list(propagation_results[i].cumulative_computation_time_history)
+    time_steps = np.diff(list(propagation_results[i].dependent_variable_history))
+    times = list(propagation_results[i].dependent_variable_history)
     flyby_time = closest_approaches_juice[i]
     
     ax = axes[i]
