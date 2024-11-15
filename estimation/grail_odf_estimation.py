@@ -11,6 +11,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 import multiprocessing as mp
 import numpy as np
 from matplotlib import pyplot as plt
+import os
 
 # Load required tudatpy modules
 from tudatpy.data import grail_mass_level_0_file_reader
@@ -63,7 +64,7 @@ from grail_examples_functions import get_grail_files, get_grail_panel_geometry, 
 #    estimated parameters to minimise the residuals between computed and ODF observations)
 # 4) The pre- & post-fit residuals are retrieved, along with the difference between GRAIL's post-fit propagated state and the SPICE reference trajectory.
 
-# The "inputs" variable used as input argument is a list with 13 entries:
+# The "inputs" variable used as input argument is a list with 14 entries:
 #   1- the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
 #   2- the date for the day-long arc under consideration
 #   3- the list of ODF files to be loaded to cover the above-mentioned time interval
@@ -77,6 +78,7 @@ from grail_examples_functions import get_grail_files, get_grail_panel_geometry, 
 #   11- the GRAIL reference frames file to be loaded
 #   12- the lunar orientation kernel to be loaded
 #   13- the lunar reference frame kernel to be loaded
+#   14- output files directory
 
 def run_odf_estimation(inputs):
 
@@ -100,10 +102,11 @@ def run_odf_estimation(inputs):
     grail_ref_frames_file = inputs[10]
     lunar_orientation_file = inputs[11]
     lunar_ref_frame_file = inputs[12]
+    output_folder = inputs[13]
 
 
     # Redirect the outputs of this run to a file names grail_odf_estimation_output_x.dat, with x the run index
-    with util.redirect_std('grail_odf_estimation_output_' + str(input_index) + ".dat", True, True):
+    with util.redirect_std(output_folder + 'grail_odf_estimation_output_' + str(input_index) + ".dat", True, True):
 
         print("input_index", input_index)
 
@@ -298,7 +301,7 @@ def run_odf_estimation(inputs):
                 relevant_manoeuvres.append(manoeuvre_time)
 
         # Save list of manoeuvre epochs occurring within the time interval under consideration
-        np.savetxt('relevant_manoeuvres_' + filename_suffix + '.dat', relevant_manoeuvres, delimiter=',')
+        np.savetxt(output_folder + 'relevant_manoeuvres_' + filename_suffix + '.dat', relevant_manoeuvres, delimiter=',')
 
 
         ### ------------------------------------------------------------------------------------------
@@ -397,11 +400,11 @@ def run_odf_estimation(inputs):
 
         # Save residuals as directly computed w.r.t. the reference SPICE trajectory for GRAIL, along with the
         # observation times and link ends IDs.
-        np.savetxt('residuals_wrt_spice_' + filename_suffix + '.dat',
+        np.savetxt(output_folder + 'residuals_wrt_spice_' + filename_suffix + '.dat',
                    compressed_observations.get_concatenated_residuals(), delimiter=',')
-        np.savetxt('observation_times_' + filename_suffix + '.dat',
+        np.savetxt(output_folder + 'observation_times_' + filename_suffix + '.dat',
                    compressed_observations.concatenated_float_times, delimiter=',')
-        np.savetxt('link_end_ids_' + filename_suffix + '.dat',
+        np.savetxt(output_folder + 'link_end_ids_' + filename_suffix + '.dat',
                    compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
 
@@ -455,8 +458,8 @@ def run_odf_estimation(inputs):
         estimation_output = estimator.perform_estimation(estimation_input)
 
         # Save pre- and post-fit residuals
-        np.savetxt('prefit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,0], delimiter=',')
-        np.savetxt('postfit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,-1], delimiter=',')
+        np.savetxt(output_folder + 'prefit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,0], delimiter=',')
+        np.savetxt(output_folder + 'postfit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,-1], delimiter=',')
 
         # Retrieve the post-fit state history of GRAIL
         estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
@@ -470,7 +473,7 @@ def run_odf_estimation(inputs):
             estimated_state_history, spacecraft_name, spacecraft_central_body, global_frame_orientation)
 
         # Save RSW state difference w.r.t. spice trajectory
-        np.savetxt('postfit_rsw_state_difference_' + filename_suffix + '.dat', rsw_state_difference, delimiter = ',')
+        np.savetxt(output_folder + 'postfit_rsw_state_difference_' + filename_suffix + '.dat', rsw_state_difference, delimiter = ',')
 
 
 
@@ -478,6 +481,10 @@ def run_odf_estimation(inputs):
 if __name__ == "__main__":
     print('Start')
     inputs = []
+
+    output_folder = 'grail_parallel_outputs/'
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
 
     # Specify the number of parallel runs to use for this example
     nb_parallel_runs = 5
@@ -502,25 +509,25 @@ if __name__ == "__main__":
         # These include the date of interest, along with the names of all relevant kernels and data files that should be loaded
         inputs.append([i, dates[i], odf_files, clock_file, grail_orientation_files, tro_files,
                        ion_files, manoeuvres_file, antenna_files, trajectory_files, grail_frames_def_file,
-                       moon_orientation_file, lunar_frame_file])
+                       moon_orientation_file, lunar_frame_file, output_folder])
 
 
     # Run parallel GRAIL estimations from ODF data
     print('---------------------------------------------')
     print('The output of each parallel estimation is saved in a separate file named grail_odf_estimation_output_x.dat, '
-          'with x the index of the run (these files are saved in the current working directory)')
+          'with x the index of the run (all output files are saved in ' + output_folder)
     with mp.get_context("fork").Pool(nb_parallel_runs) as pool:
         pool.map(run_odf_estimation, inputs)
 
 
     # Load and plot the results of each parallel estimation
     for i in range(nb_parallel_runs):
-        obs_times = np.loadtxt("observation_times_" + str(i) + ".dat")
-        link_ends_ids = np.loadtxt("link_end_ids_" + str(i) + ".dat")
-        residuals_wrt_spice = np.loadtxt("residuals_wrt_spice_" + str(i) + ".dat")
-        prefit_residuals = np.loadtxt("prefit_residuals_" + str(i) + ".dat")
-        postfit_residuals = np.loadtxt("postfit_residuals_" + str(i) + ".dat")
-        difference_rsw_wrt_spice = np.loadtxt("postfit_rsw_state_difference_" + str(i) + ".dat", delimiter=',')
+        obs_times = np.loadtxt(output_folder + "observation_times_" + str(i) + ".dat")
+        link_ends_ids = np.loadtxt(output_folder + "link_end_ids_" + str(i) + ".dat")
+        residuals_wrt_spice = np.loadtxt(output_folder + "residuals_wrt_spice_" + str(i) + ".dat")
+        prefit_residuals = np.loadtxt(output_folder + "prefit_residuals_" + str(i) + ".dat")
+        postfit_residuals = np.loadtxt(output_folder + "postfit_residuals_" + str(i) + ".dat")
+        difference_rsw_wrt_spice = np.loadtxt(output_folder + "postfit_rsw_state_difference_" + str(i) + ".dat", delimiter=',')
 
         start_date = time_conversion.datetime_to_tudat(dates[i]).epoch().to_float()
 
