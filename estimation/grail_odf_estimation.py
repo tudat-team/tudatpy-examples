@@ -50,7 +50,7 @@ from grail_examples_functions import get_grail_files, get_grail_panel_geometry, 
 # measurements, etc.). Note that this step needs only be performed once, since the script checks whether
 # each relevant file is already present locally and only proceeds to the download if it is not.
 #
-# This example performs 8 parallel orbit estimations (over 8 different days), which can slow down your machine and take quite
+# This example performs 5 parallel orbit estimations (over 5 different days), which can slow down your machine and take quite
 # some time (~ 20-30 minutes)
 #
 ### ------------------------------------------------------------------------------------------
@@ -412,14 +412,14 @@ def run_odf_estimation(inputs):
         # Define parameters to estimate
         parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
 
-        # Define empirical acceleration components
-        empirical_components = dict()
-        empirical_components[estimation_setup.parameter.along_track_empirical_acceleration_component] = \
-            list([estimation_setup.parameter.constant_empirical, estimation_setup.parameter.sine_empirical,
-                  estimation_setup.parameter.cosine_empirical])
-
         # Define list of additional parameters
-        extra_parameters = [estimation_setup.parameter.empirical_accelerations(spacecraft_name, "Moon", empirical_components)]
+        extra_parameters = [
+            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Sun"),
+            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
+                spacecraft_name, "Sun"),
+            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Moon"),
+            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
+                spacecraft_name, "Moon")]
 
         # Include the estimation of the manoeuvres if any are detected during the arc of interest
         if len(relevant_manoeuvres) > 0:
@@ -480,18 +480,15 @@ if __name__ == "__main__":
     inputs = []
 
     # Specify the number of parallel runs to use for this example
-    nb_parallel_runs = 8
+    nb_parallel_runs = 5
 
-    # Define dates for the eight arcs to be analysed in parallel (we only include dates for which an ODF file is available).
+    # Define dates for the five arcs to be analysed in parallel (we only include dates for which an ODF file is available).
     # Each parallel run will therefore parse a single day-long arc.
     dates = [datetime(2012, 4, 6),
              datetime(2012, 4, 9),
              datetime(2012, 4, 10),
              datetime(2012, 4, 11),
-             datetime(2012, 4, 12),
-             datetime(2012, 4, 14),
-             datetime(2012, 4, 16),
-             datetime(2012, 4, 17)]
+             datetime(2012, 4, 12)]
 
 
     # For each parallel run
@@ -572,6 +569,3 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
-
-
-
