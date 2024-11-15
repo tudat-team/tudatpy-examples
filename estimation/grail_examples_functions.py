@@ -240,8 +240,8 @@ def get_grail_panel_geometry():
 
     # First read the panel data and material metadata from input file
     this_file_path = os.path.dirname(os.path.abspath(__file__))
-    panel_data = pd.read_csv(this_file_path + "/input/grail_macromodel.txt", delimiter=", ", engine="python")
-    material_data = pd.read_csv(this_file_path + "/input/grail_materials.txt", delimiter=", ", engine="python")
+    panel_data = pd.read_csv(this_file_path + "/grail_inputs/grail_macromodel.txt", delimiter=", ", engine="python")
+    material_data = pd.read_csv(this_file_path + "/grail_inputs/grail_materials.txt", delimiter=", ", engine="python")
 
     # Initialize list to store all panel settings
     all_panel_settings = []
