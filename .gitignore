@@ -54,3 +54,10 @@ jupyter-lab.log
 
 **/*.pkl
 *.dat
+
+# kernels and output files for GRAIL and MRO estimation examples
+estimation/grail_parallel_outputs
+estimation/grail_kernels
+estimation/mro_parallel_outputs
+estimation/mro_kernels
+
