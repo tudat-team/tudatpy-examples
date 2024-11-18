@@ -8,9 +8,6 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 """
 """
 
-import sys
-sys.path.insert(0, "/home/mfayolle/Tudat/tudat-bundle/cmake-build-release-2/tudatpy")
-
 # Load required standard modules
 import multiprocessing as mp
 import os
@@ -58,7 +55,6 @@ def run_spice_fit(inputs):
 
     # Retrieve the current date as string
     date_string = inputs[1].strftime('%m/%d/%Y').replace('/', '')
-    print('date_string', date_string)
 
     # Convert the datetime object defining the current date to a Tudat Time variable.
     # A time buffer of 10 min is added to ensure that the GRAIL orientation kernel fully covers the time interval of interest,
@@ -69,7 +65,6 @@ def run_spice_fit(inputs):
     # Retrieve index of the setup to consider (this defines both the model to be used to propagate GRAIL's dynamics
     # and the list of estimated parameters in the fit)
     index_setup = inputs[2]
-    print('index_setup', index_setup)
 
     # Retrieve lists of relevant kernels and input files to load (clock and orientation kernels for GRAIL, manoeuvres file,
     # GRAIL trajectory files, GRAIL reference frames file, lunar orientation kernels, and lunar reference frame kernel)
@@ -88,7 +83,8 @@ def run_spice_fit(inputs):
     # 'DATE' the date of interest written as MMDDYYYYY
     with util.redirect_std(output_folder + 'grail_spice_fit_output_' + date_string + '_setup_' + str(index_setup) + ".dat", True, True):
 
-        print("input_index", input_index)
+        print('index_setup', index_setup)
+        print('date_string', date_string)
 
         filename_suffix = date_string + "_setup_" + str(index_setup)
 
@@ -225,8 +221,7 @@ def run_spice_fit(inputs):
                 propagation_setup.acceleration.point_mass_gravity()],
             Moon=[
                 propagation_setup.acceleration.spherical_harmonic_gravity(256, 256),
-                propagation_setup.acceleration.radiation_pressure(environment_setup.radiation_pressure.cannonball_target),
-                propagation_setup.acceleration.empirical()
+                propagation_setup.acceleration.radiation_pressure(environment_setup.radiation_pressure.cannonball_target)
             ],
             Mars=[
                 propagation_setup.acceleration.point_mass_gravity()],
@@ -264,12 +259,6 @@ def run_spice_fit(inputs):
         ### DEFINE SET OF PARAMETERS TO BE ESTIMATED
         ### ------------------------------------------------------------------------------------------
 
-        # Define empirical acceleration components
-        empirical_components = dict()
-        empirical_components[estimation_setup.parameter.along_track_empirical_acceleration_component] = \
-            list([estimation_setup.parameter.constant_empirical, estimation_setup.parameter.sine_empirical,
-                  estimation_setup.parameter.cosine_empirical])
-
         # For setups 0 and 1, only estimate GRAIL's initial state
         extra_parameters = []
 
@@ -285,15 +274,9 @@ def run_spice_fit(inputs):
                 spacecraft_name, "Moon"))
 
         # Add the estimation of the manoeuvre(s) (if any are detected for the current date)
-        if index_setup == 3 or index_setup == 5:
+        if index_setup == 3:
             if len(relevant_manoeuvres) > 0:
                 extra_parameters.append(estimation_setup.parameter.quasi_impulsive_shots(spacecraft_name))
-
-        # Add the estimation of the empirical accelerations
-        if index_setup == 4 or index_setup == 5:
-            extra_parameters.append(
-                estimation_setup.parameter.empirical_accelerations(spacecraft_name, "Moon", empirical_components))
-
 
         # Fit the propagated GRAIL trajectory to its reference spice trajectory. This function creates ideal position "observables" by directly
         # sampling the GRAIL spice trajectory. GRAIL's trajectory propagated with the dynamical model defined above is then fitted to these
@@ -341,14 +324,12 @@ if __name__ == "__main__":
     #          the Sun and the Moon, third-body perturbation from the Earth only
     # model B: spherical harmonics model up to degree/order = 256/256 for the Moon, radiation pressure: cannonball model for the Sun
     #          and complete panel model for the Moon, third-body perturbations from Earth, Sun, Venus, Mars, Jupiter, and Saturn.
-    nb_setups = 6
+    nb_setups = 4
     # The six different setups are defined as follows:
     # setup 0: model A + estimated parameters: GRAIL's initial state
     # setup 1: model B + estimated parameters: GRAIL's initial state
     # setup 2: model B + estimated parameters: GRAIL's initial state + radiation pressure scale factors
     # setup 3: model B + estimated parameters: GRAIL's initial state + radiation pressure scale factors + manoeuvres (if any)
-    # setup 4: model B + estimated parameters: GRAIL's initial state + radiation pressure scale factors + empirical accelerations
-    # setup 5: model B + estimated parameters: GRAIL's initial state + radiation pressure scale factors + manoeuvres (if any) + empirical accelerations
 
     # Define the number of parallel runs to use for this example
     nb_parallel_runs = nb_setups * nb_dates
