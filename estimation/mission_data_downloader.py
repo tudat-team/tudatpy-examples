@@ -45,10 +45,10 @@
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
 
-# In[1]:
+# In[2]:
 
 
-from mission_data_downloader_class import *
+from tudatpy.data.mission_data_downloader import *
 
 
 # ## Create the LoadPDS Object
