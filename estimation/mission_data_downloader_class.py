@@ -53,6 +53,100 @@ class LoadPDS:
              "dps": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)'}
         }
 
+        # The following dictionary (Cassini Titan flybys), the dates refer to START OF TRACKING 
+        # The dictionary closely follows the Cassini Titan Gravity Science Table
+        self.titan_flyby_dict = {
+            'T011': {
+                'experiment': 'tigr3',
+                'pds_repo': 'cors_0133',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '27.02.',
+                'doy': 58,
+                'year': 2006,
+            },
+            'T022': {
+                'experiment': 'tigr6',
+                'pds_repo': 'cors_0168',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '28.12.',
+                'doy': 362,
+                'year': 2006,
+            },
+            'T033': {
+                'experiment': 'tigr8',
+                'pds_repo': 'cors_0176',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '29.06.',
+                'doy': 180,
+                'year': 2007,
+            },
+            'T045': {
+                'experiment': 'tigr11',
+                'pds_repo': 'cors_0239',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '30.07.',
+                'doy': 212,
+                'year': 2008,
+            },
+            'T068': {
+                'experiment': 'tigr15',
+                'pds_repo': 'cors_0320',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '19.05.',
+                'doy': 139,
+                'year': 2010,
+          },
+            'T074': {
+                'experiment': 'tigr16',
+                'pds_repo': 'cors_0349, cors_0350',
+                'ancillary_repo': 'cors_0349',
+                'cumindex_repo': 'cors_0350',
+                'date': '18.02.',
+                'doy': 49,
+                'year': 2011,
+            },
+            'T089': {
+                'experiment': 'tigr17',
+                'pds_repo': 'cors_0394, cors_0395',
+                'ancillary_repo': 'cors_0394',
+                'cumindex_repo': 'cors_0395',
+                'date': '16.02.',
+                'doy': 47,
+                'year': 2013,
+            },
+            'T099': {
+                'experiment': 'tigr18',
+                'pds_repo': 'cors_0487, cors_0488',
+                'ancillary_repo': 'cors_0487',
+                'cumindex_repo': 'cors_0488',
+                'date': '06.03.',
+                'doy': 65,
+                'year': 2014,
+            },
+            'T110': {
+                'experiment': 'tigr19',
+                'pds_repo': 'cors_0525',
+                'ancillary_repo': None,
+                'cumindex_repo': None,
+                'date': '16.03.',
+                'doy': 75,
+                'year': 2015,
+            },
+            'T122': {
+                'experiment': 'tigr20',
+                'pds_repo': 'cors_0566, cors_0567',
+                'ancillary_repo': 'cors_0566',
+                'cumindex_repo': 'cors_0567',
+                'date': '09.08.',
+                'doy': 222,
+                'year': 2016,
+            }
+        }
 #########################################################################################################
                         
     def generic_strptime(self, date):
@@ -89,8 +183,11 @@ class LoadPDS:
             "YYYY-MM-DD":(
             r"%Y-%m-%d"
             ),
+            "YYYY-jjjThhmmss":(
+            r"%Y-%jT%H:%M:%S"
+            ),
             "YYYYMMDD_":(
-            r"%Y%m%d_"
+            r"%Y%m%d_",
             ) #added this for mex_sa_date_trick (formats %Y_%j_%H%M and %Y%m%d might be confused, so I add an artificial underscore.)
             }
 
@@ -1233,4 +1330,286 @@ class LoadPDS:
 ########################################################################################################################################
 ##################################################### END OF MRO SECTION ###############################################################
 ########################################################################################################################################
+
     
+#--------------------------------------------------------------------------------------------------------------------------------------#
+    
+########################################################################################################################################
+################################################### START OF MRO SECTION ###############################################################
+########################################################################################################################################
+
+    
+    def get_cassini_flyby_files(self, local_folder, flyby_ID):
+
+        input_mission = 'cassini'
+
+        self.radio_science_files_to_load = {}
+        self.kernel_files_to_load = {}
+        self.ancillary_files_to_load = {}
+
+        if not os.path.exists(local_folder):
+            os.mkdir(local_folder)
+            
+        filenames_to_download = []
+        flyby_dict = self.flyby2experiment(flyby_ID)
+        
+        # Ensure 'cumindex_repo' is set to 'pds_repo' if 'cumindex_repo' is None
+        cumindex_repo = flyby_dict['cumindex_repo'].lower() if flyby_dict['cumindex_repo'] is not None else flyby_dict['pds_repo'].lower()
+    
+        # Get URLs and cumulative index table
+        volume_url = self.get_flyby_volume_url(flyby_dict)
+        cumindex_url = self.get_flyby_cumindex_url(flyby_dict)
+        cumindex_dict = self.get_volume_cumindex_table(cumindex_url)
+        
+        # Create dictionary of filenames by pds_repo
+        filenames_dict = {pds_repo: data["file_name"] for pds_repo, data in cumindex_dict.items()}
+        
+        for pds_repo, filenames_list in filenames_dict.items():
+            wanted_filenames = [volume_url + pds_repo + '/' + filename for filename in filenames_list]
+            filenames_to_download.extend(wanted_filenames)
+
+        print(f'===========================================================================================================') 
+        print(f'Download {input_mission.upper()} Kernels and ODF files from PDS Atmopshere Node:')
+        # Download each file if not already present
+        for filename in filenames_to_download:
+            # Extract the actual filename from the URL
+            actual_filename = filename.split('/')[-1]
+            local_file_path = os.path.join(local_folder, actual_filename)
+            
+            # Check if the file already exists in the local folder
+            if os.path.exists(local_file_path):
+                print(local_file_path)
+                print(f"File: {actual_filename} already exists in {local_folder} and will not be downloaded.")
+                # Add file paths for 'ck' type files
+                if local_file_path.lower().endswith('ckf'):
+                    self.kernel_files_to_load.setdefault('ck', []).append(local_file_path)
+                
+                # Add file paths for 'spk' type files
+                elif local_file_path.lower().endswith('spk'):
+                    self.kernel_files_to_load.setdefault('spk', []).append(local_file_path)
+                
+                # Add file paths for 'eop' type files
+                elif local_file_path.lower().endswith('eop'):
+                    self.kernel_files_to_load.setdefault('eop', []).append(local_file_path)
+                
+                # Add file paths for 'ion' type files in ancillary files
+                elif local_file_path.lower().endswith('ion'):
+                    self.ancillary_files_to_load.setdefault('ion', []).append(local_file_path)
+                
+                # Add file paths for 'tro' type files in ancillary files
+                elif local_file_path.lower().endswith('tro'):
+                    self.ancillary_files_to_load.setdefault('tro', []).append(local_file_path)
+                
+                # Add file paths for 'odf' type files in radio science files
+                elif local_file_path.lower().endswith('odf'):
+                    self.radio_science_files_to_load.setdefault('odf', []).append(local_file_path)
+
+            else:
+                try:
+                    # Download the file if it doesn't exist
+                    urlretrieve(filename, local_file_path)
+                    print(f"Downloading '{filename}' to {local_folder}")
+                    if local_file_path.lower().endswith('ckf'):
+                        self.kernel_files_to_load.setdefault('ck', []).append(local_file_path)
+                    
+                    # Add file paths for 'spk' type files
+                    elif local_file_path.lower().endswith('spk'):
+                        self.kernel_files_to_load.setdefault('spk', []).append(local_file_path)
+                    
+                    # Add file paths for 'eop' type files
+                    elif local_file_path.lower().endswith('eop'):
+                        self.kernel_files_to_load.setdefault('eop', []).append(local_file_path)
+                    
+                    # Add file paths for 'ion' type files in ancillary files
+                    elif local_file_path.lower().endswith('ion'):
+                        self.ancillary_files_to_load.setdefault('ion', []).append(local_file_path)
+                    
+                    # Add file paths for 'tro' type files in ancillary files
+                    elif local_file_path.lower().endswith('tro'):
+                        self.ancillary_files_to_load.setdefault('tro', []).append(local_file_path)
+                    
+                    # Add file paths for 'odf' type files in radio science files
+                    elif local_file_path.lower().endswith('odf'):
+                        self.radio_science_files_to_load.setdefault('odf', []).append(local_file_path)
+ 
+                except Exception as e:
+                    try:
+                        urlretrieve(filename.lower(), local_file_path)
+                        print(f"Downloading '{filename.lower()}' to {local_folder}")
+                    except:
+                        print(f"Error downloading {actual_filename}: {e}")
+
+        #Frame Kernels
+        print(f'===========================================================================================================') 
+        print(f'Download {input_mission.upper()} Frame Kernels from NAIF:')
+        url_frame_files="https://naif.jpl.nasa.gov/pub/naif/CASSINI/kernels/fk/"
+        wanted_frame_files=["cas_v43.tf"] 
+        frame_files_to_load = self.get_kernels(input_mission, url_frame_files, wanted_frame_files, local_folder)
+
+        if frame_files_to_load:
+            self.kernel_files_to_load['fk'] = frame_files_to_load
+        else:
+            print('No fk files to download this time.')   
+
+
+        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
+       
+########################################################################################################################################
+
+    def flyby2experiment(self, flyby_ID):
+        # Check if the flyby_ID exists in the dictionary
+        if flyby_ID in self.titan_flyby_dict:
+            # Return the corresponding data for the given flyby_ID
+            return self.titan_flyby_dict[flyby_ID]
+        else:
+            # If the flyby_ID is not found, return a message indicating so
+            return f"Flyby ID {flyby_ID} not found."
+            
+########################################################################################################################################
+    def get_flyby_volume_url(self, flyby_dict):
+        # Print the flyby dictionary for debugging
+        print(flyby_dict)
+        
+        # Extract the 'experiment' value from the flyby_dict
+        experiment = flyby_dict['experiment']
+        
+        # Define the URL template
+        pds_repo_url = f"https://atmos.nmsu.edu/pdsd/archive/data/co-ssa-rss-1-{experiment}-v10/"
+        
+        # Check if the URL exists by sending a HEAD request
+        try:
+            response = requests.head(pds_repo_url, allow_redirects=True)  # Sends a HEAD request
+            
+            if response.status_code == 200:
+                # If the status code is 200, the URL exists
+                self.pds_repo_url = pds_repo_url
+                return self.pds_repo_url
+            else:
+                # If the status code is not 200, URL doesn't exist
+                print(f"URL not found: {pds_repo_url}. Please check the template URL in: get_flyby_volume_url")
+                return None  # Or return an appropriate message indicating the issue
+                
+        except requests.exceptions.RequestException as e:
+            # Catch any exceptions (e.g., network errors, invalid URL)
+            print(f"Error checking URL: {e}")
+            return None  # Or return an error message
+            
+########################################################################################################################################
+
+    def get_flyby_cumindex_url(self, flyby_dict):
+        # Print the flyby dictionary for debugging
+        print(flyby_dict)
+        
+        # Extract the 'experiment' value from the flyby_dict
+        experiment = flyby_dict['experiment']
+        cumindex_repo = flyby_dict['cumindex_repo'] if flyby_dict['cumindex_repo'] is not None else flyby_dict['pds_repo']
+        
+        # Define the URL template
+        
+        cumindex_url = f"https://atmos.nmsu.edu/pdsd/archive/data/co-ssa-rss-1-{experiment}-v10/{cumindex_repo}/INDEX/CUMINDEX.TAB"
+        # Check if the URL exists by sending a HEAD request
+        try:
+            response = requests.head(cumindex_url, allow_redirects=True)  # Sends a HEAD request
+            
+            if response.status_code == 200:
+                # If the status code is 200, the URL exists
+                self.cumindex_url = cumindex_url
+                return self.cumindex_url
+            else:
+                # If the status code is not 200, URL doesn't exist
+                cumindex_url = f"https://atmos.nmsu.edu/pdsd/archive/data/co-ssa-rss-1-{experiment}-v10/{cumindex_repo}/index/cumindex.tab"
+                response = requests.head(cumindex_url, allow_redirects=True)  # Sends a HEAD request
+                if response.status_code == 200:
+                    # If the status code is 200, the URL exists
+                    self.cumindex_url = cumindex_url
+                    return self.cumindex_url
+                else:
+                    print(f"URL not found: {cumindex_url}. Please check the template URL in: get_flyby_cumindex_url")
+                    return None  # Or return an appropriate message indicating the issue
+            
+        except requests.exceptions.RequestException as e:
+            # Catch any exceptions (e.g., network errors, invalid URL)
+            print(f"Error checking URL: {e}")
+            return None  # Or return an error message
+            
+########################################################################################################################################
+
+    def get_volume_cumindex_table(self, cumindex_url):
+        # Fetch the .tab file content from the URL
+        response = requests.get(cumindex_url)
+        response.raise_for_status()  # Ensure the request was successful
+        
+        # Split the response content into lines
+        lines = response.text.splitlines()
+        
+        # Prepare the dictionary to store the result
+        filtered_data = {}
+        
+        # Iterate over each line in the file
+        for line in lines:
+            # Split the line by commas (assuming the .tab file is comma-separated)
+            cols = line.split(",")
+            
+            # Skip lines that don't have the expected number of columns
+            if len(cols) != 7:
+                continue
+            
+            # Extract the columns
+            pds_repo = cols[0].replace('"', '').replace("'", '').strip()
+            file_label = cols[1].replace('"', '').replace("'", '').strip()
+            file_label_path = file_label.split('/')[0] + '/' + file_label.split('/')[1] 
+            
+            file_name = file_label_path + '/' + cols[2].replace('"', '').replace("'", '').strip()
+            external_file_name = cols[3].replace('"', '').replace("'", '').strip()
+            start_date_utc = cols[4].replace('"', '').replace("'", '').strip()[:-2]
+            end_date_utc = cols[5].replace('"', '').replace("'", '').strip()[:-2]
+            creation_date_utc = cols[6].replace('"', '').replace("'", '').strip()
+        
+            keywords = [
+                ("tigm", "odf"),
+                ("tigf", "odf"),
+                ("ancillary", "eop"),
+                ("ancillary", "tro"),
+                ("ancillary", "ion"),
+                ("ancillary", "spk"),
+                ("ancillary", "ckf"),
+                ("ancillary", "eop"),
+                ("ancillary", "tro"),
+                ("ancillary", "ion"),
+                ("ancillary", "spk"),
+                ("ancillary", "ckf"),
+            ]
+            
+            # Check if both words in any pair appear in the file_label
+            if any(all(word in file_label.lower() for word in pair) for pair in keywords):          
+                try:
+                    start_date_utc = self.generic_strptime(start_date_utc)
+                    end_date_utc = self.generic_strptime(end_date_utc)
+                    creation_date_utc = self.generic_strptime(creation_date_utc)
+                except ValueError:
+                    print('Skipping due to invalid date format')
+                    continue  # Skip rows with invalid date format
+    
+                # Use setdefault to ensure the key exists and initialize lists if not
+                if pds_repo not in filtered_data:
+                    filtered_data[pds_repo] = {
+                        "file_label": [],
+                        "file_name": [],
+                        "external_file_name": [],
+                        "start_date_utc": [],
+                        "end_date_utc": [],
+                        "creation_date_utc": []
+                    }
+    
+                # Append data to the lists for the current pds_repo
+                filtered_data[pds_repo]["file_label"].append(file_label)
+                filtered_data[pds_repo]["file_name"].append(file_name)
+                filtered_data[pds_repo]["external_file_name"].append(external_file_name)
+                filtered_data[pds_repo]["start_date_utc"].append(start_date_utc)
+                filtered_data[pds_repo]["end_date_utc"].append(end_date_utc)
+                filtered_data[pds_repo]["creation_date_utc"].append(creation_date_utc)
+        
+        # Return the filtered data
+        return filtered_data
+
+########################################################################################################################################
