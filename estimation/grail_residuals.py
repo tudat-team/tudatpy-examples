@@ -1,4 +1,4 @@
-# GRAIL - Estimating the spacecraft trajectory from ODF Doppler measurements
+# GRAIL - Comparing Doppler measurements from ODF files to simulated observables
 """
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
@@ -14,26 +14,21 @@ from matplotlib import pyplot as plt
 import os
 
 # Load required tudatpy modules
-from tudatpy.data import grail_mass_level_0_file_reader
 from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
 from tudatpy.astro import time_conversion
-from tudatpy.astro import frame_conversion
 from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation
 from tudatpy.numerical_simulation.environment_setup import radiation_pressure
-from tudatpy.numerical_simulation import propagation_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
 
-from load_pds_files import download_url_files_time, download_url_files_time_interval
 from datetime import datetime
 
 # Import GRAIL examples functions
-from grail_examples_functions import get_grail_files, get_grail_panel_geometry, get_rsw_state_difference
+from grail_examples_functions import get_grail_files, get_grail_panel_geometry
 
 
 ### ------------------------------------------------------------------------------------------
@@ -48,31 +43,27 @@ from grail_examples_functions import get_grail_files, get_grail_panel_geometry, 
 #
 # Running the example automatically triggers the download of all required kernels and data files if they are not found locally
 # (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
-# measurements, etc.). Note that this step needs only be performed once, since the script checks whether
+# measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
+# (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
 # each relevant file is already present locally and only proceeds to the download if it is not.
-#
-# This example performs 5 parallel orbit estimations (over 5 different days), which can slow down your machine and take quite
-# some time (~ 20-30 minutes)
 #
 ### ------------------------------------------------------------------------------------------
 
 
-# This function performs the estimation of the GRAIL spacecraft's dynamics from ODF Doppler measurements by adopting the following approach:
+# This function performs Doppler residual analysis for the GRAIL spacecraft by adopting the following approach:
 # 1) GRAIL Doppler measurements are loaded from the relevant ODF files
-# 2) The acceleration models to propagate GRAIL's dynamics are defined, as well as the list of parameters to estimate
-# 3) The equations of motion and variational equations are propagated, and the estimation is then performed (i.e., fitting the
-#    estimated parameters to minimise the residuals between computed and ODF observations)
-# 4) The pre- & post-fit residuals are retrieved, along with the difference between GRAIL's post-fit propagated state and the SPICE reference trajectory.
+# 2) Synthetic Doppler observables are simulated for all "real" observation times, using the reference spice trajectory for GRAIL
+# 3) Residuals are computed as the difference between simulated and real Doppler observations.
 
 # The "inputs" variable used as input argument is a list with 14 entries:
-#   1- the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
-#   2- the date for the day-long arc under consideration
-#   3- the list of ODF files to be loaded to cover the above-mentioned time interval
-#   4- the clock file to be loaded
-#   5- the list of orientation kernels to be loaded
-#   6- the list of tropospheric correction files to be loaded
-#   7- the list of ionospheric correction files to be loaded
-#   8- the GRAIL manoeuvres file to be loaded
+#   1- the index of the current run (the perform_residuals_analysis function is run in parallel for different setups)
+#   2- the start date of the time interval under consideration
+#   3- the end date of the time interval under consideration
+#   4- the list of ODF files to be loaded to cover the above-mentioned time interval
+#   5- the clock file to be loaded
+#   6- the list of orientation kernels to be loaded
+#   7- the list of tropospheric correction files to be loaded
+#   8- the list of ionospheric correction files to be loaded
 #   9- the antennas switch files to be loaded
 #   10- the list of GRAIL trajectory files to be loaded
 #   11- the GRAIL reference frames file to be loaded
@@ -80,33 +71,35 @@ from grail_examples_functions import get_grail_files, get_grail_panel_geometry, 
 #   13- the lunar reference frame kernel to be loaded
 #   14- output files directory
 
-def run_odf_estimation(inputs):
+def perform_residuals_analysis(inputs):
 
     # Unpack various input arguments
     input_index = inputs[0]
 
-    # Convert the datetime object defining the day of interest to a Tudat Time variable.
-    date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
+    # Convert start and end datetime objects to Tudat Time variables.
+    start_date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
+    end_date = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
-    # tropospheric and ionospheric corrections, manoeuvres file, antennas switch files, GRAIL trajectory files, GRAIL
-    # reference frames file, lunar orientation kernels, and lunar reference frame kernel)
-    odf_files = inputs[2]
-    clock_file = inputs[3]
-    grail_orientation_files = inputs[4]
-    tro_files = inputs[5]
-    ion_files = inputs[6]
-    manoeuvre_file = inputs[7]
+    # tropospheric and ionospheric corrections, antennas switch files, GRAIL trajectory files, GRAIL reference frames file,
+    # lunar orientation kernels, and lunar reference frame kernel)
+    odf_files = inputs[3]
+    clock_file = inputs[4]
+    grail_orientation_files = inputs[5]
+    tro_files = inputs[6]
+    ion_files = inputs[7]
     antennas_switch_files = inputs[8]
     trajectory_files = inputs[9]
     grail_ref_frames_file = inputs[10]
     lunar_orientation_file = inputs[11]
     lunar_ref_frame_file = inputs[12]
+
+    # Retrieve output folder
     output_folder = inputs[13]
 
 
-    # Redirect the outputs of this run to a file names grail_odf_estimation_output_x.dat, with x the run index
-    with util.redirect_std(output_folder + 'grail_odf_estimation_output_' + str(input_index) + ".dat", True, True):
+    # Redirect the outputs of this run to a file names grail_residuals_output_x.dat, with x the run index
+    with util.redirect_std(output_folder + 'grail_residuals_output_' + str(input_index) + ".dat", True, True):
 
         print("input_index", input_index)
 
@@ -155,13 +148,15 @@ def run_odf_estimation(inputs):
             multi_odf_file_contents, [estimation_setup.observation.dsn_n_way_averaged_doppler],
             [numerical_simulation.Time(0, np.nan), numerical_simulation.Time(0, np.nan)])
 
-        # Filter all ODF observations that exceed the arc duration of one day
+        # Filter all ODF observations that exceed the time interval defined by the start and end dates. This is only necessary because
+        # the last ODF file might span over longer than one day (as any other ODF file), thus exceeding the time interval over which the
+        # dynamical model is defined.
         day_arc_filter = estimation.observation_filter(
-            estimation.time_bounds_filtering, date, date + 86400.0, use_opposite_condition = True)
+            estimation.time_bounds_filtering, start_date, end_date, use_opposite_condition = True)
         original_odf_observations.filter_observations(day_arc_filter)
         original_odf_observations.remove_empty_observation_sets()
 
-        # Retrieve time bounds of the ODF observations. A time buffer of 1h is subtracted/added to the observation
+        # Retrieve the time bounds of all ODF observations combined. A time buffer of 1h is subtracted/added to the observation
         # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
         # loaded ODF observations, without interpolation errors at the arc boundaries.
         observation_time_limits = original_odf_observations.time_bounds
@@ -187,18 +182,18 @@ def run_odf_estimation(inputs):
         global_frame_origin = "SSB"
         global_frame_orientation = "J2000"
         body_settings = environment_setup.get_default_body_settings_time_limited(
-            bodies_to_create, obs_start_time.to_float(), obs_end_time.to_float(), global_frame_origin, global_frame_orientation)
+            bodies_to_create, start_date, end_date, global_frame_origin, global_frame_orientation)
 
         # Modify default shape, rotation, and gravity field settings for the Earth
         body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
         body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
             environment_setup.rotation_model.iau_2006, global_frame_orientation,
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
+                                                                 start_date, end_date, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
+                                                                 start_date, end_date, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 60.0))
+                                                                 start_date, end_date, 60.0))
         body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
         # Set up DSN ground stations
@@ -236,7 +231,7 @@ def run_odf_estimation(inputs):
 
         # Define translational ephemeris from SPICE
         body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-            obs_start_time.to_float(), obs_end_time.to_float(), 10.0, spacecraft_central_body, global_frame_orientation)
+            start_date, end_date, 10.0, spacecraft_central_body, global_frame_orientation)
 
         # Define rotational ephemeris from SPICE
         body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
@@ -283,79 +278,9 @@ def run_odf_estimation(inputs):
         antenna_switch_history[obs_end_time.to_float()] = np.array(antenna_switch_positions[-3:])
 
         # Set GRAIL's reference point position to follow the antenna switch history (the antennas' positions should be provided in the
-        # spacecraft-fixed frame)
-        compressed_observations.set_reference_points(bodies, antenna_switch_history, spacecraft_name, observation.reflector1)
-
-
-        ### ------------------------------------------------------------------------------------------
-        ### RETRIEVE GRAIL MANOEUVRES EPOCHS
-        ### ------------------------------------------------------------------------------------------
-
-        # Load the times at which the spacecraft underwent a manoeuvre from GRAIL's manoeuvres file
-        manoeuvres_times = grail_mass_level_0_file_reader(manoeuvre_file)
-
-        # Store the manoeuvres epochs if they occur within the time interval under consideration
-        relevant_manoeuvres = []
-        for manoeuvre_time in manoeuvres_times:
-            if (manoeuvre_time >= obs_start_time.to_float() and manoeuvre_time <= obs_end_time.to_float()):
-                relevant_manoeuvres.append(manoeuvre_time)
-
-        # Save list of manoeuvre epochs occurring within the time interval under consideration
-        np.savetxt(output_folder + 'relevant_manoeuvres_' + filename_suffix + '.dat', relevant_manoeuvres, delimiter=',')
-
-
-        ### ------------------------------------------------------------------------------------------
-        ### DEFINE PROPAGATION SETTINGS
-        ### ------------------------------------------------------------------------------------------
-
-        # Define list of accelerations acting on GRAIL
-        accelerations_settings_spacecraft = dict(
-            Sun=[
-                propagation_setup.acceleration.radiation_pressure(environment_setup.radiation_pressure.paneled_target),
-                propagation_setup.acceleration.point_mass_gravity()],
-            Earth=[
-                propagation_setup.acceleration.point_mass_gravity()],
-            Moon=[
-                propagation_setup.acceleration.spherical_harmonic_gravity(256, 256),
-                propagation_setup.acceleration.radiation_pressure(environment_setup.radiation_pressure.cannonball_target),
-                propagation_setup.acceleration.empirical()
-            ],
-            Mars=[
-                propagation_setup.acceleration.point_mass_gravity()],
-            Venus=[
-                propagation_setup.acceleration.point_mass_gravity()],
-            Jupiter=[
-                propagation_setup.acceleration.point_mass_gravity()],
-            Saturn=[
-                propagation_setup.acceleration.point_mass_gravity()]
-        )
-
-        # Add manoeuvres if necessary
-        if len(relevant_manoeuvres) > 0:
-            accelerations_settings_spacecraft[spacecraft_name] = [
-                propagation_setup.acceleration.quasi_impulsive_shots_acceleration(relevant_manoeuvres, [np.zeros((3, 1))], 3600.0, 60.0)]
-
-        # Create accelerations settings dictionary
-        acceleration_settings = {spacecraft_name: accelerations_settings_spacecraft}
-
-        # Create acceleration models from settings
-        bodies_to_propagate = [spacecraft_name]
-        central_bodies = [spacecraft_central_body]
-        acceleration_models = propagation_setup.create_acceleration_models(bodies, acceleration_settings, bodies_to_propagate, central_bodies)
-
-        # Define integrator settings
-        integration_step = 30.0
-        integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step_size(
-            numerical_simulation.Time(0, integration_step), propagation_setup.integrator.rkf_78)
-
-        # Retrieve GRAIL initial state from SPICE
-        initial_state = propagation.get_state_of_bodies(bodies_to_propagate, central_bodies, bodies, obs_start_time)
-
-        # Define propagator settings
-        propagator_settings = propagation_setup.propagator.translational(
-            central_bodies, acceleration_models, bodies_to_propagate, initial_state, obs_start_time,
-            integrator_settings, propagation_setup.propagator.time_termination(obs_end_time.to_float()))
-        propagator_settings.print_settings.results_print_frequency_in_steps = 3600.0 / integration_step
+        # spacecraft-fixed frame). For the input_index = 1, the antenna position offset wrt GRAIL's COM is neglected.
+        if input_index != 1:
+            compressed_observations.set_reference_points(bodies, antenna_switch_history, spacecraft_name, observation.reflector1)
 
 
         ### ------------------------------------------------------------------------------------------
@@ -367,15 +292,18 @@ def run_odf_estimation(inputs):
         light_time_correction_list.append(
             estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
 
-        # Add tropospheric correction
-        light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files))
+        # Add tropospheric correction. For input_index = 2, this correction is neglected.
+        if input_index != 2:
+            light_time_correction_list.append(
+                estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files))
 
-        # Add ionospheric correction
-        spacecraft_name_per_id = dict()
-        spacecraft_name_per_id[177] = "GRAIL-A"
-        light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files, spacecraft_name_per_id))
+        # Add ionospheric correction. For input_index = 3, this correction is neglected.
+        if input_index != 3:
+            spacecraft_name_per_id = dict()
+            spacecraft_name_per_id[177] = "GRAIL-A"
+            light_time_correction_list.append(
+                estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files, spacecraft_name_per_id))
+
 
         # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
         # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
@@ -407,74 +335,25 @@ def run_odf_estimation(inputs):
         np.savetxt(output_folder + 'link_end_ids_' + filename_suffix + '.dat',
                    compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
+        # Retrieve RMS and mean residuals
+        rms_residuals = compressed_observations.get_rms_residuals()
+        mean_residuals = compressed_observations.get_mean_residuals()
 
-        ### ------------------------------------------------------------------------------------------
-        ### DEFINE SET OF PARAMETERS TO BE ESTIMATED
-        ### ------------------------------------------------------------------------------------------
+        # Save RMS and mean residuals
+        np.savetxt(output_folder + 'residuals_rms_' + filename_suffix + '.dat',
+                   np.vstack(rms_residuals), delimiter=',')
+        np.savetxt(output_folder + 'residuals_mean_' + filename_suffix + '.dat',
+                   np.vstack(mean_residuals), delimiter=',')
 
-        # Define parameters to estimate
-        parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
+        # Retrieve time bounds per observation set
+        time_bounds_per_set = compressed_observations.get_time_bounds_per_set()
+        time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
+        for j in range(len(time_bounds_per_set)):
+            time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
+            time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
 
-        # Define list of additional parameters
-        extra_parameters = [
-            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Sun"),
-            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
-                spacecraft_name, "Sun"),
-            estimation_setup.parameter.radiation_pressure_target_direction_scaling(spacecraft_name, "Moon"),
-            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
-                spacecraft_name, "Moon")]
-
-        # Include the estimation of the manoeuvres if any are detected during the arc of interest
-        if len(relevant_manoeuvres) > 0:
-            extra_parameters.append(estimation_setup.parameter.quasi_impulsive_shots(spacecraft_name))
-
-        # Add additional parameters settings
-        parameter_settings += extra_parameters
-
-        # Create set of parameters to estimate
-        parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies, propagator_settings)
-        estimation_setup.print_parameter_names(parameters_to_estimate)
-
-        print('pre-fit parameters values', parameters_to_estimate.parameter_vector)
-
-
-        ### ------------------------------------------------------------------------------------------
-        ### DEFINE ESTIMATION SETTINGS AND PERFORM THE FIT
-        ### ------------------------------------------------------------------------------------------
-
-        # Create estimator
-        estimator = numerical_simulation.Estimator( bodies, parameters_to_estimate, observation_model_settings, propagator_settings)
-
-        # Define estimation settings
-        estimation_input = estimation.EstimationInput(
-            compressed_observations, convergence_checker = estimation.estimation_convergence_checker( 2 ) )
-        estimation_input.define_estimation_settings(
-            reintegrate_equations_on_first_iteration = False,
-            reintegrate_variational_equations = False,
-            print_output_to_terminal = True,
-            save_state_history_per_iteration=True)
-
-        # Perform estimation
-        estimation_output = estimator.perform_estimation(estimation_input)
-
-        # Save pre- and post-fit residuals
-        np.savetxt(output_folder + 'prefit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,0], delimiter=',')
-        np.savetxt(output_folder + 'postfit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,-1], delimiter=',')
-
-        # Retrieve the post-fit state history of GRAIL
-        estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
-
-        # Print estimated parameters values
-        print("post-fit estimated parameters", parameters_to_estimate.parameter_vector)
-
-        # Compute the difference between GRAIL's post-fit state history as estimated in this example and its reference spice
-        # trajectory, in the RSW frame (radial, along-track, cross-track).
-        rsw_state_difference = get_rsw_state_difference(
-            estimated_state_history, spacecraft_name, spacecraft_central_body, global_frame_orientation)
-
-        # Save RSW state difference w.r.t. spice trajectory
-        np.savetxt(output_folder + 'postfit_rsw_state_difference_' + filename_suffix + '.dat', rsw_state_difference, delimiter = ',')
-
+        # Save time bounds for each observation set
+        np.savetxt(output_folder + 'time_bounds_' + filename_suffix + '.dat', time_bounds_array, delimiter=',')
 
 
 
@@ -482,97 +361,87 @@ if __name__ == "__main__":
     print('Start')
     inputs = []
 
-    output_folder = 'grail_estimation_output/'
+    output_folder = 'grail_residuals_output/'
     if not os.path.isdir(output_folder):
         os.mkdir(output_folder)
 
-    # Specify the number of parallel runs to use for this example
-    nb_parallel_runs = 5
+    # Specify the number of different setups to be analysed in parallel in this example
+    nb_setups = 4
 
-    # Define dates for the five arcs to be analysed in parallel (we only include dates for which an ODF file is available).
-    # Each parallel run will therefore parse a single day-long arc.
-    dates = [datetime(2012, 4, 6),
-             datetime(2012, 4, 9),
-             datetime(2012, 4, 10),
-             datetime(2012, 4, 11),
-             datetime(2012, 4, 12)]
+    # Define start and end dates of the time interval for the residuals analysis
+    start_date = datetime(2012, 4, 1)
+    end_date = datetime(2012, 4, 30)
+
+    # Retrieve the names of all the relevant kernels and data files necessary to cover the time interval of interest
+    (clock_file, grail_orientation_files, tro_files, ion_files, manoeuvres_file, antenna_files, odf_files,
+     trajectory_files, grail_frames_def_file, moon_orientation_file, lunar_frame_file) = (
+        get_grail_files("grail_kernels/", start_date, end_date))
+
+    # Define number of parallel runs
+    nb_parallel_runs = nb_setups
+    # Each parallel run covers the full time interval defined by the above start and end dates, but with different settings for the Doppler model.
+    # Specifically, the four different setups are the following (setups 1, 2, and 3 being simplified versions of the complete setup 0):
+    # setup 0: default
+    # setup 1: ignoring GRAIL's antenna position offset (i.e. antenna = center of mass)
+    # setup 2: ignoring tropospheric correction
+    # setup 3: ignoring ionospheric correction
 
 
-    # For each parallel run
+    # For each setup to be run in parallel
     for i in range(nb_parallel_runs):
 
-        # First retrieve the names of all the relevant kernels and data files necessary to cover the date of interest
-        (clock_file, grail_orientation_files, tro_files, ion_files, manoeuvres_file, antenna_files, odf_files,
-         trajectory_files, grail_frames_def_file, moon_orientation_file, lunar_frame_file) = get_grail_files("grail_kernels/", dates[i], dates[i])
-
         # Construct a list of input arguments containing the arguments needed this specific run.
-        # These include the date of interest, along with the names of all relevant kernels and data files that should be loaded
-        inputs.append([i, dates[i], odf_files, clock_file, grail_orientation_files, tro_files,
-                       ion_files, manoeuvres_file, antenna_files, trajectory_files, grail_frames_def_file,
-                       moon_orientation_file, lunar_frame_file, output_folder])
+        # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
+        inputs.append([i, start_date, end_date, odf_files, clock_file, grail_orientation_files, tro_files,
+                       ion_files, antenna_files, trajectory_files, grail_frames_def_file, moon_orientation_file,
+                       lunar_frame_file, output_folder])
 
 
     # Run parallel GRAIL estimations from ODF data
     print('---------------------------------------------')
-    print('The output of each parallel estimation is saved in a separate file named grail_odf_estimation_output_x.dat, '
+    print('The output of each parallel estimation is saved in a separate file named grail_residuals_output_x.dat, '
           'with x the index of the run (all output files are saved in ' + output_folder)
     with mp.get_context("fork").Pool(nb_parallel_runs) as pool:
-        pool.map(run_odf_estimation, inputs)
+        pool.map(perform_residuals_analysis, inputs)
 
 
-    # Load and plot the results of each parallel estimation
+    # Load and plot the results of the different residuals analyses.
+    fig1, axs1 = plt.subplots(4, 1, figsize=(12, 10))
+    fig2, axs2 = plt.subplots(4, 1, figsize=(12, 10))
+
+    setups = ['Default', 'Ignoring GRAIL\'s antenna position offset', 'Ignoring tropospheric correction', 'Ignoring ionospheric correction']
+
     for i in range(nb_parallel_runs):
+
         obs_times = np.loadtxt(output_folder + "observation_times_" + str(i) + ".dat")
         link_ends_ids = np.loadtxt(output_folder + "link_end_ids_" + str(i) + ".dat")
         residuals_wrt_spice = np.loadtxt(output_folder + "residuals_wrt_spice_" + str(i) + ".dat")
-        prefit_residuals = np.loadtxt(output_folder + "prefit_residuals_" + str(i) + ".dat")
-        postfit_residuals = np.loadtxt(output_folder + "postfit_residuals_" + str(i) + ".dat")
-        difference_rsw_wrt_spice = np.loadtxt(output_folder + "postfit_rsw_state_difference_" + str(i) + ".dat", delimiter=',')
+        time_bounds = np.loadtxt(output_folder + "time_bounds_" + str(i) + ".dat", delimiter=',')
+        residuals_rms = np.loadtxt(output_folder + "residuals_rms_" + str(i) + ".dat")
+        residuals_mean = np.loadtxt(output_folder + "residuals_mean_" + str(i) + ".dat")
 
-        start_date = time_conversion.datetime_to_tudat(dates[i]).epoch().to_float()
+        start_date_float = time_conversion.datetime_to_tudat(start_date).epoch().to_float()
 
+        # Plot full residuals wrt reference spice trajectory
+        axs1[i].scatter((obs_times-start_date_float)/86400, residuals_wrt_spice, c=link_ends_ids, s=10)
+        axs1[i].grid()
+        axs1[i].set_ylim([-0.03, 0.03])
+        axs1[i].set_xlim([0, 30])
+        axs1[i].set_xlabel('Time [days since start date]')
+        axs1[i].set_ylabel('Residuals [Hz]')
+        axs1[i].set_title(setups[i])
 
-        # Plot the results of the current estimation.
-        fig, axs = plt.subplots(2, 2, figsize=(10,8))
+        # Plot RMS and mean residuals (per observation set) wrt reference spice trajectory
+        axs2[i].scatter((time_bounds[:,0] - start_date_float) / 86400, residuals_rms, s=10, color='b', label = 'RMS')
+        axs2[i].scatter((time_bounds[:, 0] - start_date_float) / 86400, residuals_mean, s=10, color='r', label = 'mean')
+        axs2[i].grid()
+        axs2[i].set_ylim([-0.02, 0.02])
+        axs2[i].set_xlim([0, 30])
+        axs2[i].set_xlabel('Time [days since start date]')
+        axs2[i].set_ylabel('Residuals [Hz]')
+        axs2[i].set_title(setups[i])
+        axs2[i].legend()
 
-        # Plot residuals wrt reference spice trajectory
-        axs[0,0].scatter((obs_times-start_date)/3600, residuals_wrt_spice, c=link_ends_ids, s=10)
-        axs[0,0].grid()
-        axs[0,0].set_ylim([-0.006, 0.006])
-        axs[0,0].set_xlim([0, 24])
-        axs[0,0].set_xlabel('Time [hours]')
-        axs[0,0].set_ylabel('Residuals [Hz]')
-        axs[0,0].set_title('Residuals w.r.t. SPICE')
-
-        # Plot pre-fit residuals
-        axs[0,1].scatter((obs_times - start_date) / 3600, prefit_residuals, c=link_ends_ids, s=10)
-        axs[0,1].grid()
-        axs[0,1].set_xlim([0, 24])
-        axs[0,1].set_xlabel('Time [days]')
-        axs[0,1].set_ylabel('Residuals [Hz]')
-        axs[0,1].set_title('Pre-fit residuals')
-
-        # Plot post-fit residuals
-        axs[1, 0].scatter((obs_times - start_date) / 3600, postfit_residuals, c=link_ends_ids, s=10)
-        axs[1, 0].grid()
-        axs[1, 0].set_ylim([-0.006, 0.006])
-        axs[1, 0].set_xlim([0, 24])
-        axs[1, 0].set_xlabel('Time [days]')
-        axs[1, 0].set_ylabel('Residuals [Hz]')
-        axs[1, 0].set_title('Post-fit residuals')
-
-        # Plot the difference between the reconstructed GRAIL trajectory and the reference spice kernel, in RSW frame
-        axs[1, 1].plot((difference_rsw_wrt_spice[:,0] - start_date) / 3600, difference_rsw_wrt_spice[:,1], label = 'radial')
-        axs[1, 1].plot((difference_rsw_wrt_spice[:, 0] - start_date) / 3600, difference_rsw_wrt_spice[:, 2], label='along-track')
-        axs[1, 1].plot((difference_rsw_wrt_spice[:, 0] - start_date) / 3600, difference_rsw_wrt_spice[:, 3], label='cross-track')
-        axs[1, 1].grid()
-        axs[1, 1].set_xlim([0, 24])
-        axs[1, 1].set_xlabel('Time [hours since start of the day]')
-        axs[1, 1].set_ylabel('Difference wrt spice [m]')
-        axs[1, 1].set_title('Position difference wrt spice')
-        axs[1,1].legend()
-
-        fig.suptitle('Run' + str(i) + ' : ' + 'GRAIL orbit estimation on ' + dates[i].strftime('%m/%d/%Y'))
-        fig.tight_layout()
-
-        plt.show()
+    fig1.tight_layout()
+    fig2.tight_layout()
+    plt.show()
