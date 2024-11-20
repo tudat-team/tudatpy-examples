@@ -22,10 +22,10 @@
 # - **Mars Reconnnaissance Orbiter (MRO)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # - **Mars Express (MEX)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # - **Jupiter Icy Moons Explorer (JUICE)** [Available: Spice Kernels, Not Available (yet): Doppler Data, Ancillary]
+# - **Cassini**
 # 
 # Foreseen supported missions (in descending priority order, code yet to be developed):
 # 
-# - Cassini
 # - Insight
 # - VEX
 # - GRAIL
@@ -48,6 +48,7 @@
 # In[1]:
 
 
+import spiceypy as spicey
 from mission_data_downloader_class import *
 
 
@@ -64,17 +65,13 @@ object = LoadPDS()
 # 
 # ### Set Time Interval(s) for Downloading
 # 
-# Then we select the `start_date` and `end_date`, and we do so for each mission we wish to download. Of course, each mission has to come with its own dates, as operations are carried out over different periods. 
+# Then we select the `start_date` and `end_date`, and we do so for each mission we wish to download (Cassini will be an exception due to the peculiar mission concept, see **Cassini Downloader** below). Of course, each mission has to come with its own dates, as operations are carried out over different periods. 
 # 
-# ### Download Mission Files
+# ### Download Mission Files (MRO, MEX, JUICE)
 # Finally, we can call the function "get_mission_files
 # get_mro_files will download: clock kernels, orientation kernels, radio science (odf) files for mro
 # get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
 # get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
-# 
-# **NOTE 4. (about the following cell output)**
-# 
-# Please note that, although the output main cell for the MRO mission is visible in this Jupyter Notebook file, the `mro_archive` folder won't be present in the repo. You will need to run this cell yourself in order to automatically create the folder.
 
 # In[3]:
 
@@ -105,10 +102,10 @@ if __name__ == "__main__":
     #print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
-# ## Loaded Kernels (Existing + Downloaded)
+# ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
-# In[5]:
+# In[4]:
 
 
 print(f'MRO Kernels: {kernel_files_mro}\n')
@@ -122,4 +119,41 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 #print(f'JUICE Kernels: {kernel_files_juice}\n')
 #print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
 #print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
+
+
+# ## Cassini Downloader
+# 
+# ### Set Time Interval(s) for Downloading
+# 
+# The most valuable data collected for Cassini is probably the one related to the various flybys of the Moons of Saturn.
+# For this reason, in order to retrieve Cassini data, we will require the name of the flyby data the user wishes to download, rather than a start and end date. 
+# 
+# ### Download Cassini Flyby Files
+# We can call the function "get_mission_files" with 'Cassini' as input_mission. This call will print a comprehensive table of supported flybys to choose from, and the user will be asked to manually input the name of one of them.
+# 
+# ### Flyby Data Output Division
+# 
+# The main output folder will be named *cassini_archive*, and the subfolders will have the name of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories.  
+# 
+# **Note 4.**
+# 
+# For now, only Titan Flybys are supported.
+
+# In[5]:
+
+
+# Download Cassini Titan Flyby Mission Files 
+kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini')
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+
+
+# ## Loaded Kernels for Cassini Titan Flyby (Existing + Downloaded)
+# Last, you can print the list of existing + downloaded files. 
+
+# In[6]:
+
+
+print(f'CASSINI Kernels: {kernel_files_cassini}\n')
+print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
+print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
 
