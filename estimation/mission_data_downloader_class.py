@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ## Class for Loading PDS files
-
+### Import Relevant (Sub)Modules
 import sys
 import numpy as np
 import requests
@@ -14,7 +13,12 @@ import glob
 import re
 from tudatpy.interface import spice
 from dateutil.relativedelta import relativedelta
+import subprocess
+import pandas as pd
+from tabulate import tabulate
+from colorama import Fore
 
+### Class for Loading PDS files
 class LoadPDS:
 
     def __init__(self):  
@@ -147,6 +151,83 @@ class LoadPDS:
                 'year': 2016,
             }
         }
+
+#########################################################################################################
+
+    def print_titan_flyby_table(self):
+        data = []
+        for key, value in self.titan_flyby_dict.items():
+            row = [
+                key,
+                value['experiment'],
+                value['pds_repo'],
+                value['ancillary_repo'],
+                value['cumindex_repo'],
+                value['date'],
+                value['doy'],
+                value['year']
+            ]
+            data.append(row)
+    
+        headers = ['Flyby ID', 'Experiment', 'PDS Repository', 'Ancillary Repository', 
+                   'Cumulative Index Repository', 'Date', 'DOY', 'Year']
+    
+        # Adding color to the header
+        colored_headers = [f"{Fore.MAGENTA}{header}{Fore.RESET}" for header in headers]
+    
+        print(tabulate(data, colored_headers, tablefmt="fancy_grid", stralign="center"))
+
+    
+#########################################################################################################
+
+    def transfer2binary(self, input_file, timeout = 5):
+
+        """ 
+        
+        This function is used in get_mission_files after get_cassini_flyby_files. 
+        It converts transfer-file format spice kernels into binary spice kernels, and it does so using the SPACIT utility.
+        If not converted, the ckf and spk files cannot be loaded by spice.load_kernels.
+        
+        """
+        if input_file.lower().endswith('.ckf'):
+            output_file = input_file.split('.')[0] + '.ck'
+        elif input_file.lower().endswith('.spk'):
+            output_file = input_file.split('.')[0] + '.bsp' 
+        else:
+            output_file = input_file
+            return output_file
+    
+        if not os.path.exists(output_file):
+            proc = subprocess.Popen(
+                ['spacit'], 
+                stdin=subprocess.PIPE, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                text=True
+            )
+            
+            # Write the necessary inputs to the process' stdin stream
+            proc.stdin.write('T\n')  # Command to convert transfer files to binary
+            proc.stdin.write(f'{input_file}\n')  # Input file
+            proc.stdin.write(f'{output_file}\n')  # Output file
+    
+            try:
+                # Wait for the process to finish, with a timeout
+                stdout, stderr = proc.communicate(timeout=timeout)  
+                
+                # Check if the process was successful
+                if proc.returncode != 0:
+                    print(f"Error converting {input_file} to binary. Error: {stderr}")
+                else:
+                    print(f"Successfully converted {input_file} to {output_file}. Output: {stdout}")
+            
+            except subprocess.TimeoutExpired:
+                proc.kill()  # Kill the process if it times out
+            
+            return output_file
+        else:
+            return output_file
+
 #########################################################################################################
                         
     def generic_strptime(self, date):
@@ -314,6 +395,17 @@ class LoadPDS:
                 self.in_intervals = True
         return (self.in_intervals)
 
+#########################################################################################################
+    
+    def clean_mission_archive(self, local_folder):
+        print(f'Cleaning Mission Archive...')
+        if os.path.exists(local_folder):
+            for directory in os.listdir(local_folder):
+                directory_path = os.path.join(local_folder + directory)
+                if os.path.isdir(directory_path) and not os.listdir(directory_path):
+                    os.rmdir(directory_path)
+        print(f'Done.')
+                    
 #########################################################################################################
     
     def match_type_extension(self, data_type, filename):
@@ -738,10 +830,12 @@ class LoadPDS:
 
 #########################################################################################################
 
-    def get_mission_files(self, input_mission, start_date, end_date, wanted_files = None):
+    def get_mission_files(self, input_mission, start_date = None, end_date = None):
      
         spice.clear_kernels()
-        all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
+
+        if start_date and end_date:
+            all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
         print(f'======================================= Downloading {input_mission.upper()} Data ==============================================\n')   
         print(f'=========================================== Folder(s) Creation ==================================================')
         local_folder = f'{input_mission}_archive/'
@@ -752,7 +846,7 @@ class LoadPDS:
         else:
             print(f'Folder: {local_folder} already exists and will not be overwritten.') 
             
-        subfolders = ['ck', 'spk', 'fk', 'sclk', 'lsk', 'ifms', 'odf', 'dp2', 'dps', 'dpx', 'tro', 'ion']     
+        subfolders = ['ck', 'spk', 'fk', 'sclk', 'lsk', 'eop', 'ifms', 'odf', 'dp2', 'dps', 'dpx', 'tro', 'ion']     
         # Create each subfolder inside the main folder
         for subfolder in subfolders:
             if (os.path.exists(local_folder + subfolder) == False):
@@ -770,23 +864,41 @@ class LoadPDS:
         elif input_mission == 'mro':
             self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date) 
 
+        elif input_mission == 'cassini':
+            self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load = self.get_cassini_flyby_files(local_folder) 
+
         if self.kernel_files_to_load:
             for kernel_type, kernel_files in self.kernel_files_to_load.items():
                 for kernel_file in kernel_files:  # Iterate over each file in the list
-                    spice.load_kernel(kernel_file)  # Load each file individually
-
-            n_kernels = spice.get_total_count_of_kernels_loaded()
-            std_kernels = spice.load_standard_kernels()
-            n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
-            print(f'===============================================================================================================')
-            print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
-            print(f'Number of Loaded Standard Kernels: {n_standard_kernels}')
-            print(f'===============================================================================================================')
-            
+                    converted_kernel_file = self.transfer2binary(kernel_file) 
+                    try:
+                        spice.load_kernel(converted_kernel_file)  # Load each file individually
+                    except Exception as e:
+                        print(f"Failed to load kernel: {converted_kernel_file}, Error: {e}")
         else:
             print('No Kernel Files to Load.')
             
-        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load, 
+        if self.ancillary_files_to_load:
+            for ancillary_type, ancillary_files in self.ancillary_files_to_load.items():
+                for ancillary_file in ancillary_files:  # Iterate over each file in the list]
+                    try:
+                        spice.load_kernel(ancillary_file)  # Load each file individually
+                    except Exception as e:
+                        print(f"Failed to load kernel: {ancillary_file}, Error: {e}")
+        else:
+            print('No Ancillary Files to Load.')
+
+        n_kernels = spice.get_total_count_of_kernels_loaded()
+        std_kernels = spice.load_standard_kernels()
+        n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
+        print(f'===============================================================================================================')
+        print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
+        print(f'Number of Loaded Standard Kernels: {n_standard_kernels}')
+        print(f'===============================================================================================================')
+
+        self.clean_mission_archive(local_folder)
+        
+        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
             
 ########################################################################################################################################
 ############################################# START OF MEX SECTION #####################################################################
@@ -1335,12 +1447,12 @@ class LoadPDS:
 #--------------------------------------------------------------------------------------------------------------------------------------#
     
 ########################################################################################################################################
-################################################### START OF MRO SECTION ###############################################################
+################################################### START OF CASSINI SECTION ###########################################################
 ########################################################################################################################################
-
     
-    def get_cassini_flyby_files(self, local_folder, flyby_ID):
-
+    def get_cassini_flyby_files(self, local_folder):
+        self.print_titan_flyby_table()
+        flyby_ID = input(f'You are about to download data for the Cassini Spacecraft. What flyby would you like to download? (Check Provided Table for Reference.)\n')
         input_mission = 'cassini'
 
         self.radio_science_files_to_load = {}
@@ -1369,73 +1481,61 @@ class LoadPDS:
             filenames_to_download.extend(wanted_filenames)
 
         print(f'===========================================================================================================') 
-        print(f'Download {input_mission.upper()} Kernels and ODF files from PDS Atmopshere Node:')
+        print(f'Download {input_mission.upper()} Kernels (ck, spk) Ancillary Files (eop, ion, tro) and Radio Science (odf) files from PDS Atmosphere Node:')
         # Download each file if not already present
         for filename in filenames_to_download:
             # Extract the actual filename from the URL
             actual_filename = filename.split('/')[-1]
-            local_file_path = os.path.join(local_folder, actual_filename)
+
+            if actual_filename.lower().endswith('.ckf'):
+                file_ext = 'ck'
+                file_folder =  file_ext + '/'
+                local_file_path = os.path.join(local_folder + file_folder, actual_filename)
+            else:
+                file_ext = actual_filename.lower().split('.')[-1]
+                file_folder = file_ext + '/'
+                local_file_path = os.path.join(local_folder + file_folder, actual_filename)
             
             # Check if the file already exists in the local folder
             if os.path.exists(local_file_path):
-                print(local_file_path)
-                print(f"File: {actual_filename} already exists in {local_folder} and will not be downloaded.")
+                print(f"File: {actual_filename} already exists in {local_file_path} and will not be downloaded.")
                 # Add file paths for 'ck' type files
-                if local_file_path.lower().endswith('ckf'):
-                    self.kernel_files_to_load.setdefault('ck', []).append(local_file_path)
-                
-                # Add file paths for 'spk' type files
-                elif local_file_path.lower().endswith('spk'):
-                    self.kernel_files_to_load.setdefault('spk', []).append(local_file_path)
-                
-                # Add file paths for 'eop' type files
-                elif local_file_path.lower().endswith('eop'):
-                    self.kernel_files_to_load.setdefault('eop', []).append(local_file_path)
-                
-                # Add file paths for 'ion' type files in ancillary files
-                elif local_file_path.lower().endswith('ion'):
-                    self.ancillary_files_to_load.setdefault('ion', []).append(local_file_path)
-                
-                # Add file paths for 'tro' type files in ancillary files
-                elif local_file_path.lower().endswith('tro'):
-                    self.ancillary_files_to_load.setdefault('tro', []).append(local_file_path)
-                
-                # Add file paths for 'odf' type files in radio science files
-                elif local_file_path.lower().endswith('odf'):
-                    self.radio_science_files_to_load.setdefault('odf', []).append(local_file_path)
+
+                if file_ext.lower() in ['ion','tro']:
+                    self.ancillary_files_to_load.setdefault(file_ext, []).append(local_file_path)
+
+                elif file_ext.lower() in ['odf']:
+                    self.radio_science_files_to_load.setdefault(file_ext, []).append(local_file_path)
+                else:
+                    self.kernel_files_to_load.setdefault(file_ext, []).append(local_file_path)                    
 
             else:
                 try:
                     # Download the file if it doesn't exist
                     urlretrieve(filename, local_file_path)
-                    print(f"Downloading '{filename}' to {local_folder}")
-                    if local_file_path.lower().endswith('ckf'):
-                        self.kernel_files_to_load.setdefault('ck', []).append(local_file_path)
-                    
-                    # Add file paths for 'spk' type files
-                    elif local_file_path.lower().endswith('spk'):
-                        self.kernel_files_to_load.setdefault('spk', []).append(local_file_path)
-                    
-                    # Add file paths for 'eop' type files
-                    elif local_file_path.lower().endswith('eop'):
-                        self.kernel_files_to_load.setdefault('eop', []).append(local_file_path)
-                    
-                    # Add file paths for 'ion' type files in ancillary files
-                    elif local_file_path.lower().endswith('ion'):
-                        self.ancillary_files_to_load.setdefault('ion', []).append(local_file_path)
-                    
-                    # Add file paths for 'tro' type files in ancillary files
-                    elif local_file_path.lower().endswith('tro'):
-                        self.ancillary_files_to_load.setdefault('tro', []).append(local_file_path)
-                    
-                    # Add file paths for 'odf' type files in radio science files
-                    elif local_file_path.lower().endswith('odf'):
-                        self.radio_science_files_to_load.setdefault('odf', []).append(local_file_path)
- 
+                    print(f"Downloading '{filename}' to {local_file_path}")
+
+                    if file_ext.lower() in ['ion','tro', 'eop']:
+                        self.ancillary_files_to_load.setdefault(file_ext, []).append(local_file_path)
+    
+                    elif file_ext.lower() in ['odf']:
+                        self.radio_science_files_to_load.setdefault(file_ext, []).append(local_file_path)
+                    else:
+                        self.kernel_files_to_load.setdefault(file_ext, []).append(local_file_path)                    
+
                 except Exception as e:
                     try:
                         urlretrieve(filename.lower(), local_file_path)
-                        print(f"Downloading '{filename.lower()}' to {local_folder}")
+                        print(f"Downloading '{filename.lower()}' to {local_file_path}")
+
+                        if file_ext.lower() in ['ion','tro', 'eop']:
+                            self.ancillary_files_to_load.setdefault(file_ext, []).append(local_file_path)
+        
+                        elif file_ext.lower() in ['odf']:
+                            self.radio_science_files_to_load.setdefault(file_ext, []).append(local_file_path)
+                        else:
+                            self.kernel_files_to_load.setdefault(file_ext, []).append(local_file_path)                    
+
                     except:
                         print(f"Error downloading {actual_filename}: {e}")
 
@@ -1449,8 +1549,7 @@ class LoadPDS:
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
         else:
-            print('No fk files to download this time.')   
-
+            print('No fk files to download this time.')
 
         return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
        
@@ -1466,10 +1565,8 @@ class LoadPDS:
             return f"Flyby ID {flyby_ID} not found."
             
 ########################################################################################################################################
-    def get_flyby_volume_url(self, flyby_dict):
-        # Print the flyby dictionary for debugging
-        print(flyby_dict)
-        
+            
+    def get_flyby_volume_url(self, flyby_dict): 
         # Extract the 'experiment' value from the flyby_dict
         experiment = flyby_dict['experiment']
         
@@ -1497,8 +1594,6 @@ class LoadPDS:
 ########################################################################################################################################
 
     def get_flyby_cumindex_url(self, flyby_dict):
-        # Print the flyby dictionary for debugging
-        print(flyby_dict)
         
         # Extract the 'experiment' value from the flyby_dict
         experiment = flyby_dict['experiment']
@@ -1543,7 +1638,7 @@ class LoadPDS:
         lines = response.text.splitlines()
         
         # Prepare the dictionary to store the result
-        filtered_data = {}
+        cumindex_table = {}
         
         # Iterate over each line in the file
         for line in lines:
@@ -1573,11 +1668,6 @@ class LoadPDS:
                 ("ancillary", "ion"),
                 ("ancillary", "spk"),
                 ("ancillary", "ckf"),
-                ("ancillary", "eop"),
-                ("ancillary", "tro"),
-                ("ancillary", "ion"),
-                ("ancillary", "spk"),
-                ("ancillary", "ckf"),
             ]
             
             # Check if both words in any pair appear in the file_label
@@ -1587,12 +1677,12 @@ class LoadPDS:
                     end_date_utc = self.generic_strptime(end_date_utc)
                     creation_date_utc = self.generic_strptime(creation_date_utc)
                 except ValueError:
-                    print('Skipping due to invalid date format')
+                    print('Skipping time conversion due to invalid date format.')
                     continue  # Skip rows with invalid date format
     
                 # Use setdefault to ensure the key exists and initialize lists if not
-                if pds_repo not in filtered_data:
-                    filtered_data[pds_repo] = {
+                if pds_repo not in cumindex_table:
+                    cumindex_table[pds_repo] = {
                         "file_label": [],
                         "file_name": [],
                         "external_file_name": [],
@@ -1602,14 +1692,14 @@ class LoadPDS:
                     }
     
                 # Append data to the lists for the current pds_repo
-                filtered_data[pds_repo]["file_label"].append(file_label)
-                filtered_data[pds_repo]["file_name"].append(file_name)
-                filtered_data[pds_repo]["external_file_name"].append(external_file_name)
-                filtered_data[pds_repo]["start_date_utc"].append(start_date_utc)
-                filtered_data[pds_repo]["end_date_utc"].append(end_date_utc)
-                filtered_data[pds_repo]["creation_date_utc"].append(creation_date_utc)
+                cumindex_table[pds_repo]["file_label"].append(file_label)
+                cumindex_table[pds_repo]["file_name"].append(file_name)
+                cumindex_table[pds_repo]["external_file_name"].append(external_file_name)
+                cumindex_table[pds_repo]["start_date_utc"].append(start_date_utc)
+                cumindex_table[pds_repo]["end_date_utc"].append(end_date_utc)
+                cumindex_table[pds_repo]["creation_date_utc"].append(creation_date_utc)
         
-        # Return the filtered data
-        return filtered_data
+        # Return the cumindex_table
+        return cumindex_table
 
 ########################################################################################################################################
