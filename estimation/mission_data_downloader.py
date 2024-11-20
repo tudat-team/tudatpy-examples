@@ -48,7 +48,6 @@
 # In[1]:
 
 
-import spiceypy as spicey
 from mission_data_downloader_class import *
 
 
