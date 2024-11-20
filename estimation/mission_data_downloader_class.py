@@ -348,7 +348,7 @@ class LoadPDS:
         os.makedirs(local_folder+data_type+'/', exist_ok=True)
         
         # Create full paths for each file to load locally
-        self.files_to_load = [local_folder + data_type+ '/' + wanted_file for wanted_file in wanted_files]
+        self.files_to_load = [os.path.join(local_folder, data_type, wanted_file) for wanted_file in wanted_files]
         
         # Download each file if not already present
         for wanted_file, local_file in zip(wanted_files, self.files_to_load):
@@ -837,20 +837,34 @@ class LoadPDS:
         if start_date and end_date:
             all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
         print(f'======================================= Downloading {input_mission.upper()} Data ==============================================\n')   
-        print(f'=========================================== Folder(s) Creation ==================================================')
-        local_folder = f'{input_mission}_archive/'
-        if (os.path.exists(local_folder) == False):
-            print(f'Creating Local Folder: {local_folder} and its subfolders (kernels and radio)...')
-            os.mkdir(local_folder)
-            # Define the subfolders to create
+        base_folder = f'{input_mission}_archive/'
+        
+        if input_mission.lower() == 'cassini':
+            self.print_titan_flyby_table()
+            flyby_ID = input(f'You are about to download data for the Cassini Spacecraft. What flyby would you like to download? (Check Provided Table for Reference.)\n')
+
+            local_folder= os.path.join(base_folder, flyby_ID)
         else:
-            print(f'Folder: {local_folder} already exists and will not be overwritten.') 
+            local_folder = base_folder
+
+        print(f'=========================================== Folder(s) Creation ==================================================')
+
+        if (os.path.exists(base_folder) == False):
+            print(f'Creating Local Folder: {base_folder} and its subfolders (kernels and radio)...')
+            os.makedirs(base_folder)
+            if (os.path.exists(local_folder) == False):
+                os.makedirs(local_folder)         
+            else:
+                print(f'Folder: {local_folder} already exists and will not be overwritten.') 
+        else:
+            print(f'Folder: {base_folder} already exists and will not be overwritten.') 
             
         subfolders = ['ck', 'spk', 'fk', 'sclk', 'lsk', 'eop', 'ifms', 'odf', 'dp2', 'dps', 'dpx', 'tro', 'ion']     
         # Create each subfolder inside the main folder
         for subfolder in subfolders:
-            if (os.path.exists(local_folder + subfolder) == False):
-                os.makedirs(os.path.join(local_folder, subfolder))
+            local_subfolder = os.path.join(local_folder, subfolder)
+            if (os.path.exists(local_subfolder) == False):
+                os.makedirs(local_subfolder)
                 print(f'Creating folder: {subfolder}.') 
             else:
                 print(f'Folder: {subfolder} already exists and will not be overwritten.') 
@@ -1451,13 +1465,13 @@ class LoadPDS:
 ########################################################################################################################################
     
     def get_cassini_flyby_files(self, local_folder):
-        self.print_titan_flyby_table()
-        flyby_ID = input(f'You are about to download data for the Cassini Spacecraft. What flyby would you like to download? (Check Provided Table for Reference.)\n')
         input_mission = 'cassini'
 
         self.radio_science_files_to_load = {}
         self.kernel_files_to_load = {}
         self.ancillary_files_to_load = {}
+
+        flyby_ID = local_folder.split('/')[-1]
 
         if not os.path.exists(local_folder):
             os.mkdir(local_folder)
@@ -1477,7 +1491,7 @@ class LoadPDS:
         filenames_dict = {pds_repo: data["file_name"] for pds_repo, data in cumindex_dict.items()}
         
         for pds_repo, filenames_list in filenames_dict.items():
-            wanted_filenames = [volume_url + pds_repo + '/' + filename for filename in filenames_list]
+            wanted_filenames = [volume_url + pds_repo.lower() + '/' + filename for filename in filenames_list]
             filenames_to_download.extend(wanted_filenames)
 
         print(f'===========================================================================================================') 
@@ -1489,12 +1503,13 @@ class LoadPDS:
 
             if actual_filename.lower().endswith('.ckf'):
                 file_ext = 'ck'
-                file_folder =  file_ext + '/'
-                local_file_path = os.path.join(local_folder + file_folder, actual_filename)
+                file_folder =  file_ext
+                local_file_path = os.path.join(local_folder, file_folder, actual_filename)
+
             else:
                 file_ext = actual_filename.lower().split('.')[-1]
-                file_folder = file_ext + '/'
-                local_file_path = os.path.join(local_folder + file_folder, actual_filename)
+                file_folder = file_ext
+                local_file_path = os.path.join(local_folder, file_folder, actual_filename)
             
             # Check if the file already exists in the local folder
             if os.path.exists(local_file_path):
@@ -1537,7 +1552,7 @@ class LoadPDS:
                             self.kernel_files_to_load.setdefault(file_ext, []).append(local_file_path)                    
 
                     except:
-                        print(f"Error downloading {actual_filename}: {e}")
+                        print(f"Error downloading {filename.lower()}: {e}")
 
         #Frame Kernels
         print(f'===========================================================================================================') 
