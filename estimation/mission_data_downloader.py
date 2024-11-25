@@ -74,7 +74,7 @@ object = LoadPDS()
 # get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
 # get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
 
-# In[3]:
+# In[ ]:
 
 
 start_date_juice = datetime(2023, 7, 1)
@@ -102,7 +102,7 @@ print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded
 # ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
-# In[4]:
+# In[ ]:
 
 
 print(f'MRO Kernels: {kernel_files_mro}\n')
@@ -130,7 +130,7 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # 
 # ### Flyby Data Output Division
 # 
-# The default output folder will be named `cassini_archive/MOON_NAME/FLYBY_ID/`, where `MOON_NAME` is the flyby moon, and `FLYBY_ID` is the denomination of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories. In this example, we will download files from the flyby T011, and we will store them in the custom path: `'./CASSINI_CUSTOM_ARCHIVE/'`
+# The default output folder will be named `cassini_archive/MOON_NAME/FLYBY_ID/`, where `MOON_NAME` is the flyby moon, and `FLYBY_ID` is the denomination of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories. In this example, we will download files from the flyby T011, and we will store them in the custom path: `'CASSINI_CUSTOM_ARCHIVE/'`
 # 
 # **Note 5: Supported Flyby Moons**
 # 
@@ -150,22 +150,28 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # As we mentioned above, the **default** output folder will be: `cassini_archive/MOON_NAME/FLYBY_ID/`
 # The user can still define a custom output path using the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path/MOON_NAME/FLYBY_ID/`
 
-# In[5]:
+# In[3]:
 
 
 # Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
 flyby_IDs = 'T011'
-kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini', flyby_IDs = flyby_IDs, custom_output = './CASSINI_CUSTOM_ARCHIVE/')
+kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini', flyby_IDs = flyby_IDs, custom_output = 'CASSINI_CUSTOM_ARCHIVE/')
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
 # ## Loaded Kernels for Cassini Titan Flyby (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
-# In[6]:
+# In[ ]:
 
 
 print(f'CASSINI Kernels: {kernel_files_cassini}\n')
 print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
 print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
+
+
+# In[ ]:
+
+
+
 
