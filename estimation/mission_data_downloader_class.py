@@ -345,7 +345,7 @@ class LoadPDS:
         ext = self.get_extension_for_data_type(data_type)
         
         # Ensure local folder exists
-        os.makedirs(local_folder+data_type+'/', exist_ok=True)
+        os.makedirs(os.path.join(local_folder,data_type), exist_ok=True)
         
         # Create full paths for each file to load locally
         self.files_to_load = [os.path.join(local_folder, data_type, wanted_file) for wanted_file in wanted_files]
@@ -401,8 +401,8 @@ class LoadPDS:
         print(f'Cleaning Mission Archive...')
         if os.path.exists(local_folder):
             for directory in os.listdir(local_folder):
-                directory_path = os.path.join(local_folder + directory)
-                if os.path.isdir(directory_path) and not os.listdir(directory_path):
+                directory_path = os.path.join(local_folder,directory)
+                if os.path.isdir(directory_path) and not os.listdir(directory_path):       
                     os.rmdir(directory_path)
         print(f'Done.')
                     
@@ -486,7 +486,7 @@ class LoadPDS:
         self.relevant_files = []
         print('Checking URL:', url)
         data_type = url.split('/')[-2]      
-        local_subfolder = local_path + data_type + '/'
+        local_subfolder = os.path.join(local_path,data_type)
 
         try: 
             supported_pattern = self.supported_patterns[input_mission][data_type]
@@ -616,7 +616,7 @@ class LoadPDS:
         self.relevant_files = []     
         print('Checking URL:', url)
         data_type = url.split('/')[-2]      
-        local_subfolder = local_path + data_type + '/'
+        local_subfolder = os.path.join(local_path,data_type)
     
         # Prepare the date range for searching existing files
         all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
@@ -830,89 +830,182 @@ class LoadPDS:
 
 #########################################################################################################
 
-    def get_mission_files(self, input_mission, start_date = None, end_date = None):
+    def get_mission_files(self, input_mission, start_date = None, end_date = None, flyby_IDs = None, custom_output = None):
      
         spice.clear_kernels()
 
+        self.all_kernel_files = {}
+        self.all_radio_science_files = {}
+        self.all_ancillary_files = {}
+        
         if start_date and end_date:
             all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
         print(f'======================================= Downloading {input_mission.upper()} Data ==============================================\n')   
-        base_folder = f'{input_mission}_archive/'
-        
-        if input_mission.lower() == 'cassini':
-            self.print_titan_flyby_table()
-            flyby_ID = input(f'You are about to download data for the Cassini Spacecraft. What flyby would you like to download? (Check Provided Table for Reference.)\n')
 
-            local_folder= os.path.join(base_folder, flyby_ID)
+        if custom_output:
+            base_folder = f'{custom_output}'
         else:
-            local_folder = base_folder
+            base_folder = f'{input_mission}_archive/'
+
+        local_folder_list = [] #this will be a multiple-element list (length != 1)ONLY if "Cassini" and ONLY if len(flyby_IDs) > 1
+        if input_mission.lower() == 'cassini':
+            if not flyby_IDs:
+                self.print_titan_flyby_table()
+                flyby_ID = input(f'You are about to download data for the Cassini Spacecraft. What flyby would you like to download? (Check Provided Table for Reference.)\n')
+            
+            else:
+                if isinstance(flyby_IDs, list):
+                    # Create a flag to track if Titan or Enceladus has been processed
+                    processed_moons = []
+            
+                    # Process Titan flybys if 'ALL_TITAN' is in the list
+                    if 'ALL_TITAN' in flyby_IDs:
+                        flyby_IDs.remove('ALL_TITAN')  # Remove 'ALL_TITAN'
+                        full_moon_flybys_list = self.get_full_moon_flybys_list('TITAN')
+                        flyby_IDs.extend(full_moon_flybys_list)
+                        # Remove duplicates
+                        flyby_IDs = list(dict.fromkeys(flyby_IDs))
+                        # Add Titan folder creation to the list
+                        processed_moons.append('TITAN')
+            
+                    # Process Enceladus flybys if 'ALL_ENCELADUS' is in the list
+                    if 'ALL_ENCELADUS' in flyby_IDs:
+                        flyby_IDs.remove('ALL_ENCELADUS')  # Remove 'ALL_ENCELADUS'
+                        full_moon_flybys_list = self.get_full_moon_flybys_list('ENCELADUS')
+                        flyby_IDs.extend(full_moon_flybys_list)
+                        # Remove duplicates
+                        flyby_IDs = list(dict.fromkeys(flyby_IDs))
+                        # Add Enceladus folder creation to the list
+                        processed_moons.append('ENCELADUS')
+            
+                    # At this point, `flyby_IDs` contains the full list of flyby IDs without 'ALL_TITAN' or 'ALL_ENCELADUS'
+                    # Now create the local folders
+
+                    if len(processed_moons) != 0:
+                        for MOON in processed_moons:
+                            for flyby_ID in flyby_IDs:
+                                local_folder = os.path.join(base_folder, MOON, flyby_ID)
+                                local_folder_list.append(local_folder)  # Append to local_folder_list     
+                    else:
+                        for flyby_ID in flyby_IDs:
+                            if flyby_ID.startswith('T'):
+                                MOON = 'TITAN'
+                            elif flyby_ID.startswith('E'):
+                                MOON = 'ENCELADUS'
+                            local_folder = os.path.join(base_folder, MOON, flyby_ID)
+                            local_folder_list.append(local_folder)  # Append to local_folder_list     
+                            
+                else:
+                    for MOON in ['TITAN', 'ENCELADUS']:
+                        if f'ALL_{MOON}' == flyby_IDs:
+                            flyby_IDs.remove(f'ALL_{MOON}')
+                            full_moon_flybys_list= self.get_full_moon_flybys_list(MOON)
+                            flyby_IDs.extend(full_moon_flybys_list)
+                            flyby_IDs = list(set(flyby_IDs))  # This removes duplicates
+
+                            for flyby_ID in flyby_IDs:
+                                local_folder = os.path.join(base_folder, MOON, flyby_ID)
+                                local_folder_list.append(local_folder) # append to local_folder_list
+
+                    if flyby_IDs.startswith('T'):
+                        MOON = 'TITAN'
+                    elif flyby_IDs.startswith('E'):
+                        MOON = 'ENCELADUS'
+                        
+                    local_folder= os.path.join(base_folder, MOON, flyby_IDs)
+                    local_folder_list.append(local_folder) #in this case, it is just a single folder
+        else:
+            local_folder_list.append(base_folder) # in this case, it is just a single fodler
 
         print(f'=========================================== Folder(s) Creation ==================================================')
 
         if (os.path.exists(base_folder) == False):
             print(f'Creating Local Folder: {base_folder} and its subfolders (kernels and radio)...')
             os.makedirs(base_folder)
-            if (os.path.exists(local_folder) == False):
-                os.makedirs(local_folder)         
-            else:
-                print(f'Folder: {local_folder} already exists and will not be overwritten.') 
+            for local_folder in local_folder_list:
+                print('local_folder',local_folder)
+                if (os.path.exists(local_folder) == False):
+                    os.makedirs(local_folder)         
+                else:
+                    print(f'Folder: {local_folder} already exists and will not be overwritten.') 
         else:
             print(f'Folder: {base_folder} already exists and will not be overwritten.') 
             
         subfolders = ['ck', 'spk', 'fk', 'sclk', 'lsk', 'eop', 'ifms', 'odf', 'dp2', 'dps', 'dpx', 'tro', 'ion']     
         # Create each subfolder inside the main folder
-        for subfolder in subfolders:
-            local_subfolder = os.path.join(local_folder, subfolder)
-            if (os.path.exists(local_subfolder) == False):
-                os.makedirs(local_subfolder)
-                print(f'Creating folder: {subfolder}.') 
-            else:
-                print(f'Folder: {subfolder} already exists and will not be overwritten.') 
-        
-        print('...Done.')
+        for local_folder in local_folder_list:
+            for subfolder in subfolders:
+                local_subfolder = os.path.join(local_folder, subfolder)
+                if (os.path.exists(local_subfolder) == False):
+                    os.makedirs(local_subfolder)
+                else:
+                    continue
         print(f'===============================================================================================================\n')
-        if input_mission == 'mex':
-            self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load = self.get_mex_files(local_folder, start_date, end_date) 
-        elif input_mission == 'juice':
-            self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load =              self.get_juice_files(local_folder, start_date, end_date) 
-        elif input_mission == 'mro':
-            self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date) 
 
-        elif input_mission == 'cassini':
-            self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load = self.get_cassini_flyby_files(local_folder) 
-
-        if self.kernel_files_to_load:
-            for kernel_type, kernel_files in self.kernel_files_to_load.items():
-                for kernel_file in kernel_files:  # Iterate over each file in the list
-                    converted_kernel_file = self.transfer2binary(kernel_file) 
-                    try:
-                        spice.load_kernel(converted_kernel_file)  # Load each file individually
-                    except Exception as e:
-                        print(f"Failed to load kernel: {converted_kernel_file}, Error: {e}")
-        else:
-            print('No Kernel Files to Load.')
+        for local_folder in local_folder_list:
+            if input_mission == 'mex':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mex_files(local_folder, start_date, end_date) 
+            elif input_mission == 'juice':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load =              self.get_juice_files(local_folder, start_date, end_date) 
+            elif input_mission == 'mro':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date) 
+    
+            elif input_mission == 'cassini':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder) 
             
-        if self.ancillary_files_to_load:
-            for ancillary_type, ancillary_files in self.ancillary_files_to_load.items():
-                for ancillary_file in ancillary_files:  # Iterate over each file in the list]
-                    try:
-                        spice.load_kernel(ancillary_file)  # Load each file individually
-                    except Exception as e:
-                        print(f"Failed to load kernel: {ancillary_file}, Error: {e}")
-        else:
-            print('No Ancillary Files to Load.')
+            if kernel_files_to_load:
+                for kernel_type, kernel_files in kernel_files_to_load.items():
+                    for kernel_file in kernel_files:  # Iterate over each file in the list
+                        converted_kernel_file = self.transfer2binary(kernel_file) 
+                        try:
+                            spice.load_kernel(converted_kernel_file)  # Load each file individually
+                            if kernel_type not in self.all_kernel_files.keys():
+                                self.all_kernel_files[kernel_type] = [converted_kernel_file]
+                            else:
+                                self.all_kernel_files[kernel_type].append(converted_kernel_file)
+                            
+                        except Exception as e:
+                            print(f"Failed to load kernel: {converted_kernel_file}, Error: {e}")                            
+            else:
+                print('No Kernel Files to Load.')
+                
+            if ancillary_files_to_load:
+                for ancillary_type, ancillary_files in ancillary_files_to_load.items():
+                    for ancillary_file in ancillary_files:  # Iterate over each file in the list]
+                        try:
+                            spice.load_kernel(ancillary_file)  # Load each file individually
+                            if ancillary_type not in self.all_ancillary_files.keys():
+                                self.all_ancillary_files[ancillary_type] = [ancillary_file]
+                            else:
+                                self.all_ancillary_files[ancillary_type].append(ancillary_file)
+                                
+                        except Exception as e:
+                            print(f"Failed to load kernel: {ancillary_file}, Error: {e}")
+            else:
+                print('No Ancillary Files to Load.')
 
-        n_kernels = spice.get_total_count_of_kernels_loaded()
+            if radio_science_files_to_load:
+                for radio_science_type, radio_science_files in radio_science_files_to_load.items():
+                    for radio_science_file in radio_science_files:  # Iterate over each file in the list]
+                        if radio_science_type not in self.all_radio_science_files.keys():
+                            self.all_radio_science_files[radio_science_type] = [radio_science_file]
+                        else:
+                            self.all_radio_science_files[radio_science_type].append(radio_science_file)
+            else:
+                print('No Radio Science Files to Load.')
+                
+    
+            n_kernels = spice.get_total_count_of_kernels_loaded()
+            print(f'===============================================================================================================')
+            print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
+            self.clean_mission_archive(local_folder)
+                    
         std_kernels = spice.load_standard_kernels()
         n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
-        print(f'===============================================================================================================')
-        print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
         print(f'Number of Loaded Standard Kernels: {n_standard_kernels}')
         print(f'===============================================================================================================')
 
-        self.clean_mission_archive(local_folder)
-        
-        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
+        return self.all_kernel_files, self.all_radio_science_files, self.all_ancillary_files
             
 ########################################################################################################################################
 ############################################# START OF MEX SECTION #####################################################################
@@ -1465,6 +1558,7 @@ class LoadPDS:
 ########################################################################################################################################
     
     def get_cassini_flyby_files(self, local_folder):
+        
         input_mission = 'cassini'
 
         self.radio_science_files_to_load = {}
@@ -1578,6 +1672,27 @@ class LoadPDS:
         else:
             # If the flyby_ID is not found, return a message indicating so
             return f"Flyby ID {flyby_ID} not found."
+            
+########################################################################################################################################
+
+    def get_full_moon_flybys_list(self, MOON):
+        """
+        Returns a list of keys corresponding to the flyby entries for either Titan or Enceladus.
+
+        Args:
+            moon (str): The name of the moon ('titan' or 'enceladus').
+
+        Returns:
+            list: A list of flyby IDs (e.g., ['T011', 'T022', ...]) corresponding to the given moon.
+        """
+        if MOON.lower() == 'titan':
+            # Return the keys of the titan_flyby_dict
+            return list(self.titan_flyby_dict.keys())
+        elif MOON.lower() == 'enceladus':
+            # Return the keys of the enceladus_flyby_dict
+            return list(self.enceladus_flyby_dict.keys())
+        else:
+            raise ValueError("Invalid moon name. Please provide a valid Saturn Moon name.")
             
 ########################################################################################################################################
             

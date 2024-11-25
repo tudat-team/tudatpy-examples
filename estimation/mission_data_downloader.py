@@ -31,16 +31,18 @@
 # - GRAIL
 # - LRO
 # 
-# **NOTE 2. (Outputs)**
+# **NOTE 2. (Default and Custom Outputs)**
 # 
-# The downloaded data for a given mission is stored in a folder named `<mission_name>_archive`. Subfolders are created automatically where Kernels, Radio Science Data and Ancillary Data are stored.
+# The downloaded data for a given mission is stored (by default) in a folder named `<mission_name>_archive`. Subfolders are created automatically where Kernels, Radio Science Data and Ancillary Data are stored. 
+# The user can still define a custom output path passing the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path`
 # 
-# **NOTE 3. (about DSN-TNF)**
+# **NOTE 3. (About DSN-TNF)**
 # 
 # No DSN-TNF download is implemented, since for many applications the TNF is too cumbersome. We download the DSN-ODF files instead. The ODF is an edited and partially processed version of the TNF. It is a smaller file, often issued in daily increments of about 0.2 MB. It contains the most important information (range and Doppler) 
 # 
+# **Note 4: About spiceypy**
 # 
-# 
+# A compiled version of TUDAT containing the `spiceypy` dependence is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
 
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
@@ -60,7 +62,7 @@ from mission_data_downloader_class import *
 object = LoadPDS()
 
 
-# ## Downloader
+# ## MRO Downloader (with Default Output)
 # 
 # ### Set Time Interval(s) for Downloading
 # 
@@ -75,30 +77,26 @@ object = LoadPDS()
 # In[3]:
 
 
-if __name__ == "__main__":
+start_date_juice = datetime(2023, 7, 1)
+end_date_juice = datetime(2023, 8, 10)
 
-    # Set Time Interval(s) for Downloading
+start_date_mro = datetime(2007, 1, 3)
+end_date_mro = datetime(2007, 1, 5)
 
-    start_date_juice = datetime(2023, 7, 1)
-    end_date_juice = datetime(2023, 8, 10)
-    
-    start_date_mro = datetime(2007, 1, 3)
-    end_date_mro = datetime(2007, 1, 5)
-    
-    start_date_mex = datetime(2004, 1, 3)
-    end_date_mex = datetime(2004,2, 7) 
+start_date_mex = datetime(2004, 1, 3)
+end_date_mex = datetime(2004,2, 7) 
 
-    # Download Mission Files 
-    # (only MRO is shown here. Uncomment the corresponding lines to download data for MEX and JUICE!)
-    
-    kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(input_mission = 'mro', start_date = start_date_mro, end_date = end_date_mro)         
-    print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
-    
-    #kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
-    #print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
-    
-    #kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
-    #print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+# Download Mission Files with default output folder
+# (only MRO is shown here. Uncomment the corresponding lines to download data for MEX and JUICE!)
+
+kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(input_mission = 'mro', start_date = start_date_mro, end_date = end_date_mro, custom_output = None)         
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+
+#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+
+#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
 # ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
@@ -120,29 +118,44 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 #print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
 
 
-# ## Cassini Downloader
+# ## Cassini Downloader (with Custom Output)
 # 
-# ### Set Time Interval(s) for Downloading
+# ### Set Flybys for Downloading
 # 
 # The most valuable data collected for Cassini is probably the one related to the various flybys of the Moons of Saturn.
-# For this reason, in order to retrieve Cassini data, we will require the name of the flyby data the user wishes to download, rather than a start and end date. 
+# For this reason, in order to retrieve Cassini data, we will require the name of the flyby data the user wishes to download, rather than a start and end date (see **Notes 5 and 6** for info on the supported flybys). 
 # 
 # ### Download Cassini Flyby Files
 # We can call the function "get_mission_files" with 'Cassini' as input_mission. This call will print a comprehensive table of supported flybys to choose from, and the user will be asked to manually input the name of one of them.
 # 
 # ### Flyby Data Output Division
 # 
-# The main output folder will be named *cassini_archive*, and the subfolders will have the name of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories.  
+# The default output folder will be named `cassini_archive/MOON_NAME/FLYBY_ID/`, where `MOON_NAME` is the flyby moon, and `FLYBY_ID` is the denomination of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories. In this example, we will download files from the flyby T011, and we will store them in the custom path: `'./CASSINI_CUSTOM_ARCHIVE/'`
 # 
-# **Note 4.**
+# **Note 5: Supported Flyby Moons**
 # 
 # For now, only Titan Flybys are supported.
+# 
+# **Note 6: flyby_IDs types**
+# 
+# `flyby_IDs` can be:
+# 1) a list made of single flybys like: `flyby_IDs = ['T011', 'T022']` or `flyby_IDs = ['T011']`
+# 2) a single string object like: `flyby_IDs = 'T011'` (not a list)
+# 3) a list made of all flybys performed at a given moon: `flyby_IDs = ['ALL_TITAN']`
+# 4) a single string object like: `flyby_IDs = 'ALL_TITAN'`
+# 5) a mixed list like: `flyby_IDs = ['T011', 'ALL_TITAN']`
+# 
+# **Note 7: Custom Output**
+# 
+# As we mentioned above, the **default** output folder will be: `cassini_archive/MOON_NAME/FLYBY_ID/`
+# The user can still define a custom output path using the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path/MOON_NAME/FLYBY_ID/`
 
 # In[5]:
 
 
-# Download Cassini Titan Flyby Mission Files 
-kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini')
+# Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
+flyby_IDs = 'T011'
+kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini', flyby_IDs = flyby_IDs, custom_output = './CASSINI_CUSTOM_ARCHIVE/')
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
