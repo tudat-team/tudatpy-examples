@@ -957,6 +957,7 @@ class LoadPDS:
                 for kernel_type, kernel_files in kernel_files_to_load.items():
                     for kernel_file in kernel_files:  # Iterate over each file in the list
                         converted_kernel_file = self.transfer2binary(kernel_file) 
+                        print(kernel_file, 'converted to:', converted_kernel_file)
                         try:
                             spice.load_kernel(converted_kernel_file)  # Load each file individually
                             if kernel_type not in self.all_kernel_files.keys():
