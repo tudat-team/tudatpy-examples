@@ -74,7 +74,7 @@ object = LoadPDS()
 # get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
 # get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
 
-# In[ ]:
+# In[3]:
 
 
 start_date_juice = datetime(2023, 7, 1)
@@ -102,7 +102,7 @@ print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded
 # ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
-# In[ ]:
+# In[4]:
 
 
 print(f'MRO Kernels: {kernel_files_mro}\n')
@@ -150,7 +150,7 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # As we mentioned above, the **default** output folder will be: `cassini_archive/MOON_NAME/FLYBY_ID/`
 # The user can still define a custom output path using the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path/MOON_NAME/FLYBY_ID/`
 
-# In[3]:
+# In[5]:
 
 
 # Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
@@ -162,16 +162,10 @@ print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded
 # ## Loaded Kernels for Cassini Titan Flyby (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
-# In[ ]:
+# In[6]:
 
 
 print(f'CASSINI Kernels: {kernel_files_cassini}\n')
 print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
 print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
-
-
-# In[ ]:
-
-
-
 
