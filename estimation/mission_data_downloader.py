@@ -42,15 +42,15 @@
 # 
 # **Note 4: About spiceypy**
 # 
-# A compiled version of TUDAT containing the `spiceypy` dependence is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
+# A compiled version of TUDAT containing the `spiceypy` dependency is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
 
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
 
-# In[1]:
+# In[2]:
 
 
-from mission_data_downloader_class import *
+from tudatpy.data.mission_data_downloader import *
 
 
 # ## Create the LoadPDS Object
