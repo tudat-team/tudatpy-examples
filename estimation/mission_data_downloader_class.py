@@ -53,7 +53,16 @@ class LoadPDS:
                  "ifms": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)',
                  "dp2": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)',
                  "dpx": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)',
-                 "dps": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)'}
+                 "dps": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)'},
+
+            "grail":
+                {"ck": r"^(?P<mission>gra)_(?P<instrument>(rec))_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})(?P<extension>\.bc)$",
+                 "spk": r"^(?P<mission>grail)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<instrument>(nav))_(?P<version>v\d{2})?(?P<extension>\.bsp)$",
+                 "odf":
+                     r'^(?P<mission>gra)(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<version>smmmv\d{1,2})(?P<extension>\.odf)$',
+                 "tro": r"^(?P<mission>grx)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.tro)$",
+                 "ion": r"^(?P<mission>gra)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.ion)$"
+                 }   
         }
 
         self.titan_flyby_dict = {
@@ -149,6 +158,15 @@ class LoadPDS:
             }
         }
 
+        # Mapping of data types to their expected file extensions
+        self.type_to_extension = {
+            'ck': 'bc', 'dsk': 'bds', 'spk': 'bsp', 'fk': 'tpc', 'mk': 'tm', 'ik': 'ti',
+            'lsk': 'tls', 'pck': 'bpc', 'sclk': 'tsc', 'odf': 'odf', 'ifms': 'tab',
+            'dp2': 'tab', 'dps': 'tab', 'dpx': 'tab', 'ion': 'ion', 'tro': 'tro', 'eop':'eop', 'manoeuver':'asc', 
+            'antenna_switch': 'asc'
+        }
+    
+
     #########################################################################################################
 
     def print_titan_flyby_table(self):
@@ -188,23 +206,23 @@ class LoadPDS:
 
 
     #########################################################################################################
-
+    
     def transfer2binary(self, input_file, timeout = 5):
 
         """
         Description:
-            Converts transfer-file format SPICE kernels (e.g., `.ckf`, `.spk`)
-            into binary SPICE kernels (e.g., `.ck`, `.bsp`) using the SPACIT utility.
-            This is necessary for loading the kernels with `spice.load_kernels`.
+            Converts transfer-file format SPICE kernels (e.g., .ckf, .spk)
+            into binary SPICE kernels (e.g., .ck, .bsp) using the SPACIT utility.
+            This is necessary for loading the kernels with spice.load_kernels.
             The function handles the conversion by running the SPACIT tool as a subprocess and
             manages timeouts during the conversion process.
 
         Input:
-            - `input_file` (`str`): The path to the SPICE kernel file to be converted. It must have either a `.ckf` or `.spk` extension.
-            - `timeout` (`int`, optional): The timeout duration for the SPACIT process, default is 5 seconds.
+            - input_file (str): The path to the SPICE kernel file to be converted. It must have either a .ckf or .spk extension.
+            - timeout (int, optional): The timeout duration for the SPACIT process, default is 5 seconds.
 
         Output:
-            - `str`: The path to the output file (either `.ck` or `.bsp`), depending on the input file type.
+            - str: The path to the output file (either .ck or .bsp), depending on the input file type.
             If the output file already exists, the function returns the existing output file path.
 
         Notes:
@@ -213,42 +231,72 @@ class LoadPDS:
 
         if input_file.lower().endswith('.ckf'):
             output_file = input_file.split('.')[0] + '.ck'
+        
+            if not os.path.exists(output_file):
+                proc = subprocess.Popen(
+                    ['spacit'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+    
+                # Write the necessary inputs to the process' stdin stream
+                proc.stdin.write('T\n')  # Command to convert transfer files to binary
+                proc.stdin.write(f'{input_file}\n')  # Input file
+                proc.stdin.write(f'{output_file}\n')  # Output file
+    
+                try:
+                    # Wait for the process to finish, with a timeout
+                    stdout, stderr = proc.communicate(timeout=timeout)
+    
+                    # Check if the process was successful
+                    if proc.returncode != 0:
+                        print(f"Error converting {input_file} to binary. Error: {stderr}")
+                    else:
+                        print(f"Successfully converted {input_file} to {output_file}. Output: {stdout}")
+    
+                except subprocess.TimeoutExpired:
+                    proc.kill()  # Kill the process if it times out
+    
+            return output_file
+            
         elif input_file.lower().endswith('.spk'):
             output_file = input_file.split('.')[0] + '.bsp'
+    
+            if not os.path.exists(output_file):
+                proc = subprocess.Popen(
+                    ['spacit'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+    
+                # Write the necessary inputs to the process' stdin stream
+                proc.stdin.write('T\n')  # Command to convert transfer files to binary
+                proc.stdin.write(f'{input_file}\n')  # Input file
+                proc.stdin.write(f'{output_file}\n')  # Output file
+    
+                try:
+                    # Wait for the process to finish, with a timeout
+                    stdout, stderr = proc.communicate(timeout=timeout)
+    
+                    # Check if the process was successful
+                    if proc.returncode != 0:
+                        print(f"Error converting {input_file} to binary. Error: {stderr}")
+                    else:
+                        print(f"Successfully converted {input_file} to {output_file}. Output: {stdout}")
+    
+                except subprocess.TimeoutExpired:
+                    proc.kill()  # Kill the process if it times out
+    
+            return output_file
+            
         else:
             output_file = input_file
             return output_file
 
-        if not os.path.exists(output_file):
-            proc = subprocess.Popen(
-                ['spacit'],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-
-            # Write the necessary inputs to the process' stdin stream
-            proc.stdin.write('T\n')  # Command to convert transfer files to binary
-            proc.stdin.write(f'{input_file}\n')  # Input file
-            proc.stdin.write(f'{output_file}\n')  # Output file
-
-            try:
-                # Wait for the process to finish, with a timeout
-                stdout, stderr = proc.communicate(timeout=timeout)
-
-                # Check if the process was successful
-                if proc.returncode != 0:
-                    print(f"Error converting {input_file} to binary. Error: {stderr}")
-                else:
-                    print(f"Successfully converted {input_file} to {output_file}. Output: {stdout}")
-
-            except subprocess.TimeoutExpired:
-                proc.kill()  # Kill the process if it times out
-
-            return output_file
-        else:
-            return output_file
 
     #########################################################################################################
 
@@ -384,9 +432,14 @@ class LoadPDS:
         Output:
             - `list`: A list of full file paths for the downloaded (or already existing) kernel files.
         """
-        # Print information about the download process
+        
         data_type = url.split('/')[-2]
         ext = self.get_extension_for_data_type(data_type)
+
+        if not ext:
+            ext = wanted_files[0].split('.')[-1]
+            if ext == 'asc':
+                data_type = 'manoeuver'
 
         # Ensure local folder exists
         os.makedirs(os.path.join(local_folder,data_type), exist_ok=True)
@@ -475,48 +528,20 @@ class LoadPDS:
     #########################################################################################################
 
     def match_type_extension(self, data_type, filename):
-
         """
-        Description:
-            Checks if the extension of a given file matches the expected extension for the specified data type.
-
-        Input:
-            - `data_type` (`str`): The data type (e.g., 'ck', 'spk', 'odf', etc.).
-            - `filename` (`str`): The filename whose extension is to be checked.
-
-        Output:
-            - `bool`: `True` if the file extension matches the expected extension for the given data type, otherwise `False`.
+        Checks if the extension of a given file matches the expected extension for the specified data type.
+    
+        Args:
+            data_type (str): The data type (e.g., 'ck', 'spk', 'odf', etc.).
+            filename (str): The filename whose extension is to be checked.
+    
+        Returns:
+            bool: `True` if the file extension matches the expected extension for the given data type, otherwise `False`.
         """
-
-        extension = (filename.split(".")[-1]).lower()
-        supported_radio_science_types = ['odf', 'ifms', 'dp2', 'dpx', 'dps']
-        supported_spice_kernels_types = ['ck', 'dsk', 'spk', 'fk', 'mk', 'ik', 'lsk', 'pck', 'sclk']
-        supported_ancillary_types = ['ion', 'tro']
-        all_supported_types = supported_radio_science_types + supported_spice_kernels_types + supported_ancillary_types
-
-        all_supported_tuples = [
-            ('ck', 'bc'),
-            ('dsk', 'bds'),
-            ('spk', 'bsp'),
-            ('fk', 'tpc'),
-            ('mk', 'tm'),
-            ('ik', 'ti'),
-            ('lsk', 'tls'),
-            ('pck', 'bpc'),
-            ('sclk', 'tsc'),
-            ('odf', 'odf'),
-            ('ifms', 'tab'),
-            ('dp2', 'tab'),
-            ('dps', 'tab'),
-            ('dpx', 'tab'),
-            ('ion', 'ion'),
-            ('tro', 'tro')
-        ]
-
-        # Check if the data_type is supported
-        for type_, ext in all_supported_tuples:
-            if data_type == type_:
-                return ext == extension  # Return True if the extension matches, False if it does not.
+        
+        # Get the file extension and compare it
+        extension = filename.split('.')[-1].lower()
+        return self.type_to_extension.get(data_type) == extension
 
     #########################################################################################################
 
@@ -533,28 +558,8 @@ class LoadPDS:
             - `str` or `None`: The corresponding file extension for the data type if supported, otherwise `None`.
         """
 
-        # Mapping each data type to its corresponding extension
-        type_to_extension = {
-            'ck': 'bc',
-            'dsk': 'bds',
-            'spk': 'bsp',
-            'fk': 'tpc',
-            'mk': 'tm',
-            'ik': 'ti',
-            'lsk': 'tls',
-            'pck': 'bpc',
-            'sclk': 'tsc',
-            'odf': 'odf',
-            'ifms': 'tab',
-            'dp2': 'tab',
-            'dps': 'tab',
-            'dpx': 'tab',
-            'ion': 'ion',
-            'tro': 'tro'
-        }
-
         # Return the extension for the given data type if it's supported, else None
-        return type_to_extension.get(data_type.lower())
+        return self.type_to_extension.get(data_type.lower())
 
     #########################################################################################################
 
@@ -786,7 +791,7 @@ class LoadPDS:
 
         # Download files for all intervals from the HTML response
         for new_interval, filename_to_download in files_url_dict.items():
-            full_local_path = local_subfolder + filename_to_download
+            full_local_path = os.path.join(local_subfolder + filename_to_download)
             #print(f'full_local_path: {full_local_path}')
 
             if existing_files:
@@ -835,12 +840,7 @@ class LoadPDS:
         """
 
         data_type_lower = data_type.lower()
-        supported_radio_science_types = ['odf', 'ifms', 'dp2', 'dps', 'dpx']
-        supported_spice_kernels_types = ['ck', 'dsk', 'spk', 'fk', 'mk', 'ik', 'lsk', 'pck', 'sclk']
-        supported_ancillary_types = ['ion','tro']
-
-        all_supported_types = supported_radio_science_types + supported_spice_kernels_types + supported_ancillary_types
-
+        all_supported_types = list(self.type_to_extension.keys())
 
         if input_mission in self.supported_patterns:
             level_one_object = self.supported_patterns[input_mission]
@@ -1092,7 +1092,7 @@ class LoadPDS:
         else:
             print(f'Folder: {base_folder} already exists and will not be overwritten.')
 
-        subfolders = ['ck', 'spk', 'fk', 'sclk', 'lsk', 'eop', 'ifms', 'odf', 'dp2', 'dps', 'dpx', 'tro', 'ion']
+        subfolders = list(self.type_to_extension.keys())
         # Create each subfolder inside the main folder
         for local_folder in local_folder_list:
             for subfolder in subfolders:
@@ -1114,11 +1114,13 @@ class LoadPDS:
             elif input_mission == 'cassini':
                 kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder)
 
+            elif input_mission == 'grail':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_files(local_folder,start_date, end_date)
+
             if kernel_files_to_load:
                 for kernel_type, kernel_files in kernel_files_to_load.items():
                     for kernel_file in kernel_files:  # Iterate over each file in the list
                         converted_kernel_file = self.transfer2binary(kernel_file)
-                        print(kernel_file, 'converted to:', converted_kernel_file)
                         try:
                             spice.load_kernel(converted_kernel_file)  # Load each file individually
                             if kernel_type not in self.all_kernel_files.keys():
@@ -1598,7 +1600,7 @@ class LoadPDS:
 
         """
         Description:
-        Downloads various SPICE kernel and ancillary files for the JUICE mission, including clock, frame,
+        Downloads various SPICE kernel and ancillary files for the MRO mission, including clock, frame,
         orientation, and SPK kernels, based on a specified date range. Files are saved in the provided local folder.
 
         Inputs:
@@ -2216,3 +2218,144 @@ class LoadPDS:
         return cumindex_table
 
 ########################################################################################################################################
+    def get_grail_files(self,local_folder, start_date, end_date):
+
+        """
+        Description:
+        Downloads various SPICE kernel and ancillary files for the GRAIL mission, including clock, frame,
+        orientation, and SPK kernels, based on a specified date range. Files are saved in the provided local folder.
+
+        Inputs:
+            - local_folder (`str`): Path to the local folder where files will be saved.
+            - start_date (`datetime`): The start date for the data retrieval.
+            - end_date (`datetime`): The end date for the data retrieval.
+
+        Outputs:
+            - `kernel_files_to_load` (`dict`): A dictionary containing the loaded kernel files, categorized by type
+              (e.g., 'sclk', 'fk', 'ck', 'spk').
+            - `radio_science_files_to_load` (`dict`): An empty dictionary for now, intended for radio science files.
+            - `ancillary_files_to_load` (`dict`): An empty dictionary for now, intended for ancillary files.
+        """
+
+
+        self.radio_science_files_to_load = {}
+        self.kernel_files_to_load = {}
+        self.ancillary_files_to_load = {}
+
+        input_mission = 'mro'
+        all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
+
+        # ODF files
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} ODF files:')
+        url_radio_science_files = ["https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/odf/"]
+        for url_radio_science_file in url_radio_science_files:
+            try:
+                files = self.dynamic_download_url_files_single_time(input_mission,
+                                                                    local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                    url=url_radio_science_file)
+                key = "odf"
+                self.radio_science_files_to_load[key] = files
+            except:
+                continue
+
+        if not self.radio_science_files_to_load:
+            print('No Radio Science files to download this time.')
+
+        #Clock Kernels
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Clock Kernels:')
+        url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
+        wanted_clock_files= ["gra_sclkscet_00014.tsc"]
+        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+
+        if clock_files_to_load:
+            self.kernel_files_to_load['sclk'] = clock_files_to_load
+        else:
+            print('No sclk files to download this time.')
+
+            #Frame Kernels
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Frame Kernels:')
+        url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
+        wanted_frame_files=["grail_v07.tf"]
+        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+
+        if frame_files_to_load:
+            self.kernel_files_to_load['fk'] = frame_files_to_load
+        else:
+            print('No fk files to download this time.')
+
+            #Manoeuver Files
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Manoeuver Files:')
+        url_man_files="https://pds-geosciences.wustl.edu/grail/grail-l-lgrs-2-edr-v1/grail_0001/level_0/2012_04_06/"
+        wanted_man_files=["mas00_2012_04_06_a_04.asc"]
+        man_files_to_load = self.get_kernels(url_man_files, wanted_man_files, local_folder)
+
+        if frame_files_to_load:
+            self.ancillary_files_to_load['manoeuver'] = man_files_to_load
+        else:
+            print('No manoeuver files to download this time.')
+
+
+            # Planetary and Ephemeris Kernels
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} SPK Kernels:')
+        url_spk_files ="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/spk/"
+        wanted_spk_files = ["grail_120301_120529_sci_v02.bsp"]
+        spk_files_to_load = self.get_kernels(url_spk_files, wanted_spk_files, local_folder)
+
+        if spk_files_to_load:
+            self.kernel_files_to_load['spk'] = spk_files_to_load
+        else:
+            print('No spk files to download this time.')
+
+            # Orientation Kernels
+        ck_files_to_load = []
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Orientation Kernels:')
+        measured_url_ck_files =["https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/ck/"]
+
+        if len(measured_url_ck_files) == 1:
+            measured_ck_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                      local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                      url=measured_url_ck_files[0])
+        else:
+            for measured_url_ck_file in measured_url_ck_files:
+                measured_ck_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                          local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                          url=measured_url_ck_file)
+
+        if measured_ck_files_to_load:
+            self.kernel_files_to_load['ck'] = measured_ck_files_to_load
+        else:
+            print('No ck files to download this time.')
+
+            # Tropospheric corrections
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Tropospheric Corrections Files')
+        url_tropo_files = "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/ancillary/tro/"
+        tropo_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                            local_path=local_folder, start_date=start_date,
+                                                                            end_date=end_date, url=url_tropo_files)
+
+        if tropo_files_to_load:
+            self.ancillary_files_to_load['tro'] = tropo_files_to_load
+        else:
+            print('No tropospheric files to download this time.')
+
+            # Ionospheric corrections
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Ionospheric Corrections Files')
+        url_ion_files = "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/ancillary/ion/"
+        ion_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                          local_path=local_folder, start_date=start_date, end_date=end_date,
+                                                                          url=url_ion_files)
+
+        if ion_files_to_load:
+            self.ancillary_files_to_load['ion'] = ion_files_to_load
+        else:
+            print('No ionospheric files to download this time.')
+
+        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load

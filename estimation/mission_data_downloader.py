@@ -38,19 +38,19 @@
 # 
 # **NOTE 3. (About DSN-TNF)**
 # 
-# No DSN-TNF download is implemented, since for many applications the TNF is too cumbersome. We download the DSN-ODF files instead. The ODF is an edited and partially processed version of the TNF. It is a smaller file, often issued in daily increments of about 0.2 MB. It contains the most important information (range and Doppler) 
+# No DSN-TNF download functionality has been implemented (at least, not yet!)
 # 
 # **Note 4: About spiceypy**
 # 
-# A compiled version of TUDAT containing the `spiceypy` dependence is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
+# A compiled version of TUDAT containing the `spiceypy` dependency is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
 
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
 
-# In[1]:
+# In[2]:
 
 
-from mission_data_downloader_class import *
+from tudatpy.data.mission_data_downloader import *
 
 
 # ## Create the LoadPDS Object
