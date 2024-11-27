@@ -38,7 +38,7 @@
 # 
 # **NOTE 3. (About DSN-TNF)**
 # 
-# No DSN-TNF download is implemented, since for many applications the TNF is too cumbersome. We download the DSN-ODF files instead. The ODF is an edited and partially processed version of the TNF. It is a smaller file, often issued in daily increments of about 0.2 MB. It contains the most important information (range and Doppler) 
+# No DSN-TNF download functionality has been implemented (at least, not yet!)
 # 
 # **Note 4: About spiceypy**
 # 
