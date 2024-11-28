@@ -56,10 +56,10 @@ class LoadPDS:
                  "dps": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)'},
 
             "grail":
-                {"ck": r"^(?P<mission>gra)_(?P<instrument>(rec))_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})(?P<extension>\.bc)$",
-                 "spk": r"^(?P<mission>grail)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<instrument>(nav))_(?P<version>v\d{2})?(?P<extension>\.bsp)$",
+                {"ck": r"^(?P<mission>gra)_(?P<instrument>rec)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})(?P<extension>\.bc)$",
+                 "spk": r"^(?P<mission>grail)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<instrument>(sci|nav))_(?P<version>v\d{2})?(?P<extension>\.bsp)$",
                  "odf":
-                     r'^(?P<mission>gra)(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<version>smmmv\d{1,2})(?P<extension>\.odf)$',
+                     r'^(?P<mission>(gra|grb))(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<version>smmmv\d{1,2})(?P<extension>\.odf)$',
                  "tro": r"^(?P<mission>grx)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.tro)$",
                  "ion": r"^(?P<mission>gra)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.ion)$"
                  }   
@@ -164,6 +164,10 @@ class LoadPDS:
             'lsk': 'tls', 'pck': 'bpc', 'sclk': 'tsc', 'odf': 'odf', 'ifms': 'tab',
             'dp2': 'tab', 'dps': 'tab', 'dpx': 'tab', 'ion': 'ion', 'tro': 'tro', 'eop':'eop', 'manoeuver':'asc', 
             'antenna_switch': 'asc'
+        }
+            # Mapping of data types to their expected file extensions
+        self.supported_mission_odf_time_formats = {
+            'mro': 'YYYY_jjj', 'grail': 'YYYY_jjj'
         }
     
 
@@ -450,10 +454,10 @@ class LoadPDS:
         # Download each file if not already present
         for wanted_file, local_file in zip(wanted_files, self.files_to_load):
             if not os.path.exists(local_file):
-                print(f'Downloading File: {local_file}')
-                urlretrieve(url + wanted_file, local_file)
+                print(f'Downloading File: {os.path.join(url,wanted_file)} to: {local_file}')
+                urlretrieve(os.path.join(url,wanted_file), local_file)
             else:
-                print(f'File: {local_file} already exists in {local_folder} and will not be downloaded.')
+                print(f'File: {local_file} already exists in: {local_folder} and will not be downloaded.')
 
         return self.files_to_load
 
@@ -589,7 +593,6 @@ class LoadPDS:
 
         try:
             supported_pattern = self.supported_patterns[input_mission][data_type]
-            #print(f'supported_pattern: {supported_pattern}')
 
         except:
             raise ValueError('Pattern not found among supported patterns.')
@@ -630,7 +633,6 @@ class LoadPDS:
                         try:
                             RS_dict, RS_underscores = self.parse_filename(input_mission, data_type, filename)
                             filename_to_download = self.reconstruct_filename(RS_dict, RS_underscores)
-
                             # Determine the date string format
                             date_key = RS_dict["date_file"][:5] if input_mission.lower() == 'mex' else RS_dict["date_file"][:8]
                             files_url_dict[date_key] = filename_to_download
@@ -647,12 +649,13 @@ class LoadPDS:
         for date in all_dates:
             if input_mission.lower() == 'mex' :
                 date_string = f"{date.year % 100:02d}{date.timetuple().tm_yday:03d}"
-            elif input_mission.lower() == 'mro':
-                format_key = "YYYY_jjj"
-                date_string = LoadPDS.generic_strftime(LoadPDS,date, format_key)
-
+                
             else:
-                print('Error: I dont know what mission you are talking about!')
+                if input_mission.lower() in self.supported_mission_odf_time_formats.keys():
+                    format_key = self.supported_mission_odf_time_formats[input_mission.lower()]
+                    date_string = LoadPDS.generic_strftime(LoadPDS,date, format_key)
+                else:
+                    print(f'No ODF time format associated to input mission: {input_mission}. Please provide it in self.supported_mission_odf_time_formats.')
 
             if date_string in files_url_dict:
                 download_file = files_url_dict[date_string]
@@ -662,14 +665,14 @@ class LoadPDS:
                 if existing_files:
                     if full_local_path not in existing_files:
                         try:
-                            print('Downloading:', full_download_url)
+                            print(f'Downloading: {full_download_url} to {os.path.join(local_subfolder, download_file)}')
                             urlretrieve(full_download_url, os.path.join(local_subfolder, download_file))
                             self.relevant_files.append(full_local_path)
                         except Exception as e:
                             print(f"Failed to download {full_download_url}: {e}")
                 else:
                     try:
-                        print('Downloading:', full_download_url)
+                        print(f'Downloading: {full_download_url} to: {os.path.join(local_subfolder, download_file)}')
                         urlretrieve(full_download_url, os.path.join(local_subfolder, download_file))
                         self.relevant_files.append(full_local_path)
                     except Exception as e:
@@ -706,9 +709,7 @@ class LoadPDS:
 
         # Get all existing files that match the filename format
         ext = self.get_extension_for_data_type(data_type)
-        self.existing_files = [f for f in glob.glob(f'{local_subfolder}*') if re.search(rf'\.{ext}$', f, re.IGNORECASE)]
-
-        #print(f'filtered existing: {self.existing_files}')
+        self.existing_files = [f for f in glob.glob(f'{local_subfolder}/*') if re.search(rf'\.{ext}$', f, re.IGNORECASE)]
         if self.existing_files:
             return self.existing_files
     #########################################################################################################
@@ -778,33 +779,48 @@ class LoadPDS:
                         #print(f'filename_to_download: {filename_to_download}')
                         start_time = dictionary["start_date_utc"]
                         end_time = dictionary["end_date_utc"]
+                        version = dictionary.get("version", "v00")  # Default version if not provided
 
                         if start_time is None or end_time is None:
                             print(f'Unwanted filename found: {filename_to_download}. Skipping... [Do not worry! ;)]')
                             continue
 
-                        # Store the filename in the dictionary with its time interval
-                        files_url_dict[(start_time, end_time)] = filename_to_download
+                        # Extract the base filename without the version
+                        base_name_without_version = filename_to_download.replace(version, "")
+                        print(f'base_name_without_version: {base_name_without_version}')
+                        current_version = int(version[1:])  # Extract numeric version (e.g., v02 -> 2)
+                        print(f'current_version: {current_version}')
+                        # Only store the highest version
+                        print(files_url_dict)
+                        if not any(base_name_without_version in value.replace("v", "").split(".")[0] for value in files_url_dict.values()):
+                            print(f'base_name: {base_name_without_version} not in files_url dict. Appending {filename_to_download}')
+                            files_url_dict[(start_time, end_time)] = filename_to_download
+                        else:
+                            print(f'base_name: {base_name_without_version} ALREADY in files_url dict!')
+                            print(f'stored_version: {stored_version}')
+                            stored_version = dictionary.get("version")
+                            if current_version > stored_version:
+                                print(f'current:{current_version} > stored: {stored_version}')
+                                files_url_dict[(start_time, end_time)] = filename_to_download.replace(version, current_version)
 
                     except:
                         continue  # Skip to the next link
 
         # Download files for all intervals from the HTML response
         for new_interval, filename_to_download in files_url_dict.items():
-            full_local_path = os.path.join(local_subfolder + filename_to_download)
-            #print(f'full_local_path: {full_local_path}')
-
+            full_local_path = os.path.join(local_subfolder,filename_to_download)
+            
             if existing_files:
                 if full_local_path not in existing_files:
                     if any(self.is_date_in_intervals(date, [new_interval]) for date in all_dates):
-                        print('Downloading', filename_to_download)  # Print which file is being downloaded
-                        urlretrieve(url + filename_to_download, full_local_path)  # Download the file
+                        print(f'Downloading: {os.path.join(url,filename_to_download)} to: {full_local_path}')  # Print which file is being downloaded
+                        urlretrieve(os.path.join(url,filename_to_download), full_local_path)  # Download the file
                         self.relevant_files.append(full_local_path)
                         #spice.load_kernel(full_local_path)  # Load the downloaded file
             else:
                 if any(self.is_date_in_intervals(date, [new_interval]) for date in all_dates):
-                    print('Downloading', filename_to_download)  # Print which file is being downloaded
-                    urlretrieve(url + filename_to_download, full_local_path)  # Download the file
+                    print(f'Downloading: {os.path.join(url,filename_to_download)} to: {full_local_path}')  # Print which file is being downloaded
+                    urlretrieve(os.path.join(url,filename_to_download), full_local_path)  # Download the file
                     self.relevant_files.append(full_local_path)
                     #spice.load_kernel(full_local_path)  # Load the downloaded file
 
@@ -849,7 +865,6 @@ class LoadPDS:
 
         if data_type_lower == "radioscience":
             data_type_types = supported_radio_science_types
-            # Attempt to retrieve the pattern for the specified mission directly
 
         elif data_type_lower  == "kernels":
             data_type_types = supported_spice_kernels_types
@@ -1084,7 +1099,6 @@ class LoadPDS:
             print(f'Creating Local Folder: {base_folder} and its subfolders (kernels and radio)...')
             os.makedirs(base_folder)
             for local_folder in local_folder_list:
-                print('local_folder',local_folder)
                 if (os.path.exists(local_folder) == False):
                     os.makedirs(local_folder)
                 else:
@@ -1934,7 +1948,7 @@ class LoadPDS:
                 try:
                     # Download the file if it doesn't exist
                     urlretrieve(filename, local_file_path)
-                    print(f"Downloading '{filename}' to {local_file_path}")
+                    print(f"Downloading: '{filename}' to: {local_file_path}")
 
                     if file_ext.lower() in ['ion','tro', 'eop']:
                         self.ancillary_files_to_load.setdefault(file_ext, []).append(local_file_path)
@@ -1947,7 +1961,7 @@ class LoadPDS:
                 except Exception as e:
                     try:
                         urlretrieve(filename.lower(), local_file_path)
-                        print(f"Downloading '{filename.lower()}' to {local_file_path}")
+                        print(f"Downloading: '{filename.lower()}' to: {local_file_path}")
 
                         if file_ext.lower() in ['ion','tro', 'eop']:
                             self.ancillary_files_to_load.setdefault(file_ext, []).append(local_file_path)
@@ -2242,7 +2256,7 @@ class LoadPDS:
         self.kernel_files_to_load = {}
         self.ancillary_files_to_load = {}
 
-        input_mission = 'mro'
+        input_mission = 'grail'
         all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
 
         # ODF files
@@ -2300,16 +2314,25 @@ class LoadPDS:
 
 
             # Planetary and Ephemeris Kernels
+        spk_files_to_load = []
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} SPK Kernels:')
-        url_spk_files ="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/spk/"
-        wanted_spk_files = ["grail_120301_120529_sci_v02.bsp"]
-        spk_files_to_load = self.get_kernels(url_spk_files, wanted_spk_files, local_folder)
+        url_spk_files =["https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/spk/"]
+        if len(url_spk_files) == 1:
+            spk_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                      local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                      url=url_spk_files[0])
+        else:
+            for url_spk_file in url_spk_files:
+                spk_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                          local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                          url=url_spk_file)
 
         if spk_files_to_load:
-            self.kernel_files_to_load['spk'] = spk_files_to_load
+            self.kernel_files_to_load['ck'] = spk_files_to_load
         else:
             print('No spk files to download this time.')
+
 
             # Orientation Kernels
         ck_files_to_load = []
