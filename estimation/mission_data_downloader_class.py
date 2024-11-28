@@ -42,7 +42,6 @@ class LoadPDS:
 
             "cassini":
                 {"ck": r"^(?P<start_date_file>\d{5})_(?P<end_date_file>\d{5})(?P<type>(p|r))(?P<version>[a-z])(?P<freeform>\w+)?(?P<extension>\.bc)$"},
-
             "insight":
                 {"ck": r"^(?P<mission>insight)_(?P<purpose>(cru_rec|edl_rec|surf_ops|))_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<version>v\d{2})(?P<extension>\.bc)"
                  },
@@ -55,17 +54,26 @@ class LoadPDS:
                  "dpx": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)',
                  "dps": r'^(?P<mission>[a-zA-Z0-9]+)_(?P<band>[a-zA-Z0-9]+)_(?P<date_file>[0-9]{9})_(?P<version>[0-9]{2})(?P<extension>\.tab$)'},
 
-            "grail":
+            "grail-a":
                 {"ck": r"^(?P<mission>gra)_(?P<instrument>rec)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})(?P<extension>\.bc)$",
                  "spk": r"^(?P<mission>grail)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<instrument>(sci|nav))_(?P<version>v\d{2})?(?P<extension>\.bsp)$",
                  "odf":
-                     r'^(?P<mission>(gra|grb))(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<version>smmmv\d{1,2})(?P<extension>\.odf)$',
+                     r'^(?P<mission>(gra))(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<pre_version>smmm)(?P<version>v\d{1,2})(?P<extension>\.odf)$',
                  "tro": r"^(?P<mission>grx)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.tro)$",
                  "ion": r"^(?P<mission>gra)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.ion)$"
-                 }   
+                 },
+            "grail-b":
+                {"ck": r"^(?P<mission>grb)_(?P<instrument>rec)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})(?P<extension>\.bc)$",
+                 "spk": r"^(?P<mission>grail)_(?P<start_date_file>\d{6})_(?P<end_date_file>\d{6})_(?P<instrument>(sci|nav))_(?P<version>v\d{2})?(?P<extension>\.bsp)$",
+                 "odf":
+                     r'^(?P<mission>(grb))(?P<experiment>lugf)(?P<date_file>\d{4}_\d{3}_\d{4})(?P<pre_version>smmm)(?P<version>v\d{1,2})(?P<extension>\.odf)$',
+                 "tro": r"^(?P<mission>grx)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.tro)$",
+                 "ion": r"^(?P<mission>grb)(?P<experiment>lugf)(?P<start_date_file>\d{4}_\d{3})_(?P<end_date_file>\d{4}_\d{3})(?P<extension>\.ion)$"
+                 },
+
         }
 
-        self.titan_flyby_dict = {
+        self.cassini_titan_flyby_dict = {
             'T011': {
                 'experiment': 'tigr3',
                 'pds_repo': 'cors_0133',
@@ -167,7 +175,7 @@ class LoadPDS:
         }
             # Mapping of data types to their expected file extensions
         self.supported_mission_odf_time_formats = {
-            'mro': 'YYYY_jjj', 'grail': 'YYYY_jjj'
+            'mro': 'YYYY_jjj', 'grail-a': 'YYYY_jjj', 'grail-b': 'YYYY_jjj'
         }
     
 
@@ -177,7 +185,7 @@ class LoadPDS:
 
         """
         Description:
-        This method prints a table displaying the Titan flyby data in a readable format. It iterates over the `titan_flyby_dict`, extracts relevant information for each flyby, and constructs a table. The table is formatted with headers and colored using the `colorama` library for enhanced readability.
+        This method prints a table displaying the Titan flyby data in a readable format. It iterates over the `cassini_titan_flyby_dict`, extracts relevant information for each flyby, and constructs a table. The table is formatted with headers and colored using the `colorama` library for enhanced readability.
 
         Input:
             None.
@@ -187,7 +195,7 @@ class LoadPDS:
         """
 
         data = []
-        for key, value in self.titan_flyby_dict.items():
+        for key, value in self.cassini_titan_flyby_dict.items():
             row = [
                 key,
                 value['experiment'],
@@ -304,7 +312,7 @@ class LoadPDS:
 
     #########################################################################################################
 
-    def generic_strptime(self, date):
+    def format_string_to_datetime(self, date):
 
         """
         Description:
@@ -365,7 +373,7 @@ class LoadPDS:
                 #print('didnt work strptime')
                 continue
 
-    def generic_strftime(self, date, format_key):
+    def format_datetime_to_string(self, date, format_key):
 
         """
         Description:
@@ -637,9 +645,29 @@ class LoadPDS:
                             date_key = RS_dict["date_file"][:5] if input_mission.lower() == 'mex' else RS_dict["date_file"][:8]
                             files_url_dict[date_key] = filename_to_download
 
+                            # Downloading only the latest version of a file
+                            version = RS_dict.get("version")  # Define default version if not provided
+                            if not version:
+                                files_url_dict[(start_time, end_time)] = filename_to_download
+
+                            else:
+                                ext = RS_dict.get("extension")
+                                # Extract the base filename without the version
+                                base_name_no_version_no_ext = filename_to_download.replace(version, "").replace(ext, "")
+                                current_version = int(version[1:])  # Extract numeric version (e.g., v02 -> 2)
+                                # Only store the highest version
+                                if not any(base_name_no_version_no_ext in value for value in files_url_dict.values()):
+                                    files_url_dict[date_key] = filename_to_download
+                                else:
+                                    stored_version = int(RS_dict.get("version")[1:])
+                                    if current_version >= stored_version:
+                                        latest_filename_to_download = f'{base_name_no_version_no_ext}{version}{ext}'
+                                        files_url_dict[date_key] = latest_filename_to_download
+                                
                         except Exception as e:
-                            print(f"Could not parse file: {filename} - Error: {e}")
-                            continue
+                            if input_mission != 'grail-a' and input_mission != 'grail-b':
+                                print(f"Could not parse file: {filename} - Error: {e}")
+                                continue
                     else:
                         continue
             else:
@@ -653,7 +681,7 @@ class LoadPDS:
             else:
                 if input_mission.lower() in self.supported_mission_odf_time_formats.keys():
                     format_key = self.supported_mission_odf_time_formats[input_mission.lower()]
-                    date_string = LoadPDS.generic_strftime(LoadPDS,date, format_key)
+                    date_string = LoadPDS.format_datetime_to_string(LoadPDS,date, format_key)
                 else:
                     print(f'No ODF time format associated to input mission: {input_mission}. Please provide it in self.supported_mission_odf_time_formats.')
 
@@ -779,35 +807,36 @@ class LoadPDS:
                         #print(f'filename_to_download: {filename_to_download}')
                         start_time = dictionary["start_date_utc"]
                         end_time = dictionary["end_date_utc"]
-                        version = dictionary.get("version", "v00")  # Default version if not provided
-                        ext = dictionary.get("extension")
 
-                        if start_time is None or end_time is None:
-                            print(f'Unwanted filename found: {filename_to_download}. Skipping... [Do not worry! ;)]')
-                            continue
-
-                        # Extract the base filename without the version
-                        print(filename_to_download)
-                        base_name_no_version_no_ext = filename_to_download.replace(version, "").replace(ext, "")
-                        print(f'base_name_no_version_no_ext: {base_name_no_version_no_ext}')
-                        current_version = int(version[1:])  # Extract numeric version (e.g., v02 -> 2)
-                        print(f'current_version: {current_version}')
-                        # Only store the highest version
-                        if not any(base_name_no_version_no_ext in value for value in files_url_dict.values()):
-                            print(f'base_name: {base_name_no_version_no_ext} not in files_url dict. Appending {filename_to_download}')
+                        # Downloading only the latest version of a file
+                        version = dictionary.get("version")  # Define default version if not provided
+                        
+                        if not version:
                             files_url_dict[(start_time, end_time)] = filename_to_download
+
                         else:
-                            print(f'base_name: {base_name_no_version_no_ext} ALREADY in files_url dict!')
-                            stored_version = int(dictionary.get("version")[1:])
-                            print(f'stored_version: {stored_version}')
-                            if current_version >= stored_version:
-                                print(f'current:{current_version} > stored: {stored_version}')
-                                files_url_dict[(start_time, end_time)] = filename_to_download.replace(version, current_version)
+                            ext = dictionary.get("extension")
+    
+                            if start_time is None or end_time is None:
+                                print(f'Unwanted filename found: {filename_to_download}. Skipping... [Do not worry! ;)]')
+                                continue
+    
+                            # Extract the base filename without the version
+                            base_name_no_version_no_ext = filename_to_download.replace(version, "").replace(ext, "")
+                            current_version = int(version[1:])  # Extract numeric version (e.g., v02 -> 2)
+                            # Only store the highest version
+                            if not any(base_name_no_version_no_ext in value for value in files_url_dict.values()):
+                                files_url_dict[(start_time, end_time)] = filename_to_download
+                            else:
+                                stored_version = int(dictionary.get("version")[1:])
+                                if current_version >= stored_version:
+                                    latest_filename_to_download = f'{base_name_no_version_no_ext}{version}{ext}'
+                                    files_url_dict[(start_time, end_time)] = latest_filename_to_download
+                        
 
                     except:
                         continue  # Skip to the next link
 
-        print(files_url_dict)
         # Download files for all intervals from the HTML response
         for new_interval, filename_to_download in files_url_dict.items():
             full_local_path = os.path.join(local_subfolder,filename_to_download)
@@ -912,27 +941,27 @@ class LoadPDS:
 
                                     if dictionary['start_date_file'][0] == 'P': #this deals with MEX ORMF files
 
-                                        self.start_date_utc = LoadPDS.generic_strptime(LoadPDS, dictionary["start_date_file"][1:7])
+                                        self.start_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, dictionary["start_date_file"][1:7])
                                         self.end_date_utc = self.start_date_utc + relativedelta(months = 1)
                                         dictionary["start_date_utc"] = self.start_date_utc
                                         dictionary["end_date_utc"] = self.end_date_utc
 
                                     elif (len(dictionary['start_date_file']) == 4 and dictionary['purpose'] == 'SA'):
                                         mex_sa_date_trick = dictionary["start_date_file"] + '0101_'
-                                        self.start_date_utc = LoadPDS.generic_strptime(LoadPDS, mex_sa_date_trick)
+                                        self.start_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, mex_sa_date_trick)
                                         self.end_date_utc = self.start_date_utc + relativedelta(years = 1)
                                         dictionary["start_date_utc"] = self.start_date_utc
                                         dictionary["end_date_utc"] = self.end_date_utc
 
                                     else:
-                                        self.start_date_utc = LoadPDS.generic_strptime(LoadPDS, dictionary["start_date_file"])
-                                        self.end_date_utc = LoadPDS.generic_strptime(LoadPDS, dictionary["end_date_file"]) if dictionary["end_date_file"] != '000000' else self.start_date_utc + relativedelta(months = 1) #this deals with MEX ORMM files
+                                        self.start_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, dictionary["start_date_file"])
+                                        self.end_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, dictionary["end_date_file"]) if dictionary["end_date_file"] != '000000' else self.start_date_utc + relativedelta(months = 1) #this deals with MEX ORMM files
                                         dictionary["start_date_utc"] = self.start_date_utc
                                         dictionary["end_date_utc"] = self.end_date_utc
 
                             # If present, convert date_file in utc (only one date is present in the Radio Science file names)
                             elif "date_file" in dictionary:
-                                self.date_utc = LoadPDS.generic_strptime(LoadPDS, dictionary["date_file"])
+                                self.date_utc = LoadPDS.format_string_to_datetime(LoadPDS, dictionary["date_file"])
                                 dictionary["date_utc"] = self.date_utc
 
                             return dictionary, underscore_indices
@@ -1021,9 +1050,16 @@ class LoadPDS:
         print(f'======================================= Downloading {input_mission.upper()} Data ==============================================\n')
 
         if custom_output:
-            base_folder = f'{custom_output}'
+            if input_mission.lower() == 'grail-a' or input_mission.lower() == 'grail-b': #both grail-a and -b found in grail archive
+                base_folder = f'{custom_output}/{input_mission}'
+            else:
+                base_folder = f'{custom_output}'
+                        
         else:
-            base_folder = f'{input_mission}_archive/'
+            if input_mission.lower() == 'grail-a' or input_mission.lower() == 'grail-b': #both grail-a and -b found in grail archive
+                base_folder = f'grail_archive/{input_mission}'
+            else:
+                base_folder = f'{input_mission}_archive/'
 
         local_folder_list = [] #this will be a multiple-element list (length != 1)ONLY if "Cassini" and ONLY if len(flyby_IDs) > 1
         if input_mission.lower() == 'cassini':
@@ -1039,7 +1075,7 @@ class LoadPDS:
                     # Process Titan flybys if 'ALL_TITAN' is in the list
                     if 'ALL_TITAN' in flyby_IDs:
                         flyby_IDs.remove('ALL_TITAN')  # Remove 'ALL_TITAN'
-                        full_moon_flybys_list = self.get_full_moon_flybys_list('TITAN')
+                        full_moon_flybys_list = self.get_cassini_full_moon_flybys_list('TITAN')
                         flyby_IDs.extend(full_moon_flybys_list)
                         # Remove duplicates
                         flyby_IDs = list(dict.fromkeys(flyby_IDs))
@@ -1049,7 +1085,7 @@ class LoadPDS:
                     # Process Enceladus flybys if 'ALL_ENCELADUS' is in the list
                     if 'ALL_ENCELADUS' in flyby_IDs:
                         flyby_IDs.remove('ALL_ENCELADUS')  # Remove 'ALL_ENCELADUS'
-                        full_moon_flybys_list = self.get_full_moon_flybys_list('ENCELADUS')
+                        full_moon_flybys_list = self.get_cassini_full_moon_flybys_list('ENCELADUS')
                         flyby_IDs.extend(full_moon_flybys_list)
                         # Remove duplicates
                         flyby_IDs = list(dict.fromkeys(flyby_IDs))
@@ -1077,7 +1113,7 @@ class LoadPDS:
                     for MOON in ['TITAN', 'ENCELADUS']:
                         if f'ALL_{MOON}' == flyby_IDs:
                             flyby_IDs.remove(f'ALL_{MOON}')
-                            full_moon_flybys_list= self.get_full_moon_flybys_list(MOON)
+                            full_moon_flybys_list= self.get_cassini_full_moon_flybys_list(MOON)
                             flyby_IDs.extend(full_moon_flybys_list)
                             flyby_IDs = list(set(flyby_IDs))  # This removes duplicates
 
@@ -1130,8 +1166,11 @@ class LoadPDS:
             elif input_mission == 'cassini':
                 kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder)
 
-            elif input_mission == 'grail':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_files(local_folder,start_date, end_date)
+            elif input_mission == 'grail-a':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_a_files(local_folder,start_date, end_date)
+
+            elif input_mission == 'grail-b':
+                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_b_files(local_folder,start_date, end_date)
 
             if kernel_files_to_load:
                 for kernel_type, kernel_files in kernel_files_to_load.items():
@@ -1246,7 +1285,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/"
-        wanted_clock_files = ["MEX_241031_STEP.TSC"] #latest mex tsc file
+        wanted_clock_files = ["MEX_241127_STEP.TSC	"] #latest mex tsc file
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -1423,8 +1462,8 @@ class LoadPDS:
             volume_id = match.group(1)
             start_date_file = match.group(2)
             end_date_file = match.group(3)
-            start_date_utc = LoadPDS.generic_strptime(LoadPDS, match.group(2))
-            end_date_utc = LoadPDS.generic_strptime(LoadPDS, match.group(3))
+            start_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, match.group(2))
+            end_date_utc = LoadPDS.format_string_to_datetime(LoadPDS, match.group(3))
             interval_key_for_retrieval = (start_date_utc, end_date_utc)
             observation_type = match.group(4).strip()
 
@@ -1899,15 +1938,15 @@ class LoadPDS:
             os.mkdir(local_folder)
 
         filenames_to_download = []
-        flyby_dict = self.flyby2experiment(flyby_ID)
+        flyby_dict = self.cassini_flyby2experiment(flyby_ID)
 
         # Ensure 'cumindex_repo' is set to 'pds_repo' if 'cumindex_repo' is None
         cumindex_repo = flyby_dict['cumindex_repo'].lower() if flyby_dict['cumindex_repo'] is not None else flyby_dict['pds_repo'].lower()
 
         # Get URLs and cumulative index table
-        volume_url = self.get_flyby_volume_url(flyby_dict)
-        cumindex_url = self.get_flyby_cumindex_url(flyby_dict)
-        cumindex_dict = self.get_volume_cumindex_table(cumindex_url)
+        volume_url = self.get_cassini_flyby_volume_url(flyby_dict)
+        cumindex_url = self.get_cassini_flyby_cumindex_url(flyby_dict)
+        cumindex_dict = self.get_cassini_volume_cumindex_table(cumindex_url)
 
         # Create dictionary of filenames by pds_repo
         filenames_dict = {pds_repo: data["file_name"] for pds_repo, data in cumindex_dict.items()}
@@ -1992,10 +2031,10 @@ class LoadPDS:
 
     ########################################################################################################################################
 
-    def flyby2experiment(self, flyby_ID):
+    def cassini_flyby2experiment(self, flyby_ID):
         """
         Description:
-        Returns the experiment data for a given flyby ID from the `titan_flyby_dict`. If the provided
+        Returns the experiment data for a given flyby ID from the `cassini_titan_flyby_dict`. If the provided
         flyby ID exists in the dictionary, it retrieves the corresponding data; otherwise, it returns a
         message indicating that the flyby ID was not found.
 
@@ -2008,20 +2047,19 @@ class LoadPDS:
         """
 
         # Check if the flyby_ID exists in the dictionary
-        if flyby_ID in self.titan_flyby_dict:
+        if flyby_ID in self.cassini_titan_flyby_dict:
             # Return the corresponding data for the given flyby_ID
-            return self.titan_flyby_dict[flyby_ID]
+            return self.cassini_titan_flyby_dict[flyby_ID]
         else:
             # If the flyby_ID is not found, return a message indicating so
             return f"Flyby ID {flyby_ID} not found."
-
     ########################################################################################################################################
 
-    def get_full_moon_flybys_list(self, MOON):
+    def get_cassini_full_moon_flybys_list(self, MOON):
         """
         Description:
         Returns a list of flyby IDs corresponding to either Titan or Enceladus. If the provided
-        moon name is 'titan', it returns the flyby IDs from the `titan_flyby_dict`; if the name is
+        moon name is 'titan', it returns the flyby IDs from the `cassini_titan_flyby_dict`; if the name is
         'enceladus', it returns the flyby IDs from the `enceladus_flyby_dict`. If the input moon name
         is invalid, an error is raised.
 
@@ -2034,8 +2072,8 @@ class LoadPDS:
               a `ValueError` is raised.
         """
         if MOON.lower() == 'titan':
-            # Return the keys of the titan_flyby_dict
-            return list(self.titan_flyby_dict.keys())
+            # Return the keys of the cassini_titan_flyby_dict
+            return list(self.cassini_titan_flyby_dict.keys())
         elif MOON.lower() == 'enceladus':
             # Return the keys of the enceladus_flyby_dict
             return list(self.enceladus_flyby_dict.keys())
@@ -2044,7 +2082,7 @@ class LoadPDS:
 
     ########################################################################################################################################
 
-    def get_flyby_volume_url(self, flyby_dict):
+    def get_cassini_flyby_volume_url(self, flyby_dict):
 
         """
         Description:
@@ -2079,7 +2117,7 @@ class LoadPDS:
                 return self.pds_repo_url
             else:
                 # If the status code is not 200, URL doesn't exist
-                print(f"URL not found: {pds_repo_url}. Please check the template URL in: get_flyby_volume_url")
+                print(f"URL not found: {pds_repo_url}. Please check the template URL in: get_cassini_flyby_volume_url")
                 return None
 
         except requests.exceptions.RequestException as e:
@@ -2089,7 +2127,7 @@ class LoadPDS:
 
     ########################################################################################################################################
 
-    def get_flyby_cumindex_url(self, flyby_dict):
+    def get_cassini_flyby_cumindex_url(self, flyby_dict):
 
         """
         Description:
@@ -2132,7 +2170,7 @@ class LoadPDS:
                     self.cumindex_url = cumindex_url
                     return self.cumindex_url
                 else:
-                    print(f"URL not found: {cumindex_url}. Please check the template URL in: get_flyby_cumindex_url")
+                    print(f"URL not found: {cumindex_url}. Please check the template URL in: get_cassini_flyby_cumindex_url")
                     return None  # Or return an appropriate message indicating the issue
 
         except requests.exceptions.RequestException as e:
@@ -2142,7 +2180,7 @@ class LoadPDS:
 
     ########################################################################################################################################
 
-    def get_volume_cumindex_table(self, cumindex_url):
+    def get_cassini_volume_cumindex_table(self, cumindex_url):
 
         """
         Description:
@@ -2204,9 +2242,9 @@ class LoadPDS:
             # Check if both words in any pair appear in the file_label
             if any(all(word in file_label.lower() for word in pair) for pair in keywords):
                 try:
-                    start_date_utc = self.generic_strptime(start_date_utc)
-                    end_date_utc = self.generic_strptime(end_date_utc)
-                    creation_date_utc = self.generic_strptime(creation_date_utc)
+                    start_date_utc = self.format_string_to_datetime(start_date_utc)
+                    end_date_utc = self.format_string_to_datetime(end_date_utc)
+                    creation_date_utc = self.format_string_to_datetime(creation_date_utc)
                 except ValueError:
                     print('Skipping time conversion due to invalid date format.')
                     continue  # Skip rows with invalid date format
@@ -2232,9 +2270,16 @@ class LoadPDS:
 
         # Return the cumindex_table
         return cumindex_table
-
+    ########################################################################################################################################
+########################################## END OF CASSINI SECTION #####################################################################
 ########################################################################################################################################
-    def get_grail_files(self,local_folder, start_date, end_date):
+
+    ########################################################################################################################################
+########################################## START OF GRAIL-A SECTION ####################################################################
+########################################################################################################################################
+
+    
+    def get_grail_a_files(self,local_folder, start_date, end_date):
 
         """
         Description:
@@ -2258,7 +2303,7 @@ class LoadPDS:
         self.kernel_files_to_load = {}
         self.ancillary_files_to_load = {}
 
-        input_mission = 'grail'
+        input_mission = 'grail-a'
         all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
 
         # ODF files
@@ -2384,3 +2429,165 @@ class LoadPDS:
             print('No ionospheric files to download this time.')
 
         return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
+
+########################################################################################################################################
+########################################## END OF GRAIL-A SECTION ####################################################################
+########################################################################################################################################
+
+    ########################################################################################################################################
+########################################## START OF GRAIL-B SECTION ####################################################################
+########################################################################################################################################
+
+    def get_grail_b_files(self,local_folder, start_date, end_date):
+
+        """
+        Description:
+        Downloads various SPICE kernel and ancillary files for the GRAIL mission, including clock, frame,
+        orientation, and SPK kernels, based on a specified date range. Files are saved in the provided local folder.
+
+        Inputs:
+            - local_folder (`str`): Path to the local folder where files will be saved.
+            - start_date (`datetime`): The start date for the data retrieval.
+            - end_date (`datetime`): The end date for the data retrieval.
+
+        Outputs:
+            - `kernel_files_to_load` (`dict`): A dictionary containing the loaded kernel files, categorized by type
+              (e.g., 'sclk', 'fk', 'ck', 'spk').
+            - `radio_science_files_to_load` (`dict`): An empty dictionary for now, intended for radio science files.
+            - `ancillary_files_to_load` (`dict`): An empty dictionary for now, intended for ancillary files.
+        """
+
+
+        self.radio_science_files_to_load = {}
+        self.kernel_files_to_load = {}
+        self.ancillary_files_to_load = {}
+
+        input_mission = 'grail-b'
+        all_dates = [start_date+timedelta(days=x) for x in range((end_date-start_date).days+1)]
+
+        # ODF files
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} ODF files:')
+        url_radio_science_files = ["https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/odf/"]
+        for url_radio_science_file in url_radio_science_files:
+            try:
+                files = self.dynamic_download_url_files_single_time(input_mission,
+                                                                    local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                    url=url_radio_science_file)
+                key = "odf"
+                self.radio_science_files_to_load[key] = files
+            except:
+                continue
+
+        if not self.radio_science_files_to_load:
+            print('No Radio Science files to download this time.')
+
+        #Clock Kernels
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Clock Kernels:')
+        url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
+        wanted_clock_files= ["gra_sclkscet_00014.tsc"]
+        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+
+        if clock_files_to_load:
+            self.kernel_files_to_load['sclk'] = clock_files_to_load
+        else:
+            print('No sclk files to download this time.')
+
+            #Frame Kernels
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Frame Kernels:')
+        url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
+        wanted_frame_files=["grail_v07.tf"]
+        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+
+        if frame_files_to_load:
+            self.kernel_files_to_load['fk'] = frame_files_to_load
+        else:
+            print('No fk files to download this time.')
+
+            #Manoeuver Files
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Manoeuver Files:')
+        url_man_files="https://pds-geosciences.wustl.edu/grail/grail-l-lgrs-2-edr-v1/grail_0001/level_0/2012_04_06/"
+        wanted_man_files=["mas00_2012_04_06_a_04.asc"]
+        man_files_to_load = self.get_kernels(url_man_files, wanted_man_files, local_folder)
+
+        if frame_files_to_load:
+            self.ancillary_files_to_load['manoeuver'] = man_files_to_load
+        else:
+            print('No manoeuver files to download this time.')
+
+
+            # Planetary and Ephemeris Kernels
+        spk_files_to_load = []
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} SPK Kernels:')
+        url_spk_files =["https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/spk/"]
+        if len(url_spk_files) == 1:
+            spk_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                      local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                      url=url_spk_files[0])
+        else:
+            for url_spk_file in url_spk_files:
+                spk_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                          local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                          url=url_spk_file)
+
+        if spk_files_to_load:
+            self.kernel_files_to_load['ck'] = spk_files_to_load
+        else:
+            print('No spk files to download this time.')
+
+
+            # Orientation Kernels
+        ck_files_to_load = []
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Orientation Kernels:')
+        measured_url_ck_files =["https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/ck/"]
+
+        if len(measured_url_ck_files) == 1:
+            measured_ck_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                      local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                      url=measured_url_ck_files[0])
+        else:
+            for measured_url_ck_file in measured_url_ck_files:
+                measured_ck_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                                          local_path=local_folder, start_date=start_date,end_date=end_date,
+                                                                                          url=measured_url_ck_file)
+
+        if measured_ck_files_to_load:
+            self.kernel_files_to_load['ck'] = measured_ck_files_to_load
+        else:
+            print('No ck files to download this time.')
+
+            # Tropospheric corrections
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Tropospheric Corrections Files')
+        url_tropo_files = "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/ancillary/tro/"
+        tropo_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                            local_path=local_folder, start_date=start_date,
+                                                                            end_date=end_date, url=url_tropo_files)
+
+        if tropo_files_to_load:
+            self.ancillary_files_to_load['tro'] = tropo_files_to_load
+        else:
+            print('No tropospheric files to download this time.')
+
+            # Ionospheric corrections
+        print(f'===========================================================================================================')
+        print(f'Download {input_mission.upper()} Ionospheric Corrections Files')
+        url_ion_files = "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/ancillary/ion/"
+        ion_files_to_load = self.dynamic_download_url_files_time_interval(input_mission,
+                                                                          local_path=local_folder, start_date=start_date, end_date=end_date,
+                                                                          url=url_ion_files)
+
+        if ion_files_to_load:
+            self.ancillary_files_to_load['ion'] = ion_files_to_load
+        else:
+            print('No ionospheric files to download this time.')
+
+        return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
+########################################################################################################################################
+########################################## END OF GRAIL-B SECTION ####################################################################
+########################################################################################################################################

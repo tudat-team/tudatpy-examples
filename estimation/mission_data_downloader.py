@@ -23,12 +23,12 @@
 # - **Mars Express (MEX)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # - **Jupiter Icy Moons Explorer (JUICE)** [Available: Spice Kernels, Not Available (yet): Doppler Data, Ancillary]
 # - **Cassini**
+# - **GRAIL (both Grail-A and Grail-B)**
 # 
 # Foreseen supported missions (in descending priority order, code yet to be developed):
 # 
 # - Insight
 # - VEX
-# - GRAIL
 # - LRO
 # 
 # **NOTE 2. (Default and Custom Outputs)**
@@ -47,10 +47,10 @@
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
 
-# In[2]:
+# In[1]:
 
 
-from tudatpy.data.mission_data_downloader import *
+from mission_data_downloader_class import *
 
 
 # ## Create the LoadPDS Object
@@ -69,10 +69,14 @@ object = LoadPDS()
 # Then we select the `start_date` and `end_date`, and we do so for each mission we wish to download (Cassini will be an exception due to the peculiar mission concept, see **Cassini Downloader** below). Of course, each mission has to come with its own dates, as operations are carried out over different periods. 
 # 
 # ### Download Mission Files (MRO, MEX, JUICE)
-# Finally, we can call the function "get_mission_files
+# Finally, we can call the function "get_mission_files".
 # get_mro_files will download: clock kernels, orientation kernels, radio science (odf) files for mro
 # get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
 # get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
+# 
+# **Note 5 (About MEX and JUICE Files Download)**
+# 
+# Here, we will only showcase the downloading of MRO files. However, **if you wish to download files for MEX or JUICE**, you can simply **uncomment the corresponding lines** in the cell below! We have included those **just for you**!
 
 # In[3]:
 
@@ -92,11 +96,11 @@ end_date_mex = datetime(2004,2, 7)
 kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(input_mission = 'mro', start_date = start_date_mro, end_date = end_date_mro, custom_output = None)         
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
 # ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
@@ -109,13 +113,13 @@ print(f'MRO Kernels: {kernel_files_mro}\n')
 print(f'MRO Radio Science: {radio_science_files_mro}\n')
 print(f'MRO Ancillary: {ancillary_files_mro}\n')
 
-#print(f'MEX Kernels: {kernel_files_mex}\n')
-#print(f'MEX Radio Science: {radio_science_files_mex}\n')
-#print(f'MEX Ancillary: {ancillary_files_mex}\n')
+print(f'MEX Kernels: {kernel_files_mex}\n')
+print(f'MEX Radio Science: {radio_science_files_mex}\n')
+print(f'MEX Ancillary: {ancillary_files_mex}\n')
 
-#print(f'JUICE Kernels: {kernel_files_juice}\n')
-#print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
-#print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
+print(f'JUICE Kernels: {kernel_files_juice}\n')
+print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
+print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
 
 
 # ## Cassini Downloader (with Custom Output)
@@ -126,7 +130,7 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # For this reason, in order to retrieve Cassini data, we will require the name of the flyby data the user wishes to download, rather than a start and end date (see **Notes 5 and 6** for info on the supported flybys). 
 # 
 # ### Download Cassini Flyby Files
-# We can call the function "get_mission_files" with 'Cassini' as input_mission. This call will print a comprehensive table of supported flybys to choose from, and the user will be asked to manually input the name of one of them.
+# We can call the function "get_mission_files" with 'Cassini' as input_mission. This call **will print a comprehensive table of supported flybys to choose from**, and the user will be asked to manually input the name of one of them.
 # 
 # ### Flyby Data Output Division
 # 
@@ -144,6 +148,9 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # 3) a list made of all flybys performed at a given moon: `flyby_IDs = ['ALL_TITAN']`
 # 4) a single string object like: `flyby_IDs = 'ALL_TITAN'`
 # 5) a mixed list like: `flyby_IDs = ['T011', 'ALL_TITAN']`
+# 
+# As mentioned above in *Download Cassini Flyby Files*, **you can also decide not to specify any flyby_ID**. 
+# In this case, **a table will be printed out** from which you will be able to interactively select the flyby you're interested in. 
 # 
 # **Note 7: Custom Output**
 # 
@@ -168,4 +175,40 @@ print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded
 print(f'CASSINI Kernels: {kernel_files_cassini}\n')
 print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
 print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
+
+
+# ## GRAIL-A and GRAIL-B Downloader (with Custom Output)
+# As we mentioned above, you can also download GRAIL data for both GRAIL-A and GRAIL-B spacecraft. These can be downloaded as usually via the command: `get_mission_files`, specifying either: 'grail-a' or 'grail_b' as `input_mission`. Two folders will be created by default: `grail_archive/grail-a` and `grail_archive/grail-b`. However, you can still choose your own custom output folder. Let's call it `'GRAIL_ARCHIVE'`.
+
+# In[7]:
+
+
+start_date_grail_a = datetime(2012, 4, 6)
+end_date_grail_a = datetime(2012, 4, 12)
+
+start_date_grail_b = datetime(2012, 5, 6)
+end_date_grail_b = datetime(2012, 6, 12)
+
+kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(input_mission = 'grail-a', start_date = start_date_grail_a, end_date = end_date_grail_a, custom_output = './GRAIL_ARCHIVE')         
+print(f'Total number of loaded kernels (GRAIL-A): {spice.get_total_count_of_kernels_loaded()}')
+kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(input_mission = 'grail-b', start_date = start_date_grail_b, end_date = end_date_grail_b, custom_output = './GRAIL_ARCHIVE')         
+print(f'Total number of loaded kernels (GRAIL-B): {spice.get_total_count_of_kernels_loaded()}')
+
+
+# In[15]:
+
+
+print(f'GRAIL-A Kernels: {kernel_files_grail_a}\n')
+print(f'GRAIL-A Radio Science: {radio_science_files_grail_a}\n')
+print(f'GRAIL-A Ancillary: {ancillary_files_grail_a}\n')
+print('############################################################################################################################################\n')
+print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
+print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
+print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
+
+
+# In[ ]:
+
+
+
 
