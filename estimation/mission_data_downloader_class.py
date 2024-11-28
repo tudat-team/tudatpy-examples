@@ -780,32 +780,34 @@ class LoadPDS:
                         start_time = dictionary["start_date_utc"]
                         end_time = dictionary["end_date_utc"]
                         version = dictionary.get("version", "v00")  # Default version if not provided
+                        ext = dictionary.get("extension")
 
                         if start_time is None or end_time is None:
                             print(f'Unwanted filename found: {filename_to_download}. Skipping... [Do not worry! ;)]')
                             continue
 
                         # Extract the base filename without the version
-                        base_name_without_version = filename_to_download.replace(version, "")
-                        print(f'base_name_without_version: {base_name_without_version}')
+                        print(filename_to_download)
+                        base_name_no_version_no_ext = filename_to_download.replace(version, "").replace(ext, "")
+                        print(f'base_name_no_version_no_ext: {base_name_no_version_no_ext}')
                         current_version = int(version[1:])  # Extract numeric version (e.g., v02 -> 2)
                         print(f'current_version: {current_version}')
                         # Only store the highest version
-                        print(files_url_dict)
-                        if not any(base_name_without_version in value.replace("v", "").split(".")[0] for value in files_url_dict.values()):
-                            print(f'base_name: {base_name_without_version} not in files_url dict. Appending {filename_to_download}')
+                        if not any(base_name_no_version_no_ext in value for value in files_url_dict.values()):
+                            print(f'base_name: {base_name_no_version_no_ext} not in files_url dict. Appending {filename_to_download}')
                             files_url_dict[(start_time, end_time)] = filename_to_download
                         else:
-                            print(f'base_name: {base_name_without_version} ALREADY in files_url dict!')
+                            print(f'base_name: {base_name_no_version_no_ext} ALREADY in files_url dict!')
+                            stored_version = int(dictionary.get("version")[1:])
                             print(f'stored_version: {stored_version}')
-                            stored_version = dictionary.get("version")
-                            if current_version > stored_version:
+                            if current_version >= stored_version:
                                 print(f'current:{current_version} > stored: {stored_version}')
                                 files_url_dict[(start_time, end_time)] = filename_to_download.replace(version, current_version)
 
                     except:
                         continue  # Skip to the next link
 
+        print(files_url_dict)
         # Download files for all intervals from the HTML response
         for new_interval, filename_to_download in files_url_dict.items():
             full_local_path = os.path.join(local_subfolder,filename_to_download)
