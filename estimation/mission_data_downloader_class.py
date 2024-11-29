@@ -15,6 +15,7 @@ import subprocess
 import pandas as pd
 from tabulate import tabulate
 from colorama import Fore
+from collections import defaultdict
 
 ### Class for Loading PDS files
 class LoadPDS:
@@ -177,7 +178,34 @@ class LoadPDS:
         self.supported_mission_odf_time_formats = {
             'mro': 'YYYY_jjj', 'grail-a': 'YYYY_jjj', 'grail-b': 'YYYY_jjj'
         }
-    
+
+        self.supported_mission_meta_kernel_url = {
+            'mro': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/extras/mk/', 
+            'mex': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/mk/', 
+            'juice': 'https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/mk/', 
+            'cassini': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/co-s_j_e_v-spice-6-v1.0/cosp_1000/extras/mk/', 
+            'grail-a': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/extras/mk/', 
+            'grail-b': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/extras/mk/'
+        }
+
+        self.supported_mission_meta_kernel_pattern = {
+            'mro': re.compile(r'^(mro)_(\d{4})_v(\d{2})\.tm$'), 
+            'mex': re.compile(r'MEX_OPS.TM'), 
+            'juice': re.compile(r'juice_ops.tm'), 
+            'cassini': re.compile(r'^cas_(\d{4})_v(\d{2})\.tm$'), 
+            'grail-a': re.compile(r'^grail_v(\d{2})\.tm$'), 
+            'grail-b': re.compile(r'^grail_v(\d{2})\.tm$')
+        }
+
+        self.supported_mission_kernels_url = {
+            'mro': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/', 
+            'mex': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels', 
+            'juice': 'https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels', 
+            'cassini': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/co-s_j_e_v-spice-6-v1.0/cosp_1000/data/', 
+            'grail-a': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/', 
+            'grail-b': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/'
+        }
+
 
     #########################################################################################################
 
@@ -219,7 +247,7 @@ class LoadPDS:
 
     #########################################################################################################
     
-    def transfer2binary(self, input_file, timeout = 5):
+    def spice_transfer2binary(self, input_file, timeout = 5):
 
         """
         Description:
@@ -471,7 +499,74 @@ class LoadPDS:
 
     #########################################################################################################
 
-    def add_custom_mission_pattern(self, input_mission, custom_pattern):
+    def add_custom_mission_kernel_pattern(self, input_mission, custom_kernel_type, custom_pattern):
+        """
+        Description:
+            Allows users to define and add custom regex patterns for a specific mission to the list of supported patterns. Once added, the custom pattern can be used for mission data file matching.
+
+        Input:
+            - `input_mission` (`str`): The name of the mission for which the custom pattern is defined.
+            - `custom_kernel_type`: the name of kernel type (eg 'ck'., 'spk', etc...)
+            - `custom_pattern` (`str`): The regular expression pattern that will be associated with the mission kernel.
+
+        Output:
+            - `dict`: The updated `supported_kernel_patterns` dictionary containing the new custom pattern.
+
+        Notes:
+            - This function updates the `supported__kernel_patterns` dictionary with the new mission and its associated pattern.
+            - Custom patterns can be added dynamically at runtime.
+        """
+        custom_dict = {}
+        custom_dict[input_mission] = {custom_kernel_type: custom_pattern}
+        self.supported_kernel_patterns.update(custom_dict)
+
+        return self.supported_kernel_patterns
+
+    def add_custom_mission_meta_kernel_url(self, input_mission, url):
+        """
+        Description:
+            Allows users to define and add custom regex patterns for a specific mission to the list of supported patterns. Once added, the custom pattern can be used for mission data file matching.
+
+        Input:
+            - `input_mission` (`str`): The name of the mission for which the custom pattern is defined.
+            - `url` (`str`): The url that will be associated with the mission.
+
+        Output:
+            - `dict`: The updated `supported_mission_meta_kernel_url` dictionary containing the new custom pattern.
+
+        Notes:
+            - This function updates the `supported_mission_meta_kernel_url` dictionary with the new mission and its associated pattern.
+            - Custom patterns can be added dynamically at runtime.
+        """
+        custom_dict = {}
+        custom_dict[input_mission] = url
+        self.supported_mission_meta_kernel_url.update(custom_dict)
+
+        return self.supported_mission_meta_kernel_url
+
+    def add_custom_mission_kernels_url(self, input_mission, url):
+        """
+        Description:
+            Allows users to define and add custom regex patterns for a specific mission to the list of supported patterns. Once added, the custom pattern can be used for mission data file matching.
+
+        Input:
+            - `input_mission` (`str`): The name of the mission for which the custom pattern is defined.
+            - `url` (`str`): The url that will be associated with the mission.
+
+        Output:
+            - `dict`: The updated `supported_mission_kernels_url` dictionary containing the new custom pattern.
+
+        Notes:
+            - This function updates the `supported_mission_kernels_url` dictionary with the new mission and its associated pattern.
+            - Custom patterns can be added dynamically at runtime.
+        """
+        custom_dict = {}
+        custom_dict[input_mission] = url
+        self.supported_mission_kernels_url.update(custom_dict)
+
+        return self.supported_mission_kernels_url
+
+    def add_custom_mission_meta_kernel_pattern(self, input_mission, custom_pattern):
         """
         Description:
             Allows users to define and add custom regex patterns for a specific mission to the list of supported patterns. Once added, the custom pattern can be used for mission data file matching.
@@ -481,19 +576,19 @@ class LoadPDS:
             - `custom_pattern` (`str`): The regular expression pattern that will be associated with the mission.
 
         Output:
-            - `dict`: The updated `supported_patterns` dictionary containing the new custom pattern.
+            - `dict`: The updated `supported_mission_kernel_pattern` dictionary containing the new custom pattern.
 
         Notes:
-            - This function updates the `supported_patterns` dictionary with the new mission and its associated pattern.
+            - This function updates the `supported_mission_kernel_pattern` dictionary with the new mission and its associated pattern.
             - Custom patterns can be added dynamically at runtime.
         """
         custom_dict = {}
         custom_dict[input_mission] = custom_pattern
-        self.supported_patterns.update(custom_dict)
+        self.supported_mission_meta_kernel_pattern.update(custom_pattern)
 
-        return self.supported_patterns
-
-    #########################################################################################################
+        return self.supported_mission_kernel_pattern
+        
+#########################################################################################################
 
     def is_date_in_intervals(self, date, intervals):
 
@@ -1006,6 +1101,112 @@ class LoadPDS:
         return "".join(reconstructed_filename)
 
     #########################################################################################################
+    
+    def extract_kernels_from_meta_kernel(self, input_mission):
+        """
+        Fetches a meta-kernel file from an HTTPS URL and categorizes kernel files by type
+        using the type-to-extension mapping.
+
+        Parameters:
+            input_mission (str): e.g. 'mex', 'mro', 'juice', etc...
+
+        Returns:
+            dict: A dictionary categorizing kernel files by type based on `type_to_extension`.
+        """
+        self.kernel_files_to_load = defaultdict(list)
+
+        meta_kernel_url = self.get_latest_meta_kernel(input_mission)
+
+        try:
+            # Fetch the meta-kernel file content
+            response = requests.get(meta_kernel_url)
+            response.raise_for_status()  # Raise an error for bad status codes
+            lines = response.text.splitlines()
+
+            for line in lines:
+                line = line.strip()
+                # Ignore comment lines and empty lines
+                if line.startswith('\\') or not line:
+                    continue
+                # Check for kernel file names in quoted paths
+                if "'" in line or '"' in line:
+                    # Extract the kernel path between quotes
+                    start_idx = line.find("'") if "'" in line else line.find('"')
+                    end_idx = line.rfind("'") if "'" in line else line.rfind('"')
+                    if start_idx != -1 and end_idx != -1:
+                        relative_kernel_path = line[start_idx + 1:end_idx]
+                        full_kernel_path = relative_kernel_path.replace('$KERNELS/', self.supported_mission_kernels_url[input_mission.lower()])
+                        # Extract the file extension
+                        file_extension = full_kernel_path.split('.')[-1]
+                        # Categorize based on the type-to-extension mapping
+                        matched_key = next(
+                            (key for key, ext in self.type_to_extension.items() if ext == file_extension),
+                            None  # No fallback, unmatched extensions will be ignored
+                            )
+                        if matched_key:  # Only add to self.kernel_files_to_load if a match is found
+                            self.kernel_files_to_load[matched_key].append(full_kernel_path)
+
+            return self.kernel_files_to_load
+
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred while fetching the meta-kernel: {e}")
+            return {}
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return {}
+    
+    #########################################################################################################
+
+    def get_latest_meta_kernel(self, input_mission):
+        
+        """
+        Finds the most recent meta-kernel file URL based on year and version.
+
+        Parameters:
+            base_url (str): The base URL containing meta-kernel file links.
+
+        Returns:
+            str: The URL of the most recent meta-kernel file.
+        """
+
+        base_url = self.supported_mission_meta_kernel_url[input_mission.lower()]
+        meta_kernel_pattern = self.supported_mission_meta_kernel_pattern[input_mission.lower()] #the pattern for mex and juice is an exacrt name 
+        
+        try:
+            # Fetch the HTML page
+            response = requests.get(base_url)
+            response.raise_for_status()  # Raise an error for bad status codes
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Extract all matching filenames and their year/version
+            meta_kernels = []
+            for link in soup.find_all('a', href=True):
+                match = meta_kernel_pattern.match(link['href'])
+                if match:
+                    # Find the most recent meta-kernel based on year and version
+                    try:
+                        year = int(match.group(2))
+                        version = int(match.group(3))
+                        meta_kernels.append((year, version, base_url + link['href'])) #iterating through the past list of meta kernels
+                    except:
+                        self.latest_kernel = (base_url + link['href']) #there is just one exact name for juice and mex (no-brainer)
+                        return self.latest_kernel
+
+            if meta_kernels:
+                self.latest_kernel = max(meta_kernels, key=lambda x: (x[0], x[1]))
+                return self.latest_kernel[2]  # Return the URL of the most recent file
+            else:
+                print("No meta-kernels found matching the pattern.")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred while fetching the meta-kernel list: {e}")
+            return None
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+
+    #########################################################################################################
 
     def get_mission_files(self, input_mission, start_date = None, end_date = None, flyby_IDs = None, custom_output = None):
 
@@ -1175,7 +1376,7 @@ class LoadPDS:
             if kernel_files_to_load:
                 for kernel_type, kernel_files in kernel_files_to_load.items():
                     for kernel_file in kernel_files:  # Iterate over each file in the list
-                        converted_kernel_file = self.transfer2binary(kernel_file)
+                        converted_kernel_file = self.spice_transfer2binary(kernel_file)
                         try:
                             spice.load_kernel(converted_kernel_file)  # Load each file individually
                             if kernel_type not in self.all_kernel_files.keys():
@@ -2283,7 +2484,7 @@ class LoadPDS:
 
         """
         Description:
-        Downloads various SPICE kernel and ancillary files for the GRAIL mission, including clock, frame,
+        Downloads various SPICE kernel and ancillary files for the GRAIL-A mission, including clock, frame,
         orientation, and SPK kernels, based on a specified date range. Files are saved in the provided local folder.
 
         Inputs:
@@ -2442,7 +2643,7 @@ class LoadPDS:
 
         """
         Description:
-        Downloads various SPICE kernel and ancillary files for the GRAIL mission, including clock, frame,
+        Downloads various SPICE kernel and ancillary files for the GRAIL_B mission, including clock, frame,
         orientation, and SPK kernels, based on a specified date range. Files are saved in the provided local folder.
 
         Inputs:
