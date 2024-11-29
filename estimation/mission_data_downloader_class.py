@@ -199,8 +199,8 @@ class LoadPDS:
 
         self.supported_mission_kernels_url = {
             'mro': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/', 
-            'mex': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels', 
-            'juice': 'https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels', 
+            'mex': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/', 
+            'juice': 'https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/', 
             'cassini': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/co-s_j_e_v-spice-6-v1.0/cosp_1000/data/', 
             'grail-a': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/', 
             'grail-b': 'https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/'
@@ -486,7 +486,7 @@ class LoadPDS:
 
         # Create full paths for each file to load locally
         self.files_to_load = [os.path.join(local_folder, data_type, wanted_file) for wanted_file in wanted_files]
-
+        
         # Download each file if not already present
         for wanted_file, local_file in zip(wanted_files, self.files_to_load):
             if not os.path.exists(local_file):
@@ -942,13 +942,11 @@ class LoadPDS:
                         print(f'Downloading: {os.path.join(url,filename_to_download)} to: {full_local_path}')  # Print which file is being downloaded
                         urlretrieve(os.path.join(url,filename_to_download), full_local_path)  # Download the file
                         self.relevant_files.append(full_local_path)
-                        #spice.load_kernel(full_local_path)  # Load the downloaded file
             else:
                 if any(self.is_date_in_intervals(date, [new_interval]) for date in all_dates):
                     print(f'Downloading: {os.path.join(url,filename_to_download)} to: {full_local_path}')  # Print which file is being downloaded
                     urlretrieve(os.path.join(url,filename_to_download), full_local_path)  # Download the file
                     self.relevant_files.append(full_local_path)
-                    #spice.load_kernel(full_local_path)  # Load the downloaded file
 
         if len(self.relevant_files) == 0:
             print('Nothing to download.')
@@ -1113,9 +1111,10 @@ class LoadPDS:
         Returns:
             dict: A dictionary categorizing kernel files by type based on `type_to_extension`.
         """
-        self.kernel_files_to_load = defaultdict(list)
+        self.kernel_files_names = defaultdict(list)
 
         meta_kernel_url = self.get_latest_meta_kernel(input_mission)
+
 
         try:
             # Fetch the meta-kernel file content
@@ -1137,16 +1136,16 @@ class LoadPDS:
                         relative_kernel_path = line[start_idx + 1:end_idx]
                         full_kernel_path = relative_kernel_path.replace('$KERNELS/', self.supported_mission_kernels_url[input_mission.lower()])
                         # Extract the file extension
-                        file_extension = full_kernel_path.split('.')[-1]
+                        file_extension = full_kernel_path.split('.')[-1].lower()
                         # Categorize based on the type-to-extension mapping
                         matched_key = next(
                             (key for key, ext in self.type_to_extension.items() if ext == file_extension),
                             None  # No fallback, unmatched extensions will be ignored
                             )
-                        if matched_key:  # Only add to self.kernel_files_to_load if a match is found
-                            self.kernel_files_to_load[matched_key].append(full_kernel_path)
+                        if matched_key:  # Only add to self.kernel_files_names if a match is found
+                            self.kernel_files_names[matched_key].append(full_kernel_path)
 
-            return self.kernel_files_to_load
+            return self.kernel_files_names
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred while fetching the meta-kernel: {e}")
@@ -1154,7 +1153,29 @@ class LoadPDS:
         except Exception as e:
             print(f"An error occurred: {e}")
             return {}
+    #########################################################################################################
     
+    def download_kernels_from_meta_kernel(self, input_mission, local_folder):
+        
+        self.kernel_files_to_load = self.extract_kernels_from_meta_kernel(input_mission)
+
+        for kernel_type, kernel_urls in self.kernel_files_to_load.items():
+            for kernel_url in kernel_urls:
+                kernel_name = kernel_url.split('/')[-1]
+                kernel_ext = self.get_extension_for_data_type(kernel_type)
+                local_kernel_folder = os.path.join(local_folder, kernel_ext)
+                local_file_path = os.path.join(local_kernel_folder, kernel_name)
+                if not os.path.exists(local_kernel_folder):
+                    os.mkdir(local_kernel_folder)
+                    print(f"Downloading: '{kernel_url}' to: {local_file_path}")
+                    urlretrieve(kernel_url, local_file_path)
+                    
+                else:
+                    print(f"Downloading: '{kernel_url}' to: {local_file_path}")
+                    urlretrieve(kernel_url, local_file_path)
+
+        return self.kernel_files_to_load
+            
     #########################################################################################################
 
     def get_latest_meta_kernel(self, input_mission):
@@ -1208,7 +1229,24 @@ class LoadPDS:
 
     #########################################################################################################
 
-    def get_mission_files(self, input_mission, start_date = None, end_date = None, flyby_IDs = None, custom_output = None):
+    def get_latest_clock_kernel_name(self, input_mission):
+        kernels_from_meta_kernel = self.extract_kernels_from_meta_kernel(input_mission)
+        
+        for kernel_type, kernel_files in kernels_from_meta_kernel.items():
+            for kernel_file in kernel_files:
+                if kernel_type == 'sclk':
+                    if len(kernel_files) > 1:
+                        clock_files_list = []
+                        print(f'Warning: Clock Kernel Ambiguity Found: {kernel_files}.')
+                        for clock_file in kernel_files:
+                            clock_files_list.append(clock_file.split('/')[-1])
+                    else:
+                        clock_file = kernel_file
+                        return clock_file.split('/')[-1]
+                
+    #########################################################################################################
+
+    def get_mission_files(self, input_mission, start_date = None, end_date = None, flyby_IDs = None, custom_output = None, all_meta_kernel_files = None):
 
         """
         Description:
@@ -1356,69 +1394,96 @@ class LoadPDS:
                     continue
         print(f'===============================================================================================================\n')
 
+        kernel_files_to_load = None
         for local_folder in local_folder_list:
+            if all_meta_kernel_files == True:
+                print(f"Downloading all Kernels from {input_mission} Latest Meta-Kernel File...")
+                kernel_files_to_load = self.download_kernels_from_meta_kernel(input_mission, local_folder)
             if input_mission == 'mex':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mex_files(local_folder, start_date, end_date)
+                if kernel_files_to_load:
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_mex_files(local_folder, start_date, end_date)
+
+                else: 
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mex_files(local_folder, start_date, end_date)
+                    
             elif input_mission == 'juice':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load =              self.get_juice_files(local_folder, start_date, end_date)
+                if kernel_files_to_load:            
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_juice_files(local_folder, start_date, end_date)
+
+                else: 
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_juice_files(local_folder, start_date, end_date)
+
             elif input_mission == 'mro':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date)
+                if kernel_files_to_load:
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date)
 
+                else:
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date)
             elif input_mission == 'cassini':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder)
+                if kernel_files_to_load:
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_files(local_folder, start_date, end_date)
 
+                else: 
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_files(local_folder, start_date, end_date)
+                    
             elif input_mission == 'grail-a':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_a_files(local_folder,start_date, end_date)
+                if kernel_files_to_load:
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_a_files(local_folder, start_date, end_date)
 
+                else: 
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_a_files(local_folder, start_date, end_date)
             elif input_mission == 'grail-b':
-                kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_b_files(local_folder,start_date, end_date)
+                if kernel_files_to_load:
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_b_files(local_folder, start_date, end_date)
 
-            if kernel_files_to_load:
-                for kernel_type, kernel_files in kernel_files_to_load.items():
-                    for kernel_file in kernel_files:  # Iterate over each file in the list
-                        converted_kernel_file = self.spice_transfer2binary(kernel_file)
-                        try:
-                            spice.load_kernel(converted_kernel_file)  # Load each file individually
-                            if kernel_type not in self.all_kernel_files.keys():
-                                self.all_kernel_files[kernel_type] = [converted_kernel_file]
-                            else:
-                                self.all_kernel_files[kernel_type].append(converted_kernel_file)
+                else: 
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_grail_b_files(local_folder, start_date, end_date)
 
-                        except Exception as e:
-                            print(f"Failed to load kernel: {converted_kernel_file}, Error: {e}")
-            else:
-                print('No Kernel Files to Load.')
-
-            if ancillary_files_to_load:
-                for ancillary_type, ancillary_files in ancillary_files_to_load.items():
-                    for ancillary_file in ancillary_files:  # Iterate over each file in the list]
-                        try:
-                            spice.load_kernel(ancillary_file)  # Load each file individually
-                            if ancillary_type not in self.all_ancillary_files.keys():
-                                self.all_ancillary_files[ancillary_type] = [ancillary_file]
-                            else:
-                                self.all_ancillary_files[ancillary_type].append(ancillary_file)
-
-                        except Exception as e:
-                            print(f"Failed to load kernel: {ancillary_file}, Error: {e}")
-            else:
-                print('No Ancillary Files to Load.')
-
-            if radio_science_files_to_load:
-                for radio_science_type, radio_science_files in radio_science_files_to_load.items():
-                    for radio_science_file in radio_science_files:  # Iterate over each file in the list]
-                        if radio_science_type not in self.all_radio_science_files.keys():
-                            self.all_radio_science_files[radio_science_type] = [radio_science_file]
+        if kernel_files_to_load:
+            for kernel_type, kernel_files in kernel_files_to_load.items():
+                for kernel_file in kernel_files:
+                    converted_kernel_file = self.spice_transfer2binary(kernel_file)
+                    try:
+                        if kernel_type not in self.all_kernel_files.keys():
+                            self.all_kernel_files[kernel_type] = [converted_kernel_file]
                         else:
-                            self.all_radio_science_files[radio_science_type].append(radio_science_file)
-            else:
-                print('No Radio Science Files to Load.')
+                            self.all_kernel_files[kernel_type].append(converted_kernel_file)
+        
+                    except Exception as e:
+                        print(f"Failed to load kernel: {converted_kernel_file}, Error: {e}")
+        else:
+           print('No Kernel Files to Load.')
 
+        if ancillary_files_to_load:
+           for ancillary_type, ancillary_files in ancillary_files_to_load.items():
+               for ancillary_file in ancillary_files:  # Iterate over each file in the list]
+                   try:
+                       spice.load_kernel(ancillary_file)  # Load each file individually
+                       if ancillary_type not in self.all_ancillary_files.keys():
+                           self.all_ancillary_files[ancillary_type] = [ancillary_file]
+                       else:
+                           self.all_ancillary_files[ancillary_type].append(ancillary_file)
+        
+                   except Exception as e:
+                        print(f"Failed to load kernel: {ancillary_file}, Error: {e}")
+        else:
+            print('No Ancillary Files to Load.')
+        
+        if radio_science_files_to_load:
+            for radio_science_type, radio_science_files in radio_science_files_to_load.items():
+                for radio_science_file in radio_science_files:  # Iterate over each file in the list]
+                    if radio_science_type not in self.all_radio_science_files.keys():
+                        self.all_radio_science_files[radio_science_type] = [radio_science_file]
+                    else:
+                        self.all_radio_science_files[radio_science_type].append(radio_science_file)
+        else:
+            print('No Radio Science Files to Load.')
+        
 
-            n_kernels = spice.get_total_count_of_kernels_loaded()
-            print(f'===============================================================================================================')
-            print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
-            self.clean_mission_archive(local_folder)
+        n_kernels = spice.get_total_count_of_kernels_loaded()
+        print(f'===============================================================================================================')
+        print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
+        self.clean_mission_archive(local_folder)
 
         std_kernels = spice.load_standard_kernels()
         n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
@@ -1486,7 +1551,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/"
-        wanted_clock_files = ["MEX_241127_STEP.TSC	"] #latest mex tsc file
+        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -1719,7 +1784,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Files:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/sclk/"
-        wanted_clock_files =["juice_step_20160326_v03.tsc", "juice_fict_160326_v02.tsc"] #latest fict and step tsc files
+        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -1727,7 +1792,7 @@ class LoadPDS:
         else:
             print('No sclk files to download this time.')
 
-            # Frame Kernels
+        # Frame Kernels
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Frame Files:')
         url_frame_files="https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/fk/"
@@ -1900,15 +1965,21 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/sclk/"
-        wanted_clock_files= ["mro_sclkscet_00112_65536.tsc"]
+        print(str(self.get_latest_clock_kernel_name(input_mission)))
+        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
-        if clock_files_to_load:
-            self.kernel_files_to_load['sclk'] = clock_files_to_load
-        else:
-            print('No sclk files to download this time.')
+        try:
+            
+            if clock_files_to_load:
+                self.kernel_files_to_load['sclk'] = clock_files_to_load
+            else:
+                print('No sclk files to download this time.')
+        except Exception as e:
+            print(f"Error handling clock file downloads: {e}")
+            raise
 
-            #Frame Kernels
+        #Frame Kernels
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/fk/"
@@ -1977,10 +2048,15 @@ class LoadPDS:
                                                                           local_path=local_folder, start_date=start_date, end_date=end_date,
                                                                           url=url_ion_files)
 
-        if ion_files_to_load:
-            self.ancillary_files_to_load['ion'] = ion_files_to_load
-        else:
-            print('No ionospheric files to download this time.')
+        try:
+            
+            if ion_files_to_load:
+                self.ancillary_files_to_load['ion'] = ion_files_to_load
+            else:
+                print('No ionospheric files to download this time.')
+        except Exception as e:
+            print(f"Error handling file downloads: {e}")
+            raise
 
         return self.kernel_files_to_load, self.radio_science_files_to_load, self.ancillary_files_to_load
 
@@ -2528,7 +2604,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
-        wanted_clock_files= ["gra_sclkscet_00014.tsc"]
+        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -2536,7 +2612,7 @@ class LoadPDS:
         else:
             print('No sclk files to download this time.')
 
-            #Frame Kernels
+        #Frame Kernels
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
@@ -2687,7 +2763,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
-        wanted_clock_files= ["gra_sclkscet_00014.tsc"]
+        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -2695,7 +2771,7 @@ class LoadPDS:
         else:
             print('No sclk files to download this time.')
 
-            #Frame Kernels
+        #Frame Kernels
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
