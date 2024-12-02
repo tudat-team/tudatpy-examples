@@ -21,7 +21,8 @@ from collections import defaultdict
 class LoadPDS:
 
     def __init__(self):
-        self.check = False
+        self.flag_check_existing_files = False
+        self.flag_load_standard_kernels = False
 
         self.supported_patterns = {
             "juice":
@@ -584,9 +585,9 @@ class LoadPDS:
         """
         custom_dict = {}
         custom_dict[input_mission] = custom_pattern
-        self.supported_mission_meta_kernel_pattern.update(custom_pattern)
+        self.supported_mission_meta_kernel_pattern.update(custom_dict)
 
-        return self.supported_mission_kernel_pattern
+        return self.supported_mission_meta_kernel_pattern
         
 #########################################################################################################
 
@@ -702,12 +703,11 @@ class LoadPDS:
 
         existing_files = self.check_existing_files(data_type, local_subfolder, start_date, end_date)
 
-        if existing_files and self.check == False:
+        if existing_files and self.flag_check_existing_files == True:
             print(f'--------------------------------------- EXISTING FILES CHECK ----------------------------------------------')
             print(f'The following files already exist in the folder:\n\n {existing_files}\n\n and will not be downloaded.')
             self.relevant_files.extend(existing_files)
-
-        self.check = True
+        
         all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
         # Initialize a dictionary to hold files from the HTML response
         files_url_dict = {}
@@ -811,7 +811,7 @@ class LoadPDS:
     #########################################################################################################
 
     def check_existing_files(self, data_type, local_subfolder, start_date, end_date):
-
+        
         """
         Description:
             Checks the local directory for files that match a given pattern and fall within a specified date range.
@@ -834,6 +834,7 @@ class LoadPDS:
         ext = self.get_extension_for_data_type(data_type)
         self.existing_files = [f for f in glob.glob(f'{local_subfolder}/*') if re.search(rf'\.{ext}$', f, re.IGNORECASE)]
         if self.existing_files:
+            self.flag_check_existing_files = True
             return self.existing_files
     #########################################################################################################
 
@@ -857,8 +858,17 @@ class LoadPDS:
         self.relevant_files = []
         print('Checking URL:', url)
         data_type = url.split('/')[-2]
+
+        if not os.path.exists(local_path):
+            print(f'Creating Local Folder: {local_path}')
+            os.mkdir(local_path)
+        
         local_subfolder = os.path.join(local_path,data_type)
 
+        if not os.path.exists(local_subfolder): 
+            print(f'Creating Local Subfolder: {local_subfolder}')
+            os.mkdir(local_subfolder)
+            
         # Prepare the date range for searching existing files
         all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
 
@@ -866,14 +876,12 @@ class LoadPDS:
             supported_pattern = self.supported_patterns[input_mission][data_type]
         except:
             raise ValueError(f'Pattern not found among supported patterns.')
-
+            
         existing_files = self.check_existing_files(data_type, local_subfolder, start_date, end_date)
-        if existing_files and self.check == False:
+        if existing_files and self.flag_check_existing_files == True:
             print(f'--------------------------------------- EXISTING FILES CHECK ---------------------------------------------\n')
             print(f'The following files already exist in the folder:\n\n {existing_files}\n\n and will not be downloaded.')
             self.relevant_files.extend(existing_files)
-
-        self.check = True
 
         # Initialize a dictionary to hold files from the HTML response
         files_url_dict = {}
@@ -953,7 +961,6 @@ class LoadPDS:
 
         print('...Done.')  # Indicate completion
 
-        self.check = False
         return self.relevant_files
 
     #########################################################################################################
@@ -1115,7 +1122,6 @@ class LoadPDS:
 
         meta_kernel_url = self.get_latest_meta_kernel(input_mission)
 
-
         try:
             # Fetch the meta-kernel file content
             response = requests.get(meta_kernel_url)
@@ -1135,6 +1141,7 @@ class LoadPDS:
                     if start_idx != -1 and end_idx != -1:
                         relative_kernel_path = line[start_idx + 1:end_idx]
                         full_kernel_path = relative_kernel_path.replace('$KERNELS/', self.supported_mission_kernels_url[input_mission.lower()])
+                        print(full_kernel_path)
                         # Extract the file extension
                         file_extension = full_kernel_path.split('.')[-1].lower()
                         # Categorize based on the type-to-extension mapping
@@ -1151,7 +1158,7 @@ class LoadPDS:
             print(f"An error occurred while fetching the meta-kernel: {e}")
             return {}
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred in meta kernel extraction: {e}")
             return {}
     #########################################################################################################
     
@@ -1191,7 +1198,7 @@ class LoadPDS:
         """
 
         base_url = self.supported_mission_meta_kernel_url[input_mission.lower()]
-        meta_kernel_pattern = self.supported_mission_meta_kernel_pattern[input_mission.lower()] #the pattern for mex and juice is an exacrt name 
+        meta_kernel_pattern = self.supported_mission_meta_kernel_pattern[input_mission.lower()] #the pattern for mex and juice is an exact name 
         
         try:
             # Fetch the HTML page
@@ -1224,25 +1231,28 @@ class LoadPDS:
             print(f"An error occurred while fetching the meta-kernel list: {e}")
             return None
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred in getting latest meta-kernel: {e}")
             return None
 
     #########################################################################################################
 
     def get_latest_clock_kernel_name(self, input_mission):
         kernels_from_meta_kernel = self.extract_kernels_from_meta_kernel(input_mission)
-        
+
+        clock_files_list = []
         for kernel_type, kernel_files in kernels_from_meta_kernel.items():
             for kernel_file in kernel_files:
                 if kernel_type == 'sclk':
                     if len(kernel_files) > 1:
-                        clock_files_list = []
                         print(f'Warning: Clock Kernel Ambiguity Found: {kernel_files}.')
                         for clock_file in kernel_files:
                             clock_files_list.append(clock_file.split('/')[-1])
+                    
                     else:
                         clock_file = kernel_file
-                        return clock_file.split('/')[-1]
+                        clock_files_list.append(clock_file.split('/')[-1])
+                        
+        return clock_files_list
                 
     #########################################################################################################
 
@@ -1277,9 +1287,7 @@ class LoadPDS:
                 - `all_ancillary_files` (`dict`): A dictionary where keys are ancillary data types and values are
                   lists of paths to the successfully loaded ancillary files.
         """
-
-        spice.clear_kernels()
-
+        
         self.all_kernel_files = {}
         self.all_radio_science_files = {}
         self.all_ancillary_files = {}
@@ -1396,6 +1404,7 @@ class LoadPDS:
 
         kernel_files_to_load = None
         for local_folder in local_folder_list:
+            self.flag_check_existing_files = False
             if all_meta_kernel_files == True:
                 print(f"Downloading all Kernels from {input_mission} Latest Meta-Kernel File...")
                 kernel_files_to_load = self.download_kernels_from_meta_kernel(input_mission, local_folder)
@@ -1421,10 +1430,10 @@ class LoadPDS:
                     kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_mro_files(local_folder, start_date, end_date)
             elif input_mission == 'cassini':
                 if kernel_files_to_load:
-                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_files(local_folder, start_date, end_date)
+                    _, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder)
 
                 else: 
-                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_files(local_folder, start_date, end_date)
+                    kernel_files_to_load, radio_science_files_to_load, ancillary_files_to_load = self.get_cassini_flyby_files(local_folder)
                     
             elif input_mission == 'grail-a':
                 if kernel_files_to_load:
@@ -1444,8 +1453,10 @@ class LoadPDS:
                 for kernel_file in kernel_files:
                     converted_kernel_file = self.spice_transfer2binary(kernel_file)
                     try:
+                        spice.load_kernel(converted_kernel_file)
                         if kernel_type not in self.all_kernel_files.keys():
                             self.all_kernel_files[kernel_type] = [converted_kernel_file]
+                            
                         else:
                             self.all_kernel_files[kernel_type].append(converted_kernel_file)
         
@@ -1481,15 +1492,20 @@ class LoadPDS:
         
 
         n_kernels = spice.get_total_count_of_kernels_loaded()
-        print(f'===============================================================================================================')
-        print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
+        if not self.flag_load_standard_kernels:
+            print(f'===============================================================================================================')
+            print(f'Number of Loaded Existing + Downloaded Kernels: {n_kernels}')
+            std_kernels = spice.load_standard_kernels()
+            self.flag_load_standard_kernels = True  
+            n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
+            print(f'Number of Loaded Standard Kernels: {n_standard_kernels}')
+            print(f'===============================================================================================================')
+        else:
+            print(f'Number of Loaded Existing + Downloaded + Standard Kernels: {n_kernels}')
+            print(f'===============================================================================================================')
+
+
         self.clean_mission_archive(local_folder)
-
-        std_kernels = spice.load_standard_kernels()
-        n_standard_kernels = spice.get_total_count_of_kernels_loaded() - n_kernels
-        print(f'Number of Loaded Standard Kernels: {n_standard_kernels}')
-        print(f'===============================================================================================================')
-
         return self.all_kernel_files, self.all_radio_science_files, self.all_ancillary_files
 
     ########################################################################################################################################
@@ -1551,7 +1567,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/"
-        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
+        wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -1643,7 +1659,7 @@ class LoadPDS:
                             wanted_tropo_files.append(href.split('/')[-1])
                     tropo_files_to_load = self.get_kernels(url_tropo_file, wanted_tropo_files, local_folder)
                 else:
-                    print(f'URL: {url_tropo_file} does not exist.')
+                    #print(f'URL: {url_tropo_file} does not exist.')
                     continue
 
                 if tropo_files_to_load:
@@ -1784,7 +1800,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Files:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/sclk/"
-        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
+        wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -1965,8 +1981,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/sclk/"
-        print(str(self.get_latest_clock_kernel_name(input_mission)))
-        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
+        wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         try:
@@ -2604,7 +2619,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
-        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
+        wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
@@ -2763,7 +2778,7 @@ class LoadPDS:
         print(f'===========================================================================================================')
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
-        wanted_clock_files = [self.get_latest_clock_kernel_name(input_mission)]
+        wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
         clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
 
         if clock_files_to_load:
