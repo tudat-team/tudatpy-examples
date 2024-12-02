@@ -584,7 +584,7 @@ class LoadPDS:
             - Custom patterns can be added dynamically at runtime.
         """
         custom_dict = {}
-        custom_dict[input_mission] = custom_pattern
+        custom_dict[input_mission] = re.compile(f'{custom_pattern}')
         self.supported_mission_meta_kernel_pattern.update(custom_dict)
 
         return self.supported_mission_meta_kernel_pattern

@@ -60,6 +60,7 @@ from mission_data_downloader_class import *
 
 
 object = LoadPDS()
+spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
 
 
 # ## MRO Downloader (with Default Output)
@@ -190,12 +191,12 @@ start_date_grail_b = datetime(2012, 5, 6)
 end_date_grail_b = datetime(2012, 6, 12)
 
 kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(input_mission = 'grail-a', start_date = start_date_grail_a, end_date = end_date_grail_a, custom_output = './GRAIL_ARCHIVE')         
-print(f'Total number of loaded kernels (GRAIL-A): {spice.get_total_count_of_kernels_loaded()}')
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(input_mission = 'grail-b', start_date = start_date_grail_b, end_date = end_date_grail_b, custom_output = './GRAIL_ARCHIVE')         
-print(f'Total number of loaded kernels (GRAIL-B): {spice.get_total_count_of_kernels_loaded()}')
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
-# In[15]:
+# In[8]:
 
 
 print(f'GRAIL-A Kernels: {kernel_files_grail_a}\n')
@@ -205,6 +206,51 @@ print('#########################################################################
 print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
 print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
 print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
+
+
+# ## Customizing URLs and Patterns
+# The folllowing cell shows how to download ck files for lro (not supported mission) specifying custom url and output folder.
+
+# In[5]:
+
+
+custom_input_mission = 'lro'
+custom_ck_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/ck/'
+local_path = './lro_archive'
+start_date_lro = datetime(2009, 7, 1)
+end_date_lro = datetime(2009, 7, 10)
+
+object.add_custom_mission_kernels_url(custom_input_mission, custom_ck_url)
+object.dynamic_download_url_files_time_interval(custom_input_mission, local_path, start_date_lro, end_date_lro, custom_ck_url)
+
+
+# ## Downloading Custom Meta-Kernel Files for LRO (not supported mission)
+# The following cell shows how to download all relevant files specified in a custom mission Meta-Kernel using custom inputs.
+# The steps to be performed are:
+# 
+# - Define the name of your `custom_input_mission`;
+# - Add a `custom_meta_kernel_url` associated to the `custom_input_mission`;
+# - Add a `custom_meta_kernel_pattern`  (or name, if you already know what's the exact name of the **meta-kernel** to be downloaded!);
+# - Add the `custom_kernels_url` where kernels for your custom input mission are stored;
+# - Define the custom path where you want to store your data;
+# - Call the `get_mission_files` function as done for other missions alreayd, and do not forget the **flag**: `all_meta_kernel_files`;
+# - Get popcorns, it's gonna take a while! 🍿
+
+# In[ ]:
+
+
+custom_input_mission = 'lro'
+custom_meta_kernel_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/extras/mk/'
+custom_meta_kernel_pattern = 'lro_2024_v02.tm'
+custom_kernels_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/'
+
+object.add_custom_mission_meta_kernel_url(custom_input_mission , custom_meta_kernel_url)
+object.add_custom_mission_meta_kernel_pattern(custom_input_mission , custom_meta_kernel_pattern)
+object.add_custom_mission_kernels_url(custom_input_mission, custom_kernels_url)
+custom_local_path = './lro_archive'
+
+object.get_mission_files(input_mission = custom_input_mission, 
+                         custom_output = custom_local_path, all_meta_kernel_files = True)
 
 
 # In[ ]:
