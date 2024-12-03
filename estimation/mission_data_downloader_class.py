@@ -338,6 +338,37 @@ class LoadPDS:
             output_file = input_file
             return output_file
 
+    def create_pattern(self, placeholders):
+        final_pattern = ""
+        for placeholder in placeholders:
+            escaped = re.escape(placeholder)
+            # Replace specific dynamic sections with regex patterns
+            # Replace sequences of digits with a numeric pattern
+            pattern = re.sub(r'\d+', r'[0-9]+', escaped)
+            # Replace fixed-length sequences of lowercase letters (e.g., "sc", "hg") with a general pattern
+
+
+            if placeholder == 'start_date_file' or placeholder == 'end_date_file' or placeholder == 'version':
+                pattern = r'[0-9]+'
+                
+            else:
+                pattern = re.sub(r'[a-z]{1,}', r'[a-z]{1,}', pattern, count=1)
+
+            if placeholder == '_':
+                placeholder_mapping = '_'
+            elif placeholder == 'version':
+                placeholder_mapping = f"(?P<{placeholder}>v{pattern})"
+            elif placeholder == 'extension':
+                placeholder_mapping = f"(?P<{placeholder}>.{pattern})"
+            elif placeholder == 'start_date_file':
+                placeholder_mapping = f"(?P<{placeholder}>{pattern})"
+            else:
+                placeholder_mapping = f"(?P<{placeholder}>{pattern})"
+            print(placeholder_mapping)
+            final_pattern += placeholder_mapping
+        
+        # Add start and end anchors
+        return f"^{final_pattern}$"
 
     #########################################################################################################
 
@@ -511,7 +542,7 @@ class LoadPDS:
             - `custom_pattern` (`str`): The regular expression pattern that will be associated with the mission kernel.
 
         Output:
-            - `dict`: The updated `supported_kernel_patterns` dictionary containing the new custom pattern.
+            - `dict`: The updated `supported_patterns` dictionary containing the new custom pattern.
 
         Notes:
             - This function updates the `supported__kernel_patterns` dictionary with the new mission and its associated pattern.
@@ -519,9 +550,9 @@ class LoadPDS:
         """
         custom_dict = {}
         custom_dict[input_mission] = {custom_kernel_type: custom_pattern}
-        self.supported_kernel_patterns.update(custom_dict)
+        self.supported_patterns.update(custom_dict)
 
-        return self.supported_kernel_patterns
+        return self.supported_patterns
 
     def add_custom_mission_meta_kernel_url(self, input_mission, url):
         """
@@ -545,7 +576,7 @@ class LoadPDS:
 
         return self.supported_mission_meta_kernel_url
 
-    def add_custom_mission_kernels_url(self, input_mission, url):
+    def add_custom_mission_kernel_url(self, input_mission, url):
         """
         Description:
             Allows users to define and add custom regex patterns for a specific mission to the list of supported patterns. Once added, the custom pattern can be used for mission data file matching.
