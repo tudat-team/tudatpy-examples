@@ -5,6 +5,7 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+from urllib.parse import urljoin
 from urllib.request import urlretrieve
 from datetime import datetime, timedelta
 import glob
@@ -364,7 +365,6 @@ class LoadPDS:
                 placeholder_mapping = f"(?P<{placeholder}>{pattern})"
             else:
                 placeholder_mapping = f"(?P<{placeholder}>{pattern})"
-            print(placeholder_mapping)
             final_pattern += placeholder_mapping
         
         # Add start and end anchors
@@ -489,44 +489,79 @@ class LoadPDS:
         else:
             print("Format key not supported")
         #########################################################################################################
-
-    def get_kernels(self, url, wanted_files, local_folder):
-
+    
+    def get_kernels(self, input_mission, url, wanted_files=None, wanted_files_patterns=None, custom_output =None):
+        
         """
-        Description:
-            Downloads specific SPICE kernel files from a given URL to a local directory if they do not already exist locally. The method ensures that the necessary local directory structure is created and checks for existing files before downloading new ones.
-
+        Downloads specific SPICE kernel files or files matching a pattern from a given URL to a local directory 
+        if they do not already exist locally.
+    
         Input:
+            - `input_mission` (`str`): The name of the mission
             - `url` (`str`): The base URL where the kernel files are hosted.
-            - `wanted_files` (`list`): A list of filenames to be downloaded from the URL.
-            - `local_folder` (`str`): The local directory where the downloaded files will be stored.
-
+            - `wanted_files` (`list`, optional): A list of specific filenames to be downloaded from the URL.
+            - `wanted_files_pattern` (`str`, optional): A pattern (e.g., '*.tf') to match filenames for downloading.
+            - `custom_output` (`str`, optional): The local directory where the downloaded files will be stored.
+    
         Output:
             - `list`: A list of full file paths for the downloaded (or already existing) kernel files.
         """
-        
+    
+        # Determine data type and file extension
         data_type = url.split('/')[-2]
         ext = self.get_extension_for_data_type(data_type)
-
-        if not ext:
+    
+        if not ext and wanted_files:
             ext = wanted_files[0].split('.')[-1]
             if ext == 'asc':
                 data_type = 'manoeuver'
-
-        # Ensure local folder exists
-        os.makedirs(os.path.join(local_folder,data_type), exist_ok=True)
-
-        # Create full paths for each file to load locally
-        self.files_to_load = [os.path.join(local_folder, data_type, wanted_file) for wanted_file in wanted_files]
         
-        # Download each file if not already present
-        for wanted_file, local_file in zip(wanted_files, self.files_to_load):
-            if not os.path.exists(local_file):
-                print(f'Downloading File: {os.path.join(url,wanted_file)} to: {local_file}')
-                urlretrieve(os.path.join(url,wanted_file), local_file)
+        if custom_output:
+            if input_mission.lower() == 'grail-a' or input_mission.lower() == 'grail-b': #both grail-a and -b found in grail archive
+                base_folder = f'{custom_output}/{input_mission}'
             else:
-                print(f'File: {local_file} already exists in: {local_folder} and will not be downloaded.')
+                base_folder = f'{custom_output}'
+                        
+        else:
+            if input_mission.lower() == 'grail-a' or input_mission.lower() == 'grail-b': #both grail-a and -b found in grail archive
+                base_folder = f'grail_archive/{input_mission}'
+            else:
+                base_folder = f'{input_mission}_archive/'   
+            
+        os.makedirs(os.path.join(base_folder, data_type), exist_ok=True)
 
+
+        # Retrieve files matching pattern if specified
+        matched_files_list = []
+        if wanted_files_patterns:
+            # Parse the URL to find matching files
+            reqs = requests.get(url)
+            soup = BeautifulSoup(reqs.text, 'html.parser')
+
+            for wanted_files_pattern in wanted_files_patterns:
+                # Extract all links that match the pattern
+                regex_pattern = re.escape(wanted_files_pattern).replace(r'\*', '.*')
+                matched_files = [
+                    os.path.basename(link.get('href')) for link in soup.find_all('a', href=True)
+                    if re.match(regex_pattern, link.get('href'))
+                ]
+                matched_files_list.extend(matched_files)
+
+        # Combine explicitly specified files and pattern-matched files
+        all_files_to_download = set(wanted_files or []) | set(matched_files_list)     
+    
+        # Create full paths for each file to load locally
+        self.files_to_load = [os.path.join(base_folder, data_type, file) for file in all_files_to_download]
+    
+        # Download each file if not already present
+        for file, local_file in zip(all_files_to_download, self.files_to_load):
+            if not os.path.exists(local_file):
+                full_url = os.path.join(url, file)
+                print(f'Downloading File: {full_url} to: {local_file}')
+                urlretrieve(full_url, local_file)
+            else:
+                print(f'File: {local_file} already exists in: {base_folder} and will not be downloaded.')
+    
         return self.files_to_load
 
     #########################################################################################################
@@ -1172,7 +1207,6 @@ class LoadPDS:
                     if start_idx != -1 and end_idx != -1:
                         relative_kernel_path = line[start_idx + 1:end_idx]
                         full_kernel_path = relative_kernel_path.replace('$KERNELS/', self.supported_mission_kernels_url[input_mission.lower()])
-                        print(full_kernel_path)
                         # Extract the file extension
                         file_extension = full_kernel_path.split('.')[-1].lower()
                         # Categorize based on the type-to-extension mapping
@@ -1407,7 +1441,7 @@ class LoadPDS:
                     local_folder= os.path.join(base_folder, MOON, flyby_IDs)
                     local_folder_list.append(local_folder) #in this case, it is just a single folder
         else:
-            local_folder_list.append(base_folder) # in this case, it is just a single fodler
+            local_folder_list.append(base_folder) # in this case, it is just a single folder
 
         print(f'=========================================== Folder(s) Creation ==================================================')
 
@@ -1599,7 +1633,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/"
         wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
-        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+        clock_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_clock_files,
+            wantred_files =  wanted_clock_files, 
+            custom_output = local_folder)
 
         if clock_files_to_load:
             self.kernel_files_to_load['sclk'] = clock_files_to_load
@@ -1613,7 +1651,11 @@ class LoadPDS:
                               "MEX_RELAY_LOCATIONS_V03.TF",
                               "MEX_DSK_SURFACES_V04.TF",
                               "MEX_PFS_ROIS_V02.TF"]
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_frame_files,
+            wanted_files =  wanted_frame_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
@@ -1688,7 +1730,11 @@ class LoadPDS:
                         href = link.get('href')
                         if href.endswith('.tab') or href.endswith('.aux') :
                             wanted_tropo_files.append(href.split('/')[-1])
-                    tropo_files_to_load = self.get_kernels(url_tropo_file, wanted_tropo_files, local_folder)
+                    tropo_files_to_load = self.get_kernels(
+                        input_mission = input_mission, 
+                        url = url_tropo_file, 
+                        wanted_files = wanted_tropo_files, 
+                        custom_output = local_folder)
                 else:
                     #print(f'URL: {url_tropo_file} does not exist.')
                     continue
@@ -1832,7 +1878,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Clock Files:')
         url_clock_files="https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/sclk/"
         wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
-        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+        clock_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_clock_files, 
+            wanted_files = wanted_clock_files, 
+            custom_output = local_folder)
 
         if clock_files_to_load:
             self.kernel_files_to_load['sclk'] = clock_files_to_load
@@ -1851,7 +1901,12 @@ class LoadPDS:
                             "juice_sci_v17.tf",
                             "juice_roi_v02.tf"]
 
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            utl = url_frame_files, 
+            wanted_files = wanted_frame_files, 
+            custom_output = local_folder)
+        
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
         else:
@@ -1865,7 +1920,11 @@ class LoadPDS:
                          "juice_sc_crema_5_1_150lb_23_1_baseline_v03.bc",]
 
         url_planned_ck_files="https://spiftp.esac.esa.int/data/SPICE/JUICE/kernels/ck/"
-        planned_ck_files_to_load = self.get_kernels(url_planned_ck_files, wanted_ck_files, local_folder)
+        planned_ck_files_to_load = self.new_et_kernels(
+            input_mission = input_mission, 
+            url = url_planned_ck_files, 
+            wantred_files = wanted_ck_files, 
+            custom_output = local_folder)
 
         if planned_ck_files_to_load:
             for file in planned_ck_files_to_load:
@@ -2013,7 +2072,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/sclk/"
         wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
-        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+        clock_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_clock_files, 
+            wanted_files = wanted_clock_files, 
+            custom_output = local_folder)
 
         try:
             
@@ -2030,7 +2093,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/fk/"
         wanted_frame_files=["mro_v16.tf"]
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_frame_files, 
+            wanted_files = wanted_frame_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
@@ -2042,9 +2109,18 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} SPK Kernels:')
         url_spk_files ="https://naif.jpl.nasa.gov/pub/naif/pds/data/mro-m-spice-6-v1.0/mrosp_1000/data/spk/"
         wanted_spk_files = self.get_url_mro_spk_files(start_date, end_date)
-        spk_files_to_load = self.get_kernels(url_spk_files, wanted_spk_files, local_folder)
+        spk_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_spk_files, 
+            wanted_files = wanted_spk_files, 
+            custom_output = local_folder)
         wanted_struct_files = ["mro_struct_v10.bsp"]
-        struct_files_to_load = self.get_kernels(url_spk_files, wanted_struct_files, local_folder)
+        struct_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_spk_files, 
+            wanted_files = wanted_struct_files, 
+            custom_output = local_folder)
+        
         spk_files_to_load.extend(struct_files_to_load)
 
         if spk_files_to_load:
@@ -2343,7 +2419,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Frame Kernels from NAIF:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/CASSINI/kernels/fk/"
         wanted_frame_files=["cas_v43.tf"]
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_frame_files, 
+            wanted_files = wanted_frame_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
@@ -2651,7 +2731,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
         wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
-        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+        clock_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_clock_files, 
+            wanted_files = wanted_clock_files, 
+            custom_output = local_folder)
 
         if clock_files_to_load:
             self.kernel_files_to_load['sclk'] = clock_files_to_load
@@ -2663,7 +2747,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
         wanted_frame_files=["grail_v07.tf"]
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_frame_files, 
+            wanted_files = wanted_frame_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
@@ -2675,7 +2763,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Manoeuver Files:')
         url_man_files="https://pds-geosciences.wustl.edu/grail/grail-l-lgrs-2-edr-v1/grail_0001/level_0/2012_04_06/"
         wanted_man_files=["mas00_2012_04_06_a_04.asc"]
-        man_files_to_load = self.get_kernels(url_man_files, wanted_man_files, local_folder)
+        man_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_man_files, 
+            wanted_files = wanted_man_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.ancillary_files_to_load['manoeuver'] = man_files_to_load
@@ -2810,7 +2902,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Clock Kernels:')
         url_clock_files = "https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/sclk/"
         wanted_clock_files = self.get_latest_clock_kernel_name(input_mission)
-        clock_files_to_load = self.get_kernels(url_clock_files, wanted_clock_files, local_folder)
+        clock_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_clock_files, 
+            wanted_files = wanted_clock_files, 
+            custom_output = local_folder)
 
         if clock_files_to_load:
             self.kernel_files_to_load['sclk'] = clock_files_to_load
@@ -2822,7 +2918,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Frame Kernels:')
         url_frame_files="https://naif.jpl.nasa.gov/pub/naif/pds/data/grail-l-spice-6-v1.0/grlsp_1000/data/fk/"
         wanted_frame_files=["grail_v07.tf"]
-        frame_files_to_load = self.get_kernels(url_frame_files, wanted_frame_files, local_folder)
+        frame_files_to_load = self.get_kernels(
+            input_mission = input_mission,
+            url = url_frame_files, 
+            wanted_files = wanted_frame_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.kernel_files_to_load['fk'] = frame_files_to_load
@@ -2834,7 +2934,11 @@ class LoadPDS:
         print(f'Download {input_mission.upper()} Manoeuver Files:')
         url_man_files="https://pds-geosciences.wustl.edu/grail/grail-l-lgrs-2-edr-v1/grail_0001/level_0/2012_04_06/"
         wanted_man_files=["mas00_2012_04_06_a_04.asc"]
-        man_files_to_load = self.get_kernels(url_man_files, wanted_man_files, local_folder)
+        man_files_to_load = self.get_kernels(
+            input_mission = input_mission, 
+            url = url_man_files, 
+            wanted_files_patterns = wanted_man_files, 
+            custom_output = local_folder)
 
         if frame_files_to_load:
             self.ancillary_files_to_load['manoeuver'] = man_files_to_load

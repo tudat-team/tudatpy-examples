@@ -3,20 +3,33 @@
 
 # ## Objectives
 # 
-# This script allows to download:
-# 1) Spice (clock, frame, orientation, planetary) Kernels
-# 2) Closed Loop Doppler Data (DSN and IFMS)
-# 3) Ancillary Ionospheric and Tropospheric Data
+# - This script shows how to use the TudatPy `mission_data_downloader` functionality  to download:
+# 1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
+# 2) **Closed Loop Doppler Data** (DSN and IFMS)
+# 3) **Ancillary** Ionospheric and Tropospheric **Data**
 # 
-# **NOTE 1 (Supported Missions and Relative Downloaded Data).** 
+# for some supported missions (see **NOTE 1** for a list of supported missions). 
 # 
-# The following spice kernels:
+# - Moreover, we also show how to use the functionality to download: 
+# 1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
+# 2) **Closed Loop Doppler Data** (DSN and IFMS)
+# 3) **Ancillary** Ionospheric and Tropospheric **Data**
+# 
+# for a custom, user-defined mission.
+# 
+# - Last but not least, we show how to use tudatpy to download:
+#   **all files listed in a given Meta-Kernel**.
+# 
+# The mission archive is **cleaned up (namely, empty folders are removed)** at the end of each run.
+# 
+# ### NOTES
+# **NOTE 1. (Supported Missions and Relative Downloaded Data).** 
+# 
+# The following spice kernels are loaded at the end of a run:
 # 
 # 1) **existing spice kernels** in the mission folder
 # 2) (new) **downloaded spice kernels**
 # 3) **standard TUDAT kernels** from [`spice.load_standard_kernels()`](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.load_standard_kernels) 
-# 
-# are loaded at the end of a run (some information is printed as output).
 # 
 # List of currently supported input_missions:
 # - **Mars Reconnnaissance Orbiter (MRO)** [Available: Spice Kernels, Doppler Data, Ancillary]
@@ -40,7 +53,7 @@
 # 
 # No DSN-TNF download functionality has been implemented (at least, not yet!)
 # 
-# **Note 4: About spiceypy**
+# **Note 4. About spiceypy**
 # 
 # A compiled version of TUDAT containing the `spiceypy` dependency is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
 
@@ -63,7 +76,7 @@ object = LoadPDS()
 spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
 
 
-# ## MRO Downloader (with Default Output)
+# ## MRO, MEX and JUICE Downloaders (Default Output)
 # 
 # ### Set Time Interval(s) for Downloading
 # 
@@ -75,7 +88,7 @@ spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will 
 # get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
 # get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
 # 
-# **Note 5 (About MEX and JUICE Files Download)**
+# **NOTE 5. (About MEX and JUICE Files Download)**
 # 
 # Here, we will only showcase the downloading of MRO files. However, **if you wish to download files for MEX or JUICE**, you can simply **uncomment the corresponding lines** in the cell below! We have included those **just for you**!
 
@@ -97,15 +110,15 @@ end_date_mex = datetime(2004,2, 7)
 kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(input_mission = 'mro', start_date = start_date_mro, end_date = end_date_mro, custom_output = None)         
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
-# ## Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
-# Last, you can print the list of existing + downloaded files. 
+# ### Loaded Kernels for MRO, MEX and JUICE (Existing + Downloaded)
+# Let's print the list of existing + downloaded files. 
 
 # In[4]:
 
@@ -114,13 +127,13 @@ print(f'MRO Kernels: {kernel_files_mro}\n')
 print(f'MRO Radio Science: {radio_science_files_mro}\n')
 print(f'MRO Ancillary: {ancillary_files_mro}\n')
 
-print(f'MEX Kernels: {kernel_files_mex}\n')
-print(f'MEX Radio Science: {radio_science_files_mex}\n')
-print(f'MEX Ancillary: {ancillary_files_mex}\n')
+#print(f'MEX Kernels: {kernel_files_mex}\n')
+#print(f'MEX Radio Science: {radio_science_files_mex}\n')
+#print(f'MEX Ancillary: {ancillary_files_mex}\n')
 
-print(f'JUICE Kernels: {kernel_files_juice}\n')
-print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
-print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
+#print(f'JUICE Kernels: {kernel_files_juice}\n')
+#print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
+#print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
 
 
 # ## Cassini Downloader (with Custom Output)
@@ -128,20 +141,24 @@ print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now.
 # ### Set Flybys for Downloading
 # 
 # The most valuable data collected for Cassini is probably the one related to the various flybys of the Moons of Saturn.
-# For this reason, in order to retrieve Cassini data, we will require the name of the flyby data the user wishes to download, rather than a start and end date (see **Notes 5 and 6** for info on the supported flybys). 
+# For this reason, in order to retrieve Cassini data, we will require the **name of the flyby** data the user wishes to download, rather than a start and end date (see **Notes 6 and 7** for info on the supported flybys). 
 # 
-# ### Download Cassini Flyby Files
-# We can call the function "get_mission_files" with 'Cassini' as input_mission. This call **will print a comprehensive table of supported flybys to choose from**, and the user will be asked to manually input the name of one of them.
+# ### How to pick a Cassini flyby?
+# - If you already know the name of the flyby you want to download (e.g. T011, T022, etc...), you can simply call the function `get_mission_files` with `input_mission = 'Cassini'`, also adding the flag `flyby_IDs = T011` (or `flyby_IDs = T022`, ec...). 
+# 
+# - Alternatively, calling `get_mission_files` with 'Cassini' as `input_mission` and no `flyby_IDs` flag **will print a comprehensive table of supported flybys to choose from**, and you will be asked to **manually input** the name of one (or more) of them. This table is constructed based on the [Cassini Titan Gravity Science Table](https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/Cassini/Cassini/RSS%20PDS%20page%202019-01-23/rss/TI_12.html).
 # 
 # ### Flyby Data Output Division
 # 
-# The default output folder will be named `cassini_archive/MOON_NAME/FLYBY_ID/`, where `MOON_NAME` is the flyby moon, and `FLYBY_ID` is the denomination of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories. In this example, we will download files from the flyby T011, and we will store them in the custom path: `'CASSINI_CUSTOM_ARCHIVE/'`
+# The default output folder will be named `cassini_archive/MOON_NAME/FLYBY_ID/`, where `MOON_NAME` is the flyby moon, and `FLYBY_ID` is the denomination of each downloaded flyby (e.g. T011, T022). Each subfolder will contain kernel ancillary and radio science subdirectories. In this example, we will download files from the **flyby T011**, and we will store them in the custom path: `'CASSINI_CUSTOM_ARCHIVE/'`
 # 
-# **Note 5: Supported Flyby Moons**
+# 
+# ### NOTES
+# **NOTE 6. Supported Flyby Moons**
 # 
 # For now, only Titan Flybys are supported.
 # 
-# **Note 6: flyby_IDs types**
+# **NOTE 7. All flyby_IDs types**
 # 
 # `flyby_IDs` can be:
 # 1) a list made of single flybys like: `flyby_IDs = ['T011', 'T022']` or `flyby_IDs = ['T011']`
@@ -153,7 +170,7 @@ print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now.
 # As mentioned above in *Download Cassini Flyby Files*, **you can also decide not to specify any flyby_ID**. 
 # In this case, **a table will be printed out** from which you will be able to interactively select the flyby you're interested in. 
 # 
-# **Note 7: Custom Output**
+# **NOTE 8. Custom Output**
 # 
 # As we mentioned above, the **default** output folder will be: `cassini_archive/MOON_NAME/FLYBY_ID/`
 # The user can still define a custom output path using the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path/MOON_NAME/FLYBY_ID/`
@@ -167,7 +184,7 @@ kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = obj
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
-# ## Loaded Kernels for Cassini Titan Flyby (Existing + Downloaded)
+# ### Loaded Kernels for Cassini Titan Flyby (Existing + Downloaded)
 # Last, you can print the list of existing + downloaded files. 
 
 # In[6]:
@@ -178,63 +195,149 @@ print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
 print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
 
 
-# ## GRAIL-A and GRAIL-B Downloader (with Custom Output)
-# As we mentioned above, you can also download GRAIL data for both GRAIL-A and GRAIL-B spacecraft. These can be downloaded as usually via the command: `get_mission_files`, specifying either: 'grail-a' or 'grail_b' as `input_mission`. Two folders will be created by default: `grail_archive/grail-a` and `grail_archive/grail-b`. However, you can still choose your own custom output folder. Let's call it `'GRAIL_ARCHIVE'`.
+# ## GRAIL-A and GRAIL-B Downloaders (Custom Output)
+# You can also download **GRAIL data** for both **GRAIL-A and GRAIL-B** spacecraft. These can be downloaded as usual via the command: `get_mission_files`, specifying either: 'grail-a' or 'grail_b' as `input_mission` (we add the lines relative to **GRAIL-B as comments**, but users are definitely encouraged to **uncomment them and try them out!**) Two folders will be created by default: `grail_archive/grail-a` and `grail_archive/grail-b`. However, you can still choose your own custom output folder. Let's call it `'GRAIL_ARCHIVE'`.
 
 # In[7]:
 
 
 start_date_grail_a = datetime(2012, 4, 6)
 end_date_grail_a = datetime(2012, 4, 12)
-
 start_date_grail_b = datetime(2012, 5, 6)
 end_date_grail_b = datetime(2012, 6, 12)
 
-kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(input_mission = 'grail-a', start_date = start_date_grail_a, end_date = end_date_grail_a, custom_output = './GRAIL_ARCHIVE')         
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
-kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(input_mission = 'grail-b', start_date = start_date_grail_b, end_date = end_date_grail_b, custom_output = './GRAIL_ARCHIVE')         
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(
+    input_mission = 'grail-a', start_date = start_date_grail_a, end_date = end_date_grail_a, custom_output = './GRAIL_ARCHIVE'
+)         
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
 
+print(f'GRAIL-A Kernels: {kernel_files_grail_a}\n')
+print(f'GRAIL-A Radio Science: {radio_science_files_grail_a}\n')
+print(f'GRAIL-A Ancillary: {ancillary_files_grail_a}\n\n')
+
+#kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(
+#    input_mission = 'grail-b', start_date = start_date_grail_b, end_date = end_date_grail_b, custom_output = './GRAIL_ARCHIVE'
+#)         
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
+
+#print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
+#print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
+#print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
+
+
+# ## Downloading Kernels For Non-Supported Missions 
+# As we mentioned in the beginning, users can also download **SPICE kernels** and **Ancillary Data** for non-supported missions (**Doppler data download** for non-supported missions is **not supported yet**!). 
+# 
+# ### Customizing URLs and Patterns
+# The folllowing cell shows how to download SPICE Orientation Kernels (ck) for **LRO** (not supported mission) specifying **custom url** and **output folder**.
+# 
+# The steps to be performed are:
+# 
+# 1) Define the name of your `custom_input_mission`;
+# 2) Add a `custom_ck_url` (namely, the NAIF link where ck kernels for the mission are stored);
+# 3) Define a `placeholders` list.
+# 
+#       ***IMPORTANT!***
+#    
+#       *`placeholders` is a list containing the single pieces that make up a "template filename", selected by the user.
+#       For instance, **let's suppose you want to download all files with the same structure as**: `lrodv_2012060_2012092_v01.bc`. This will then be considered as your **template filename**.*
+#       *The `placeholders` list defines the keys to a vocabulary, plus the underscores positions.*
+#       
+#       *In this case:*
+#       
+#       *mission = lro,*
+#       *instrument =  dv,*
+#       *start_date = 2012060,*
+#       *end_date = 2012092,*
+#       *version = v01,*
+#       *extension = bc*
+#       
+#       *and corresponding placeholders list will be:*
+#       *placeholders = ['mission', 'instrument', '_', 'start_date_file', '_', 'end_date_file', '_', 'version', 'extension'],*
+#       
+#       *also encoding the underscores positions.*
+#       
+# 5) Create the pattern corresponding to the `placeholders` list;
+# 6) Add the corresponding pattern to the list of supported patterns;
+# 7) Define the `custom_local_path`  where you want to store your data;
+# 8) Call the `get_mission_files` function as done for other missions already, and do not forget the **flag**: `all_meta_kernel_files`.
+# 9) Specify the start and end date
+# 10) Call the `dynamic_download_url_files_time_interval` function.
+# 
+# **NOTE 9. About Start and End Dates** 
+# 
+# As it will be shown later in the example, you can also **[download all files of a certain type](#Download_all_Files_of_a_Certain_Type)** (ck, spk, fk, odf, etc...) present at a given url, **regardless of the start and end date**.
 
 # In[8]:
 
 
-print(f'GRAIL-A Kernels: {kernel_files_grail_a}\n')
-print(f'GRAIL-A Radio Science: {radio_science_files_grail_a}\n')
-print(f'GRAIL-A Ancillary: {ancillary_files_grail_a}\n')
-print('############################################################################################################################################\n')
-print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
-print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
-print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
-
-
-# ## Customizing URLs and Patterns
-# The folllowing cell shows how to download ck files for lro (not supported mission) specifying custom url and output folder.
-
-# In[5]:
-
-
 custom_input_mission = 'lro'
 custom_ck_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/ck/'
+
 local_path = './lro_archive'
 start_date_lro = datetime(2009, 7, 1)
 end_date_lro = datetime(2009, 7, 10)
 
-object.add_custom_mission_kernels_url(custom_input_mission, custom_ck_url)
+object.add_custom_mission_kernel_url(custom_input_mission, custom_ck_url)
+
+placeholders_ck = ['mission', 'instrument', '_', 'start_date_file', '_', 'end_date_file', '_', 'version', 'extension']
+custom_ck_pattern = object.create_pattern(placeholders_ck)
+
+object.add_custom_mission_kernel_pattern(custom_input_mission, 'ck', custom_ck_pattern)
 object.dynamic_download_url_files_time_interval(custom_input_mission, local_path, start_date_lro, end_date_lro, custom_ck_url)
 
+custom_spk_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/spk/'
+placeholders_spk = ['mission', 'instrument', '_', 'start_date_file', '_', 'end_date_file', '_', 'version', 'extension']
+custom_spk_pattern = object.create_pattern(placeholders_spk)
 
-# ## Downloading Custom Meta-Kernel Files for LRO (not supported mission)
-# The following cell shows how to download all relevant files specified in a custom mission Meta-Kernel using custom inputs.
+object.add_custom_mission_kernel_url(custom_input_mission, custom_spk_url)
+object.add_custom_mission_kernel_pattern(custom_input_mission, 'spk', custom_spk_pattern)
+object.dynamic_download_url_files_time_interval(custom_input_mission, local_path, start_date_lro, end_date_lro, custom_spk_url)
+
+
+# ## Download all Files of a Certain Type
+# 
+# Users might also be interested in downloaing all files of a certain type, say all frame kernels for lro, all starting in `lro` and ending in `*.tf`. 
+# Here's how it's done:
+# 
+# 1) Define the name of your `custom_input_mission`;
+# 2) Define a `custom_fk_url` (namely, the NAIF link where fk kernels for the mission are stored);
+# 3) call the `get_kernels` function.
+#    Its inputs are:
+#    - input_mission [required]
+#    - url (from which the files will be retrieved) [required]
+#    - wanted_files (list of files present at a given url for which you already know the name) [optional]
+#    - wanted_files_pattern (list of patterns of files to be downloaded, for instance: `wanted_files_patterns = ['lro*.tf']`) [optional]
+#    - custom_output [optional]
+# <a id='Download_all_Files_of_a_Certain_Type'></a>
+
+# In[9]:
+
+
+custom_fk_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/fk/'
+object.get_kernels(input_mission = 'lro', url = custom_fk_url, wanted_files_patterns = ['lro*.tf'])
+
+
+# ## Downloading Custom Meta-Kernel Files for Non-Supported Missions
+# The following cell shows how to download all relevant files specified in a custom mission [Meta-Kernel](https://naif.jpl.nasa.gov/naif/furnsh_details.html#:~:text=A%20meta%2Dkernel%2C%20also%20known,one%20or%20more%20meta%2Dkernels.) using custom inputs.
 # The steps to be performed are:
 # 
-# - Define the name of your `custom_input_mission`;
-# - Add a `custom_meta_kernel_url` associated to the `custom_input_mission`;
-# - Add a `custom_meta_kernel_pattern`  (or name, if you already know what's the exact name of the **meta-kernel** to be downloaded!);
-# - Add the `custom_kernels_url` where kernels for your custom input mission are stored;
-# - Define the custom path where you want to store your data;
-# - Call the `get_mission_files` function as done for other missions alreayd, and do not forget the **flag**: `all_meta_kernel_files`;
-# - Get popcorns, it's gonna take a while! 🍿
+# 1) Define the name of your `custom_input_mission`;
+# 2) Add a `custom_meta_kernel_url` associated to the `custom_input_mission`;
+# 3) Add a `custom_meta_kernel_pattern`  (or name, if you already know what's the exact name of the **meta-kernel** to be downloaded!);
+# 4) Add the `custom_kernels_url` where kernels for your custom input mission are stored;
+# 5) Define the `custom_local_path` where you want to store your data;
+# 6) Call the `get_mission_files` function as done for other missions already, and do not forget the **flag**: `all_meta_kernel_files`;
+# 
+# Get popcorns, it's gonna take a (long) while! 🍿
+# 
+# **NOTE 10. About the Output of the Following Cell** 
+# 
+# As for the following cell, **we avoid plotting its output**, for two main reasons:
+# - outputs are essentially the same as the previous ones, so it's easy to understand them;
+# - the full downloading of all files listed in a Meta-Kernel typically takes a long time.
+# 
+# Neverthless, we encourage users to play with this cool feature!
 
 # In[ ]:
 
@@ -246,15 +349,9 @@ custom_kernels_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-
 
 object.add_custom_mission_meta_kernel_url(custom_input_mission , custom_meta_kernel_url)
 object.add_custom_mission_meta_kernel_pattern(custom_input_mission , custom_meta_kernel_pattern)
-object.add_custom_mission_kernels_url(custom_input_mission, custom_kernels_url)
+object.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
 custom_local_path = './lro_archive'
 
 object.get_mission_files(input_mission = custom_input_mission, 
                          custom_output = custom_local_path, all_meta_kernel_files = True)
-
-
-# In[ ]:
-
-
-
 
