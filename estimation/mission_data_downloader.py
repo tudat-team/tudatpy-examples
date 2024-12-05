@@ -4,28 +4,23 @@
 # ## Objectives
 # 
 # - This script shows how to use the TudatPy `mission_data_downloader` functionality  to download:
-# 1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
-# 2) **Closed Loop Doppler Data** (DSN and IFMS)
-# 3) **Ancillary** Ionospheric and Tropospheric **Data**
+#     1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
+#     2) **Closed Loop Doppler Data** (DSN and IFMS)
+#     3) **Ancillary** Ionospheric and Tropospheric **Data**
 # 
-# for some supported missions (see **NOTE 1** for a list of supported missions). 
+#    for some supported missions (see **NOTE 1** for a list of supported missions). 
 # 
-# - Moreover, we also show how to use the functionality to download: 
-# 1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
-# 2) **Closed Loop Doppler Data** (DSN and IFMS)
-# 3) **Ancillary** Ionospheric and Tropospheric **Data**
-# 
-# for a custom, user-defined mission.
+# - Moreover, we also show how to use the functionality to download the same type of files for a **custom, user-defined mission**.
 # 
 # - Last but not least, we show how to use tudatpy to download:
-#   **all files listed in a given Meta-Kernel**.
+#   **all files listed in a given SPICE Meta-Kernel**.
 # 
-# The mission archive is **cleaned up (namely, empty folders are removed)** at the end of each run.
+#   The mission archive is **cleaned up (namely, empty folders are removed)** at the end of each run.
 # 
 # ### NOTES
-# **NOTE 1. (Supported Missions and Relative Downloaded Data).** 
+# **NOTE 1. (Supported Missions and Relative Downloaded Data).**
 # 
-# The following spice kernels are loaded at the end of a run:
+# The following spice kernels can be loaded automatically at the end of a run, if  the `load_kernels` flag in the `get_mission_files` function is set to **True** (see MRO example in the next cells):
 # 
 # 1) **existing spice kernels** in the mission folder
 # 2) (new) **downloaded spice kernels**
@@ -35,8 +30,8 @@
 # - **Mars Reconnnaissance Orbiter (MRO)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # - **Mars Express (MEX)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # - **Jupiter Icy Moons Explorer (JUICE)** [Available: Spice Kernels, Not Available (yet): Doppler Data, Ancillary]
-# - **Cassini**
-# - **GRAIL (both Grail-A and Grail-B)**
+# - **Cassini** [Available: Spice Kernels, Doppler Data, Ancillary for all **Titan Flybys**]
+# - **GRAIL (both Grail-A and Grail-B)** [Available: Spice Kernels, Doppler Data, Ancillary]
 # 
 # Foreseen supported missions (in descending priority order, code yet to be developed):
 # 
@@ -52,15 +47,11 @@
 # **NOTE 3. (About DSN-TNF)**
 # 
 # No DSN-TNF download functionality has been implemented (at least, not yet!)
-# 
-# **Note 4. About spiceypy**
-# 
-# A compiled version of TUDAT containing the `spiceypy` dependency is needed (if spiceypy is not present, you won't be able to download files for the Cassini mission)
 
 # ## Load required standard modules
 # The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
 
-# In[2]:
+# In[1]:
 
 
 from tudatpy.data.mission_data_downloader import *
@@ -69,7 +60,7 @@ from tudatpy.data.mission_data_downloader import *
 # ## Create the LoadPDS Object
 # First, we create the LoadPDS() object.
 
-# In[2]:
+# In[7]:
 
 
 object = LoadPDS()
@@ -80,40 +71,54 @@ spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will 
 # 
 # ### Set Time Interval(s) for Downloading
 # 
-# Then we select the `start_date` and `end_date`, and we do so for each mission we wish to download (Cassini will be an exception due to the peculiar mission concept, see **Cassini Downloader** below). Of course, each mission has to come with its own dates, as operations are carried out over different periods. 
+# Then we select the `start_date` and `end_date`, and we do so for each mission we wish to download (Cassini will be an exception due to the peculiar mission concept, see **Cassini Downloader** below). Of course, each mission has to come with its own dates, as operations are carried out over different periods.
 # 
 # ### Download Mission Files (MRO, MEX, JUICE)
-# Finally, we can call the function "get_mission_files".
-# get_mro_files will download: clock kernels, orientation kernels, radio science (odf) files for mro
-# get_mex_files will download: clock kernels, orientation kernels, radio science (ifms) files for mex 
-# get_juice_files will download: clock kernels, orientation kernels, for juice. No radio science data, cause none is yet available on the server (fdets retrieval is needed).
+# 
+# 
+# Finally, we can call the function `get_mission_files`, specifying the above-defined start and end dates.
+# 
+# Only for this first example, we set the `load_kernels` flag to **True**. This way, we allow for automatic loading of SPICE kernels. If you do not wish to load them, you can simply remove the flag.
 # 
 # **NOTE 5. (About MEX and JUICE Files Download)**
 # 
 # Here, we will only showcase the downloading of MRO files. However, **if you wish to download files for MEX or JUICE**, you can simply **uncomment the corresponding lines** in the cell below! We have included those **just for you**!
+# 
 
 # In[3]:
 
 
-start_date_juice = datetime(2023, 7, 1)
-end_date_juice = datetime(2023, 8, 10)
-
 start_date_mro = datetime(2007, 1, 3)
 end_date_mro = datetime(2007, 1, 5)
 
-start_date_mex = datetime(2004, 1, 3)
-end_date_mex = datetime(2004,2, 7) 
+#start_date_mex = datetime(2004, 1, 3)
+#end_date_mex = datetime(2004,2, 7) 
+
+#start_date_juice = datetime(2023, 7, 1)
+#end_date_juice = datetime(2023, 8, 10)
 
 # Download Mission Files with default output folder
 # (only MRO is shown here. Uncomment the corresponding lines to download data for MEX and JUICE!)
 
-kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(input_mission = 'mro', start_date = start_date_mro, end_date = end_date_mro, custom_output = None)         
+kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(
+    input_mission = 'mro', 
+    start_date = start_date_mro, 
+    end_date = end_date_mro, 
+    custom_output = None,
+    load_kernels = True)      
+
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(input_mission = 'mex', start_date = start_date_mex, end_date = end_date_mex)         
+#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(
+#    input_mission = 'mex', 
+#    start_date = start_date_mex, 
+#    end_date = end_date_mex)         
 #print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(input_mission = 'juice', start_date = start_date_juice, end_date = end_date_juice) 
+#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
+#    input_mission = 'juice',
+#    start_date = start_date_juice,
+#    end_date = end_date_juice) 
 #print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
@@ -141,7 +146,7 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # ### Set Flybys for Downloading
 # 
 # The most valuable data collected for Cassini is probably the one related to the various flybys of the Moons of Saturn.
-# For this reason, in order to retrieve Cassini data, we will require the **name of the flyby** data the user wishes to download, rather than a start and end date (see **Notes 6 and 7** for info on the supported flybys). 
+# For this reason, in order to retrieve Cassini data, we will require the **name of the flyby** data the user wishes to download, rather than a start and end date (see **Notes 5 and 6** for info on the supported flybys). 
 # 
 # ### How to pick a Cassini flyby?
 # - If you already know the name of the flyby you want to download (e.g. T011, T022, etc...), you can simply call the function `get_mission_files` with `input_mission = 'Cassini'`, also adding the flag `flyby_IDs = T011` (or `flyby_IDs = T022`, ec...). 
@@ -154,11 +159,11 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # 
 # 
 # ### NOTES
-# **NOTE 6. Supported Flyby Moons**
+# **NOTE 5. Supported Flyby Moons**
 # 
 # For now, only Titan Flybys are supported.
 # 
-# **NOTE 7. All flyby_IDs types**
+# **NOTE 6. All flyby_IDs types**
 # 
 # `flyby_IDs` can be:
 # 1) a list made of single flybys like: `flyby_IDs = ['T011', 'T022']` or `flyby_IDs = ['T011']`
@@ -170,7 +175,7 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 # As mentioned above in *Download Cassini Flyby Files*, **you can also decide not to specify any flyby_ID**. 
 # In this case, **a table will be printed out** from which you will be able to interactively select the flyby you're interested in. 
 # 
-# **NOTE 8. Custom Output**
+# **NOTE 7. Custom Output**
 # 
 # As we mentioned above, the **default** output folder will be: `cassini_archive/MOON_NAME/FLYBY_ID/`
 # The user can still define a custom output path using the flag `custom_output` in the `get_mission_files` function. The output files will then be found in: `custom_path/MOON_NAME/FLYBY_ID/`
@@ -180,7 +185,10 @@ print(f'MRO Ancillary: {ancillary_files_mro}\n')
 
 # Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
 flyby_IDs = 'T011'
-kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(input_mission = 'cassini', flyby_IDs = flyby_IDs, custom_output = 'CASSINI_CUSTOM_ARCHIVE/')
+kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(
+    input_mission = 'cassini', 
+    flyby_IDs = flyby_IDs, 
+    custom_output = 'CASSINI_CUSTOM_ARCHIVE/')
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
@@ -207,7 +215,10 @@ start_date_grail_b = datetime(2012, 5, 6)
 end_date_grail_b = datetime(2012, 6, 12)
 
 kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(
-    input_mission = 'grail-a', start_date = start_date_grail_a, end_date = end_date_grail_a, custom_output = './GRAIL_ARCHIVE'
+    input_mission = 'grail-a', 
+    start_date = start_date_grail_a, 
+    end_date = end_date_grail_a, 
+    custom_output = './GRAIL_ARCHIVE'
 )         
 print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
 
@@ -264,7 +275,7 @@ print(f'GRAIL-A Ancillary: {ancillary_files_grail_a}\n\n')
 # 9) Specify the start and end date
 # 10) Call the `dynamic_download_url_files_time_interval` function.
 # 
-# **NOTE 9. About Start and End Dates** 
+# **NOTE 8. About Start and End Dates** 
 # 
 # As it will be shown later in the example, you can also **[download all files of a certain type](#Download_all_Files_of_a_Certain_Type)** (ck, spk, fk, odf, etc...) present at a given url, **regardless of the start and end date**.
 
@@ -331,7 +342,7 @@ object.get_kernels(input_mission = 'lro', url = custom_fk_url, wanted_files_patt
 # 
 # Get popcorns, it's gonna take a (long) while! 🍿
 # 
-# **NOTE 10. About the Output of the Following Cell** 
+# **NOTE 9. About the Output of the Following Cell** 
 # 
 # As for the following cell, **we avoid plotting its output**, for two main reasons:
 # - outputs are essentially the same as the previous ones, so it's easy to understand them;
@@ -352,6 +363,8 @@ object.add_custom_mission_meta_kernel_pattern(custom_input_mission , custom_meta
 object.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
 custom_local_path = './lro_archive'
 
-object.get_mission_files(input_mission = custom_input_mission, 
-                         custom_output = custom_local_path, all_meta_kernel_files = True)
+object.get_mission_files(
+    input_mission = custom_input_mission, 
+    custom_output = custom_local_path, 
+    all_meta_kernel_files = True)
 
