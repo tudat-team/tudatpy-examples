@@ -49,7 +49,7 @@
 # No DSN-TNF download functionality has been implemented (at least, not yet!)
 
 # ## Load required standard modules
-# The required modules and dependencies are taken from the python file: `Mission_Data_Retriever_Class.py` present in the`tudatpy-examples/estimation` folder.
+# The required modules and dependencies are taken from the `mission_data_downloader` class.
 
 # In[1]:
 
@@ -60,7 +60,7 @@ from tudatpy.data.mission_data_downloader import *
 # ## Create the LoadPDS Object
 # First, we create the LoadPDS() object.
 
-# In[7]:
+# In[2]:
 
 
 object = LoadPDS()
