@@ -60,5 +60,3 @@ estimation/grail_parallel_outputs
 estimation/grail_kernels
 estimation/mro_parallel_outputs
 estimation/mro_kernels
-estimation/mro_archive
-estimation/grail_archive
