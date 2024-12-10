@@ -1,20 +1,15 @@
+"""
 # Separation of satellites via differential drag
-"""
 
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
-
-
-## Context
-"""
+## Objectives
 
 This file was adapted from the tudatpy example application _Perturbed Satellite Orbit_.
 It simulates the orbits of two LEO satellites separating via differential drag. The two satellites are 3U cubesats
 (5kg each), but one of them has 3x the drag surface area of the other, because of different attitudes.
 """
 
-## Import statements
 """
+## Import statements
 The required import statements are made here, at the very beginning.
 
 Some standard modules are first loaded. These are `numpy` and `matplotlib.pyplot`.
@@ -24,8 +19,10 @@ Then, the different modules of `tudatpy` that will be used are imported.
 NAIF's `SPICE` kernels are also loaded here, so that the position of various bodies such as the Earth, the Sun, and the Moon, can be make known to `tudatpy`.
 """
 
+
 # Load standard modules
 import numpy as np
+
 from matplotlib import pyplot as plt
 from scipy import interpolate
 
@@ -33,23 +30,19 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import numerical_simulation
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice_interface
+from tudatpy.interface import spice
 from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
-from tudatpy.numerical_simulation.environment import SystemOfBodies
 from tudatpy.astro.time_conversion import DateTime
 
 # Load spice kernels
-spice_interface.load_standard_kernels()
+spice.load_standard_kernels()
 
 
+"""
 ## Creation of the environment
-"""
 This includes both the vehicles and the celestial bodies.
-"""
-
 
 ### Creation of celestial bodies
-"""
 
 First, we create body settings for the following celestial bodies:
 
@@ -59,6 +52,7 @@ First, we create body settings for the following celestial bodies:
 
 and we create these bodies by relying on default settings. 
 """
+
 
 # Define string names for bodies to be created from default.
 bodies_to_create = ["Sun", "Earth", "Moon"]
@@ -73,27 +67,26 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_origin,
     global_frame_orientation)
 
-# Create system of selected celestial bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
 
-
-### Creation of vehicle settings
 """
+### Creation of vehicle settings
 
 We create two identical vehicles, called asterix and obelix, we set the mass and the aerodynamic coefficient 
 interface (one satellite has 3X the surface of the other satellite). The main vehicle properties are:
+
 - mass: 5 kg
 - drag surface: 0.03 and 0.01 $m^2$
 - aerodynamic coefficient: 1.2
 """
 
+
 # Create vehicle objects.
-bodies.create_empty_body("asterix")
-bodies.create_empty_body("obelix")
+body_settings.add_empty_settings("asterix")
+body_settings.add_empty_settings("obelix")
 
 # Set mass of satellites
-bodies.get("asterix").mass = 5.0
-bodies.get("obelix").mass = 5.0
+body_settings.get("asterix").constant_mass = 5.0
+body_settings.get("obelix").constant_mass = 5.0
 
 # Create aerodynamic coefficient interface settings and add it to the first satellite
 reference_area = 0.1 * 0.1
@@ -101,8 +94,7 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "asterix", aero_coefficient_settings)
+body_settings.get("asterix").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create aerodynamic coefficient interface settings and add it to the second satellite (3x surface area)
 reference_area = 3 * 0.1 * 0.1
@@ -110,24 +102,27 @@ drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
     reference_area, [drag_coefficient, 0, 0]
 )
-environment_setup.add_aerodynamic_coefficient_interface(
-    bodies, "obelix", aero_coefficient_settings)
+body_settings.get("obelix").aerodynamic_coefficient_settings = aero_coefficient_settings
 
 
+
+# Create system of selected bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
+
+
+"""
 ## Creation of propagation settings
-"""
-"""
-
 
 ### Creation of acceleration settings
-"""
 
 We set the (identical) accelerations acting on the satellites.
 The dynamical model includes the following accelerations:
+
 - spherical harmonic gravity exerted by the Earth, up to degree 2 and order 0
 - aerodynamic
 - point mass gravity of the Sun and the Moon
 """
+
 
 # Define bodies that are propagated.
 bodies_to_propagate = ["asterix", "obelix"]
@@ -161,12 +156,13 @@ acceleration_models = propagation_setup.create_acceleration_models(
     central_bodies)
 
 
-### Set initial state
 """
+### Set initial state
 
 The satellites start at the same location. They are placed in a Sun-synchronous orbit at an altitude of 500km.
 The initial conditions are given in  Kepler elements and later on converted to Cartesian elements.
 """
+
 
 # Retrieve Earth's gravitational parameter
 earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
@@ -182,16 +178,18 @@ initial_state = element_conversion.keplerian_to_cartesian_elementwise(
     longitude_of_ascending_node=np.deg2rad(23.4),
     true_anomaly=np.deg2rad(139.87)
 )
-# Both satellites have the same inital state
+# Both satellites have the same initial state
 initial_states = np.concatenate((initial_state, initial_state))
 
 
-### Set dependent variables to save
 """
+### Set dependent variables to save
 These include (for both satellites):
+
 - the keplerian states
 - the norm of the aerodynamic drag
 """
+
 
 # Define list of dependent variables to save
 dependent_variables_to_save = [
@@ -206,10 +204,11 @@ dependent_variables_to_save = [
 ]
 
 
-### Define termination settings
 """
+### Define termination settings
 
 The simulation terminates when one of the two occurs:
+
 - simulation time reaches 60 days
 - angular separation between two satellites reaches 20 degrees
 
@@ -227,6 +226,8 @@ $$
 where $\mathbf{r_1}$ and $\mathbf{r_2}$ are the position vectors of the first and second satellites respectively.
 """
 
+
+from tudatpy.numerical_simulation.environment import SystemOfBodies
 
 class AngleSeparationTermination:
 
@@ -246,7 +247,7 @@ class AngleSeparationTermination:
         self.bodies = bodies
         self.maximum_angular_separation = maximum_angular_separation
         # Create container to store separation angle
-        # The first element is neeeded because at the first epoch the termination settings are not checked
+        # The first element is needed because at the first epoch the termination settings are not checked
         self.separation_angle_history = [0.0]
         # Create termination reason to understand if time or angular separation triggered the termination
         self.termination_reason = "Final epoch of the propagation was reached."
@@ -270,11 +271,13 @@ class AngleSeparationTermination:
         """
         # Check input for state 1
         if state_1.shape != (6, ):
-            err_msg = "Input must be a cartesian state vector of 6 components, but the one provided has shape "                       + str(state_1.shape)
+            err_msg = "Input must be a cartesian state vector of 6 components, but the one provided has shape " \
+                      + str(state_1.shape)
             raise ValueError(err_msg)
         # Check input for state 2
         if state_2.shape != (6, ):
-            err_msg = "Input must be a cartesian state vector of 6 components, but the one provided has shape "                       + str(state_2.shape)
+            err_msg = "Input must be a cartesian state vector of 6 components, but the one provided has shape " \
+                      + str(state_2.shape)
             raise ValueError(err_msg)
         # Get scalar product of position vector
         scalar_product = np.dot(state_1[:3], state_2[:3])
@@ -323,7 +326,10 @@ class AngleSeparationTermination:
         return stop_propagation
 
 
-# Now the termination settings can be created.
+"""
+Now the termination settings can be created.
+"""
+
 
 # Set simulation start and end epochs
 simulation_start_epoch = DateTime(2000, 1, 1).epoch()
@@ -342,12 +348,12 @@ angle_termination_condition = propagation_setup.propagator.custom_termination(an
 termination_list = [time_termination_condition, angle_termination_condition]
 hybrid_termination = propagation_setup.propagator.hybrid_termination(termination_list, fulfill_single_condition=True)
 
-## Creation of integration settings
-"""
 
+"""
 We use a variable step size Runge-Kutta-Fehlberg 7(8) integrator with relative and absolute tolerances equal to
 $10^{-10}$.
 """
+
 
 # Create numerical integrator settings
 initial_step_size = 10.0
@@ -363,7 +369,10 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     tolerance)
 
 
-# The translational propagation settings are created here.
+"""
+The translational propagation settings are created here.
+"""
+
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -378,26 +387,27 @@ propagator_settings = propagation_setup.propagator.translational(
 )
 
 
-
-## Execute simulation
 """
+## Execute simulation
 With these commands, we execute the simulation and retrieve the output.
 """
+
 
 # Create simulation object and propagate dynamics.
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
     bodies, propagator_settings)
-states = dynamics_simulator.state_history
-dependent_variables = dynamics_simulator.dependent_variable_history
+states = dynamics_simulator.propagation_results.state_history
+dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
 
 # Check which termination setting triggered the termination of the propagation
 print("Termination reason:" + angular_separation.termination_reason)
 
 
-## Post processing
 """
+## Post processing
 
 The output is processed to produce the following figures:
+
 1. kepler elements
 2. drag acceleration norm
 3. semi-major axis, with linear regression to see the difference in decay of both satellites
@@ -408,6 +418,7 @@ vectors).
 Since the output is very dense, we interpolate the dependent variables to plot a more sparse
 output. We do that via the `return_sparse_output()` function below.
 """
+
 
 def return_sparse_output(time_history, variable_history, datapoints=200):
     """
@@ -436,7 +447,10 @@ def return_sparse_output(time_history, variable_history, datapoints=200):
     return time_interp, interpolated_values
 
 
-# We retrieve the output and convert it to `numpy` arrays.
+"""
+We retrieve the output and convert it to `numpy` arrays.
+"""
+
 
 # Get time and transform it in days
 time = list(dependent_variables.keys())
@@ -447,12 +461,13 @@ states_list = np.vstack(list(states.values()))
 dependent_variable_list = np.vstack(list(dependent_variables.values()))
 
 
-### Kepler elements
 """
+### Kepler elements
 
 To plot the kepler elements, we loop over each element, extract the correct element, make the necessary unit
 conversions, and interpolate to produce a sparse output. This is replicated for each of the two satellites.
 """
+
 
 # Plot Kepler elements as a function of time
 kepler_elements = dependent_variable_list[:, :12]
@@ -502,16 +517,16 @@ for element_number in range(6):
     if element_number == 0:
         current_ax.legend()
         
-plt.tight_layout()  
-plt.show()      
+plt.tight_layout()        
 
 
-### Drag acceleration norm
 """
+### Drag acceleration norm
 
 We do something similar for the norm of the drag acceleration. The dependent variable saved is _already_ the norm, so
  we don't need to compute it ourselves.
 """
+
 
 # Plot drag acceleration as a function of time
 fig, ax = plt.subplots(figsize=(9, 5))
@@ -533,19 +548,19 @@ ax.grid()
 ax.set_title("Drag acceleration")
 ax.legend()
 plt.tight_layout()
-plt.show()
 
 
-# As expected, the drag acceleration experienced by the satellite orbiting at a higher altitude (Asterix) is lower than
-#  the other satellite's drag acceleration. This happens because Obelix has 3 times the drag surface area of Asterix.
-# 
-### Decay (semi-major axis trend)
 """
+As expected, the drag acceleration experienced by the satellite orbiting at a higher altitude (Asterix) is lower than
+ the other satellite's drag acceleration. This happens because Obelix has 3 times the drag surface area of Asterix.
+
+### Decay (semi-major axis trend)
 
 Now we want to visualize the decay of the two satellites by plotting the trend of the semi-major axis. This allows to
  remove the periodic variations due to the higher-order spherical harmonic gravity. To do that, we use the
  `numpy.polyfit()` function.
 """
+
 
 # Compute offset and trend of semi-major axis
 # First satellite
@@ -582,13 +597,12 @@ ax.set_ylabel("Semi-major axis [km")
 ax.grid()
 ax.legend(loc='lower left')
 plt.tight_layout()
-plt.show()
 
 
-# Due to the larger drag acceleration experienced by Obelix, the satellites decays at a faster rate.
-# 
-### Angular separation
 """
+Due to the larger drag acceleration experienced by Obelix, the satellites decays at a faster rate.
+
+### Angular separation
 
 Finally, we plot the angular separation stored by the `AngleSeparationTermination` class.
 This does not need any interpolation. As expected, the behavior is similar to a 2nd-degree polynomial, because the
@@ -596,6 +610,7 @@ difference in drag acceleration is almost constant (except for periodic oscillat
 extend the simulation time, the difference in drag acceleration would grow over time (and not be constant) because of
  larger density values at lower altitudes.
 """
+
 
 # Plot angular separation
 angular_separation_list = np.rad2deg(angular_separation.separation_angle_history)
@@ -607,8 +622,6 @@ ax.set_ylabel("Angular separation [deg]")
 ax.set_title("Angular separation between two satellites")
 ax.grid()
 plt.tight_layout()
+
+
 plt.show()
-
-
-
-
