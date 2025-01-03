@@ -1,6 +1,5 @@
 import os
 from xmlrpc.client import DateTime
-
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -22,11 +21,16 @@ from urllib.request import urlretrieve
 
 spice.load_standard_kernels()
 spice.load_kernel('./mex_phobos_flyby/ORMM_T19_131201000000_01033.BSP')
+spice.load_kernel('./mex_phobos_flyby/MEX_STRUCT_V01.BSP')
+spice.load_kernel('./mex_phobos_flyby/MEX_V16.TF')
+spice.load_kernel('./mex_phobos_flyby/MEX_241229_STEP.TSC')
+spice.load_kernel('./mex_phobos_flyby/NAIF0012.TLS')
+spice.load_kernel('./mex_phobos_flyby/ATNM_MEASURED_2013_V04.BC')
 start = datetime(2013, 12, 27)
 end = datetime(2013, 12, 30)
 
-start_time = time_conversion.datetime_to_tudat(start).epoch() - 86400.0
-end_time = time_conversion.datetime_to_tudat(end).epoch() + 86400.0
+start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
+end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
 
 #date_to_filter_float = date_to_filter.epoch().to_float()
 #original_odf_observations.filter_observations(date_to_filter_float)
@@ -53,15 +57,12 @@ body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_
 
 body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
-# Add New Norcia ground station
-station_altitude = 252.0  # Altitude of the New Norcia station
-new_norcia_latitude = np.deg2rad(-31.0482)  # Latitude of New Norcia in radians
-new_norcia_longitude = np.deg2rad(116.191)  # Longitude of New Norcia in radians
 
-spacecraft_name = "MEX"
-dsn_station_name = 'NWNORCIA' #new norcia
-spacecraft_central_body = "Mars"
-body_settings.add_empty_settings(spacecraft_name)
+spacecraft_name = "MEX" # Set Spacecraft Name
+dsn_station_name = 'NWNORCIA' # Set New Norcia Ground Station
+spacecraft_central_body = "Mars" # Set Central Body (Mars)
+body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
+
 # Retrieve translational ephemeris from SPICE
 body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
     start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
@@ -70,49 +71,56 @@ body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.epheme
 body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
     global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
 
+# Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
 ########## IMPORTANT STEP ###################################
+# Set the transponder turnaround ratio function
 vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body("MEX").system_models = vehicleSys
 ###############################################################
-# Add the ground station to the environment
+
+# Add the New Norcia ground station to the environment
 dict_stations = environment_setup.ground_station.approximate_ground_stations_position()
 NWNORCIA_position = dict_stations['NWNORCIA']
-ground_station_settings = environment_setup.ground_station.basic_station(
-"NWNORCIA",
-NWNORCIA_position)
+ground_station_settings = environment_setup.ground_station.basic_station("NWNORCIA",NWNORCIA_position)
 
-environment_setup.add_ground_station(
-bodies.get_body("Earth"),
-ground_station_settings )
-#body_settings.get( "Earth" ).ground_station_settings = environment_setup.ground_station.dsn_stations()
+environment_setup.add_ground_station(bodies.get_body("Earth"), ground_station_settings )
 
-#print(len(body_settings.get( "Earth" ).ground_station_settings))
-# Create ground station settings
-
-
-
-ifms_file = ['./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB']
+# Load IFMS file
+ifms_file = ['./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB'] # Phobos Flyby
 reception_band = observation.FrequencyBands.s_band
 transmission_band = observation.FrequencyBands.x_band
 
+# Create collection from IFMS file
 ifms_collection = observation.observations_from_ifms_files(ifms_file, bodies, spacecraft_name, dsn_station_name, reception_band, transmission_band)
-# Compress Doppler observations from 1.0 s integration time to 60.0 s
-print('Observations: ')
 
-#dates_to_filter = [time_conversion.DateTime(2013, 12, 29, 00, 25, 41.500)]
-#dates_to_filter_float = []
-#for date in dates_to_filter:
-#    dates_to_filter_float.append(date.epoch().to_float())
-#    # Create filter object for specific date
-#    date_filter = estimation.observation_filter(
-#        estimation.time_bounds_filtering, date, date + 86400)
-#        # Filter out observations from observation collection
-#    ifms_collection.filter_observations(date_filter)
-#print('Filtered Observations: ')
-#print(ifms_collection.concatenated_observations.size)
+antenna_position_history = dict()
+com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
+for obs_times in ifms_collection.get_observation_times():
+    time = obs_times[0].to_float() - 3600.0
+    while time <= obs_times[-1].to_float() + 3600.0:
+        state = np.zeros((6, 1))
+
+        # For each observation epoch, retrieve the antenna position (spice ID "-74214") w.r.t. the origin of the MRO-fixed frame (spice ID "-74000")
+        state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
+
+        # Translate the antenna position to account for the offset between the origin of the MRO-fixed frame and the COM
+        state[:3,0] = state[:3,0] - com_position
+
+        # Store antenna position w.r.t. COM in the MRO-fixed frame
+        antenna_position_history[time] = state
+        time += 10.0
+
+    # Create tabulated ephemeris settings from antenna position history
+    antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
+
+    # Create tabulated ephemeris for the MRO antenna
+    antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+
+    # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
+    ifms_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
 
 ### ------------------------------------------------------------------------------------------
 ### DEFINE SETTINGS TO SIMULATE OBSERVATIONS AND COMPUTE RESIDUALS
@@ -122,7 +130,6 @@ print('Observations: ')
 light_time_correction_list = list()
 light_time_correction_list.append(
     estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
-
 
 ##################################################################################################################
 # Add tropospheric correction!
@@ -144,14 +151,13 @@ light_time_correction_list.append(
 doppler_link_ends = ifms_collection.link_definitions_per_observable[
     estimation_setup.observation.dsn_n_way_averaged_doppler]
 
-
-# IMPORTANT: ADD subtract_doppler_signature = False or it wont work
+########## IMPORTANT STEP #######################################################################
+# Add: subtract_doppler_signature = False, or it won't work
 observation_model_settings = list()
 for current_link_definition in doppler_link_ends:
-    print(current_link_definition)
     observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
         current_link_definition, light_time_correction_list, subtract_doppler_signature = False ))
-
+###################################################################################################
 # Create observation simulators.
 observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
 
