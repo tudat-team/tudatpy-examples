@@ -1,3 +1,10 @@
+######################### # IMPORTANT #############################################################################
+
+# In order to test this example, I am using a Phobos Flyby IFMS file missing the few last lines at the end.
+# The removed lines were classified as outliers, but they shoudl be filtered with the proper tudat functionality,
+# rather than manually (as done for now)
+
+##################################################################################################################
 import os
 from xmlrpc.client import DateTime
 import numpy as np
@@ -129,7 +136,14 @@ for obs_times in ifms_collection.get_observation_times():
 #  Create light-time corrections list
 light_time_correction_list = list()
 light_time_correction_list.append(
-    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]),
+)
+
+############### If this piece of code is triggered, the residuals go up from .007 to .008 ########################
+#light_time_correction_list.append(
+#    estimation_setup.observation.jakowski_ionospheric_light_time_correction()
+#)
+##################################################################################################################
 
 ##################################################################################################################
 # Add tropospheric correction!
@@ -137,12 +151,6 @@ light_time_correction_list.append(
 #    estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files))
 ##################################################################################################################
 
-##################################################################################################################
-# Add ionospheric correction
-#spacecraft_name_per_id = dict()
-#spacecraft_name_per_id[74] = "MEX"
-#light_time_correction_list.append(
-#    estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(ion_files, spacecraft_name_per_id))
 #####################################################################################################################################
 # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
 # tracking links between various ground stations and the MEX spacecraft. The list of light-time corrections defined above is then
