@@ -1,7 +1,7 @@
 ######################### # IMPORTANT #############################################################################
 
-# In order to test this example, I am using a Phobos Flyby IFMS file missing the few last lines at the end.
-# The removed lines were classified as outliers, but they shoudl be filtered with the proper tudat functionality,
+# In order to test this example, I am using a Phobos Flyby IFMS file missing the few last/first lines...
+# The removed lines were classified as outliers, but they should be filtered with the proper tudat functionality,
 # rather than manually (as done for now)
 
 ##################################################################################################################
@@ -110,20 +110,20 @@ for obs_times in ifms_collection.get_observation_times():
     while time <= obs_times[-1].to_float() + 3600.0:
         state = np.zeros((6, 1))
 
-        # For each observation epoch, retrieve the antenna position (spice ID "-74214") w.r.t. the origin of the MRO-fixed frame (spice ID "-74000")
+        # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
         state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
 
-        # Translate the antenna position to account for the offset between the origin of the MRO-fixed frame and the COM
+        # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
         state[:3,0] = state[:3,0] - com_position
 
-        # Store antenna position w.r.t. COM in the MRO-fixed frame
+        # Store antenna position w.r.t. COM in the MEX-fixed frame
         antenna_position_history[time] = state
         time += 10.0
 
     # Create tabulated ephemeris settings from antenna position history
     antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
 
-    # Create tabulated ephemeris for the MRO antenna
+    # Create tabulated ephemeris for the MEX antenna
     antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
 
     # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
@@ -136,8 +136,11 @@ for obs_times in ifms_collection.get_observation_times():
 #  Create light-time corrections list
 light_time_correction_list = list()
 light_time_correction_list.append(
-    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]),
-)
+    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+
+##############################
+ # ATMOSPHERIC CORRECTION #
+###############################
 
 ############### If this piece of code is triggered, the residuals go up from .007 to .008 ########################
 #light_time_correction_list.append(
@@ -146,10 +149,9 @@ light_time_correction_list.append(
 ##################################################################################################################
 
 ##################################################################################################################
-# Add tropospheric correction!
-#light_time_correction_list.append(
-#    estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(tro_files))
-##################################################################################################################
+
+atmospheric_corrections = np.loadtxt('./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB', usecols = 10)
+
 
 #####################################################################################################################################
 # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
@@ -188,14 +190,41 @@ concatenated_computed_obs = ifms_collection.get_concatenated_computed_observatio
 concatenated_residuals = ifms_collection.get_concatenated_residuals()
 rms_residuals = ifms_collection.get_rms_residuals()
 mean_residuals = ifms_collection.get_mean_residuals()
-print(concatenated_obs)
-print(concatenated_computed_obs)
-print(f'rms_residual: {rms_residuals}')
-print(f'mean_residual: {mean_residuals}')
 
+#print(concatenated_obs - atmospheric_corrections)
+#print(concatenated_computed_obs)
+
+####################################################################################################
+##### COMPUTE RESIDUALS BY HAND, INCORPORATING ATMOSPHERIC CORRECTIONS PROVIDED IN IFMS FILES #####
+residuals_by_hand =(concatenated_computed_obs - (concatenated_obs - atmospheric_corrections))
+#print(f'residuals_array: {abs(residuals_by_hand)}')
+print('Residuals by Hand, Atmospheric Corrections')
+print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand**2)))}')
+print(f'mean_residuals: {abs(np.mean(residuals_by_hand))}\n')
+####################################################################################################
+
+####################################################################################################
+##### COMPUTE RESIDUALS BY HAND, WITHOUT ATMOSPHERIC CORRECTIONS #####
+residuals_by_hand_no_atm_corr =(concatenated_computed_obs - concatenated_obs)
+#print(f'residuals_array: {abs(residuals_by_hand)}')
+print('Residuals by Hand, NO Atmospheric Corrections')
+print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2)))}')
+print(f'mean_residuals: {abs(np.mean(residuals_by_hand_no_atm_corr))}\n')
+####################################################################################################
+
+####################################################################################################
+# TUDATPY-PROVIDED RESIDUALS
+print('Tudatpy Residuals')
+print(f'rms_residuals: {rms_residuals}')
+print(f'mean_residuals: {mean_residuals}\n')
+####################################################################################################
+
+### SAVING FILES ####
 #np.savetxt('mex_unfiltered_residuals_rms' + '.dat',
 #           np.vstack(rms_residuals), delimiter=',')
 #np.savetxt('mex_unfiltered_residuals_mean' + '.dat',
 #           np.vstack(mean_residuals), delimiter=',')
+#####################
 
+# Retrieve the time bounds of each observation set within the observation collection
 time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
