@@ -191,8 +191,8 @@ concatenated_computed_obs = ifms_collection.get_concatenated_computed_observatio
 concatenated_residuals = ifms_collection.get_concatenated_residuals()
 rms_residuals = ifms_collection.get_rms_residuals()
 mean_residuals = ifms_collection.get_mean_residuals()
-#print(concatenated_obs - atmospheric_corrections)
-#print(concatenated_computed_obs)
+print(concatenated_obs - atmospheric_corrections)
+print(concatenated_computed_obs)
 
 ####################################################################################################
 ##### COMPUTE RESIDUALS BY HAND, INCORPORATING ATMOSPHERIC CORRECTIONS PROVIDED IN IFMS FILES #####
@@ -226,5 +226,17 @@ print(f'mean_residuals: {mean_residuals}\n')
 #           np.vstack(mean_residuals), delimiter=',')
 #####################
 
-# Retrieve the time bounds of each observation set within the observation collection
-time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
+# Retrieve the observation times list
+times = ifms_collection.get_observation_times()
+times = [time.to_float() for time in times[0]]
+
+# Residuals Plot
+plt.scatter(times, residuals_by_hand, s = 6, marker = '+', label = 'Atm. Corr.')
+plt.axhline(abs(np.mean(residuals_by_hand)), label = f'mean residuals = {round(abs(np.mean(residuals_by_hand)),5)}', color = 'black', linestyle = '--')
+plt.axhline(abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2))), label = f'rms residuals = {round(abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2))),5)}', linestyle = '--')
+plt.axhline(-abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2))), linestyle = '--')
+plt.legend()
+plt.title('Mex Residuals')
+plt.xlabel('Time (s)')
+plt.ylabel('Residuals (Hz)')
+plt.show()
