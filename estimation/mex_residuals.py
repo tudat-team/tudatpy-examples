@@ -186,11 +186,11 @@ estimation.compute_residuals_and_dependent_variables(ifms_collection, observatio
 
 concatenated_obs = ifms_collection.get_concatenated_observations()
 concatenated_computed_obs = ifms_collection.get_concatenated_computed_observations()
-# Retrieve RMS and mean of the residuals, sorted per observation set
+
+# Retrieve RMS and mean of the residuals
 concatenated_residuals = ifms_collection.get_concatenated_residuals()
 rms_residuals = ifms_collection.get_rms_residuals()
 mean_residuals = ifms_collection.get_mean_residuals()
-
 #print(concatenated_obs - atmospheric_corrections)
 #print(concatenated_computed_obs)
 
