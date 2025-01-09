@@ -1,6 +1,6 @@
 ######################### # IMPORTANT #############################################################################
 
-# In order to test this example, I am using a Phobos Flyby IFMS file missing the few last/first lines...
+# In order to test this example, I am using a Phobos Flyby fdets file missing the few last/first lines...
 # The removed lines were classified as outliers, but they should be filtered with the proper tudat functionality,
 # rather than manually (as done for now)
 
@@ -18,8 +18,6 @@ from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup, environment
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
-from tudatpy import util
-from load_pds_files import download_url_files_time, download_url_files_time_interval
 from datetime import datetime
 
 from urllib.request import urlretrieve
@@ -35,6 +33,8 @@ spice.load_kernel('./mex_phobos_flyby/NAIF0012.TLS')
 spice.load_kernel('./mex_phobos_flyby/ATNM_MEASURED_2013_V04.BC')
 start = datetime(2013, 12, 27)
 end = datetime(2013, 12, 30)
+
+print('yo')
 
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
 end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
@@ -65,7 +65,6 @@ body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_
 body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
 spacecraft_name = "MEX" # Set Spacecraft Name
-dsn_station_name = 'NWNORCIA' # Set New Norcia Ground Station
 spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
 
@@ -80,6 +79,7 @@ body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.r
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
+
 ########## IMPORTANT STEP ###################################
 # Set the transponder turnaround ratio function
 vehicleSys = environment.VehicleSystems()
@@ -89,27 +89,29 @@ bodies.get_body("MEX").system_models = vehicleSys
 
 # Add the New Norcia ground station to the environment
 dict_stations = environment_setup.ground_station.approximate_ground_stations_position()
-NWNORCIA_position = dict_stations['NWNORCIA']
-ground_station_settings = environment_setup.ground_station.basic_station("NWNORCIA",NWNORCIA_position)
+CEDUNA_position = dict_stations['CEDUNA']
+ground_station_settings = environment_setup.ground_station.basic_station("CEDUNA",CEDUNA_position)
 
 environment_setup.add_ground_station(bodies.get_body("Earth"), ground_station_settings )
 
-# Load IFMS file
-#ifms_file = ['./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB'] # Phobos Flyby S band
-ifms_file = ['./mex_phobos_flyby/M32ICL1L02_D2X_133621819_00_FILTERED.TAB'] # Phobos Flyby X band
+# Load FDETS file
+fdets_file = ['./mex_phobos_flyby/Fdets.mex2013.12.28.Cd.r2i.txt'] # Phobos Flyby X band
+
+
+base_frequency = 8412e6
+column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max", "doppler_measured_frequency_hz", "doppler_noise_hz"]
+
+target_name = 'MEX'
+transmitting_station_name = 'CEDUNA'
+receiving_station_name = 'CEDUNA'
 reception_band = observation.FrequencyBands.x_band
 transmission_band = observation.FrequencyBands.x_band
-
-# Create collection from IFMS file
-ifms_collection = observation.observations_from_ifms_files(ifms_file, bodies, spacecraft_name, dsn_station_name, reception_band, transmission_band)
-
-# Compress Doppler observations from 1.0 s integration time to 60.0 s
-compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
-    ifms_collection, 60, 10)
+# Create collection from fdets file
+fdets_collection = observation.observations_from_fdets_files(fdets_file[0], base_frequency, column_types, spacecraft_name, transmitting_station_name, receiving_station_name, reception_band, transmission_band)
 
 antenna_position_history = dict()
 com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
-for obs_times in ifms_collection.get_observation_times():
+for obs_times in fdets_collection.get_observation_times():
     time = obs_times[0].to_float() - 3600.0
     while time <= obs_times[-1].to_float() + 3600.0:
         state = np.zeros((6, 1))
@@ -131,7 +133,7 @@ for obs_times in ifms_collection.get_observation_times():
     antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
 
     # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-    ifms_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+    fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
 
 ### ------------------------------------------------------------------------------------------
 ### DEFINE SETTINGS TO SIMULATE OBSERVATIONS AND COMPUTE RESIDUALS
@@ -143,73 +145,57 @@ light_time_correction_list.append(
     estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
 
 ##############################
- # ATMOSPHERIC CORRECTION #
+# ATMOSPHERIC CORRECTION #
+
+# EMPTY FOR NOW
 ###############################
 
-############### If this piece of code is triggered, the residuals go up from .007 to .008 ########################
-#light_time_correction_list.append(
-#    estimation_setup.observation.jakowski_ionospheric_light_time_correction()
-#)
-##################################################################################################################
 
-##################################################################################################################
-
-atmospheric_corrections = np.loadtxt(ifms_file[0], usecols = 10)
-
-
-#####################################################################################################################################
 # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
 # tracking links between various ground stations and the MEX spacecraft. The list of light-time corrections defined above is then
 # added to each of these link ends.
 
-doppler_link_ends = ifms_collection.link_definitions_per_observable[
-    estimation_setup.observation.dsn_n_way_averaged_doppler]
+link_ends = {
+    observation.receiver: observation.body_reference_point_link_end_id('Earth', "CEDUNA"),
+    observation.transmitter: observation.body_origin_link_end_id('MEX'),
+}
 
-########## IMPORTANT STEP #######################################################################
-# Add: subtract_doppler_signature = False, or it won't work
-observation_model_settings = list()
-for current_link_definition in doppler_link_ends:
-    observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
-        current_link_definition, light_time_correction_list, subtract_doppler_signature = False ))
+# Create a single link definition from the link ends
+link_definition = observation.LinkDefinition(link_ends)
+
+# Define the observation model settings
+observation_model_settings = [
+    estimation_setup.observation.dsn_n_way_doppler_averaged(
+        link_definition, light_time_correction_list
+    )
+]
+print("Ground stations on Earth:", bodies.get_body("Earth").ground_station_list)
 ###################################################################################################
 # Create observation simulators.
 observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
 
-# Add elevation and SEP angles dependent variables to the IFMS observation collection
+# Add elevation and SEP angles dependent variables to the fdets observation collection
 elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-elevation_angle_parser = ifms_collection.add_dependent_variable( elevation_angle_settings, bodies )
+elevation_angle_parser = fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
 sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-sep_angle_parser = ifms_collection.add_dependent_variable( sep_angle_settings, bodies )
+sep_angle_parser = fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
 
-# Compute and set residuals in the IFMS observation collection
-estimation.compute_residuals_and_dependent_variables(ifms_collection, observation_simulators, bodies)
+# Compute and set residuals in the fdets observation collection
+estimation.compute_residuals_and_dependent_variables(fdets_collection, observation_simulators, bodies)
 
 ### ------------------------------------------------------------------------------------------
 ### RETRIEVE AND SAVE VARIOUS OBSERVATION OUTPUTS
 ### ------------------------------------------------------------------------------------------
 
-concatenated_obs = ifms_collection.get_concatenated_observations()
-concatenated_computed_obs = ifms_collection.get_concatenated_computed_observations()
+concatenated_obs = fdets_collection.get_concatenated_observations()
+concatenated_computed_obs = fdets_collection.get_concatenated_computed_observations()
 
-print(concatenated_obs[-1])
 # Retrieve RMS and mean of the residuals
-concatenated_residuals = ifms_collection.get_concatenated_residuals()
-rms_residuals = ifms_collection.get_rms_residuals()
-mean_residuals = ifms_collection.get_mean_residuals()
-print(concatenated_obs - atmospheric_corrections)
+concatenated_residuals = fdets_collection.get_concatenated_residuals()
+rms_residuals = fdets_collection.get_rms_residuals()
+mean_residuals = fdets_collection.get_mean_residuals()
+print(concatenated_obs)
 print(concatenated_computed_obs)
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, INCORPORATING ATMOSPHERIC CORRECTIONS PROVIDED IN IFMS FILES #####
-residuals_by_hand =(concatenated_computed_obs - (concatenated_obs - atmospheric_corrections))
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand))}\n')
-
-# Filtering Residuals ???
-filtered_residuals_by_hand = residuals_by_hand[residuals_by_hand < 0.1]
-print(f'mean_filtered_residuals: {abs(np.mean(filtered_residuals_by_hand))}\n')
-print(f'rms_filtered_residuals: {abs(np.sqrt(np.mean(filtered_residuals_by_hand**2)))}')
 ####################################################################################################
 
 ####################################################################################################
@@ -236,15 +222,14 @@ print(f'mean_residuals: {mean_residuals}\n')
 #####################
 
 # Retrieve the observation times list
-times = ifms_collection.get_observation_times()
+times = fdets_collection.get_observation_times()
 times = [time.to_float() for time in times[0]]
 times = np.array(times)
 # Residuals Plot
-print(residuals_by_hand < 0.1)
-plt.scatter(times, residuals_by_hand, s = 6, marker = '+', label = 'Atm. Corr.')
-plt.axhline(abs(np.mean(residuals_by_hand)), label = f'mean residuals = {round(abs(np.mean(residuals_by_hand)),6)}', color = 'black', linestyle = '--')
-plt.axhline(abs(np.sqrt(np.mean(residuals_by_hand**2))), label = f'rms residuals = {round(abs(np.sqrt(np.mean(residuals_by_hand**2))),6)}', linestyle = '--')
-plt.axhline(-abs(np.sqrt(np.mean(residuals_by_hand**2))), linestyle = '--')
+plt.scatter(times, concatenated_residuals, s = 6, marker = '+', label = 'Atm. Corr.')
+plt.axhline(mean_residuals, label = f'mean residuals = {mean_residuals,6}', color = 'black', linestyle = '--')
+plt.axhline(rms_residuals, label = f'rms residuals = {rms_residuals,6}', linestyle = '--')
+plt.axhline(rms_residuals, linestyle = '--')
 plt.legend()
 plt.title('Mex Residuals')
 plt.xlabel('Time (s)')
