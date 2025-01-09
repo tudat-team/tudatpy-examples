@@ -34,8 +34,6 @@ spice.load_kernel('./mex_phobos_flyby/ATNM_MEASURED_2013_V04.BC')
 start = datetime(2013, 12, 27)
 end = datetime(2013, 12, 30)
 
-print('yo')
-
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
 end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
 
@@ -91,7 +89,6 @@ bodies.get_body("MEX").system_models = vehicleSys
 dict_stations = environment_setup.ground_station.approximate_ground_stations_position()
 CEDUNA_position = dict_stations['CEDUNA']
 ground_station_settings = environment_setup.ground_station.basic_station("CEDUNA",CEDUNA_position)
-
 environment_setup.add_ground_station(bodies.get_body("Earth"), ground_station_settings )
 
 # Load FDETS file
@@ -165,7 +162,7 @@ link_definition = observation.LinkDefinition(link_ends)
 
 # Define the observation model settings
 observation_model_settings = [
-    estimation_setup.observation.dsn_n_way_doppler_averaged(
+    estimation_setup.observation.doppler_measured_frequency(
         link_definition, light_time_correction_list
     )
 ]
