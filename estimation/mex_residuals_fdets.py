@@ -20,8 +20,6 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from datetime import datetime
 
-from urllib.request import urlretrieve
-
 # Unpack various input arguments
 
 spice.load_standard_kernels()
@@ -87,24 +85,27 @@ bodies.get_body("MEX").system_models = vehicleSys
 
 # Add the New Norcia ground station to the environment
 dict_stations = environment_setup.ground_station.approximate_ground_stations_position()
+NWNORCIA_position = dict_stations['NWNORCIA']
+nwnorcia_ground_station_settings = environment_setup.ground_station.basic_station("NWNORCIA",NWNORCIA_position)
+environment_setup.add_ground_station(bodies.get_body("Earth"), nwnorcia_ground_station_settings )
 CEDUNA_position = dict_stations['CEDUNA']
-ground_station_settings = environment_setup.ground_station.basic_station("CEDUNA",CEDUNA_position)
-environment_setup.add_ground_station(bodies.get_body("Earth"), ground_station_settings )
+ceduna_ground_station_settings = environment_setup.ground_station.basic_station("CEDUNA",NWNORCIA_position)
+environment_setup.add_ground_station(bodies.get_body("Earth"), ceduna_ground_station_settings )
 
 # Load FDETS file
 fdets_file = ['./mex_phobos_flyby/Fdets.mex2013.12.28.Cd.r2i.txt'] # Phobos Flyby X band
-
-
+ifms_file = ['./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB']
 base_frequency = 8412e6
 column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max", "doppler_measured_frequency_hz", "doppler_noise_hz"]
 
 target_name = 'MEX'
-transmitting_station_name = 'CEDUNA'
+transmitting_station_name = 'NWNORCIA'
 receiving_station_name = 'CEDUNA'
 reception_band = observation.FrequencyBands.x_band
 transmission_band = observation.FrequencyBands.x_band
 # Create collection from fdets file
 fdets_collection = observation.observations_from_fdets_files(fdets_file[0], base_frequency, column_types, spacecraft_name, transmitting_station_name, receiving_station_name, reception_band, transmission_band)
+ifms_collection = observation.observations_from_ifms_files(ifms_file, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
 
 antenna_position_history = dict()
 com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
@@ -154,9 +155,9 @@ light_time_correction_list.append(
 
 link_ends = {
     observation.receiver: observation.body_reference_point_link_end_id('Earth', "CEDUNA"),
-    observation.transmitter: observation.body_origin_link_end_id('MEX'),
+    observation.retransmitter: observation.body_origin_link_end_id('MEX'),
+    observation.transmitter: observation.body_reference_point_link_end_id('Earth', "NWNORCIA"),
 }
-
 # Create a single link definition from the link ends
 link_definition = observation.LinkDefinition(link_ends)
 

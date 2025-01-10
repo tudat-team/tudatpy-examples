@@ -59,4 +59,10 @@ jupyter-lab.log
 estimation/grail_parallel_outputs
 estimation/grail_kernels
 estimation/mro_parallel_outputs
-estimation/mex_phobos_flyby
+estimation/mex_phobos_flyby/ORMM_T19_131201000000_01033.BSP
+estimation/mex_phobos_flyby/MEX_STRUCT_V01.BSP
+estimation/mex_phobos_flyby/MEX_241229_STEP.TSC
+estimation/mex_phobos_flyby/MEX_V16.TF
+estimation/mex_phobos_flyby/NAIF0012.TLS
+estimation/mex_phobos_flyby/ATNM_MEASURED_2013_V04.BC
+
