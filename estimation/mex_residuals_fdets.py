@@ -155,9 +155,10 @@ light_time_correction_list.append(
 
 link_ends = {
     observation.receiver: observation.body_reference_point_link_end_id('Earth', "CEDUNA"),
-    observation.retransmitter: observation.body_origin_link_end_id('MEX'),
+    observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
     observation.transmitter: observation.body_reference_point_link_end_id('Earth', "NWNORCIA"),
 }
+
 # Create a single link definition from the link ends
 link_definition = observation.LinkDefinition(link_ends)
 
