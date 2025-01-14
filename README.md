@@ -4,11 +4,10 @@ Welcome to the repository showcasing example applications set up with Tudatpy!
 
 If you want to know more about Tudatpy, please visit the [Tudat website](https://docs.tudat.space/en/latest/).
 The website also holds the [examples rendered as notebooks](https://docs.tudat.space/en/latest/_src_getting_started/examples.html).
-Any update to the examples in this repository will automatically update the [website repository](https://github.com/tudat-team/tudat-space) via the [Sync tudat-space submodule](https://github.com/tudat-team/tudatpy-examples/actions/workflows/sync-tudat-space.yml) action.
 
 ## Format
 
-The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency.
+The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency, using the ``create_scripts.py`` script in this repo.
 
 ### Jupyter Notebook
 
@@ -54,57 +53,10 @@ All of the examples, provided as `.py` files, can then be run and edited as you 
 
 The examples are organized in different categories.
 
-### Estimation
-
-Examples related to state estimation.
-
-- ``covariance_estimated_parameters``: setup of an orbit estimation problem, definition and propagation of the covariance matrix.
-- ``estimation_dynamical_models``: application of different dynamical models to the simulation of observations and the estimation.
-- ``full_estimation_example``: full estimation of individual parameters.
-- ``retrieving_mpc_observation_data``: using Tudat's `BatchMPC` class for the retrieval and processing of observational data of minor planets, comets and outer irregular natural satellites of the major planets.
-- ``estimation_with_mpc``: using real observational data from the Minor Planet Center (MPC) for the initial state estimation of a minor body.
-- ``improved_estimation_with_mpc``: extension of the ``estimation_with_mpc`` example. Introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models in the estimation, retrieval of JPL Horizons data.
-- ``galilean_moons_state_estimation``: using ephemeris data to simulate observations and enhance the accuracy of predicted orbits of the Galilean moons.
-- ``mro_range_estimation``: loading tracking observations from Mars Reconnaissance Orbiter (MRO) with a variety of Deep Space Network (DSN) ground stations.
-
-### Mission Design
-
-Examples related to mission design.
-
-- ``mga_trajectories``: simulation of Multiple Gravity Assist (MGA) transfer trajectories using high- and low-thrust transfers, as well as deep space maneuvers (DSMs).
-- ``cassini1_mga_optimization``: using PyGMO to optimize an interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat.
-- ``hodographic_shaping_mga_optimization``: extension of the ``cassini1_mga_optimization`` example. Optimization of a low-thrust interplanetary transfer trajectory using the hodographic shaping method for the low-thrust legs.
-- ``earth_mars_transfer_window``: usage of the Tudatpy's `porkchop` module to determine an optimal launch window (departure and arrival date) for an Earth-Mars transfer mission.
-- ``low_thrust_earth_mars_transfer_window``: extension of the ``earth_mars_transfer_window`` example, modelling the interplanetary leg as low-thrust leg.
-
-### Propagation
-
-Examples related to state propagation.
-
-Introductory examples:
-
-- ``keplerian_satellite_orbit``: simulation of a Keplerian orbit around Earth (two-body problem).
-- ``perturbed_satellite_orbit``: simulation of a perturbed orbit around Earth.
-- ``linear_sensitivity_analysis``: extension of the ``perturbed_satellite_orbit`` example to propagate variational equations to perform a sensitivity analysis.
-- ``solar_system_propagation``: numerical propagation of solar-system bodies, showing how a hierarchical, multi-body simulation can be set up.
-- ``thrust_between_Earth_Moon``: transfer trajectory between the Earth and the Moon that implements a simple thrust guidance scheme.
-- ``thrust_satellite_engine``: using a custom class to model the thrust of a satellite.
-- ``two_stage_rocket_ascent``: simulation of an ascent trajectory of a two-stage rocket. Implementation of a custom thrust model and hybrid termination condition.
-
-Advanced examples:
-
-- ``reentry_trajectory``: simulation of a reentry flight for the Space Transportation System (STS) and implementation of aerodynamic guidance.
-- ``separation_satellites_diff_drag``: shows the effects of differential drag for CubeSats in LEO.
-- ``coupled_translational_rotational_dynamics``: using a multi-type propagator to simulate the coupled translational-rotational dynamics of Phobos around Mars.
-- ``impact_manifolds_lpo_cr3bp``: setup and propagation of orbits and their invariant manifolds in the circular restricted three body problem (CR3BP) with a polyhedral secondary body.
-
-### Pygmo
-
-Examples showing how to optimize a problem modelled with Tudatpy via algorithms provided by Pygmo.
-
-- ``himmelblau_optimization``: finds the minimum of an analytical function to show the basic usage of Pygmo
-- ``asteroid_orbit_optimization``: simulates the orbit around the Itokawa asteroid and finds the initial state that ensures optimal coverage and close approaches
-
+* Propagation: Examples showcasing various aspects of the state propagation functionality in Tudat, ranging from simple unperturbed orbits, to complex multi-body dynamics, re-entry guidance, etc.
+* Estimation: Examples showcasing various aspects of the state estimation functionality, from both simulated data and real data, such as astrometric data of asteroids, and radio tracking data of planetary missions.
+* Mission Design: Examples showcasing the preliminary design functionality in Tudat, which provides (semi-)analytical design of transfer trajectory using both low- and high-thrust
+* Optimization: Examples showing how to optimize a problem modelled with Tudatpy via algorithms provided by Pygmo.
 
 ## Contribute
 
