@@ -3,7 +3,7 @@
 Welcome to the repository showcasing example applications set up with Tudatpy!
 
 If you want to know more about Tudatpy, please visit the [Tudat website](https://docs.tudat.space/en/latest/).
-The website also holds the [examples rendered as notebooks](https://docs.tudat.space/en/latest/_src_getting_started/examples.html).
+The website also holds the [examples from this repo rendered as notebooks](https://docs.tudat.space/en/latest/_src_getting_started/examples.html).
 
 ## Format
 
