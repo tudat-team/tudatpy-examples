@@ -47,10 +47,10 @@ All of the examples, provided as `.py` files, can then be run and edited as you 
 
 The examples are organized in different categories.
 
-* Propagation: Examples showcasing various aspects of the state propagation functionality in Tudat, ranging from simple unperturbed orbits, to complex multi-body dynamics, re-entry guidance, etc.
-* Estimation: Examples showcasing various aspects of the state estimation functionality, from both simulated data and real data, such as astrometric data of asteroids, and radio tracking data of planetary missions.
-* Mission Design: Examples showcasing the preliminary design functionality in Tudat, which provides (semi-)analytical design of transfer trajectory using both low- and high-thrust
-* Optimization: Examples showing how to optimize a problem modelled with Tudatpy via algorithms provided by Pygmo.
+* **Propagation**: Examples showcasing various aspects of the state propagation functionality in Tudat, ranging from simple unperturbed orbits, to complex multi-body dynamics, re-entry guidance, etc.
+* **Estimation**: Examples showcasing various aspects of the state estimation functionality, from both simulated data and real data, such as astrometric data of asteroids, and radio tracking data of planetary missions.
+* **Mission Design**: Examples showcasing the preliminary design functionality in Tudat, which provides (semi-)analytical design of transfer trajectory using both low- and high-thrust
+* **Optimization**: Examples showing how to optimize a problem modelled with Tudatpy via algorithms provided by Pygmo.
 
 ## Contribute
 
