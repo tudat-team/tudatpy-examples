@@ -6,6 +6,50 @@ If you want to know more about Tudatpy, please visit the [Tudat website](https:/
 The website also holds the [examples rendered as notebooks](https://docs.tudat.space/en/latest/_src_getting_started/examples.html).
 Any update to the examples in this repository will automatically update the [website repository](https://github.com/tudat-team/tudat-space) via the [Sync tudat-space submodule](https://github.com/tudat-team/tudatpy-examples/actions/workflows/sync-tudat-space.yml) action.
 
+## Format
+
+The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency.
+
+### Jupyter Notebook
+
+To run these examples, first create the `tudat-space` conda environment to install `tudatpy` and its required dependencies, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
+
+Then, make sure that the `tudat-space` environment is activated:
+
+```bash
+conda activate tudat-space
+```
+
+Two packages then need to be added to this environment. First, the `notebook` package is needed to run the Jupyter notebooks:
+
+```bash
+conda install notebook
+```
+
+Then, if you wish to be able to run the `Pygmo` examples, this package also need to be installed:
+
+```bash
+conda install pygmo
+```
+
+The `tudat-space` environment has to be added to the Jupyter kernel, running the following:
+
+```bash
+python -m ipykernel install --user --name=tudat-space
+```
+
+Finally, run the following command to start the Jupyter notebooks:
+
+```bash
+jupyter notebook
+```
+
+### Static code
+
+To run the examples as regular Python files, you can clone this repository, open the examples on your favorite IDE, and install the `tudat-space` conda environment, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
+
+All of the examples, provided as `.py` files, can then be run and edited as you see fit.
+
 ## Content
 
 The examples are organized in different categories.
@@ -61,62 +105,12 @@ Examples showing how to optimize a problem modelled with Tudatpy via algorithms 
 - ``himmelblau_optimization``: finds the minimum of an analytical function to show the basic usage of Pygmo
 - ``asteroid_orbit_optimization``: simulates the orbit around the Itokawa asteroid and finds the initial state that ensures optimal coverage and close approaches
 
-## Format
-
-The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency.
-
-### Jupyter Notebook
-
-To run these examples, first create the `tudat-space` conda environment to install `tudatpy` and its required dependencies, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
-
-Then, make sure that the `tudat-space` environment is activated:
-
-```bash
-conda activate tudat-space
-```
-
-Two packages then need to be added to this environment. First, the `notebook` package is needed to run the Jupyter notebooks:
-
-```bash
-conda install notebook
-```
-
-Then, if you wish to be able to run the `Pygmo` examples, this package also need to be installed:
-
-```bash
-conda install pygmo
-```
-
-The `tudat-space` environment has to be added to the Jupyter kernel, running the following:
-
-```bash
-python -m ipykernel install --user --name=tudat-space
-```
-
-Finally, run the following command to start the Jupyter notebooks:
-
-```bash
-jupyter notebook
-```
-
-### Static code
-
-To run the examples as regular Python files, you can clone this repository, open the examples on your favorite IDE, and install the `tudat-space` conda environment, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
-
-All of the examples, provided as `.py` files, can then be run and edited as you see fit.
-
-Please note that these `.py` files were generated from the Jupyter Notebooks.
-
-### MyBinder
-
-We set up a repository on [MyBinder](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master): this way, you can explore and run the examples online, without having to set up a development environment or installing the tudatpy conda environment. Click on the button below to launch the examples on ``mybinder``:
-
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tudat-team/tudatpy-examples/master)
 
 ## Contribute
 
 Contributions to this repository are always welcome.
-It is recommended to use the `tudat-examples` conda environment for the development of example applications, as it contains all dependencies for the creation and maintenance of example applications, such as `ipython`, `nbconvert` in addition to `pygmo`.
+It is recommended to use the `tudat-examples` conda environment for the development of example applications (created using [this .yaml file](https://github.com/tudat-team/tudatpy-examples/blob/master/environment.yaml)), as it contains all dependencies for the creation and maintenance of example applications, such as `ipython`, `nbconvert` in addition to `pygmo`. However, examples developed using the regular (or develop) conda environment are also most welcome!
+
 Simply install the environment using
 
 ```bash
