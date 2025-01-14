@@ -5,11 +5,9 @@ Welcome to the repository showcasing example applications set up with Tudatpy!
 If you want to know more about Tudatpy, please visit the [Tudat website](https://docs.tudat.space/en/latest/).
 The website also holds the [examples from this repo rendered as notebooks](https://docs.tudat.space/en/latest/_src_getting_started/examples.html).
 
-## Format
+## Running
 
 The examples are available as both Jupyter Notebooks and raw ``.py`` scripts. The Python scripts are auto-generated from the Jupyter notebooks to ensure consistency, using the ``create_scripts.py`` script in this repo.
-
-### Jupyter Notebook
 
 To run these examples, first create the `tudat-space` conda environment to install `tudatpy` and its required dependencies, as described [here](https://docs.tudat.space/en/latest/_src_getting_started/installation.html).
 
@@ -24,6 +22,8 @@ If you wish to be able to run the `Pygmo` examples, this package also need to be
 ```bash
 conda install pygmo
 ```
+
+### Jupyter Notebook
 
 The `tudat-space` environment has to be added to the Jupyter kernel, running the following:
 
