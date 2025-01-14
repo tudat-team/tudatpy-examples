@@ -19,13 +19,7 @@ Then, make sure that the `tudat-space` environment is activated:
 conda activate tudat-space
 ```
 
-Two packages then need to be added to this environment. First, the `notebook` package is needed to run the Jupyter notebooks:
-
-```bash
-conda install notebook
-```
-
-Then, if you wish to be able to run the `Pygmo` examples, this package also need to be installed:
+If you wish to be able to run the `Pygmo` examples, this package also need to be installed:
 
 ```bash
 conda install pygmo
