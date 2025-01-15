@@ -18,219 +18,399 @@ from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup, environment
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
-from datetime import datetime
+from datetime import datetime, timezone
+from astropy.time import Time
 
-# Unpack various input arguments
+import matplotlib.dates as mdates
+def ID_to_site(site_ID):
+    """
+    Maps a site ID to its corresponding ground station name.
 
-spice.load_standard_kernels()
-spice.load_kernel('./mex_phobos_flyby/ORMM_T19_131201000000_01033.BSP')
-spice.load_kernel('./mex_phobos_flyby/MEX_STRUCT_V01.BSP')
-spice.load_kernel('./mex_phobos_flyby/MEX_V16.TF')
-spice.load_kernel('./mex_phobos_flyby/MEX_241229_STEP.TSC')
-spice.load_kernel('./mex_phobos_flyby/NAIF0012.TLS')
-spice.load_kernel('./mex_phobos_flyby/ATNM_MEASURED_2013_V04.BC')
-start = datetime(2013, 12, 27)
-end = datetime(2013, 12, 30)
+    Args:
+        site_ID (str): The site ID.
 
-start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
-end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
+    Returns:
+        str: The ground station name if the site ID is found, or None otherwise.
+    """
+    id_to_site_mapping = {
+        'Cd': 'CEDUNA',
+        'Hb': 'HOBART12',
+        'Yg': 'YARRA12M',
+        'Ke': 'KATH12M',
+        'Ww': 'WARK',
+        'Ym': 'YAMAGU32',
+        'T6': 'TIANMA65',
+        'Km': 'KUNMING',
+        'Ku': 'KVNUS',
+        'Bd': 'BADARY',
+        'Ur': 'URUMQI',
+        'Zc': 'ZELENCHK',
+        'Hh': 'HART',
+        'Wz': 'WETTZELL',
+        'Sv': 'SVETLOE',
+        'Mc': 'MEDICINA',
+        'Wb': 'WSTRBORK',
+        'On': 'ONSALA60',
+        'Ys': 'YEBES40M',
+        'Sc': 'SC-VLBA',
+        'Hn': 'HN-VLBA',
+        'Nl': 'NL-VLBA',
+        'Fd': 'FD-VLBA',
+        'La': 'LA-VLBA',
+        'Kp': 'KP-VLBA',
+        'Pt': 'PR_VLBA',
+        'Br': 'BR-VLBA',
+        'Ov': 'OV-VLBA',
+        'Mk': 'MK-VLBA'
+    }
 
-#date_to_filter_float = date_to_filter.epoch().to_float()
-#original_odf_observations.filter_observations(date_to_filter_float)
-# Filter out observations from observation collection
-#original_odf_observations.filter_observations(date_filter)
+    # Return the corresponding site name or None if the site_ID is not found
+    return id_to_site_mapping.get(site_ID, None)
 
-# Create default body settings for celestial bodies
-bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
-global_frame_origin = "SSB"
-global_frame_orientation = "J2000"
-body_settings = environment_setup.get_default_body_settings_time_limited(
-    bodies_to_create, start_time, end_time, global_frame_origin, global_frame_orientation)
+def process_residuals(fdets_files, site_names, ifms_files, odf_files):
+    """
+    Plots residuals for multiple FDETS files and sites on the same plot.
 
-# Modify Earth default settings
-body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
-body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
-    environment_setup.rotation_model.iau_2006, global_frame_orientation,
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 3600.0),
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 3600.0),
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 60.0))# Add the ground station to the environment
+    Args:
+        fdets_files (list): List of FDETS file paths.
+        site_names (list): List of site names corresponding to the FDETS files.
+    """
+    plt.figure(figsize=(10, 10))
 
-body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
+    for fdets_file, site_name in zip(fdets_files, site_names):
 
-spacecraft_name = "MEX" # Set Spacecraft Name
-spacecraft_central_body = "Mars" # Set Central Body (Mars)
-body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
+        # Set other variables for processing (adapted from your function)
+        base_frequency = 8412e6
+        column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max",
+                        "doppler_measured_frequency_hz", "doppler_noise_hz"]
+        target_name = 'MEX'
 
-# Retrieve translational ephemeris from SPICE
-body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-    start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
+        transmitting_station_name = 'NWNORCIA'
+        receiving_station_name = site_name
+        print(f'Fdets File Name: {fdets_file}')
+        print(f'Receiving station: {receiving_station_name}')
 
-# Retrieve rotational ephemeris from SPICE
-body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
-    global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
+        reception_band = observation.FrequencyBands.x_band
+        transmission_band = observation.FrequencyBands.x_band
 
-# Create System of Bodies using the above-defined body_settings
-bodies = environment_setup.create_system_of_bodies(body_settings)
+        # Load FDETS file
+        try:
+            fdets_collection = observation.observations_from_fdets_files(
+                fdets_file, base_frequency, column_types, target_name,
+                transmitting_station_name, receiving_station_name, reception_band, transmission_band
+            )
+        except:
+            continue
+
+        ifms_collection = observation.observations_from_ifms_files(ifms_files, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
+        #odf_collection = observation.observations_from_ifms_files(odf_files, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
+
+        # Retrieve the time bounds of each observation set within the observation collection
+        ifms_time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
+        ifms_time_bounds_array = np.zeros((len(ifms_time_bounds_per_set), 2), dtype=float)
+        utc_time_bounds_list = []
+
+        for j in range(len(ifms_time_bounds_per_set)):
+            # Convert start time to Julian date
+            jd_start = time_conversion.seconds_since_epoch_to_julian_day(ifms_time_bounds_per_set[j][0].to_float())
+            ifms_time_bounds_array[j, 0] = ifms_time_bounds_per_set[j][0].to_float()  # Store the Julian date in the array
+
+            # Convert end time to Julian date
+            jd_end = time_conversion.seconds_since_epoch_to_julian_day(ifms_time_bounds_per_set[j][1].to_float())
+            ifms_time_bounds_array[j, 1] = ifms_time_bounds_per_set[j][1].to_float()   # Store the Julian date in the array
+
+            # Convert Julian dates to UTC datetime and store as tuples
+            utc_start = Time(jd_start, format='jd', scale='utc').datetime
+            utc_end = Time(jd_end, format='jd', scale='utc').datetime
+            utc_time_bounds_list.append((utc_start, utc_end))
+
+        # Output the structures
+        print("Julian Date Array:")
+        print(ifms_time_bounds_array)
+
+        print("\nUTC Time Bounds List:")
+        for i, (start, end) in enumerate(utc_time_bounds_list):
+            print(f"IFMS bounds: {ifms_files[i]}\n Start: {start}, End: {end}")
+
+        antenna_position_history = dict()
+        com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
+        for obs_times in fdets_collection.get_observation_times():
+            time = obs_times[0].to_float() - 3600.0
+            while time <= obs_times[-1].to_float() + 3600.0:
+                state = np.zeros((6, 1))
+
+                # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
+                state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
+
+                # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
+                state[:3,0] = state[:3,0] - com_position
+
+                # Store antenna position w.r.t. COM in the MEX-fixed frame
+                antenna_position_history[time] = state
+                time += 10.0
+
+        # Create tabulated ephemeris settings from antenna position history
+        antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
+
+        # Create tabulated ephemeris for the MEX antenna
+        antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+
+        # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
+        fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+
+        link_ends = {
+            observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
+            observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
+            observation.transmitter: observation.body_reference_point_link_end_id('Earth', "NWNORCIA"),
+        }
+
+        # Create a single link definition from the link ends
+        link_definition = observation.LinkDefinition(link_ends)
+
+        light_time_correction_list = list()
+        light_time_correction_list.append(
+            estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+
+        # Define the observation model settings
+        observation_model_settings = [
+            estimation_setup.observation.doppler_measured_frequency(
+                link_definition, light_time_correction_list
+            )
+        ]
+        ###################################################################################################
+        # Create observation simulators.
+        observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+
+        # Add elevation and SEP angles dependent variables to the fdets observation collection
+        elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
+        elevation_angle_parser = fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
+        sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
+        sep_angle_parser = fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
+
+        # Compute and set residuals in the fdets observation collection
+        estimation.compute_residuals_and_dependent_variables(fdets_collection, observation_simulators, bodies)
+
+        ##################################### HANDLING FDETS #############################################
+        # Perform computations as in the original function
+        concatenated_obs = fdets_collection.get_concatenated_observations()
+        concatenated_computed_obs = fdets_collection.get_concatenated_computed_observations()
+        residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
+
+        filtered_residuals = residuals_by_hand_no_atm_corr[abs(residuals_by_hand_no_atm_corr) < 10]
+
+        # Get observation times
+        times = fdets_collection.get_observation_times()
+        times = [time.to_float() for time in times[0]]
+        times = np.array(times)
+
+        mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
+        utc_times = [Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times]
+
+        # Convert to UTC
+        filtered_times = times[abs(residuals_by_hand_no_atm_corr) < 10]
+        # Plot the filtered residuals
+        plt.scatter(utc_times, residuals_by_hand_no_atm_corr, s=10, marker='+', label=f'{site_name}')
+        #######################################################################################################
+
+    ##################################### Retrieving IFMS coverage windows ################################
+
+    # Get IFMS observation times
+    ifms_times = ifms_collection.get_observation_times()
+
+    # Loop through each element in ifms_times and convert to float
+    for sublist in ifms_times:
+        min_sublist = np.min([time.to_float() for time in sublist])
+        max_sublist = np.max([time.to_float() for time in sublist])
+        mjd_min_sublist = time_conversion.seconds_since_epoch_to_julian_day(min_sublist)
+        mjd_max_sublist = time_conversion.seconds_since_epoch_to_julian_day(max_sublist)
+        utc_min_sublist = Time(mjd_min_sublist, format='jd', scale = 'utc').datetime
+        utc_max_sublist = Time(mjd_max_sublist, format='jd', scale = 'utc').datetime
+        print(utc_min_sublist, utc_max_sublist)
+        plt.axvspan(utc_min_sublist, utc_max_sublist, color='blue', alpha=0.2)
+
+    #######################################################################################################
+
+    ramp_data = """ 
+2013-12-28 17:56:27.905000  2013-12-28 18:40:22.259000  7.1664308519995022e+09   0.0000000000000000e+00  NWNORCIA
+2013-12-28 18:40:58.264000  2013-12-29 00:33:05.000000  7.1664308519995022e+09   0.0000000000000000e+00  NWNORCIA
+2013-12-29 00:33:05.000000  2013-12-29 00:33:06.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:33:06.000000  2013-12-29 00:36:03.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:36:03.000000  2013-12-29 00:44:17.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:44:17.000000  2013-12-29 00:45:24.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:45:24.000000  2013-12-29 00:45:32.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:45:32.000000  2013-12-29 01:40:29.000000  7.1664450429921780e+09   0.0000000000000000e+00  NWNORCIA
+2013-12-29 01:40:29.000000  2013-12-29 03:21:27.000000  7.1664450429921780e+09   0.0000000000000000e+00  NWNORCIA
+2013-12-29 03:21:27.000000  2013-12-29 03:21:37.000000  7.1665434266206827e+09  -1.0000000000000000e+03  DSS63
+2013-12-29 03:21:37.000000  2013-12-29 03:21:52.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
+2013-12-29 03:21:52.000000  2013-12-29 03:21:55.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
+2013-12-29 03:21:55.000000  2013-12-29 03:22:07.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
+2013-12-29 03:22:07.000000  2013-12-29 03:22:47.000000  7.1665334266206827e+09   5.0000000000000000e+02  DSS63
+2013-12-29 03:22:47.000000  2013-12-29 03:23:27.000000  7.1665534266206827e+09  -4.9999999999900001e+02  DSS63
+2013-12-29 03:23:27.000000  2013-12-29 03:25:03.000000  7.1665334266206827e+09  -4.9669396544699998e+02  DSS63
+2013-12-29 03:25:03.000000  2013-12-29 07:03:36.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:03:36.000000  2013-12-29 07:03:45.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:03:45.000000  2013-12-29 07:03:58.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:03:58.000000  2013-12-29 07:04:00.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:04:00.000000  2013-12-29 07:52:30.000000  7.1664419636242456e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:52:30.000000  2013-12-29 07:52:40.000000  7.1664419636242456e+09  -1.0000000000000000e+03  DSS63
+2013-12-29 07:52:40.000000  2013-12-29 07:52:55.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:52:55.000000  2013-12-29 07:52:58.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:52:58.000000  2013-12-29 07:53:10.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
+2013-12-29 07:53:10.000000  2013-12-29 07:53:50.000000  7.1664319636242456e+09   5.0000000000000000e+02  DSS63
+2013-12-29 07:53:50.000000  2013-12-29 07:54:30.000000  7.1664519636242456e+09  -4.9999999999900001e+02  DSS63
+2013-12-29 07:54:30.000000  2013-12-29 07:56:18.000000  7.1664319636242456e+09   4.9796644216700003e+02  DSS63
+2013-12-29 07:56:18.000000  2013-12-29 11:01:52.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 11:01:52.000000  2013-12-29 11:25:55.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 11:02:25.000000  2013-12-29 14:02:59.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+2013-12-29 14:02:59.000000  2013-12-29 14:03:07.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+2013-12-29 14:03:07.000000  2013-12-29 14:03:20.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+2013-12-29 14:03:20.000000  2013-12-29 14:03:22.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+2013-12-29 14:03:22.000000  2013-12-29 18:36:54.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+2013-12-29 18:36:54.000000  2013-12-29 19:02:04.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
+"""
 
 
-########## IMPORTANT STEP ###################################
-# Set the transponder turnaround ratio function
-vehicleSys = environment.VehicleSystems()
-vehicleSys.set_default_transponder_turnaround_ratio_function()
-bodies.get_body("MEX").system_models = vehicleSys
-###############################################################
+    # Initialize a list to hold the tuples of start and end times for DSN stations
+    dsn_boundaries = []
 
-# Add the New Norcia ground station to the environment
-dict_stations = environment_setup.ground_station.approximate_ground_stations_position()
-NWNORCIA_position = dict_stations['NWNORCIA']
-nwnorcia_ground_station_settings = environment_setup.ground_station.basic_station("NWNORCIA",NWNORCIA_position)
-environment_setup.add_ground_station(bodies.get_body("Earth"), nwnorcia_ground_station_settings )
-CEDUNA_position = dict_stations['CEDUNA']
-ceduna_ground_station_settings = environment_setup.ground_station.basic_station("CEDUNA",NWNORCIA_position)
-environment_setup.add_ground_station(bodies.get_body("Earth"), ceduna_ground_station_settings )
+    # Process each line in the data
+    for line in ramp_data.strip().split('\n'):
+        # Split each line into components
+        parts = line.split()
 
-# Load FDETS file
-fdets_file = ['./mex_phobos_flyby/Fdets.mex2013.12.28.Cd.r2i.txt'] # Phobos Flyby X band
-ifms_file = ['./mex_phobos_flyby/M32ICL3L02_D2S_133621904_00_FILTERED.TAB']
-base_frequency = 8412e6
-column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max", "doppler_measured_frequency_hz", "doppler_noise_hz"]
+        # Extract the station name from the last column
+        station = parts[-1]
 
-target_name = 'MEX'
-transmitting_station_name = 'NWNORCIA'
-receiving_station_name = 'CEDUNA'
-reception_band = observation.FrequencyBands.x_band
-transmission_band = observation.FrequencyBands.x_band
-# Create collection from fdets file
-fdets_collection = observation.observations_from_fdets_files(fdets_file[0], base_frequency, column_types, spacecraft_name, transmitting_station_name, receiving_station_name, reception_band, transmission_band)
-ifms_collection = observation.observations_from_ifms_files(ifms_file, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
+        # Check if the station is DSS63 or DSS14
+        if station in ['DSS63', 'DSS14']:
+            # Extract the start and end times (first two columns)
+            start_time_str = parts[0] + ' ' + parts[1]
+            end_time_str = parts[2] + ' ' + parts[3]
 
-antenna_position_history = dict()
-com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
-for obs_times in fdets_collection.get_observation_times():
-    time = obs_times[0].to_float() - 3600.0
-    while time <= obs_times[-1].to_float() + 3600.0:
-        state = np.zeros((6, 1))
+            # Convert the time strings to datetime objects
+            start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S.%f")
+            end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S.%f")
 
-        # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
-        state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
+            # Append the tuple of (start_time, end_time) to the list
+            dsn_boundaries.append((start_time, end_time))
 
-        # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
-        state[:3,0] = state[:3,0] - com_position
+    # Process each tuple in the list
+    for start_dt, end_dt in dsn_boundaries:
+        # Convert the start time string to a naive datetime object
+        start_naive = start_dt
+        # Remove microseconds if needed
+        start_naive = start_naive.replace(microsecond=0)
+        # Assign UTC timezone
+        start_utc = start_naive.replace(tzinfo=timezone.utc)
 
-        # Store antenna position w.r.t. COM in the MEX-fixed frame
-        antenna_position_history[time] = state
-        time += 10.0
+        # Convert the end time string to a naive datetime object
+        end_naive = end_dt
+        # Remove microseconds if needed
+        end_naive = end_naive.replace(microsecond=0)
+        # Assign UTC timezone
+        end_utc = end_naive.replace(tzinfo=timezone.utc)
 
-    # Create tabulated ephemeris settings from antenna position history
-    antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
+        # Print the results for each time boundary
+        print(f"Start time: {start_utc}")
+        print(f"End time: {end_utc}")
 
-    # Create tabulated ephemeris for the MEX antenna
-    antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+        plt.axvspan(start_utc, end_utc, alpha=0.1, color='red')
 
-    # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-    fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+    # Format the x-axis for dates
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 
-### ------------------------------------------------------------------------------------------
-### DEFINE SETTINGS TO SIMULATE OBSERVATIONS AND COMPUTE RESIDUALS
-### ------------------------------------------------------------------------------------------
+    plt.title('Residuals from Multiple Sites')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Residuals [Hz]')
+    plt.grid(True)
+    # Place the legend outside the plot
+    plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
 
-#  Create light-time corrections list
-light_time_correction_list = list()
-light_time_correction_list.append(
-    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
-
-##############################
-# ATMOSPHERIC CORRECTION #
-
-# EMPTY FOR NOW
-###############################
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+    plt.show()
 
 
-# Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
-# tracking links between various ground stations and the MEX spacecraft. The list of light-time corrections defined above is then
-# added to each of these link ends.
+# Main
 
-link_ends = {
-    observation.receiver: observation.body_reference_point_link_end_id('Earth', "CEDUNA"),
-    observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
-    observation.transmitter: observation.body_reference_point_link_end_id('Earth', "NWNORCIA"),
-}
+if __name__ == "__main__":
 
-# Create a single link definition from the link ends
-link_definition = observation.LinkDefinition(link_ends)
+    # Unpack various input arguments
+    mex_kernels_folder = 'mex_phobos_flyby/kernels/'
+    mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
+    mex_ifms_folder = 'mex_phobos_flyby/ifms/filtered'
+    mex_odf_folder = 'mex_phobos_flyby/odf/'
 
-# Define the observation model settings
-observation_model_settings = [
-    estimation_setup.observation.doppler_measured_frequency(
-        link_definition, light_time_correction_list
-    )
-]
-print("Ground stations on Earth:", bodies.get_body("Earth").ground_station_list)
-###################################################################################################
-# Create observation simulators.
-observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+    spice.load_standard_kernels()
+    for kernel in os.listdir(mex_kernels_folder):
+        kernel_path = os.path.join(mex_kernels_folder, kernel)
+        spice.load_kernel(kernel_path)
 
-# Add elevation and SEP angles dependent variables to the fdets observation collection
-elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-elevation_angle_parser = fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
-sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-sep_angle_parser = fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
+    start = datetime(2013, 12, 27)
+    end = datetime(2013, 12, 30)
 
-# Compute and set residuals in the fdets observation collection
-estimation.compute_residuals_and_dependent_variables(fdets_collection, observation_simulators, bodies)
+    start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
+    end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
 
-### ------------------------------------------------------------------------------------------
-### RETRIEVE AND SAVE VARIOUS OBSERVATION OUTPUTS
-### ------------------------------------------------------------------------------------------
+    # Create default body settings for celestial bodies
+    bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
+    global_frame_origin = "SSB"
+    global_frame_orientation = "J2000"
+    body_settings = environment_setup.get_default_body_settings_time_limited(
+        bodies_to_create, start_time, end_time, global_frame_origin, global_frame_orientation)
 
-concatenated_obs = fdets_collection.get_concatenated_observations()
-concatenated_computed_obs = fdets_collection.get_concatenated_computed_observations()
+    # Modify Earth default settings
+    body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
+    body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+        environment_setup.rotation_model.iau_2006, global_frame_orientation,
+        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+                                                             start_time, end_time, 3600.0),
+        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+                                                             start_time, end_time, 3600.0),
+        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+                                                             start_time, end_time, 60.0))# Add the ground station to the environment
 
-# Retrieve RMS and mean of the residuals
-concatenated_residuals = fdets_collection.get_concatenated_residuals()
-rms_residuals = fdets_collection.get_rms_residuals()
-mean_residuals = fdets_collection.get_mean_residuals()
-print(concatenated_obs)
-print(concatenated_computed_obs)
-####################################################################################################
+    body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
+    spacecraft_name = "MEX" # Set Spacecraft Name
+    spacecraft_central_body = "Mars" # Set Central Body (Mars)
+    body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
+    # Retrieve translational ephemeris from SPICE
+    body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+        start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
+    # Retrieve rotational ephemeris from SPICE
+    body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
+        global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
+    body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
+    # Create System of Bodies using the above-defined body_settings
+    bodies = environment_setup.create_system_of_bodies(body_settings)
 
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, WITHOUT ATMOSPHERIC CORRECTIONS #####
-residuals_by_hand_no_atm_corr =(concatenated_computed_obs - concatenated_obs)
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, NO Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand_no_atm_corr))}\n')
-####################################################################################################
+    ########## IMPORTANT STEP ###################################
+    # Set the transponder turnaround ratio function
+    vehicleSys = environment.VehicleSystems()
+    vehicleSys.set_default_transponder_turnaround_ratio_function()
+    bodies.get_body("MEX").system_models = vehicleSys
+    ###############################################################
 
-####################################################################################################
-# TUDATPY-PROVIDED RESIDUALS
-print('Tudatpy Residuals')
-print(f'rms_residuals: {rms_residuals}')
-print(f'mean_residuals: {mean_residuals}\n')
-####################################################################################################
+    sites_list = []
+    fdets_files = []
+    ifms_files = []
+    odf_files = []
 
-### SAVING FILES ####
-#np.savetxt('mex_unfiltered_residuals_rms' + '.dat',
-#           np.vstack(rms_residuals), delimiter=',')
-#np.savetxt('mex_unfiltered_residuals_mean' + '.dat',
-#           np.vstack(mean_residuals), delimiter=',')
-#####################
 
-# Retrieve the observation times list
-times = fdets_collection.get_observation_times()
-times = [time.to_float() for time in times[0]]
-times = np.array(times)
-# Residuals Plot
-plt.scatter(times, concatenated_residuals, s = 6, marker = '+', label = 'Atm. Corr.')
-plt.axhline(mean_residuals, label = f'mean residuals = {mean_residuals,6}', color = 'black', linestyle = '--')
-plt.axhline(rms_residuals, label = f'rms residuals = {rms_residuals,6}', linestyle = '--')
-plt.axhline(rms_residuals, linestyle = '--')
-plt.legend()
-plt.title('Mex Residuals')
-plt.xlabel('Time (s)')
-plt.ylabel('Residuals (Hz)')
-plt.show()
+    for fdets_file in os.listdir(mex_fdets_folder):
+        fdets_files.append(os.path.join(mex_fdets_folder, fdets_file))
+        site = ID_to_site(fdets_file.split('.')[4])
+        sites_list.append(site)
+    for ifms_file in os.listdir(mex_ifms_folder):
+        ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
+    for odf_file in os.listdir(mex_odf_folder):
+        ifms_files.append(os.path.join(mex_odf_folder, odf_file))
+
+    print(f'IFMS FILES:\n {ifms_files}\n\n')
+    # print(f'DSN FILES:\n {odf_files}\n\n')
+    print(f'FDETS FILES:\n {fdets_files}\n\n')
+    print(f'STATIONS:\n {sites_list}\n\n')
+
+    process_residuals(fdets_files, sites_list, ifms_files, odf_files)
