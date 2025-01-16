@@ -67,7 +67,7 @@ def ID_to_site(site_ID):
     # Return the corresponding site name or None if the site_ID is not found
     return id_to_site_mapping.get(site_ID, None)
 
-def process_residuals(fdets_files, site_names, ifms_files, odf_files):
+def process_residuals(fdets_files, site_names, ifms_files):
     """
     Plots residuals for multiple FDETS files and sites on the same plot.
 
@@ -77,7 +77,7 @@ def process_residuals(fdets_files, site_names, ifms_files, odf_files):
     """
     plt.figure(figsize=(10, 10))
 
-    for fdets_file, site_name in zip(fdets_files, site_names):
+    for fdets_file, site_name in zip(fdets_files,site_names):
 
         # Set other variables for processing (adapted from your function)
         base_frequency = 8412e6
@@ -85,13 +85,25 @@ def process_residuals(fdets_files, site_names, ifms_files, odf_files):
                         "doppler_measured_frequency_hz", "doppler_noise_hz"]
         target_name = 'MEX'
 
-        transmitting_station_name = 'NWNORCIA'
         receiving_station_name = site_name
         print(f'Fdets File Name: {fdets_file}')
         print(f'Receiving station: {receiving_station_name}')
 
         reception_band = observation.FrequencyBands.x_band
         transmission_band = observation.FrequencyBands.x_band
+
+        for ifms_file in ifms_files:
+            station_code = ifms_file.split('/')[3][1:3]
+            if station_code == '14':
+                transmitting_station_name = 'DSS14'
+
+            elif station_code == '63':
+                transmitting_station_name = 'DSS63'
+
+            elif station_code == '32':
+                transmitting_station_name = 'NWNORCIA'
+
+            print(f'ifms file: {ifms_file}\ntransmitting station: {transmitting_station_name}')
 
         # Load FDETS file
         try:
@@ -103,7 +115,7 @@ def process_residuals(fdets_files, site_names, ifms_files, odf_files):
             continue
 
         ifms_collection = observation.observations_from_ifms_files(ifms_files, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
-        #odf_collection = observation.observations_from_ifms_files(odf_files, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
+        #odf_collection = observation.observations_from_odf_files(bodies, odf_files, spacecraft_name)
 
         # Retrieve the time bounds of each observation set within the observation collection
         ifms_time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
@@ -161,7 +173,7 @@ def process_residuals(fdets_files, site_names, ifms_files, odf_files):
         link_ends = {
             observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
             observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
-            observation.transmitter: observation.body_reference_point_link_end_id('Earth', "NWNORCIA"),
+            observation.transmitter: observation.body_reference_point_link_end_id('Earth', transmitting_station_name),
         }
 
         # Create a single link definition from the link ends
@@ -406,11 +418,19 @@ if __name__ == "__main__":
     for ifms_file in os.listdir(mex_ifms_folder):
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
     for odf_file in os.listdir(mex_odf_folder):
-        ifms_files.append(os.path.join(mex_odf_folder, odf_file))
+        odf_files.append(os.path.join(mex_odf_folder, odf_file))
 
     print(f'IFMS FILES:\n {ifms_files}\n\n')
     # print(f'DSN FILES:\n {odf_files}\n\n')
     print(f'FDETS FILES:\n {fdets_files}\n\n')
     print(f'STATIONS:\n {sites_list}\n\n')
 
-    process_residuals(fdets_files, sites_list, ifms_files, odf_files)
+    fdets_files = [
+        'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt',
+        'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt'
+        ]
+    sites_list = ['BADARY', 'ONSALA60']
+
+    ifms_files = ['mex_phobos_flyby/ifms/filtered/M63ODFXL02_DPX_133630348_00.TAB']
+    process_residuals(fdets_files, sites_list, ifms_files)
+
