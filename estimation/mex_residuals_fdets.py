@@ -9,6 +9,8 @@ import os
 from xmlrpc.client import DateTime
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
+import random
 
 # Load required tudatpy modules
 from tudatpy.interface import spice
@@ -20,7 +22,7 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from datetime import datetime, timezone
 from astropy.time import Time
-
+from collections import defaultdict
 import matplotlib.dates as mdates
 def ID_to_site(site_ID):
     """
@@ -92,6 +94,8 @@ def process_residuals(fdets_files, site_names, ifms_files):
         reception_band = observation.FrequencyBands.x_band
         transmission_band = observation.FrequencyBands.x_band
         added_labels = set()
+        residuals_lines = []
+        min_residuals = defaultdict(list)
         for ifms_file in ifms_files:
             station_code = ifms_file.split('/')[3][1:3]
             if station_code == '14':
@@ -114,57 +118,9 @@ def process_residuals(fdets_files, site_names, ifms_files):
             except:
                 continue
 
-            ifms_collection = observation.observations_from_ifms_files(ifms_files, bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
-            #odf_collection = observation.observations_from_odf_files(bodies, odf_files, spacecraft_name)
+            ########## TIME BOUNDS IFMS #########
 
-            # Retrieve the time bounds of each observation set within the observation collection
-            ifms_time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
-            ifms_time_bounds_array = np.zeros((len(ifms_time_bounds_per_set), 2), dtype=float)
-            utc_time_bounds_list = []
-
-            fdets_time_bounds_per_set = fdets_collection.get_time_bounds_per_set()
-            fdets_time_bounds_array = np.zeros((len(fdets_time_bounds_per_set), 2), dtype=float)
-            utc_fdets_time_bounds_list = []
-
-            for j in range(len(ifms_time_bounds_per_set)):
-                # Convert start time to Julian date
-                jd_start = time_conversion.seconds_since_epoch_to_julian_day(ifms_time_bounds_per_set[j][0].to_float())
-                ifms_time_bounds_array[j, 0] = ifms_time_bounds_per_set[j][0].to_float()  # Store the Julian date in the array
-
-                # Convert end time to Julian date
-                jd_end = time_conversion.seconds_since_epoch_to_julian_day(ifms_time_bounds_per_set[j][1].to_float())
-                ifms_time_bounds_array[j, 1] = ifms_time_bounds_per_set[j][1].to_float()   # Store the Julian date in the array
-
-                # Convert Julian dates to UTC datetime and store as tuples
-                utc_start = Time(jd_start, format='jd', scale='utc').datetime
-                utc_end = Time(jd_end, format='jd', scale='utc').datetime
-                utc_time_bounds_list.append((utc_start, utc_end))
-
-            for j in range(len(fdets_time_bounds_per_set)):
-                # Convert start time to Julian date
-                fdets_jd_start = time_conversion.seconds_since_epoch_to_julian_day(fdets_time_bounds_per_set[j][0].to_float())
-                fdets_time_bounds_array[j, 0] = fdets_time_bounds_per_set[j][0].to_float()  # Store the Julian date in the array
-
-                # Convert end time to Julian date
-                fdets_jd_end = time_conversion.seconds_since_epoch_to_julian_day(fdets_time_bounds_per_set[j][1].to_float())
-                fdets_time_bounds_array[j, 1] = fdets_time_bounds_per_set[j][1].to_float()   # Store the Julian date in the array
-
-                # Convert Julian dates to UTC datetime and store as tuples
-                fdets_utc_start = Time(fdets_jd_start, format='jd', scale='utc').datetime
-                fdets_utc_end = Time(fdets_jd_end, format='jd', scale='utc').datetime
-                utc_fdets_time_bounds_list.append((fdets_utc_start, fdets_utc_end))
-
-            if utc_start > fdets_utc_end or utc_end < fdets_utc_start:
-                continue
-
-
-            # Output the structures
-            #print("Julian Date Array:")
-            #print(ifms_time_bounds_array)
-
-            #print("\nUTC Time Bounds List:")
-            #for i, (start, end) in enumerate(utc_time_bounds_list):
-            #    print(f"IFMS bounds: {ifms_files[i]}\n Start: {start}, End: {end}")
+            ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
 
             antenna_position_history = dict()
             com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
@@ -244,20 +200,49 @@ def process_residuals(fdets_files, site_names, ifms_files):
             # Convert to UTC
             filtered_utc_times = utc_times[abs(residuals_by_hand_no_atm_corr) < 10]
 
-            # Plot the filtered residuals
-            if len(filtered_residuals) > 20:
-                if site_name not in added_labels:
-                    plt.scatter(filtered_utc_times, filtered_residuals, s=10, marker='+', label=f'{site_name}')
-            # Initialize the set to keep track of labels already added
-            added_labels.add(site_name)
-            continue
-            #######################################################################################################
 
-    ##################################### Retrieving IFMS coverage windows ################################
+            if site_name not in added_labels:
+                print(site_name, 'not in added labels')
+
+                print(filtered_utc_times, filtered_residuals)
+                color = generate_random_color()
+                plt.scatter(utc_times, residuals_by_hand_no_atm_corr, color = color, s=10, marker='+', label=f'{site_name}')
+                plot_ifms_windows(ifms_file, ifms_collection, color)
+
+            else:
+                color = generate_random_color()
+                plt.scatter(utc_times, residuals_by_hand_no_atm_corr,color = color, s=10, marker='+')
+                plot_ifms_windows(ifms_file, ifms_collection, color)
+
+            added_labels.add(site_name)
+            added_labels.add(site_name)
+
+    #######################################################################################################
+
+    # Format the x-axis for dates
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
+
+    plt.title('Residuals from Multiple Sites')
+    plt.xlabel('Time [s]')
+    plt.ylabel('Residuals [Hz]')
+    plt.grid(True)
+    # Place the legend outside the plot
+    plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
+
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+    plt.show()
+
+######################################################################################################
+
+def plot_ifms_windows(ifms_file,ifms_collection, color):
 
     # Get IFMS observation times
     ifms_times = ifms_collection.get_observation_times()
 
+    ifms_file_name = ifms_file.split('/')[3]
     # Loop through each element in ifms_times and convert to float
     for sublist in ifms_times:
         min_sublist = np.min([time.to_float() for time in sublist])
@@ -267,9 +252,9 @@ def process_residuals(fdets_files, site_names, ifms_files):
         utc_min_sublist = Time(mjd_min_sublist, format='jd', scale = 'utc').datetime
         utc_max_sublist = Time(mjd_max_sublist, format='jd', scale = 'utc').datetime
         #(utc_min_sublist, utc_max_sublist)
-        plt.axvspan(utc_min_sublist, utc_max_sublist, color='blue', alpha=0.2)
-
-    #######################################################################################################
+        plt.axvspan(utc_min_sublist, utc_max_sublist, color=color, alpha=0.2, label = ifms_file_name)
+######################################################################################################
+def plot_dsn_windows_from_ramp_file():
 
     ramp_data = """ 
 2013-12-28 17:56:27.905000  2013-12-28 18:40:22.259000  7.1664308519995022e+09   0.0000000000000000e+00  NWNORCIA
@@ -309,7 +294,6 @@ def process_residuals(fdets_files, site_names, ifms_files):
 2013-12-29 14:03:22.000000  2013-12-29 18:36:54.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
 2013-12-29 18:36:54.000000  2013-12-29 19:02:04.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
 """
-
 
     # Initialize a list to hold the tuples of start and end times for DSN stations
     dsn_boundaries = []
@@ -355,23 +339,17 @@ def process_residuals(fdets_files, site_names, ifms_files):
         #print(f"Start time: {start_utc}")
         #print(f"End time: {end_utc}")
 
-        #plt.axvspan(start_utc, end_utc, alpha=0.1, color='red')
+        plt.axvspan(start_utc, end_utc, alpha=0.1, color='red')
+        plt.show()
 
-    # Format the x-axis for dates
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
-
-    plt.title('Residuals from Multiple Sites')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Residuals [Hz]')
-    plt.grid(True)
-    # Place the legend outside the plot
-    plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
-
-    # Adjust layout to make room for the legend
-    plt.tight_layout()
-    plt.show()
+def generate_random_color():
+    """Generate a random color in hexadecimal format."""
+    return "#{:02x}{:02x}{:02x}".format(
+        random.randint(0, 255),  # Red
+        random.randint(0, 255),  # Green
+        random.randint(0, 255)   # Blue
+    )
+###################################################################
 
 if __name__ == "__main__":
 
@@ -451,21 +429,7 @@ if __name__ == "__main__":
     print(f'FDETS FILES:\n {fdets_files}\n\n')
     print(f'STATIONS:\n {sites_list}\n\n')
 
-    fdets_files = [
-       'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt',
-       'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt'
-        ]
 
-    sites_list = ['BADARY', 'ONSALA60']
-
-    ifms_files = [
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133621904_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M63ODFXL02_DPX_133630348_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133632301_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133632221_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133631902_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133630203_00.TAB',
-        'mex_phobos_flyby/ifms/filtered/M32ICL2L02_D2X_133630120_00.TAB',
-    ]
     process_residuals(fdets_files, sites_list, ifms_files)
+
 
