@@ -34,6 +34,7 @@ cmake-build-*/
 *.sublime-project
 *.sublime-workspace
 .vscode/
+.virtual_documents/
 
 # Rever
 rever/
@@ -59,5 +60,3 @@ jupyter-lab.log
 estimation/grail_parallel_outputs
 estimation/grail_kernels
 estimation/mro_parallel_outputs
-estimation/mro_kernels
-

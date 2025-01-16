@@ -16,6 +16,8 @@ dependencies:
   - ipykernel=6.29.5
   - nbconvert=7.16.4 # for create_script.py utility
   - tqdm=4.66.5 # for create_script.py utility
+  - colorama
+  - tabulate
   - pip
   - pip:
     - astroquery==0.4.8.dev9321
