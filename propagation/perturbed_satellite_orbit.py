@@ -252,7 +252,7 @@ dependent_variables_to_save = [
         propagation_setup.acceleration.aerodynamic_type, "Delfi-C3", "Earth"
     ),
     propagation_setup.dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.cannonball_radiation_pressure_type, "Delfi-C3", "Sun"
+        propagation_setup.acceleration.radiation_pressure_type, "Delfi-C3", "Sun"
     )
 ]
 
