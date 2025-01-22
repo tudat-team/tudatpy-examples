@@ -4,6 +4,8 @@
 # The removed lines were classified as outliers, but they should be filtered with the proper tudat functionality,
 # rather than manually (as done for now)
 
+# NOTE: "DSS63" DOES NOT WORK. IT MUST BE "DSS-63". Not the same for DSS14 (it must be DSS-14)...
+# NOTE: remember to remove empty sets, or the loaded stations (with empty observations) will cause troubles in the simulation.
 ##################################################################################################################
 import os
 from xmlrpc.client import DateTime
@@ -71,175 +73,7 @@ def ID_to_site(site_ID):
 
     # Return the corresponding site name or None if the site_ID is not found
     return id_to_site_mapping.get(site_ID, None)
-
-def process_residuals(fdets_files, site_names, ifms_files):
-    """
-    Plots residuals for multiple FDETS files and sites on the same plot.
-
-    Args:
-        fdets_files (list): List of FDETS file paths.
-        site_names (list): List of site names corresponding to the FDETS files.
-    """
-    plt.figure(figsize=(10, 10))
-
-    for fdets_file, site_name in zip(fdets_files,site_names):
-
-        # Set other variables for processing (adapted from your function)
-        base_frequency = 8412e6
-        column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max",
-                        "doppler_measured_frequency_hz", "doppler_noise_hz"]
-        target_name = 'MEX'
-
-        receiving_station_name = site_name
-        print(f'Fdets File Name: {fdets_file}')
-        print(f'Receiving station: {receiving_station_name}')
-
-        reception_band = observation.FrequencyBands.x_band
-        transmission_band = observation.FrequencyBands.x_band
-        added_labels = set()
-        residuals_lines = []
-        min_residuals = defaultdict(list)
-        for ifms_file in ifms_files:
-            station_code = ifms_file.split('/')[3][1:3]
-            if station_code == '14':
-                transmitting_station_name = 'DSS14'
-
-            elif station_code == '63':
-                transmitting_station_name = 'DSS63'
-
-            elif station_code == '32':
-                transmitting_station_name = 'NWNORCIA'
-
-            print(f'ifms file: {ifms_file}\ntransmitting station: {transmitting_station_name}')
-
-            # Load FDETS file
-            try:
-                fdets_collection = observation.observations_from_fdets_files(
-                    fdets_file, base_frequency, column_types, target_name,
-                    transmitting_station_name, receiving_station_name, reception_band, transmission_band
-                )
-            except:
-                continue
-
-            ########## TIME BOUNDS IFMS #########
-
-            ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
-
-            antenna_position_history = dict()
-            com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
-            for obs_times in fdets_collection.get_observation_times():
-                time = obs_times[0].to_float() - 3600.0
-                while time <= obs_times[-1].to_float() + 3600.0:
-                    state = np.zeros((6, 1))
-
-                    # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
-                    state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
-
-                    # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
-                    state[:3,0] = state[:3,0] - com_position
-
-                    # Store antenna position w.r.t. COM in the MEX-fixed frame
-                    antenna_position_history[time] = state
-                    time += 10.0
-
-            # Create tabulated ephemeris settings from antenna position history
-            antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
-
-            # Create tabulated ephemeris for the MEX antenna
-            antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
-
-            # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-            fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
-
-            link_ends = {
-                observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
-                observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
-                observation.transmitter: observation.body_reference_point_link_end_id('Earth', transmitting_station_name),
-            }
-
-            # Create a single link definition from the link ends
-            link_definition = observation.LinkDefinition(link_ends)
-
-            light_time_correction_list = list()
-            light_time_correction_list.append(
-                estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
-
-            # Define the observation model settings
-            observation_model_settings = [
-                estimation_setup.observation.doppler_measured_frequency(
-                    link_definition, light_time_correction_list
-                )
-            ]
-            ###################################################################################################
-            # Create observation simulators.
-            observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
-
-            # Add elevation and SEP angles dependent variables to the fdets observation collection
-            elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-            elevation_angle_parser = fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
-            sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-            sep_angle_parser = fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
-
-            # Compute and set residuals in the fdets observation collection
-            estimation.compute_residuals_and_dependent_variables(fdets_collection, observation_simulators, bodies)
-
-            ##################################### HANDLING FDETS #############################################
-            # Perform computations as in the original function
-            concatenated_obs = fdets_collection.get_concatenated_observations()
-            concatenated_computed_obs = fdets_collection.get_concatenated_computed_observations()
-            residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
-
-            filtered_residuals = residuals_by_hand_no_atm_corr[abs(residuals_by_hand_no_atm_corr) < 10]
-            print(f'filtered residuals for {site_name}: {filtered_residuals}')
-
-            # Get observation times
-            times = fdets_collection.get_observation_times()
-            times = [time.to_float() for time in times[0]]
-            times = np.array(times)
-
-            mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
-            utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
-
-            # Convert to UTC
-            filtered_utc_times = utc_times[abs(residuals_by_hand_no_atm_corr) < 10]
-
-
-            if site_name not in added_labels:
-                print(site_name, 'not in added labels')
-
-                print(filtered_utc_times, filtered_residuals)
-                color = generate_random_color()
-                plt.scatter(utc_times, residuals_by_hand_no_atm_corr, color = color, s=10, marker='+', label=f'{site_name}')
-                plot_ifms_windows(ifms_file, ifms_collection, color)
-
-            else:
-                color = generate_random_color()
-                plt.scatter(utc_times, residuals_by_hand_no_atm_corr,color = color, s=10, marker='+')
-                plot_ifms_windows(ifms_file, ifms_collection, color)
-
-            added_labels.add(site_name)
-            added_labels.add(site_name)
-
-    #######################################################################################################
-
-    # Format the x-axis for dates
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
-
-    plt.title('Residuals from Multiple Sites')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Residuals [Hz]')
-    plt.grid(True)
-    # Place the legend outside the plot
-    plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
-
-    # Adjust layout to make room for the legend
-    plt.tight_layout()
-    plt.show()
-
-######################################################################################################
-
+#####################################################################################################
 def plot_ifms_windows(ifms_file,ifms_collection, color):
 
     # Get IFMS observation times
@@ -264,34 +98,34 @@ def plot_dsn_windows_from_ramp_file():
     ramp_data = """ 
 2013-12-28 17:56:27.905000  2013-12-28 18:40:22.259000  7.1664308519995022e+09   0.0000000000000000e+00  NWNORCIA
 2013-12-28 18:40:58.264000  2013-12-29 00:33:05.000000  7.1664308519995022e+09   0.0000000000000000e+00  NWNORCIA
-2013-12-29 00:33:05.000000  2013-12-29 00:33:06.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 00:33:06.000000  2013-12-29 00:36:03.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 00:36:03.000000  2013-12-29 00:44:17.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 00:44:17.000000  2013-12-29 00:45:24.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 00:45:24.000000  2013-12-29 00:45:32.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 00:33:05.000000  2013-12-29 00:33:06.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 00:33:06.000000  2013-12-29 00:36:03.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 00:36:03.000000  2013-12-29 00:44:17.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 00:44:17.000000  2013-12-29 00:45:24.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 00:45:24.000000  2013-12-29 00:45:32.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
 2013-12-29 00:45:32.000000  2013-12-29 01:40:29.000000  7.1664450429921780e+09   0.0000000000000000e+00  NWNORCIA
 2013-12-29 01:40:29.000000  2013-12-29 03:21:27.000000  7.1664450429921780e+09   0.0000000000000000e+00  NWNORCIA
-2013-12-29 03:21:27.000000  2013-12-29 03:21:37.000000  7.1665434266206827e+09  -1.0000000000000000e+03  DSS63
-2013-12-29 03:21:37.000000  2013-12-29 03:21:52.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
-2013-12-29 03:21:52.000000  2013-12-29 03:21:55.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
-2013-12-29 03:21:55.000000  2013-12-29 03:22:07.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS63
-2013-12-29 03:22:07.000000  2013-12-29 03:22:47.000000  7.1665334266206827e+09   5.0000000000000000e+02  DSS63
-2013-12-29 03:22:47.000000  2013-12-29 03:23:27.000000  7.1665534266206827e+09  -4.9999999999900001e+02  DSS63
-2013-12-29 03:23:27.000000  2013-12-29 03:25:03.000000  7.1665334266206827e+09  -4.9669396544699998e+02  DSS63
-2013-12-29 03:25:03.000000  2013-12-29 07:03:36.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:03:36.000000  2013-12-29 07:03:45.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:03:45.000000  2013-12-29 07:03:58.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:03:58.000000  2013-12-29 07:04:00.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:04:00.000000  2013-12-29 07:52:30.000000  7.1664419636242456e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:52:30.000000  2013-12-29 07:52:40.000000  7.1664419636242456e+09  -1.0000000000000000e+03  DSS63
-2013-12-29 07:52:40.000000  2013-12-29 07:52:55.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:52:55.000000  2013-12-29 07:52:58.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:52:58.000000  2013-12-29 07:53:10.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS63
-2013-12-29 07:53:10.000000  2013-12-29 07:53:50.000000  7.1664319636242456e+09   5.0000000000000000e+02  DSS63
-2013-12-29 07:53:50.000000  2013-12-29 07:54:30.000000  7.1664519636242456e+09  -4.9999999999900001e+02  DSS63
-2013-12-29 07:54:30.000000  2013-12-29 07:56:18.000000  7.1664319636242456e+09   4.9796644216700003e+02  DSS63
-2013-12-29 07:56:18.000000  2013-12-29 11:01:52.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
-2013-12-29 11:01:52.000000  2013-12-29 11:25:55.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS63
+2013-12-29 03:21:27.000000  2013-12-29 03:21:37.000000  7.1665434266206827e+09  -1.0000000000000000e+03  DSS-63
+2013-12-29 03:21:37.000000  2013-12-29 03:21:52.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 03:21:52.000000  2013-12-29 03:21:55.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 03:21:55.000000  2013-12-29 03:22:07.000000  7.1665334266206827e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 03:22:07.000000  2013-12-29 03:22:47.000000  7.1665334266206827e+09   5.0000000000000000e+02  DSS-63
+2013-12-29 03:22:47.000000  2013-12-29 03:23:27.000000  7.1665534266206827e+09  -4.9999999999900001e+02  DSS-63
+2013-12-29 03:23:27.000000  2013-12-29 03:25:03.000000  7.1665334266206827e+09  -4.9669396544699998e+02  DSS-63
+2013-12-29 03:25:03.000000  2013-12-29 07:03:36.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:03:36.000000  2013-12-29 07:03:45.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:03:45.000000  2013-12-29 07:03:58.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:03:58.000000  2013-12-29 07:04:00.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:04:00.000000  2013-12-29 07:52:30.000000  7.1664419636242456e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:52:30.000000  2013-12-29 07:52:40.000000  7.1664419636242456e+09  -1.0000000000000000e+03  DSS-63
+2013-12-29 07:52:40.000000  2013-12-29 07:52:55.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:52:55.000000  2013-12-29 07:52:58.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:52:58.000000  2013-12-29 07:53:10.000000  7.1664319636242456e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 07:53:10.000000  2013-12-29 07:53:50.000000  7.1664319636242456e+09   5.0000000000000000e+02  DSS-63
+2013-12-29 07:53:50.000000  2013-12-29 07:54:30.000000  7.1664519636242456e+09  -4.9999999999900001e+02  DSS-63
+2013-12-29 07:54:30.000000  2013-12-29 07:56:18.000000  7.1664319636242456e+09   4.9796644216700003e+02  DSS-63
+2013-12-29 07:56:18.000000  2013-12-29 11:01:52.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
+2013-12-29 11:01:52.000000  2013-12-29 11:25:55.000000  7.1664857440000000e+09   0.0000000000000000e+00  DSS-63
 2013-12-29 11:02:25.000000  2013-12-29 14:02:59.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
 2013-12-29 14:02:59.000000  2013-12-29 14:03:07.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
 2013-12-29 14:03:07.000000  2013-12-29 14:03:20.000000  7.1664909280000000e+09   0.0000000000000000e+00  DSS14
@@ -311,8 +145,8 @@ def plot_dsn_windows_from_ramp_file():
         # Extract the station name from the last column
         station = parts[-1]
 
-        # Check if the station is DSS63 or DSS14
-        if station in ['DSS63', 'DSS14']:
+        # Check if the station is DSS-63 or DSS14
+        if station in ['DSS-63', 'DSS14']:
             # Extract the start and end times (first two columns)
             start_time_str = parts[0] + ' ' + parts[1]
             end_time_str = parts[2] + ' ' + parts[3]
@@ -354,36 +188,14 @@ def generate_random_color():
         random.randint(0, 255),  # Green
         random.randint(0, 255)   # Blue
     )
-###################################################################
-def get_ifms_collection_from_file(
-        ifms_file,
-        reception_band = observation.FrequencyBands.x_band,
-        transmission_band = observation.FrequencyBands.x_band):
-
-    print(f'Creating IFMS collection from {ifms_file}...\n')
-
-    station_code = ifms_file.split('/')[3][1:3]
-    if station_code == '14':
-        transmitting_station_name = 'DSS14'
-
-    elif station_code == '63':
-        transmitting_station_name = 'DSS63'
-
-    elif station_code == '32':
-        transmitting_station_name = 'NWNORCIA'
-
-    print(f'Loading IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name}')
-
-    ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
-
-    return(ifms_collection)
 
 def get_fdets_receiving_station_name(fdets_file):
     site = ID_to_site(fdets_file.split('.')[4])
 
     return(site)
+###################################################################
 
-def get_overlap_windows(
+def get_filtered_and_merged_fdets_collection(
         fdets_file,
         ifms_files,
         reception_band = observation.FrequencyBands.x_band,
@@ -393,8 +205,8 @@ def get_overlap_windows(
         target_name = 'MEX'
 ):
 
-
     receiving_station_name = get_fdets_receiving_station_name(fdets_file)
+    transmitting_stations_list = []
 
     for ifms_file in ifms_files:
         station_code = ifms_file.split('/')[3][1:3]
@@ -402,210 +214,87 @@ def get_overlap_windows(
             transmitting_station_name = 'DSS14'
 
         elif station_code == '63':
-            transmitting_station_name = 'DSS63'
+            transmitting_station_name = 'DSS-63'
 
         elif station_code == '32':
             transmitting_station_name = 'NWNORCIA'
 
 
-        # Loading IFMS file
-        print(f'Loading IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name}')
-        ifms_collection = observation.observations_from_ifms_files(
-            [ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band
+        transmitting_stations_list.append(transmitting_station_name)
+
+    # Loading IFMS file
+    print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
+    ifms_collection = observation.observations_from_multi_station_ifms_files(
+        ifms_files, bodies, spacecraft_name, transmitting_stations_list, reception_band, transmission_band
+    )
+
+    time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
+    time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
+    ifms_intervals_list = []
+    for j in range(len(time_bounds_per_set)):
+        time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
+        time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
+        ifms_intervals_list.append((time_bounds_array[j, 0], time_bounds_array[j, 1]))
+
+
+    fdets_collections_list = []
+    for ifms_file, transmitting_station_name, ifms_interval in zip(ifms_files, transmitting_stations_list, ifms_intervals_list):
+
+        start_ifms_time = ifms_interval[0]
+        end_ifms_time = ifms_interval[1]
+
+        print(f'assigned transmitting station: {transmitting_station_name}')
+
+        fdets_collection = observation.observations_from_fdets_files(
+            fdets_file, base_frequency, column_types, target_name,
+            transmitting_station_name, receiving_station_name, reception_band, transmission_band
         )
 
-        ifms_times = ifms_collection.get_observation_times()
-        start_ifms_time = np.min(ifms_times).to_float()
-        end_ifms_time = np.max(ifms_times).to_float()
-        ifms_interval = (start_ifms_time, end_ifms_time)
-        print(f"IFMS Interval: {ifms_interval}")
+        print(fdets_collection)
 
-        try:
-            # Loading FDETS file
-            site_name = get_fdets_receiving_station_name(fdets_file)
-            fdets_collection = observation.observations_from_fdets_files(
-                fdets_file, base_frequency, column_types, target_name,
-                transmitting_station_name, receiving_station_name, reception_band, transmission_band
-            )
+        times = fdets_collection.get_observation_times()
+        print(len(times[0]))
+        times = np.array([time.to_float() for time in times[0]])
+        max_time = np.max(times)
+        min_time = np.min(times)
+        print(min_time, max_time)
+        print(start_ifms_time, end_ifms_time)
 
-            fdets_times = fdets_collection.get_observation_times()
-            start_fdets_time = np.min(fdets_times).to_float()
-            end_fdets_time = np.max(fdets_times).to_float()
-            fdets_interval = (start_fdets_time, end_fdets_time)
-            print(f"FDETS Interval: {fdets_interval}")
+        time_filter = estimation.observation_filter(
+            estimation.time_bounds_filtering, start_ifms_time, end_ifms_time, use_opposite_condition = True)
+        fdets_collection.filter_observations(time_filter)
+        fdets_collections_list.append(fdets_collection)
 
-            # Check if intervals overlap
-            check_overlaps = start_ifms_time < end_fdets_time and start_fdets_time < end_ifms_time
-
-            if check_overlaps:
-                print('ye')
-                # Initialize overlaps as a list if it’s not already
-                if 'overlaps' not in locals():
-                    overlap_dict = []
-
-                # Check if the current IFMS file is already in overlaps
-                if all(entry['ifms_file_name'] != ifms_file for entry in overlap_dict):
-                    overlap_dict.append({
-                        'ifms_file_name': ifms_file,
-                        'ifms_time_interval': ifms_interval,
-                        'transmitting_station_name': transmitting_station_name,
-                        'reception_band': reception_band,
-                        'transmission_band': transmission_band,
-                        'site_name': site_name
-                    })
-
-            else:
-                continue
-
-            return fdets_collection, overlap_dict
-
-        except:
-                continue
-
-def get_filtered_fdets_collection_mex(fdets_collection, overlap_dict):
-
-    # Filter fdets based on overlap dictionary time interval values
-    filter_interval = overlap_dict['ifms_time_interval']
-    filter_start_time = filter_interval[0]
-    filter_end_time = filter_interval[1]
-    time_filter = estimation.observation_filter(
-        estimation.time_bounds_filtering, filter_start_time, filter_end_time, use_opposite_condition = True)
-    filtered_fdets_collection = fdets_collection.filter_observations(time_filter)
-    filtered_fdets_collection = filtered_fdets_collection.remove_empty_observation_sets()
-
-    transmitting_station_name = overlap_dict['transmitting_station_name']
-    transmission_band = overlap_dict['transmission_band']
-    reception_band = overlap_dict['reception_band']
-
-    corresponding_ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
-
-    return filtered_fdets_collection, corresponding_ifms_collection, overlap_dict
-
-def process_residuals_coupling_fdets_ifms(
-        filtered_fdets_collection, corresponding_ifms_collection, overlap_dict):
-
-    added_labels = set()
-
-    transmitting_station_name = overlap_dict['transmitting_station_name']
-    transmission_band = overlap_dict['transmission_band']
-    reception_band = overlap_dict['reception_band']
-    site_name = overlap_dict['site_name']
-    antenna_position_history = dict()
-    com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
-    for obs_times in filtered_fdets_collection.get_observation_times():
-        time = obs_times[0].to_float() - 3600.0
-        while time <= obs_times[-1].to_float() + 3600.0:
-            state = np.zeros((6, 1))
-
-            # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
-            state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
-
-            # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
-            state[:3,0] = state[:3,0] - com_position
-
-            # Store antenna position w.r.t. COM in the MEX-fixed frame
-            antenna_position_history[time] = state
-            time += 10.0
-
-    # Create tabulated ephemeris settings from antenna position history
-    antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
-
-    # Create tabulated ephemeris for the MEX antenna
-    antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
-
-    # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-    filtered_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
-
-    link_ends = {
-        observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
-        observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
-        observation.transmitter: observation.body_reference_point_link_end_id('Earth', transmitting_station_name),
-    }
-
-    # Create a single link definition from the link ends
-    link_definition = observation.LinkDefinition(link_ends)
-
-    light_time_correction_list = list()
-    light_time_correction_list.append(
-        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
-
-    # Define the observation model settings
-    observation_model_settings = [
-        estimation_setup.observation.doppler_measured_frequency(
-            link_definition, light_time_correction_list
-        )
-    ]
-    ###################################################################################################
-    # Create observation simulators.
-    observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
-
-    # Add elevation and SEP angles dependent variables to the fdets observation collection
-    elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-    elevation_angle_parser = filtered_fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
-    sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-    sep_angle_parser = filtered_fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
-
-    # Compute and set residuals in the fdets observation collection
-    estimation.compute_residuals_and_dependent_variables(filtered_fdets_collection, observation_simulators, bodies)
-
-    ##################################### HANDLING FDETS #############################################
-    # Perform computations as in the original function
-    concatenated_obs = filtered_fdets_collection.get_concatenated_observations()
-    concatenated_computed_obs = filtered_fdets_collection.get_concatenated_computed_observations()
-    residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
-
-    filtered_residuals = residuals_by_hand_no_atm_corr[abs(residuals_by_hand_no_atm_corr) < 10]
-    print(f'filtered residuals for {site_name}: {filtered_residuals}')
-
-    # Get observation times
-    times = filtered_fdets_collection.get_observation_times()
-    times = [time.to_float() for time in times[0]]
-    times = np.array(times)
-
-    mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
-    utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
-
-    # Convert to UTC
-    filtered_utc_times = utc_times[abs(residuals_by_hand_no_atm_corr) < 10]
-
-
-    if site_name not in added_labels:
-        color = generate_random_color()
-        plt.scatter(utc_times, residuals_by_hand_no_atm_corr, color = color, s=10, marker='+', label=f'{site_name}')
-        #plot_ifms_windows(ifms_file, ifms_collection, color)
+    if len(fdets_collections_list) > 0:
+        print(len(fdets_collections_list))
+        merged_fdets_collection = estimation.merge_observation_collections(fdets_collections_list)
+        merged_fdets_collection.remove_empty_observation_sets()
 
     else:
-        color = generate_random_color()
-        plt.scatter(utc_times, residuals_by_hand_no_atm_corr,color = color, s=10, marker='+')
-        #plot_ifms_windows(ifms_file, ifms_collection, color)
+        print('Impossible to create merged observation collection. Reason: list of fdets collections has length 0.')
 
-    added_labels.add(site_name)
-    added_labels.add(site_name)
-
-    #######################################################################################################
-
-    # Format the x-axis for dates
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
+    return merged_fdets_collection, transmitting_stations_list
 
 
 if __name__ == "__main__":
 
-    # Unpack various input arguments
+    # Set Folders Containing Relevant Files
     mex_kernels_folder = 'mex_phobos_flyby/kernels/'
     mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
     mex_ifms_folder = 'mex_phobos_flyby/ifms/filtered'
     mex_odf_folder = 'mex_phobos_flyby/odf/'
 
+    # Load Required Spice Kernels
     spice.load_standard_kernels()
     for kernel in os.listdir(mex_kernels_folder):
         kernel_path = os.path.join(mex_kernels_folder, kernel)
         spice.load_kernel(kernel_path)
 
+    # Define Start and end Dates of Simulation
     start = datetime(2013, 12, 27)
     end = datetime(2013, 12, 30)
 
+    # Add a time buffer of one day
     start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
     end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
 
@@ -625,7 +314,7 @@ if __name__ == "__main__":
         interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
                                                              start_time, end_time, 3600.0),
         interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                             start_time, end_time, 60.0))# Add the ground station to the environment
+                                                             start_time, end_time, 60.0))
 
     body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
     spacecraft_name = "MEX" # Set Spacecraft Name
@@ -638,6 +327,7 @@ if __name__ == "__main__":
     body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
         global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
     body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
+
     # Create System of Bodies using the above-defined body_settings
     bodies = environment_setup.create_system_of_bodies(body_settings)
 
@@ -646,13 +336,12 @@ if __name__ == "__main__":
     vehicleSys = environment.VehicleSystems()
     vehicleSys.set_default_transponder_turnaround_ratio_function()
     bodies.get_body("MEX").system_models = vehicleSys
+    #print(environment_setup.get_ground_station_list(bodies.get_body("Earth")))
     ###############################################################
 
     sites_list = []
     fdets_files = []
     ifms_files = []
-    odf_files = []
-
 
     for fdets_file in os.listdir(mex_fdets_folder):
         fdets_files.append(os.path.join(mex_fdets_folder, fdets_file))
@@ -660,23 +349,100 @@ if __name__ == "__main__":
         sites_list.append(site)
     for ifms_file in os.listdir(mex_ifms_folder):
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
-    for odf_file in os.listdir(mex_odf_folder):
-        odf_files.append(os.path.join(mex_odf_folder, odf_file))
 
-    print(f'IFMS FILES:\n {ifms_files}\n\n')
-    # print(f'DSN FILES:\n {odf_files}\n\n')
-    print(f'FDETS FILES:\n {fdets_files}\n\n')
-    print(f'STATIONS:\n {sites_list}\n\n')
+    # For now, only try with one Fdets element!
+    fdets_files = [os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.On.complete.r2i.txt')]
 
-    ifms_collection = get_ifms_collection_from_file(ifms_file = ifms_files[0])
+    for fdets_file in fdets_files:
+        merged_fdets_collection, transmitting_stations_list = get_filtered_and_merged_fdets_collection(fdets_file, ifms_files)
+        site_name = get_fdets_receiving_station_name(fdets_file)
 
-    fdets_collection, full_overlap_dict = get_overlap_windows(fdets_files[0], ifms_files) # full overlap_dict = all ifms included in the dict
+        for observation_set_number, transmitting_station_name in enumerate(transmitting_stations_list):
+            print(f'Transmitting station: {transmitting_station_name}')
 
-    for overlap_dict in full_overlap_dict: #overlap_dict = single ifms included in the dict
-        filtered_fdets_collection, corresponding_ifms_collection, overlap_dict = get_filtered_fdets_collection_mex(fdets_collection, overlap_dict)
-        process_residuals_coupling_fdets_ifms(filtered_fdets_collection,corresponding_ifms_collection, overlap_dict)
+            added_labels = set()
+            antenna_position_history = dict()
+            com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
 
+            times = merged_fdets_collection.get_observation_times()[observation_set_number]
+            times = [time.to_float() - 3600.0 for time in times]
+            mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
+            utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
 
+            for time in times:
+                if time <= times[-1] + 3600:
+                    state = np.zeros((6, 1))
+                    # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
+                    state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
+
+                    # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
+                    state[:3,0] = state[:3,0] - com_position
+
+                    # Store antenna position w.r.t. COM in the MEX-fixed frame
+                    antenna_position_history[time] = state
+                    time += 10.0
+
+            # Create tabulated ephemeris settings from antenna position history
+            antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
+            # Create tabulated ephemeris for the MEX antenna
+            antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+            # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
+            merged_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+
+            link_ends = {
+                observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
+                observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
+                observation.transmitter: observation.body_reference_point_link_end_id('Earth', transmitting_station_name),
+            }
+
+            # Create a single link definition from the link ends
+            link_definition = observation.LinkDefinition(link_ends)
+
+            light_time_correction_list = list()
+            light_time_correction_list.append(
+                estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+
+            # Define the observation model settings
+            observation_model_settings = [
+                estimation_setup.observation.doppler_measured_frequency(
+                    link_definition, light_time_correction_list
+                )
+            ]
+
+            ###################################################################################################
+
+            # Create observation simulators.
+            observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+            # Add elevation and SEP angles dependent variables to the compressed observation collection
+            elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
+            elevation_angle_parser = merged_fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
+            sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
+            sep_angle_parser = merged_fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
+            # Compute and set residuals in the fdets observation collection
+            estimation.compute_residuals_and_dependent_variables(merged_fdets_collection, observation_simulators, bodies)
+
+            # Perform computations
+            concatenated_obs = merged_fdets_collection.get_concatenated_observations()
+            concatenated_computed_obs = merged_fdets_collection.get_concatenated_computed_observations()
+            residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
+
+            print(f'Residuals: {residuals_by_hand_no_atm_corr}')
+
+            if site_name not in added_labels:
+                color = generate_random_color()
+                added_labels.add(site_name)
+                plt.scatter(utc_times, residuals_by_hand_no_atm_corr, color = color, s=10, marker='+', label=f'{site_name}')
+
+            else:
+                color = generate_random_color()
+                plt.scatter(utc_times, residuals_by_hand_no_atm_corr,color = color, s=10, marker='+')
+
+            #######################################################################################################
+
+            # Format the x-axis for dates
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+            plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+            plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 
     plt.title('Residuals from Multiple Sites')
     plt.xlabel('Time [s]')
@@ -688,11 +454,3 @@ if __name__ == "__main__":
     # Adjust layout to make room for the legend
     plt.tight_layout()
     plt.show()
-
-    exit()
-
-    process_residuals(fdets_files, sites_list, ifms_files)
-
-
-
-
