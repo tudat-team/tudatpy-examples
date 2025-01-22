@@ -205,70 +205,64 @@ def get_filtered_fdets_collection(
 ):
 
     transmitting_stations_list = []
-    transmitting_stations_list_from_dict = []
+    fdets_collections_list = []
+    ifms_collections_list = []
     for ifms_file in ifms_files:
         station_code = ifms_file.split('/')[3][1:3]
         if station_code == '14':
             transmitting_station_name = 'DSS14'
 
         elif station_code == '63':
-            transmitting_station_name = 'DSS-63'
+            transmitting_station_name = 'DSS63'
 
         elif station_code == '32':
             transmitting_station_name = 'NWNORCIA'
 
 
-        transmitting_stations_list.append(transmitting_station_name)
+        #transmitting_stations_list.append(transmitting_station_name)
 
-    # Loading IFMS file
-    #print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
-    ifms_collection = observation.observations_from_multi_station_ifms_files(
-        ifms_files, bodies, spacecraft_name, transmitting_stations_list, reception_band, transmission_band
-    )
+        # Loading IFMS file
+        #print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
+        ifms_collection = observation.observations_from_ifms_files(
+            [ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band
+        )
 
-    time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
-    time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
-    compare_time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
-    ifms_intervals_list = []
-    compare_ifms_intervals_list = []
-    for j in range(len(time_bounds_per_set)):
-        time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
-        time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
-        compare_time_bounds_array[j, 0] = time_conversion.seconds_since_epoch_to_julian_day(time_bounds_per_set[j][0].to_float())
-        compare_time_bounds_array[j, 1] = time_conversion.seconds_since_epoch_to_julian_day(time_bounds_per_set[j][1].to_float())
-        ifms_intervals_list.append((time_bounds_array[j, 0], time_bounds_array[j, 1]))
-        compare_ifms_intervals_list.append((compare_time_bounds_array[j, 0], compare_time_bounds_array[j, 1]))
+        ifms_collections_list.append(ifms_collection)
+        ifms_times = ifms_collection.get_observation_times()
+        ifms_times = [time.to_float() for time in ifms_times[0]]
 
-    fdets_collections_list = []
-    #print(f'lengths: {len(ifms_files)}, {len(transmitting_stations_list)}')
-    final_transmitting_stations_list = []
-    for ifms_file, transmitting_station_name, ifms_interval in zip(ifms_files, transmitting_stations_list, ifms_intervals_list):
+        start_ifms_time = min(ifms_times)
+        end_ifms_time = max(ifms_times)
 
-        start_ifms_time = ifms_interval[0]
-        end_ifms_time = ifms_interval[1]
-
-        print(f'Assigned transmitting station: {transmitting_station_name}\nIFMS file name: {ifms_file}')
+        print(f'Assigned Transmitting Station: {transmitting_station_name}\nIFMS file name: {ifms_file}')
 
         fdets_collection = observation.observations_from_fdets_files(
             fdets_file, base_frequency, column_types, target_name,
             transmitting_station_name, receiving_station_name, reception_band, transmission_band
         )
 
-        times = fdets_collection.get_observation_times()
-        times = np.array([time.to_float() for time in times[0]])
-        max_time = np.max(times)
-        min_time = np.min(times)
-
         time_filter = estimation.observation_filter(
             estimation.time_bounds_filtering, start_ifms_time, end_ifms_time, use_opposite_condition = True)
         fdets_collection.filter_observations(time_filter)
 
-        if len(fdets_collection.get_observation_times()[0]) > 0:
-            final_transmitting_stations_list.append(transmitting_station_name)
+        if len(fdets_collection.get_observation_times()[0]) > 1:
+            for key, link_end_items in fdets_collection.link_definition_ids.items():
+                print(f"Key: {key}")
+                for link_type, link_end_id in link_end_items.items():
+                    if link_type.name == 'transmitter':
+                        # Print LinkEndType name and object memory address
+                        print(f"Link Type: {link_type.name} - Object: {link_end_id.reference_point}")
+                        transmitter_name = link_end_id.reference_point
+                        transmitting_stations_list.append(transmitter_name)
+                        print(transmitting_stations_list)
+            fdets_collections_list.append(fdets_collection)
 
-        fdets_collections_list.append(fdets_collection)
+    print(f'transmitting stations list:{transmitting_stations_list}')
+    print(f'Length of Fdets collections: {len(fdets_collections_list)}')
+    print(f'Length of stations list: {len(transmitting_stations_list)}')
 
-
+    # CREATE MERGED IFMS_COLLECTION
+    merged_ifms_collection = estimation.merge_observation_collections(ifms_collections_list)
     return fdets_collections_list, transmitting_stations_list
 
 
@@ -291,7 +285,7 @@ def get_filtered_and_merged_fdets_collection(
             transmitting_station_name = 'DSS14'
 
         elif station_code == '63':
-            transmitting_station_name = 'DSS-63'
+            transmitting_station_name = 'DSS63'
 
         elif station_code == '32':
             transmitting_station_name = 'NWNORCIA'
@@ -489,37 +483,38 @@ if __name__ == "__main__":
     for ifms_file in os.listdir(mex_ifms_folder):
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
 
-    sorted_files = sorted([ifms_file.split('/')[3] for ifms_file in ifms_files] , key=extract_date_from_filename)
-
 
     # For now, only try with one Fdets element!
     #fdets_files = [os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.Bd.complete.r2i.txt'), os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.On.complete.r2i.txt')]
 
-    ifms_files = [os.path.join(mex_ifms_folder, sorted_file) for sorted_file in sorted_files]
-    print(ifms_files)
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
 
+    #fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt', 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
+
+    #fdets_fils = 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt'
     for fdets_file in fdets_files:
+
         receiving_station_name = get_fdets_receiving_station_name(fdets_file)
         if receiving_station_name == None or receiving_station_name not in  [station[1] for station in environment_setup.get_ground_station_list(bodies.get_body("Earth"))]:
             continue
         added_labels = set()
-        merged_fdets_collection, transmitting_stations_list = get_filtered_and_merged_fdets_collection(fdets_file, ifms_files, receiving_station_name)
+        label_colors = {}
 
+        filtered_collections_list, transmitting_stations_list = get_filtered_fdets_collection(fdets_file, ifms_files, receiving_station_name)
         site_name = get_fdets_receiving_station_name(fdets_file)
 
-        if 'VLBA' in site_name or site_name == 'YEBES40M' or site_name == 'WETTZELL':
-            continue
+        for filtered_collection, transmitting_station_name in zip(filtered_collections_list,transmitting_stations_list):
+            #if not 'VLBA' in site_name:
+            #    continue
 
-        for observation_set_number, transmitting_station_name in enumerate(transmitting_stations_list):
             print(f'Transmitting station: {transmitting_station_name}')
 
             antenna_position_history = dict()
             com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
 
-            times = merged_fdets_collection.get_concatenated_observation_times()
-            times = [time.to_float() for time in np.sort(np.array(times))]
+            times = filtered_collection.get_observation_times()
+            times = [time.to_float() for time in times[0]]
+
             mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
             utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
 
@@ -533,7 +528,7 @@ if __name__ == "__main__":
             # Create tabulated ephemeris for the MEX antenna
             antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
             # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-            merged_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+            filtered_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
 
             print(f'\nSetting uplink: {transmitting_station_name}')
             link_ends = {
@@ -562,28 +557,32 @@ if __name__ == "__main__":
             observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
             # Add elevation and SEP angles dependent variables to the compressed observation collection
             elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-            elevation_angle_parser = merged_fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
+            elevation_angle_parser = filtered_collection.add_dependent_variable( elevation_angle_settings, bodies )
             sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-            sep_angle_parser = merged_fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
+            sep_angle_parser = filtered_collection.add_dependent_variable( sep_angle_settings, bodies )
             # Compute and set residuals in the fdets observation collection
-            estimation.compute_residuals_and_dependent_variables(merged_fdets_collection, observation_simulators, bodies)
+            estimation.compute_residuals_and_dependent_variables(filtered_collection, observation_simulators, bodies)
 
             # Perform computations
-            concatenated_obs = merged_fdets_collection.get_concatenated_observations()
-            concatenated_computed_obs = merged_fdets_collection.get_concatenated_computed_observations()
+            concatenated_obs = np.array(filtered_collection.get_observations())
+            concatenated_computed_obs = np.array(filtered_collection.get_computed_observations())
             residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
 
             print(f'Residuals: {residuals_by_hand_no_atm_corr}')
 
-            if site_name not in added_labels:
-                color = generate_random_color()
-                added_labels.add(site_name)
-                plt.scatter(utc_times, residuals_by_hand_no_atm_corr, color = color, s=10, marker='+', label=f'{site_name}')
+            if site_name not in label_colors:
+                label_colors[site_name] = generate_random_color()
 
-            else:
-                color = generate_random_color()
-                plt.scatter(utc_times, residuals_by_hand_no_atm_corr,color = color, s=10, marker='+')
-
+            # Use the stored color for plotting
+            plt.scatter(
+                utc_times,
+                residuals_by_hand_no_atm_corr,
+                color=label_colors[site_name],
+                s=10,
+                marker='+',
+                label=f'{site_name}' if site_name not in added_labels else None
+            )
+            added_labels.add(site_name)  # Avoid duplicate labels in the legend
             #######################################################################################################
 
             # Format the x-axis for dates
@@ -601,4 +600,3 @@ if __name__ == "__main__":
     # Adjust layout to make room for the legend
     plt.tight_layout()
     plt.show()
-
