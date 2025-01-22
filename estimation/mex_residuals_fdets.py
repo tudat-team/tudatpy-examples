@@ -27,8 +27,6 @@ from astropy.time import Time
 from collections import defaultdict
 import matplotlib.dates as mdates
 
-
-
 def ID_to_site(site_ID):
     """
     Maps a site ID to its corresponding ground station name.
@@ -52,7 +50,7 @@ def ID_to_site(site_ID):
         'Bd': 'BADARY',
         'Ur': 'URUMQI',
         'Zc': 'ZELENCHK',
-        'Hh': 'HART',
+        'Hh': 'HART15M',
         'Wz': 'WETTZELL',
         'Sv': 'SVETLOE',
         'Mc': 'MEDICINA',
@@ -146,7 +144,7 @@ def plot_dsn_windows_from_ramp_file():
         station = parts[-1]
 
         # Check if the station is DSS-63 or DSS14
-        if station in ['DSS-63', 'DSS14']:
+        if station in ['DSS63', 'DSS14']:
             # Extract the start and end times (first two columns)
             start_time_str = parts[0] + ' ' + parts[1]
             end_time_str = parts[2] + ' ' + parts[3]
@@ -198,6 +196,7 @@ def get_fdets_receiving_station_name(fdets_file):
 def get_filtered_and_merged_fdets_collection(
         fdets_file,
         ifms_files,
+        receiving_station_name,
         reception_band = observation.FrequencyBands.x_band,
         transmission_band = observation.FrequencyBands.x_band,
         base_frequency = 8412e6,
@@ -205,7 +204,6 @@ def get_filtered_and_merged_fdets_collection(
         target_name = 'MEX'
 ):
 
-    receiving_station_name = get_fdets_receiving_station_name(fdets_file)
     transmitting_stations_list = []
 
     for ifms_file in ifms_files:
@@ -223,61 +221,93 @@ def get_filtered_and_merged_fdets_collection(
         transmitting_stations_list.append(transmitting_station_name)
 
     # Loading IFMS file
-    print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
+    #print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
     ifms_collection = observation.observations_from_multi_station_ifms_files(
         ifms_files, bodies, spacecraft_name, transmitting_stations_list, reception_band, transmission_band
     )
 
     time_bounds_per_set = ifms_collection.get_time_bounds_per_set()
     time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
+    compare_time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
     ifms_intervals_list = []
+    compare_ifms_intervals_list = []
     for j in range(len(time_bounds_per_set)):
         time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
         time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
+        compare_time_bounds_array[j, 0] = time_conversion.seconds_since_epoch_to_julian_day(time_bounds_per_set[j][0].to_float())
+        compare_time_bounds_array[j, 1] = time_conversion.seconds_since_epoch_to_julian_day(time_bounds_per_set[j][1].to_float())
         ifms_intervals_list.append((time_bounds_array[j, 0], time_bounds_array[j, 1]))
-
+        compare_ifms_intervals_list.append((compare_time_bounds_array[j, 0], compare_time_bounds_array[j, 1]))
 
     fdets_collections_list = []
+    #print(f'lengths: {len(ifms_files)}, {len(transmitting_stations_list)}')
+    final_transmitting_stations_list = []
     for ifms_file, transmitting_station_name, ifms_interval in zip(ifms_files, transmitting_stations_list, ifms_intervals_list):
 
         start_ifms_time = ifms_interval[0]
         end_ifms_time = ifms_interval[1]
 
-        print(f'assigned transmitting station: {transmitting_station_name}')
+        print(f'Assigned transmitting station: {transmitting_station_name}\nIFMS file name: {ifms_file}')
 
         fdets_collection = observation.observations_from_fdets_files(
             fdets_file, base_frequency, column_types, target_name,
             transmitting_station_name, receiving_station_name, reception_band, transmission_band
         )
 
-        print(fdets_collection)
-
         times = fdets_collection.get_observation_times()
-        print(len(times[0]))
         times = np.array([time.to_float() for time in times[0]])
         max_time = np.max(times)
         min_time = np.min(times)
-        print(min_time, max_time)
-        print(start_ifms_time, end_ifms_time)
 
         time_filter = estimation.observation_filter(
             estimation.time_bounds_filtering, start_ifms_time, end_ifms_time, use_opposite_condition = True)
         fdets_collection.filter_observations(time_filter)
+
+        if len(fdets_collection.get_observation_times()[0]) > 0:
+            final_transmitting_stations_list.append(transmitting_station_name)
+
         fdets_collections_list.append(fdets_collection)
 
     if len(fdets_collections_list) > 0:
-        print(len(fdets_collections_list))
         merged_fdets_collection = estimation.merge_observation_collections(fdets_collections_list)
         merged_fdets_collection.remove_empty_observation_sets()
 
     else:
         print('Impossible to create merged observation collection. Reason: list of fdets collections has length 0.')
 
-    return merged_fdets_collection, transmitting_stations_list
+
+    fdets_time_bounds_per_set = merged_fdets_collection.get_time_bounds_per_set()
+    fdets_time_bounds_array = np.zeros((len(fdets_time_bounds_per_set), 2))
+    fdets_intervals_list = []
+    for j in range(len(fdets_time_bounds_per_set)):
+        fdets_time_bounds_array[j, 0] = time_conversion.seconds_since_epoch_to_julian_day(fdets_time_bounds_per_set[j][0].to_float())
+        fdets_time_bounds_array[j, 1] = time_conversion.seconds_since_epoch_to_julian_day(fdets_time_bounds_per_set[j][1].to_float())
+        fdets_intervals_list.append((fdets_time_bounds_array[j, 0], fdets_time_bounds_array[j, 1]))
+
+    fdets_calendar_date_tuples = [
+        (
+            time_conversion.julian_day_to_calendar_date(julian_day[0]),
+            time_conversion.julian_day_to_calendar_date(julian_day[1])
+        )
+        for julian_day in fdets_intervals_list
+]
+
+    ifms_calendar_date_tuples = [
+        (
+            time_conversion.julian_day_to_calendar_date(julian_day[0]),
+            time_conversion.julian_day_to_calendar_date(julian_day[1])
+        )
+        for julian_day in compare_ifms_intervals_list
+    ]
+
+    print(f'Fdets intervals list: {fdets_calendar_date_tuples}')
+    print(f'IFMS intervals list: {ifms_calendar_date_tuples}')
+    print(f'Final stations: {final_transmitting_stations_list}')
+
+    return merged_fdets_collection, final_transmitting_stations_list
 
 
 if __name__ == "__main__":
-
     # Set Folders Containing Relevant Files
     mex_kernels_folder = 'mex_phobos_flyby/kernels/'
     mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
@@ -291,8 +321,8 @@ if __name__ == "__main__":
         spice.load_kernel(kernel_path)
 
     # Define Start and end Dates of Simulation
-    start = datetime(2013, 12, 27)
-    end = datetime(2013, 12, 30)
+    start = datetime(2013, 12, 28)
+    end = datetime(2013, 12, 29)
 
     # Add a time buffer of one day
     start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
@@ -321,6 +351,8 @@ if __name__ == "__main__":
     spacecraft_central_body = "Mars" # Set Central Body (Mars)
     body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
     # Retrieve translational ephemeris from SPICE
+    #body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.direct_spice(
+    #    'SSB', 'J2000', 'MEX')
     body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
         start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
     # Retrieve rotational ephemeris from SPICE
@@ -351,47 +383,50 @@ if __name__ == "__main__":
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
 
     # For now, only try with one Fdets element!
-    fdets_files = [os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.On.complete.r2i.txt')]
+    #fdets_files = [os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.Bd.complete.r2i.txt'), os.path.join(mex_fdets_folder, 'Fdets.mex2013.12.28.On.complete.r2i.txt')]
+
+    ifms_files = [os.path.join(mex_ifms_folder, 'M63ODFXL02_DPX_133630348_00.TAB')]
+    fdets_files = ['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt', 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt']
 
     for fdets_file in fdets_files:
-        merged_fdets_collection, transmitting_stations_list = get_filtered_and_merged_fdets_collection(fdets_file, ifms_files)
+        receiving_station_name = get_fdets_receiving_station_name(fdets_file)
+        if receiving_station_name == None or receiving_station_name not in  [station[1] for station in environment_setup.get_ground_station_list(bodies.get_body("Earth"))]:
+            continue
+        added_labels = set()
+        merged_fdets_collection, transmitting_stations_list = get_filtered_and_merged_fdets_collection(fdets_file, ifms_files, receiving_station_name)
+
         site_name = get_fdets_receiving_station_name(fdets_file)
+
+        if 'VLBA' in site_name or site_name == 'YEBES40M' or site_name == 'WETTZELL':
+            continue
 
         for observation_set_number, transmitting_station_name in enumerate(transmitting_stations_list):
             print(f'Transmitting station: {transmitting_station_name}')
 
-            added_labels = set()
             antenna_position_history = dict()
             com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
 
-            times = merged_fdets_collection.get_observation_times()[observation_set_number]
-            times = [time.to_float() - 3600.0 for time in times]
+            times = merged_fdets_collection.get_concatenated_observation_times()
+            times = [time.to_float() for time in np.sort(np.array(times))]
             mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
             utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
 
-            for time in times:
-                if time <= times[-1] + 3600:
-                    state = np.zeros((6, 1))
-                    # For each observation epoch, retrieve the antenna position (spice ID "-41020") w.r.t. the origin of the MEX-fixed frame (spice ID "-41000")
-                    state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", time)
-
-                    # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
-                    state[:3,0] = state[:3,0] - com_position
-
-                    # Store antenna position w.r.t. COM in the MEX-fixed frame
-                    antenna_position_history[time] = state
-                    time += 10.0
+            antenna_state = np.zeros((6, 1))
+            antenna_state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", times[0])
+            # Translate the antenna position to account for the offset between the origin of the MEX-fixed frame and the COM
+            antenna_state[:3,0] = antenna_state[:3,0] - com_position
 
             # Create tabulated ephemeris settings from antenna position history
-            antenna_ephemeris_settings = environment_setup.ephemeris.tabulated(antenna_position_history, "-41000",  "MEX_SPACECRAFT")
+            antenna_ephemeris_settings = environment_setup.ephemeris.constant(antenna_state, "-41000",  "MEX_SPACECRAFT")
             # Create tabulated ephemeris for the MEX antenna
             antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
             # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
             merged_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
 
+            print(f'\nSetting uplink: {transmitting_station_name}')
             link_ends = {
                 observation.receiver: observation.body_reference_point_link_end_id('Earth', site_name),
-                observation.retransmitter: observation.body_reference_point_link_end_id('MEX','Antenna'),
+                observation.retransmitter: observation.body_reference_point_link_end_id('MEX', 'Antenna'),
                 observation.transmitter: observation.body_reference_point_link_end_id('Earth', transmitting_station_name),
             }
 
