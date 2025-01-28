@@ -30,6 +30,7 @@ from collections import defaultdict
 import matplotlib.dates as mdates
 from tudatpy.astro.time_conversion import DateTime
 
+
 def ID_to_site(site_ID):
     """
     Maps a site ID to its corresponding ground station name.
@@ -410,11 +411,9 @@ if __name__ == "__main__":
         antenna_position_history = dict()
         com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
 
-        times = merged_fdets_collection.get_observation_times()
-        times = [time.to_float() for time in times[0]]
-
+        times = merged_fdets_collection.get_concatenated_observation_times()
         mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
-        utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
+        utc_row = [Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times]
 
         antenna_state = np.zeros((6, 1))
         antenna_state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", times[0])
@@ -426,13 +425,11 @@ if __name__ == "__main__":
         # Create tabulated ephemeris for the MEX antenna
         antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
         # Set the spacecraft's reference point position to that of the antenna (in the MEX-fixed frame)
-        merged_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.reflector1)
+        merged_fdets_collection.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.retransmitter)
 
         light_time_correction_list = list()
         light_time_correction_list.append(
             estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
-
-        observation_model_settings = list()
 
         correct_link_definition_dict = dict()
         for single_link_definition in link_definitions:
@@ -451,67 +448,86 @@ if __name__ == "__main__":
 
             if receiver_name not in correct_link_definition_dict:
                 correct_link_definition_dict[receiver_name] = [observation.LinkDefinition(link_ends),]
+
             else:
                 correct_link_definition_dict[receiver_name].append(observation.LinkDefinition(link_ends))
-
                 #print(correct_link_definition_dict[receiver_name].link_end_id(observation.retransmitter).reference_point)
                 #print(correct_link_definition_dict[receiver_name].link_end_id(observation.transmitter).reference_point)
                 #print(correct_link_definition_dict[receiver_name].link_end_id(observation.receiver).reference_point)
 
+        observation_simulation_settings = list()
+        for current_link_definition in correct_link_definition_dict.values():
+            for current_link in current_link_definition:
+                #print(current_link.link_end_id(observation.retransmitter).reference_point)
+                #print(current_link.link_end_id(observation.transmitter).reference_point)
+                #print(current_link.link_end_id(observation.receiver).reference_point)
+                observation_simulation_settings.append(estimation_setup.observation.doppler_measured_frequency(
+                    current_link, light_time_correction_list))
 
-            tudat_start_time = DateTime(2013, 12, 28).epoch()
-            tudat_end_time = DateTime(2013, 12, 29).epoch()
-
-            # Generate the list of times separated by 10 seconds
-            time_step = timedelta(seconds=10)
-            time_list = []
-
-            current_time = tudat_start_time
-            while current_time <= tudat_end_time:
-                time_list.append(current_time)
-                current_time += time_step
-
-            observation_simulation_settings = list()
-            for receiver, link_definition_list in correct_link_definition_dict.items():
-                for i in range(len(link_definition_list)):
-                    observation_model_settings.append(estimation_setup.observation.tabulated_simulation_settings(
-                        estimation_setup.observation.doppler_measured_frequency_type,
-                            correct_link_definition_dict[receiver][i], time_list, light_time_correction_list
-                        ))
-            ###################################################################################################
+        ################################ TRIAL WITH TABULATED SETTINGS #################################################
+        #tudat_start_time = datetime(2013, 12, 28)
+        #tudat_end_time = datetime(2013, 12, 29)
+        ## Generate the list of times separated by 10 seconds
+        #time_step = timedelta(seconds=10)
+        #time_list = []
+        #current_time = tudat_start_time
+        #while current_time <= tudat_end_time:
+        #    time_list.append(current_time)
+        #    current_time += time_step
+        #time_list = []
+        #for i, (start_time_bound, end_time_bound) in enumerate(merged_fdets_collection.get_time_bounds_per_set()):
+        #    print(start_time_bound.to_float(), end_time_bound.to_float())
+        #    # Convert to Tudat calendar dates
+        #    tudat_start_time = time_conversion.julian_day_to_calendar_date(
+        #        time_conversion.seconds_since_epoch_to_julian_day(start_time_bound.to_float())
+        #    )
+        #    tudat_end_time = time_conversion.julian_day_to_calendar_date(
+        #        time_conversion.seconds_since_epoch_to_julian_day(end_time_bound.to_float())
+        #    )
+        #    # Generate list of times separated by 10 seconds
+        #    time_step = timedelta(seconds=10)
+        #    current_time = tudat_start_time
+        #    # Initialize a new sublist for each set
+        #    current_time_list = []
+        #    while current_time <= tudat_end_time:
+        #        current_time_list.append(time_conversion.datetime_to_tudat(current_time).epoch())
+        #        current_time += time_step
+        #    # Append the generated list for this set to the main list
+        #    time_list.append(current_time_list)
+        #observation_simulation_settings = []
+        #for i, (receiver, link_definition_list) in enumerate(correct_link_definition_dict.items()):
+        #    for j in range(len(single_fdets_filtered_collections_list)):
+        #        observation_simulation_settings.append(estimation_setup.observation.tabulated_simulation_settings(
+        #            estimation_setup.observation.doppler_measured_frequency_type,
+        #            correct_link_definition_dict[receiver][i], time_list[j] # set the correct time for uplink simulation(s)
+        #        ))
+        ###################################################################################################
 
         # Create observation simulators.
-        observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+        observation_simulators = estimation_setup.create_observation_simulators(observation_simulation_settings, bodies)
 
         # Add elevation and SEP angles dependent variables to the compressed observation collection
-        #elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-        #elevation_angle_parser = merged_fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
-        #sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-        #sep_angle_parser = merged_fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
+        elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
+        elevation_angle_parser = merged_fdets_collection.add_dependent_variable( elevation_angle_settings, bodies )
+        sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
+        sep_angle_parser = merged_fdets_collection.add_dependent_variable( sep_angle_settings, bodies )
         # Compute and set residuals in the fdets observation collection
         estimation.compute_residuals_and_dependent_variables(merged_fdets_collection, observation_simulators, bodies)
 
         # Perform computations
-        observations = merged_fdets_collection.get_concatenated_observations()
-        computed_observations = merged_fdets_collection.get_concatenated_computed_observations()
+        observations = merged_fdets_collection.get_observations()
+        computed_observations = merged_fdets_collection.get_computed_observations()
 
-        for observation, computed_observation in zip(observations, computed_observations):
-            residuals = observation -  computed_observation
-            rms_residuals = merged_fdets_collection.get_rms_residuals()
-            mean_residuals = merged_fdets_collection.get_mean_residuals()
+        tudat_residuals = merged_fdets_collection.get_residuals()
+        tudat_mean_residuals = merged_fdets_collection.get_mean_residuals()
+        tudat_rms_residuals = merged_fdets_collection.get_rms_residuals()
 
-        residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
-
-
-        print(f'rms: {rms_residuals}')
-        print(f'mean: {mean_residuals}')
-        print(residuals_by_hand_no_atm_corr)
 
         #Populate Station Residuals Dictionary
         if site_name not in fdets_station_residuals.keys():
-            fdets_station_residuals[site_name] = [(utc_times, residuals_by_hand_no_atm_corr)]
+            fdets_station_residuals[site_name] = [(utc_times, tudat_residuals, tudat_mean_residuals, tudat_rms_residuals)]
         else:
-            fdets_station_residuals[site_name].append((utc_times, residuals_by_hand_no_atm_corr))
+            fdets_station_residuals[site_name].append((utc_times, tudat_residuals, tudat_mean_residuals, tudat_rms_residuals))
 #######################################################################################################
 
 
@@ -523,13 +539,13 @@ if __name__ == "__main__":
         if site_name not in label_colors:
             label_colors[site_name] = generate_random_color()
 
-        for utc_times, residuals in data_list:
+        for utc_times, residuals, mean_residuals, rms_residuals in data_list:
             # Plot all stations' residuals on the same figure
             plt.scatter(
-                utc_times, residuals.ravel(),
+                utc_times, residuals,
                 color = label_colors[site_name],
                 marker = '+', s=10,
-                label=f"{site_name}, mean = {round(np.mean(residuals.ravel()), 3)}, std = {round(np.std(residuals.ravel()), 3)}"
+                label=f"{site_name}, mean = {round(mean_residuals, 3)}, std = {round(rms_residuals, 3)}"
                 if site_name not in added_labels else None
             )
             added_labels.add(site_name)  # Avoid duplicate labels in the legend

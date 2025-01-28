@@ -1,0 +1,135 @@
+########
+# THINGS TO BE FIXED
+# NOTE: It was not possible to compress the fdets files due to an at:map error in the C++ code, likely due to dsn_n_way_averaged_doppler
+# NOTE: Here, I am plotting only those files for which the residuals are <= 2.
+# NOTE: In the new_mex_residuals_ifms.py, the DSS14 and DSS63 are giving problems.
+########
+import csv
+import matplotlib.pyplot as plt
+from datetime import datetime
+import os
+import matplotlib.dates as mdates
+import numpy as np
+import random
+
+def generate_random_color():
+    """Generate a random color in hexadecimal format."""
+    return "#{:02x}{:02x}{:02x}".format(
+        random.randint(0, 255),  # Red
+        random.randint(0, 255),  # Green
+        random.randint(0, 255)   # Blue
+    )
+
+# File path
+ifms_residuals_folder = 'mex_phobos_flyby/output/ifms_residuals'
+fdets_residuals_folder = 'mex_phobos_flyby/output/fdets_residuals'
+
+station_residuals = dict()
+
+
+# Plotting the residuals
+plt.figure(figsize=(10, 6))
+
+for fdets_file in os.listdir(fdets_residuals_folder):
+
+    # Initialize lists to store UTC times and residuals
+    fdets_utc_times = []
+    fdets_residuals = []
+
+    # Read the file
+    with open(os.path.join(fdets_residuals_folder, fdets_file), mode="r") as file:
+        reader = csv.reader(file)
+
+        # Skip the header lines (starting with #)
+        for row in reader:
+            if row[0].startswith("#"):
+                continue
+            # Parse UTC Time and Residuals
+            fdets_utc_times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[1])) <= 50 else None
+            fdets_residuals.append(float(row[1])) if np.abs(float(row[1])) <= 50 else None
+
+    #Populate Station Residuals Dictionary
+    site_name = fdets_file.split('_')[0]
+    if site_name not in station_residuals.keys():
+        station_residuals[site_name] = [(fdets_utc_times, fdets_residuals)]
+    else:
+        station_residuals[site_name].append((fdets_utc_times, fdets_residuals))
+
+
+for ifms_file in os.listdir(ifms_residuals_folder):
+
+    ifms_utc_times = []
+    ifms_residuals = []
+
+    # Read the file
+    with open(os.path.join(ifms_residuals_folder, ifms_file), mode="r") as file:
+        reader = csv.reader(file)
+
+        # Skip the header lines (starting with #)
+        for row in reader:
+            if row[0].startswith("#"):
+                continue
+            # Parse UTC Time and Residuals
+            ifms_utc_times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[1])) <= 50 else None
+            ifms_residuals.append(float(row[1])) if np.abs(float(row[1])) <= 50 else None
+
+    #Populate Station Residuals Dictionary
+    site_name = ifms_file.split('_')[0]
+    if site_name not in station_residuals.keys():
+        station_residuals[site_name] = [(ifms_utc_times, ifms_residuals)]
+    else:
+        station_residuals[site_name].append((ifms_utc_times, ifms_residuals))
+
+#plt.scatter(fdets_utc_times, fdets_residuals, marker="o",  color="b", label="Fdets Residuals", s = 10)
+#plt.scatter(np.array(ifms_utc_times)[np.array(ifms_residuals) <= 1000], np.array(ifms_residuals)[np.array(ifms_residuals) <= 1000], marker="+",  color="r", label="IFMS Residuals", s = 10)
+
+#plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+#plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+#plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
+#plt.xlabel("UTC Time", fontsize=12)
+#plt.ylabel("Residuals", fontsize=12)
+#plt.title("Mars Express GR035 Experiment", fontsize=14)
+#plt.grid(True, linestyle="--", alpha=0.6)
+#plt.legend()
+#plt.tight_layout()
+# Show the plot
+#plt.show()
+
+# Plot Residuals
+added_labels = set()
+label_colors = dict()
+# Plot residuals for each station
+for site_name, data_list in station_residuals.items():
+    if site_name not in label_colors:
+        label_colors[site_name] = generate_random_color()
+
+    print(label_colors)
+    print(data_list)
+    for utc_times, residuals in data_list:
+        # Plot all stations' residuals on the same figure
+        plt.scatter(
+            utc_times, residuals,
+            color = label_colors[site_name],
+            marker = '+', s=10,
+            label=f"{site_name}"
+            if site_name not in added_labels else None
+        )
+        added_labels.add(site_name)  # Avoid duplicate labels in the legend
+
+# Format the x-axis for dates
+plt.xlabel("UTC Time", fontsize=12)
+plt.ylabel("Residuals", fontsize=12)
+plt.title("Mars Express GR035 Experiment", fontsize=14)
+plt.grid(True, linestyle="--", alpha=0.6)
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
+lgnd = plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
+#change the marker size manually for both lines
+lgnd.legend_handles[0].set_sizes([20])
+lgnd.legend_handles[1].set_sizes([20])
+
+# Adjust layout to make room for the legend
+plt.show()
+plt.close('all')
+exit()

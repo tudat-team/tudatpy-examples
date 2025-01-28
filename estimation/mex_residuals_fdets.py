@@ -8,6 +8,7 @@
 # NOTE: remember to remove empty sets, or the loaded stations (with empty observations) will cause troubles in the simulation.
 ##################################################################################################################
 import os
+import csv
 from xmlrpc.client import DateTime
 import numpy as np
 from matplotlib import pyplot as plt
@@ -359,7 +360,7 @@ if __name__ == "__main__":
         #if ifms_file == 'M63ODFXL02_DPX_133630348_00.TAB' or ifms_file == 'M63ODFXL02_DPX_133630348_00.TAB':
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt', 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
+    #fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt', 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
 
     filtered_collections_list = []
     transmitting_stations_list = []
@@ -421,12 +422,11 @@ if __name__ == "__main__":
                         link_definition, light_time_correction_list
                     )
                 ]
-
                 ###################################################################################################
 
                 # Create observation simulators.
                 observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
-                # Add elevation and SEP angles dependent variables to the compressed observation collection
+                # Add elevation and SEP angles dependent variables to the observation collection
                 elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
                 elevation_angle_parser = filtered_collection.add_dependent_variable( elevation_angle_settings, bodies )
                 sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
@@ -434,49 +434,87 @@ if __name__ == "__main__":
                 # Compute and set residuals in the fdets observation collection
                 estimation.compute_residuals_and_dependent_variables(filtered_collection, observation_simulators, bodies)
 
-                # Perform computations
-                concatenated_obs = np.array(filtered_collection.get_observations())
-                concatenated_computed_obs = np.array(filtered_collection.get_computed_observations())
-                residuals_by_hand_no_atm_corr = concatenated_computed_obs - concatenated_obs
+                ### ------------------------------------------------------------------------------------------
+                ### RETRIEVE AND SAVE VARIOUS OBSERVATION OUTPUTS
+                ### ------------------------------------------------------------------------------------------
 
-                # Populate Station Residuals Dictionary
+                concatenated_obs = filtered_collection.get_concatenated_observations()
+                concatenated_computed_obs = filtered_collection.get_concatenated_computed_observations()
+
+                # Retrieve RMS and mean of the residuals
+                concatenated_residuals = filtered_collection.get_concatenated_residuals()
+                rms_residuals = filtered_collection.get_rms_residuals()
+                mean_residuals = filtered_collection.get_mean_residuals()
+
+                #print(f'Residuals: {concatenated_residuals}')
+                print(f'Mean Residuals: {mean_residuals}')
+                print(f'RMS Residuals: {rms_residuals}')
+
+                #Populate Station Residuals Dictionary
+                site_name = receiving_station_name
                 if site_name not in fdets_station_residuals.keys():
-                    fdets_station_residuals[site_name] = [(utc_times, residuals_by_hand_no_atm_corr)]
+                    fdets_station_residuals[site_name] = [(utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
                 else:
-                    fdets_station_residuals[site_name].append((utc_times, residuals_by_hand_no_atm_corr))
+                    fdets_station_residuals[site_name].append((utc_times, concatenated_residuals, mean_residuals, rms_residuals))
+
                 #######################################################################################################
 
-    # Plot Residuals
-    added_labels = set()
-    label_colors = dict()
-    # Plot residuals for each station
-    for site_name, data_list in fdets_station_residuals.items():
-        if site_name not in label_colors:
-            label_colors[site_name] = generate_random_color()
+# Output files creation
+for site_name, data in fdets_station_residuals.items():
+    fdets_residuals_path = 'mex_phobos_flyby/output/fdets_residuals'
+    os.makedirs(fdets_residuals_path, exist_ok=True)
+    filename = f"{site_name}_residuals.csv"
+    file_path = os.path.join(fdets_residuals_path, filename)
+    with open(file_path, mode="w", newline="") as file:
+        writer = csv.writer(file)
 
-        for utc_times, residuals in data_list:
-            # Plot all stations' residuals on the same figure
-            plt.scatter(
-                utc_times, residuals.ravel(),
-                color = label_colors[site_name],
-                marker = '+', s=10,
-                label=f"{site_name}, mean = {round(np.mean(residuals.ravel()), 3)}, std = {round(np.std(residuals.ravel()), 3)}"
-                if site_name not in added_labels else None
-            )
-            added_labels.add(site_name)  # Avoid duplicate labels in the legend
+        # Write the header
+        writer.writerow([f'# Station: {site_name}'])
+        writer.writerow(['# UTC Time | Residuals'])
 
-    # Format the x-axis for dates
-    plt.title('Fdets Residuals')
-    plt.xlabel('Time [s]')
-    plt.ylabel('Residuals [Hz]')
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-    plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
-    plt.grid(True)
-    plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
-    # Adjust layout to make room for the legend
-    plt.ylim(-5,5)
-    plt.show()
-    plt.close('all')
-    
+        # Write the data rows
+        for record in data:
+            utc_times, concatenated_residuals, _, _ = record
+
+            # Write each UTC time and residual in a separate row
+            for utc_time, residual in zip(utc_times, concatenated_residuals):
+                writer.writerow([
+                    utc_time.strftime("%Y-%m-%d %H:%M:%S"),  # Convert datetime to string
+                    residual
+                ])
+
+    print(f"File created: {file_path}")
+
+# Plot Residuals
+added_labels = set()
+label_colors = dict()
+# Plot residuals for each station
+for site_name, data_list in fdets_station_residuals.items():
+    if site_name not in label_colors:
+        label_colors[site_name] = generate_random_color()
+
+    for utc_times, residuals, mean_residuals, rms_residuals in data_list:
+        # Plot all stations' residuals on the same figure
+        plt.scatter(
+            utc_times, residuals,
+            color = label_colors[site_name],
+            marker = '+', s=10,
+            label=f"{site_name}, mean = {mean_residuals}, rms = {rms_residuals}"
+            if site_name not in added_labels else None
+        )
+        added_labels.add(site_name)  # Avoid duplicate labels in the legend
+
+# Format the x-axis for dates
+plt.title('Fdets Residuals')
+plt.xlabel('Time [s]')
+plt.ylabel('Residuals [Hz]')
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
+plt.grid(True)
+plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
+# Adjust layout to make room for the legend
+plt.show()
+plt.close('all')
+exit()
     
