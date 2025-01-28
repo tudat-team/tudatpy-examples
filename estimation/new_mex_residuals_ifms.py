@@ -180,16 +180,12 @@ for ifms_file in ifms_files:
     # When woerking with IFMS, Add: subtract_doppler_signature = False, or it won't work
     observation_model_settings = list()
 
-    if not ifms_file == os.path.join(mex_ifms_folder, 'M14ODFXL02_DPX_133631130_00.TAB' ) and not ifms_file == os.path.join(mex_ifms_folder, 'M14ODFXL02_DPX_133631130_00.TAB'):
-        subtract_doppler_signature_flag = False
-    else:
-        subtract_doppler_signature_flag = True
     for current_link_definition in doppler_link_ends:
         print(current_link_definition.link_end_id(observation.retransmitter).reference_point)
         print(current_link_definition.link_end_id(observation.transmitter).reference_point)
         print(current_link_definition.link_end_id(observation.receiver).reference_point)
         observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
-            current_link_definition, light_time_correction_list, subtract_doppler_signature = subtract_doppler_signature_flag ))
+            current_link_definition, light_time_correction_list, subtract_doppler_signature = False ))
     ###################################################################################################
     # Create observation simulators.
     observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
