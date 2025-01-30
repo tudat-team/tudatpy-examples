@@ -28,6 +28,88 @@ from astropy.time import Time
 from collections import defaultdict
 import matplotlib.dates as mdates
 
+def compute_h(p, sat_positions, sat_velocities, transmitting_station):
+    """
+    Compute Doppler shift for a given station position.
+
+    Parameters:
+    - p: np.array, station position [x, y, z] (meters, ECEF)
+    - sat_positions: np.array, shape (N,3), satellite positions at observation times
+    - sat_velocities: np.array, shape (N,3), satellite velocities at observation times
+    - f0: float, transmitted frequency (default: 400 MHz)
+
+    Returns:
+    - h_computed: np.array, computed Doppler shift observations
+    """
+
+    if transmitting_station == 'NWNORCIA':
+        f0 = 7166437036.994461
+    elif transmitting_station == 'DSS63':
+        f0 = 7166485744.000000
+    elif transmitting_station == 'DSS14':
+        f0 =  7166490928.000000
+
+    c = 299792458.0  # Speed of light in m/s
+
+    # Compute range vector (satellite to station)
+    r = sat_positions - p  # Shape: (N,3)
+
+
+# Compute range rate (project satellite velocity along range vector)
+    range_norm = np.linalg.norm(r, axis=1)  # Compute magnitude of r
+    range_rate = np.einsum('ij,ij->i', r, sat_velocities) / range_norm  # Dot product projection
+
+    # Compute Doppler shift
+    h_computed = - (f0 / c) * range_rate
+    return h_computed
+def compute_station_shift(h_observed, h_computed, p_old, sat_positions, sat_velocities, transmitting_station, delta=1e3):
+    """
+    Compute the station position correction using numerical differentiation.
+
+    Parameters:
+    - h_computed: np.array, computed Doppler observations
+    - h_observed: np.array, observed Doppler observations
+    - p_old: np.array, initial station position [x, y, z] in ECEF (meters)
+    - delta: float, finite difference step size (default: 1 km)
+
+    Returns:
+    - p_new: np.array, corrected station position
+    - delta_p: np.array, computed station shift
+    """
+
+    delta_h = h_observed - h_computed
+    # Number of observations
+    num_obs = len(concatenated_obs)
+
+    # Initialize Jacobian matrix H (size: num_obs x 3 for x, y, z perturbations)
+    H = np.zeros((num_obs, 3))
+
+    # Compute numerical derivatives for each coordinate (x, y, z)
+    for i in range(3):
+        # Perturb station position in + direction
+        p_plus = p_old.copy()
+        p_plus[i] += delta
+        h_plus = compute_h(p_plus, sat_positions, sat_velocities, transmitting_station)  # Function to compute Doppler with perturbed position
+
+        # Perturb station position in - direction
+        p_minus = p_old.copy()
+        p_minus[i] -= delta
+        h_minus = compute_h(p_minus, sat_positions, sat_velocities, transmitting_station)  # Function to compute Doppler with perturbed position
+
+        # Finite difference approximation
+        H[:, i] = (h_plus - h_minus) / (2 * delta)
+
+    # Solve for station shift using least squares
+    HTH_inv = np.linalg.inv(H.T @ H)  # (H^T H)^(-1)
+    delta_p = HTH_inv @ H.T @ delta_h  # (H^T H)^(-1) H^T delta_h
+
+    # Compute corrected station position
+    p_new = p_old + delta_p
+
+    print(f'new position: {p_new}')
+    print(f'new position norm: {np.linalg.norm(p_new)}') # just a check that it is similar to r_earth
+    return p_new, delta_p
+
 def ID_to_site(site_ID):
     """
     Maps a site ID to its corresponding ground station name.
@@ -77,7 +159,6 @@ def plot_ifms_windows(ifms_file, color):
 
     # Get IFMS observation times
     ifms_times = ifms_file.get_observation_times()
-
     ifms_file_name = ifms_file.split('/')[3]
 
     # Loop through each element in ifms_times and convert to float
@@ -137,7 +218,6 @@ def get_filtered_fdets_collection(
         #transmitting_stations_list.append(transmitting_station_name)
 
         # Loading IFMS file
-        #print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
         ifms_collection = observation.observations_from_ifms_files(
             [ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band
         )
@@ -327,7 +407,10 @@ if __name__ == "__main__":
     # Retrieve rotational ephemeris from SPICE
     body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
         global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
+
     body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
+
+
 
     # Create System of Bodies using the above-defined body_settings
     bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -359,8 +442,6 @@ if __name__ == "__main__":
     for ifms_file in os.listdir(mex_ifms_folder):
         #if ifms_file == 'M63ODFXL02_DPX_133630348_00.TAB' or ifms_file == 'M63ODFXL02_DPX_133630348_00.TAB':
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
-
-    #fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt', 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
 
     filtered_collections_list = []
     transmitting_stations_list = []
@@ -450,12 +531,12 @@ if __name__ == "__main__":
                 print(f'Mean Residuals: {mean_residuals}')
                 print(f'RMS Residuals: {rms_residuals}')
 
-                #Populate Station Residuals Dictionary
+                ##Populate Station Residuals Dictionary
                 site_name = receiving_station_name
                 if site_name not in fdets_station_residuals.keys():
-                    fdets_station_residuals[site_name] = [(utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
+                    fdets_station_residuals[site_name] = [(times, utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
                 else:
-                    fdets_station_residuals[site_name].append((utc_times, concatenated_residuals, mean_residuals, rms_residuals))
+                    fdets_station_residuals[site_name].append((times, utc_times, concatenated_residuals, mean_residuals, rms_residuals))
 
                 #######################################################################################################
 
@@ -470,15 +551,16 @@ for site_name, data in fdets_station_residuals.items():
 
         # Write the header
         writer.writerow([f'# Station: {site_name}'])
-        writer.writerow(['# UTC Time | Residuals'])
+        writer.writerow(['# Time | UTC Time | Residuals'])
 
         # Write the data rows
         for record in data:
-            utc_times, concatenated_residuals, _, _ = record
+            times, utc_times, concatenated_residuals, _, _ = record
 
             # Write each UTC time and residual in a separate row
-            for utc_time, residual in zip(utc_times, concatenated_residuals):
+            for time, utc_time, residual in zip(times, utc_times, concatenated_residuals):
                 writer.writerow([
+                    time,
                     utc_time.strftime("%Y-%m-%d %H:%M:%S"),  # Convert datetime to string
                     residual
                 ])
@@ -493,7 +575,7 @@ for site_name, data_list in fdets_station_residuals.items():
     if site_name not in label_colors:
         label_colors[site_name] = generate_random_color()
 
-    for utc_times, residuals, mean_residuals, rms_residuals in data_list:
+    for times, utc_times, residuals, mean_residuals, rms_residuals in data_list:
         # Plot all stations' residuals on the same figure
         plt.scatter(
             utc_times, residuals,

@@ -35,7 +35,6 @@ def generate_random_color():
         random.randint(0, 255),  # Green
         random.randint(0, 255)   # Blue
     )
-
 def create_single_ifms_collection_from_file(
         ifms_file,
         bodies,
@@ -139,7 +138,7 @@ for ifms_file in ifms_files:
     elif station_code == '32':
         transmitting_station_name = 'NWNORCIA'
 
-    ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band)
+    ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band, apply_troposphere_correction = True)
 
     # Compress Doppler observations from 1.0 s integration time to 60.0 s
     #compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
@@ -180,6 +179,7 @@ for ifms_file in ifms_files:
     # When woerking with IFMS, Add: subtract_doppler_signature = False, or it won't work
     observation_model_settings = list()
 
+
     for current_link_definition in doppler_link_ends:
         print(current_link_definition.link_end_id(observation.retransmitter).reference_point)
         print(current_link_definition.link_end_id(observation.transmitter).reference_point)
@@ -218,9 +218,9 @@ for ifms_file in ifms_files:
     #Populate Station Residuals Dictionary
     site_name = transmitting_station_name
     if site_name not in ifms_station_residuals.keys():
-        ifms_station_residuals[site_name] = [(utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
+        ifms_station_residuals[site_name] = [(times, utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
     else:
-        ifms_station_residuals[site_name].append((utc_times, concatenated_residuals, mean_residuals, rms_residuals))
+        ifms_station_residuals[site_name].append((times, utc_times, concatenated_residuals, mean_residuals, rms_residuals))
 
 # Output files creation
 for site_name, data in ifms_station_residuals.items():
@@ -233,15 +233,16 @@ for site_name, data in ifms_station_residuals.items():
 
         # Write the header
         writer.writerow([f'# Station: {site_name}'])
-        writer.writerow(['# UTC Time | Residuals'])
+        writer.writerow(['# Time | UTC Time | Residuals'])
 
         # Write the data rows
         for record in data:
-            utc_times, concatenated_residuals, _, _ = record
+            times, utc_times, concatenated_residuals, _, _ = record
 
             # Write each UTC time and residual in a separate row
-            for utc_time, residual in zip(utc_times, concatenated_residuals):
+            for time, utc_time, residual in zip(times, utc_times, concatenated_residuals):
                 writer.writerow([
+                    time,
                     utc_time.strftime("%Y-%m-%d %H:%M:%S"),  # Convert datetime to string
                     residual
                 ])
@@ -256,7 +257,7 @@ for site_name, data_list in ifms_station_residuals.items():
     if site_name not in label_colors:
         label_colors[site_name] = generate_random_color()
 
-    for utc_times, residuals, mean_residuals, rms_residuals in data_list:
+    for times, utc_times, residuals, mean_residuals, rms_residuals in data_list:
         # Plot all stations' residuals on the same figure
         plt.scatter(
             utc_times, residuals,

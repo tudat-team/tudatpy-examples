@@ -45,8 +45,8 @@ for fdets_file in os.listdir(fdets_residuals_folder):
             if row[0].startswith("#"):
                 continue
             # Parse UTC Time and Residuals
-            fdets_utc_times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[1])) <= 50 else None
-            fdets_residuals.append(float(row[1])) if np.abs(float(row[1])) <= 50 else None
+            fdets_utc_times.append(datetime.strptime(row[1], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[2])) <= 50 else None
+            fdets_residuals.append(float(row[2])) if np.abs(float(row[2])) <= 50 else None
 
     #Populate Station Residuals Dictionary
     site_name = fdets_file.split('_')[0]
@@ -70,8 +70,8 @@ for ifms_file in os.listdir(ifms_residuals_folder):
             if row[0].startswith("#"):
                 continue
             # Parse UTC Time and Residuals
-            ifms_utc_times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[1])) <= 50 else None
-            ifms_residuals.append(float(row[1])) if np.abs(float(row[1])) <= 50 else None
+            ifms_utc_times.append(datetime.strptime(row[1], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[2])) <= 50 else None
+            ifms_residuals.append(float(row[2])) if np.abs(float(row[2])) <= 50 else None
 
     #Populate Station Residuals Dictionary
     site_name = ifms_file.split('_')[0]
