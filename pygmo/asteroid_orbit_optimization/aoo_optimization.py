@@ -3,7 +3,7 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution  and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 
 ## Objectives
-This tutorial is the third part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example, without the explanation, after which an optimization is executed.**
+This tutorial is the third part of the Asteroid Orbit Optimization example. **This page reuses the** [Custom environment](aoo_custom_environment.ipynb) **part of the example, without the explanation, after which an optimization is executed.**
 
 ## Problem recap
 This aim of this tutorial is to illustrate the use of PyGMO to optimize an astrodynamics problem simulated with tudatpy. The problem describes the orbit design around a small body, the [Itokawa asteroid](https://en.wikipedia.org/wiki/25143_Itokawa).
@@ -22,8 +22,8 @@ The 2 objectives are:
  
 The constraints are set on the altitude: all the sets of design variables leading to an orbit.
 
-#### NOTE
-It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://tudat-space.readthedocs.io/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
+### NOTE
+It is assumed that the reader of this tutorial is already familiar with the content of [this basic PyGMO tutorial](https://docs.tudat.space/en/latest/_src_advanced_topics/optimization_pygmo.html). The full PyGMO documentation is available [on this website](https://esa.github.io/pygmo2/index.html). Be careful to read the
 correct the documentation webpage (there is also a similar one for previous yet now outdated versions [here](https://esa.github.io/pygmo/index.html); as you can see, they can easily be confused).
 PyGMO is the Python counterpart of [PAGMO](https://esa.github.io/pagmo2/index.html).
 """
@@ -489,7 +489,7 @@ propagator_settings = propagation_setup.propagator.translational(central_bodies,
 """
 ## Optimisation run
 
-**From here on out the example is new compared to the** [Custom environment](https://tudat-space.readthedocs.io/en/latest/_src_getting_started/_src_examples/notebooks/pygmo/asteroid_orbit_optimization/aoo_custom_environment.html) **part of the example.**
+**From here on out the example is new compared to the** [Custom environment](aoo_custom_environment.ipynb) **part of the example.**
 
 With the optimization problem and the simulation setup in hand, let's now run our optimization using PyGMO.
 """

@@ -41,7 +41,7 @@ from tudatpy.util import result2array
 ## Configuration
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion module` is then used to convert the `datetime` to the correct format.
+Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion` module is then used to convert the `datetime` to the correct format.
 """
 
 
@@ -65,7 +65,7 @@ Bodies can be created by making a list of strings with the bodies that is to be 
 
 The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
 
-These settings can be adjusted. Please refer to the [Available Environment Models](https://tudat-space.readthedocs.io/en/latest/_src_user_guide/state_propagation/environment_setup/create_models/available.html#available-environment-models) in the user guide for more details.
+These settings can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 
 For our central body Mars, a predefined exponential atmosphere is then loaded.
 
