@@ -343,8 +343,8 @@ In this case, an RK4 fixed step size integrator is used, with a given step size 
 
 # Create numerical integrator settings.
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    fixed_step_size
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
 )
 
 

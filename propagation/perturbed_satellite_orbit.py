@@ -211,11 +211,12 @@ Within this example, we will retrieve the initial state of Delfi-C3 using its Tw
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
-delfi_tle = environment.Tle(
+delfi_tle = environment_setup.ephemeris.sgp4(
     "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
-    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
+    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68",
+    frame_origin = "Earth", frame_orientation = "J2000"
 )
-delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
+delfi_ephemeris = environment_setup.create_body_ephemeris(delfi_tle)
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
 
@@ -252,7 +253,7 @@ dependent_variables_to_save = [
         propagation_setup.acceleration.aerodynamic_type, "Delfi-C3", "Earth"
     ),
     propagation_setup.dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.cannonball_radiation_pressure_type, "Delfi-C3", "Sun"
+        propagation_setup.acceleration.radiation_pressure_type, "Delfi-C3", "Sun"
     )
 ]
 
@@ -274,7 +275,9 @@ termination_condition = propagation_setup.propagator.time_termination(simulation
 
 # Create numerical integrator settings
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
+)
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(

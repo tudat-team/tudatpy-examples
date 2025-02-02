@@ -558,7 +558,7 @@ def perform_residuals_analysis(inputs):
         )
 
         # Create tabulated ephemeris for the MRO antenna
-        antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(
+        antenna_ephemeris = environment_setup.ephemeris.create_body_ephemeris(
             antenna_ephemeris_settings, "Antenna"
         )
 

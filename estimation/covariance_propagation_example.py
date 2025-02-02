@@ -191,11 +191,12 @@ Within this example, we will retrieve the initial state of `Starlink-32101` usin
 
 
 # Retrieve the initial state of `Starlink-32101` using Two-Line-Elements (TLEs)
-Starlink_tle = environment.Tle(
+Starlink_tle = environment_setup.ephemeris.sgp4(
     "1 60447U 24144Y   24239.91667824 -.00652022  00000-0 -25508-2 0  9990",
-"2 60447  53.1498 303.6008 0000548  88.4809  23.6264 15.87779028  3478"
+    "2 60447  53.1498 303.6008 0000548  88.4809  23.6264 15.87779028  3478",
+    frame_origin = "Earth", frame_orientation = "J2000"
 )
-Starlink_ephemeris = environment.TleEphemeris( "Earth", "J2000", Starlink_tle, False )
+Starlink_ephemeris = environment_setup.create_body_ephemeris(Starlink_tle)
 initial_state = Starlink_ephemeris.cartesian_state( simulation_start_epoch )
 
 
