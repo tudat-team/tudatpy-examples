@@ -211,11 +211,11 @@ Within this example, we will retrieve the initial state of Delfi-C3 using its Tw
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
-delfi_tle = environment.Tle(
+delfi_tle = environment_setup.ephemeris.sgp4(
     "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
     "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
 )
-delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
+delfi_ephemeris = environment_setup.create_body_ephemeris(delfi_tle)
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
 
