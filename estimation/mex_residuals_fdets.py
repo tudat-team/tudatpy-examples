@@ -28,6 +28,7 @@ from astropy.time import Time
 from collections import defaultdict
 import matplotlib.dates as mdates
 
+
 def compute_h(p, sat_positions, sat_velocities, transmitting_station):
     """
     Compute Doppler shift for a given station position.
@@ -229,6 +230,11 @@ def get_filtered_fdets_collection(
         start_ifms_time = min(ifms_times)
         end_ifms_time = max(ifms_times)
 
+        start_mjd_time = time_conversion.seconds_since_epoch_to_julian_day(start_ifms_time)
+        end_mjd_time = time_conversion.seconds_since_epoch_to_julian_day(end_ifms_time)
+
+        start_utc_time = Time(start_mjd_time, format='jd', scale='utc').datetime
+        end_utc_time = Time(end_mjd_time, format='jd', scale='utc').datetime
 
         fdets_collection = observation.observations_from_fdets_files(
             fdets_file, base_frequency, column_types, target_name,
@@ -258,7 +264,7 @@ def get_filtered_fdets_collection(
     # CREATE MERGED IFMS_COLLECTION
     #merged_ifms_collection = estimation.merge_observation_collections(ifms_collections_list)
 
-    return fdets_collections_list, transmitting_stations_list
+    return fdets_collections_list, transmitting_stations_list, start_utc_time, end_utc_time
 
 
 def create_single_ifms_collection_from_file(
@@ -433,7 +439,8 @@ if __name__ == "__main__":
     fdets_files = []
     ifms_files = []
 
-    for fdets_file in os.listdir(mex_fdets_folder):
+    #for fdets_file in os.listdir(mex_fdets_folder):
+    for fdets_file in fdets_files:
         if fdets_file == 'Fdets.mex2013.12.28.Wz.complete.r2i.txt':
             continue
         fdets_files.append(os.path.join(mex_fdets_folder, fdets_file))
@@ -446,7 +453,8 @@ if __name__ == "__main__":
     filtered_collections_list = []
     transmitting_stations_list = []
     single_ifms_collections_list = []
-    
+
+    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt']
     fdets_station_residuals = dict()
     for fdets_file in fdets_files:
         receiving_station_name = get_fdets_receiving_station_name(fdets_file)
@@ -455,7 +463,7 @@ if __name__ == "__main__":
 
         for ifms_file in ifms_files:
 
-            filtered_collections_list, transmitting_stations_list = get_filtered_fdets_collection(fdets_file, [ifms_file], receiving_station_name)
+            filtered_collections_list, transmitting_stations_list, start_ifms_utc_time, end_ifms_utc_time = get_filtered_fdets_collection(fdets_file, [ifms_file], receiving_station_name)
             site_name = get_fdets_receiving_station_name(fdets_file)
 
             for filtered_collection, transmitting_station_name in zip(filtered_collections_list,transmitting_stations_list):
@@ -534,9 +542,9 @@ if __name__ == "__main__":
                 ##Populate Station Residuals Dictionary
                 site_name = receiving_station_name
                 if site_name not in fdets_station_residuals.keys():
-                    fdets_station_residuals[site_name] = [(times, utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
+                    fdets_station_residuals[site_name] = [(times, utc_times, concatenated_residuals, mean_residuals, rms_residuals, start_ifms_utc_time, end_ifms_utc_time, transmitting_station_name)]
                 else:
-                    fdets_station_residuals[site_name].append((times, utc_times, concatenated_residuals, mean_residuals, rms_residuals))
+                    fdets_station_residuals[site_name].append((times, utc_times, concatenated_residuals, mean_residuals, rms_residuals, start_ifms_utc_time, end_ifms_utc_time, transmitting_station_name))
 
                 #######################################################################################################
 
@@ -555,7 +563,7 @@ for site_name, data in fdets_station_residuals.items():
 
         # Write the data rows
         for record in data:
-            times, utc_times, concatenated_residuals, _, _ = record
+            times, utc_times, concatenated_residuals, _, _, _, _, _ = record
 
             # Write each UTC time and residual in a separate row
             for time, utc_time, residual in zip(times, utc_times, concatenated_residuals):
@@ -570,21 +578,24 @@ for site_name, data in fdets_station_residuals.items():
 # Plot Residuals
 added_labels = set()
 label_colors = dict()
+label_ifms_colors = {'NWNORCIA': 'blue', 'DSS63': 'grey', 'DSS14': 'red'}
 # Plot residuals for each station
 for site_name, data_list in fdets_station_residuals.items():
     if site_name not in label_colors:
         label_colors[site_name] = generate_random_color()
 
-    for times, utc_times, residuals, mean_residuals, rms_residuals in data_list:
+    for times, utc_times, residuals, mean_residuals, rms_residuals, start_ifms_utc_time, end_ifms_utc_time, transmitting_station_name in data_list:
         # Plot all stations' residuals on the same figure
         plt.scatter(
             utc_times, residuals,
             color = label_colors[site_name],
             marker = '+', s=10,
-            label=f"{site_name}, mean = {mean_residuals}, rms = {rms_residuals}"
+            label=f"{site_name}, mean = {mean_residuals[0]}, rms = {rms_residuals[0]}"
             if site_name not in added_labels else None
         )
+        plt.axvspan(start_ifms_utc_time, end_ifms_utc_time, alpha=0.3, color=label_ifms_colors[transmitting_station_name], label = transmitting_station_name if transmitting_station_name not in added_labels else None)
         added_labels.add(site_name)  # Avoid duplicate labels in the legend
+        added_labels.add(transmitting_station_name)
 
 # Format the x-axis for dates
 plt.title('Fdets Residuals')
@@ -594,7 +605,7 @@ plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
 plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
 plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 plt.grid(True)
-plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
+plt.legend(loc='lower left', bbox_to_anchor=(0.8, 1), borderaxespad=0.)
 # Adjust layout to make room for the legend
 plt.show()
 plt.close('all')

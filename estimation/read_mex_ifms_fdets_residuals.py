@@ -1,9 +1,8 @@
-########
-# THINGS TO BE FIXED
-# NOTE: It was not possible to compress the fdets files due to an at:map error in the C++ code, likely due to dsn_n_way_averaged_doppler
-# NOTE: Here, I am plotting only those files for which the residuals are <= 2.
-# NOTE: In the new_mex_residuals_ifms.py, the DSS14 and DSS63 are giving problems.
-########
+'''
+This script allows to plot the fdets and ifms residuals on the same plot, from the residuals txt files
+(after running new_mex_residuals_ifms for the ifms, and mex_residuals_fdets for the fdets).
+The residual files are found in mex_phobos_flyby/output/fdets_residuals or mex_phobos_flyby/output/ifms_residuals
+'''
 import csv
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -11,7 +10,25 @@ import os
 import matplotlib.dates as mdates
 import numpy as np
 import random
+from tudatpy.astro import time_conversion
+from tudatpy.numerical_simulation.estimation_setup import observation
+def plot_ifms_windows(ifms_file, color):
 
+    # Get IFMS observation times
+    ifms_times = ifms_collection.get_observation_times()
+    ifms_file_name = ifms_collection.split('/')[3]
+
+    # Loop through each element in ifms_times and convert to float
+    min_sublist = np.min([time.to_float() for time in ifms_times[0]])
+    max_sublist = np.max([time.to_float() for time in ifms_times[0]])
+    mjd_min_sublist = time_conversion.seconds_since_epoch_to_julian_day(min_sublist)
+    mjd_max_sublist = time_conversion.seconds_since_epoch_to_julian_day(max_sublist)
+    utc_min_sublist = Time(mjd_min_sublist, format='jd', scale = 'utc').datetime
+    utc_max_sublist = Time(mjd_max_sublist, format='jd', scale = 'utc').datetime
+    #(utc_min_sublist, utc_max_sublist)
+    plt.axvspan(utc_min_sublist, utc_max_sublist, color=color, alpha=0.2, label = ifms_file_name)
+
+    return(min_sublist, max_sublist)
 def generate_random_color():
     """Generate a random color in hexadecimal format."""
     return "#{:02x}{:02x}{:02x}".format(
@@ -57,6 +74,8 @@ for fdets_file in os.listdir(fdets_residuals_folder):
 
 
 for ifms_file in os.listdir(ifms_residuals_folder):
+
+    plot_ifms_windows(ifms_file, 'grey')
 
     ifms_utc_times = []
     ifms_residuals = []
