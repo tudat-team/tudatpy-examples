@@ -224,10 +224,9 @@ Then, the translational propagator settings are defined. These are used to simul
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 # Create numerical integrator settings
-fixed_step_size = 10.0
 integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
     time_step = 10.0,
-    coefficient_set = propagation_setup.integrator.rk_4 )
+    coefficient_set = propagation_setup.integrator.CoefficientSets.rk_4 )
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
