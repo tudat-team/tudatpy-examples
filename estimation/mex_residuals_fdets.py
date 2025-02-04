@@ -246,7 +246,9 @@ def get_filtered_fdets_collection(
 
         time_filter = estimation.observation_filter(
             estimation.time_bounds_filtering, start_ifms_time, end_ifms_time, use_opposite_condition = True)
+        filter_residuals = estimation.observation_filter(estimation.residual_filtering, 3)
         fdets_collection.filter_observations(time_filter)
+        fdets_collection.filter_observations(filter_residuals)
 
         if len(fdets_collection.get_observation_times()[0]) > 1:
             for key, link_end_items in fdets_collection.link_definition_ids.items():
@@ -457,7 +459,7 @@ if __name__ == "__main__":
     transmitting_stations_list = []
     single_ifms_collections_list = []
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt']
+    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt']
     fdets_station_residuals = dict()
     for fdets_file in fdets_files:
         receiving_station_name = get_fdets_receiving_station_name(fdets_file)
