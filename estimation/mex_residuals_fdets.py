@@ -27,8 +27,6 @@ from datetime import datetime, timezone
 from astropy.time import Time
 from collections import defaultdict
 import matplotlib.dates as mdates
-
-
 def compute_h(p, sat_positions, sat_velocities, transmitting_station):
     """
     Compute Doppler shift for a given station position.
@@ -134,7 +132,9 @@ def ID_to_site(site_ID):
         'Bd': 'BADARY',
         'Ur': 'URUMQI',
         'Zc': 'ZELENCHK',
-        'Hh': 'HART15M',
+        'Hh': 'HARTRAO',
+        'Ht': 'HART15M',
+        'Mh': 'METSAHOV',
         'Wz': 'WETTZELL',
         'Sv': 'SVETLOE',
         'Mc': 'MEDICINA',
@@ -147,10 +147,10 @@ def ID_to_site(site_ID):
         'Fd': 'FD-VLBA',
         'La': 'LA-VLBA',
         'Kp': 'KP-VLBA',
-        'Pt': 'PR_VLBA',
         'Br': 'BR-VLBA',
         'Ov': 'OV-VLBA',
-        'Mk': 'MK-VLBA'
+        'Mk': 'MK-VLBA',
+        'Pt': 'PIETOWN',
     }
 
     # Return the corresponding site name or None if the site_ID is not found
@@ -223,12 +223,15 @@ def get_filtered_fdets_collection(
             [ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band
         )
 
+
         ifms_collections_list.append(ifms_collection)
         ifms_times = ifms_collection.get_observation_times()
         ifms_times = [time.to_float() for time in ifms_times[0]]
 
         start_ifms_time = min(ifms_times)
         end_ifms_time = max(ifms_times)
+
+
 
         start_mjd_time = time_conversion.seconds_since_epoch_to_julian_day(start_ifms_time)
         end_mjd_time = time_conversion.seconds_since_epoch_to_julian_day(end_ifms_time)
@@ -454,7 +457,7 @@ if __name__ == "__main__":
     transmitting_stations_list = []
     single_ifms_collections_list = []
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt']
+    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt']
     fdets_station_residuals = dict()
     for fdets_file in fdets_files:
         receiving_station_name = get_fdets_receiving_station_name(fdets_file)
@@ -607,7 +610,11 @@ plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 plt.grid(True)
 plt.legend(loc='lower left', bbox_to_anchor=(0.8, 1), borderaxespad=0.)
 # Adjust layout to make room for the legend
+single_residuals_path = f'mex_phobos_flyby/output/single_residual_plots/'
+os.makedirs(single_residuals_path, exist_ok=True)
+plt.savefig(os.path.join(single_residuals_path, f'{fdets_file.split("/")[3][:-4]}.png'))
 plt.show()
+
 plt.close('all')
 exit()
     
