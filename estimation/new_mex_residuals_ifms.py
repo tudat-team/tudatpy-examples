@@ -65,7 +65,7 @@ for kernel in os.listdir(mex_kernels_folder):
     spice.load_kernel(kernel_path)
 
 # Define Start and end Dates of Simulation
-start = datetime(2013, 12, 27)
+start = datetime(2013, 12, 26)
 end = datetime(2013, 12, 30)
 
 # Add a time buffer of one day
@@ -128,6 +128,7 @@ transmission_band = observation.FrequencyBands.x_band
 labels = set()
 ifms_station_residuals = dict()
 for ifms_file in ifms_files:
+    print(ifms_file)
     station_code = ifms_file.split('/')[3][1:3]
     if station_code == '14':
         transmitting_station_name = 'DSS14'

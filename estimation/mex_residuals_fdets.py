@@ -246,7 +246,7 @@ def get_filtered_fdets_collection(
 
         time_filter = estimation.observation_filter(
             estimation.time_bounds_filtering, start_ifms_time, end_ifms_time, use_opposite_condition = True)
-        filter_residuals = estimation.observation_filter(estimation.residual_filtering, 3)
+        filter_residuals = estimation.observation_filter(estimation.residual_filtering, 1)
         fdets_collection.filter_observations(time_filter)
         fdets_collection.filter_observations(filter_residuals)
 
@@ -459,9 +459,9 @@ if __name__ == "__main__":
     transmitting_stations_list = []
     single_ifms_collections_list = []
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Bd.complete.r2i.txt']
     fdets_station_residuals = dict()
-    for fdets_file in fdets_files:
+    for fdets_file in os.listdir(mex_fdets_folder):
+        fdets_file = os.path.join(mex_fdets_folder, fdets_file)
         receiving_station_name = get_fdets_receiving_station_name(fdets_file)
         if receiving_station_name == None or receiving_station_name not in  [station[1] for station in environment_setup.get_ground_station_list(bodies.get_body("Earth"))]:
             continue
@@ -598,7 +598,7 @@ for site_name, data_list in fdets_station_residuals.items():
             label=f"{site_name}, mean = {mean_residuals[0]}, rms = {rms_residuals[0]}"
             if site_name not in added_labels else None
         )
-        plt.axvspan(start_ifms_utc_time, end_ifms_utc_time, alpha=0.3, color=label_ifms_colors[transmitting_station_name], label = transmitting_station_name if transmitting_station_name not in added_labels else None)
+        #plt.axvspan(start_ifms_utc_time, end_ifms_utc_time, alpha=0.3, color=label_ifms_colors[transmitting_station_name], label = transmitting_station_name if transmitting_station_name not in added_labels else None)
         added_labels.add(site_name)  # Avoid duplicate labels in the legend
         added_labels.add(transmitting_station_name)
 
@@ -614,8 +614,8 @@ plt.legend(loc='lower left', bbox_to_anchor=(0.8, 1), borderaxespad=0.)
 # Adjust layout to make room for the legend
 single_residuals_path = f'mex_phobos_flyby/output/single_residual_plots/'
 os.makedirs(single_residuals_path, exist_ok=True)
-plt.savefig(os.path.join(single_residuals_path, f'{fdets_file.split("/")[3][:-4]}.png'))
 plt.show()
+plt.savefig('residuals_fdets')
 
 plt.close('all')
 exit()

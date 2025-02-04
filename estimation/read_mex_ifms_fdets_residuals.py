@@ -12,23 +12,6 @@ import numpy as np
 import random
 from tudatpy.astro import time_conversion
 from tudatpy.numerical_simulation.estimation_setup import observation
-def plot_ifms_windows(ifms_file, color):
-
-    # Get IFMS observation times
-    ifms_times = ifms_collection.get_observation_times()
-    ifms_file_name = ifms_collection.split('/')[3]
-
-    # Loop through each element in ifms_times and convert to float
-    min_sublist = np.min([time.to_float() for time in ifms_times[0]])
-    max_sublist = np.max([time.to_float() for time in ifms_times[0]])
-    mjd_min_sublist = time_conversion.seconds_since_epoch_to_julian_day(min_sublist)
-    mjd_max_sublist = time_conversion.seconds_since_epoch_to_julian_day(max_sublist)
-    utc_min_sublist = Time(mjd_min_sublist, format='jd', scale = 'utc').datetime
-    utc_max_sublist = Time(mjd_max_sublist, format='jd', scale = 'utc').datetime
-    #(utc_min_sublist, utc_max_sublist)
-    plt.axvspan(utc_min_sublist, utc_max_sublist, color=color, alpha=0.2, label = ifms_file_name)
-
-    return(min_sublist, max_sublist)
 def generate_random_color():
     """Generate a random color in hexadecimal format."""
     return "#{:02x}{:02x}{:02x}".format(
@@ -74,8 +57,6 @@ for fdets_file in os.listdir(fdets_residuals_folder):
 
 
 for ifms_file in os.listdir(ifms_residuals_folder):
-
-    plot_ifms_windows(ifms_file, 'grey')
 
     ifms_utc_times = []
     ifms_residuals = []
@@ -138,6 +119,7 @@ for site_name, data_list in station_residuals.items():
 # Format the x-axis for dates
 plt.xlabel("UTC Time", fontsize=12)
 plt.ylabel("Residuals", fontsize=12)
+plt.ylim(-1,1)
 plt.title("Mars Express GR035 Experiment", fontsize=14)
 plt.grid(True, linestyle="--", alpha=0.6)
 plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
