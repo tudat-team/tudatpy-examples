@@ -287,7 +287,7 @@ For the integrator we use the fixed timestep RKF-7(8) setting our initial time t
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     epoch_start_buffer,
     timestep_global,
-    propagation_setup.integrator.rkf_78,
+    propagation_setup.integrator.CoefficientSets.rkf_78,
     timestep_global,
     timestep_global,
     1.0,
