@@ -273,7 +273,7 @@ tolerance = 1e-10
 # # Create numerical integrator settings (using a RKF7(8) coefficient set)
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     initial_time_step,
-    propagation_setup.integrator.rkf_78,
+    propagation_setup.integrator.CoefficientSets.rkf_78,
     minimum_time_step,
     maximum_time_step,
     relative_error_tolerance=tolerance,

@@ -455,7 +455,7 @@ def define_integrator_settings():
 
     return propagation_setup.integrator.runge_kutta_variable_step(
         initial_time_step,
-        propagation_setup.integrator.rkf_78,
+        propagation_setup.integrator.CoefficientSets.rkf_78,
         step_size_control_settings = control_settings,
         step_size_validation_settings = validation_settings)
 
