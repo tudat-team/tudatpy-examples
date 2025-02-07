@@ -444,6 +444,8 @@ if __name__ == "__main__":
     fdets_files = []
     ifms_files = []
 
+    #fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ur.complete.r2i.txt']
+
     #for fdets_file in os.listdir(mex_fdets_folder):
     for fdets_file in fdets_files:
         if fdets_file == 'Fdets.mex2013.12.28.Wz.complete.r2i.txt':

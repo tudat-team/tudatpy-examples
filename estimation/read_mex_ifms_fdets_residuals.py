@@ -27,10 +27,11 @@ fdets_residuals_folder = 'mex_phobos_flyby/output/fdets_residuals'
 station_residuals = dict()
 
 
+fdets_files_trial = ['METSAHOV_residuals.csv', 'MK-VLBA_residuals.csv']
 # Plotting the residuals
 plt.figure(figsize=(10, 6))
 
-for fdets_file in os.listdir(fdets_residuals_folder):
+for fdets_file in fdets_files_trial:
 
     # Initialize lists to store UTC times and residuals
     fdets_utc_times = []
@@ -55,30 +56,6 @@ for fdets_file in os.listdir(fdets_residuals_folder):
     else:
         station_residuals[site_name].append((fdets_utc_times, fdets_residuals))
 
-
-for ifms_file in os.listdir(ifms_residuals_folder):
-
-    ifms_utc_times = []
-    ifms_residuals = []
-
-    # Read the file
-    with open(os.path.join(ifms_residuals_folder, ifms_file), mode="r") as file:
-        reader = csv.reader(file)
-
-        # Skip the header lines (starting with #)
-        for row in reader:
-            if row[0].startswith("#"):
-                continue
-            # Parse UTC Time and Residuals
-            ifms_utc_times.append(datetime.strptime(row[1], "%Y-%m-%d %H:%M:%S")) if np.abs(float(row[2])) <= 50 else None
-            ifms_residuals.append(float(row[2])) if np.abs(float(row[2])) <= 50 else None
-
-    #Populate Station Residuals Dictionary
-    site_name = ifms_file.split('_')[0]
-    if site_name not in station_residuals.keys():
-        station_residuals[site_name] = [(ifms_utc_times, ifms_residuals)]
-    else:
-        station_residuals[site_name].append((ifms_utc_times, ifms_residuals))
 
 #plt.scatter(fdets_utc_times, fdets_residuals, marker="o",  color="b", label="Fdets Residuals", s = 10)
 #plt.scatter(np.array(ifms_utc_times)[np.array(ifms_residuals) <= 1000], np.array(ifms_residuals)[np.array(ifms_residuals) <= 1000], marker="+",  color="r", label="IFMS Residuals", s = 10)
