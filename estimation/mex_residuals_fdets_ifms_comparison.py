@@ -202,7 +202,7 @@ def create_single_ifms_collection_from_file(
 
 def get_transmitting_station_from_ifms_file(ifms_file):
 
-    station_code = ifms_file.split('/')[3][1:3]
+    station_code = ifms_file.split('/')[7][1:3]
     if station_code == '14':
         transmitting_station_name = 'DSS14'
 
@@ -280,10 +280,10 @@ def get_filtered_fdets_collection_new(fdets_file, ifms_file, bodies, base_freque
 
 if __name__ == "__main__":
     # Set Folders Containing Relevant Files
-    mex_kernels_folder = 'mex_phobos_flyby/kernels/'
-    mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
-    mex_ifms_folder = 'mex_phobos_flyby/ifms/filtered'
-    mex_odf_folder = 'mex_phobos_flyby/odf/'
+    mex_kernels_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/kernels'
+    mex_fdets_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete'
+    mex_ifms_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/ifms/filtered'
+    mex_odf_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/odf/'
 
     # Load Required Spice Kernels
     spice.load_standard_kernels()
@@ -292,8 +292,8 @@ if __name__ == "__main__":
         spice.load_kernel(kernel_path)
 
     # Define Start and end Dates of Simulation
-    start = datetime(2013, 12, 28)
-    end = datetime(2013, 12, 29)
+    start = datetime(2013, 12, 26)
+    end = datetime(2013, 12, 30)
 
     # Add a time buffer of one day
     start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
@@ -359,9 +359,11 @@ if __name__ == "__main__":
         site = ID_to_site(fdets_file.split('.')[4])
         sites_list.append(site)
     for ifms_file in os.listdir(mex_ifms_folder):
+        if ifms_file.startswith('.'):
+            continue
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
 
-    fdets_files = ['mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt']# 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
+    fdets_files = ['/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.On.complete.r2i.txt']# 'mex_phobos_flyby/fdets/complete/Fdets.mex2013.12.28.Ys.complete.r2i.txt'] #['mex_phobos_flyby/fdets/single/fdets.r3i.new.trial.On.txt']
 
     single_fdets_filtered_collections_list = []
     transmitting_stations_list = []
@@ -412,8 +414,9 @@ if __name__ == "__main__":
         com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
 
         times = merged_fdets_collection.get_concatenated_observation_times()
+        times = [time.to_float() for time in times]
         mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
-        utc_row = [Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times]
+        utc_times = [Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times]
 
         antenna_state = np.zeros((6, 1))
         antenna_state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", times[0])
@@ -464,45 +467,6 @@ if __name__ == "__main__":
                 observation_simulation_settings.append(estimation_setup.observation.doppler_measured_frequency(
                     current_link, light_time_correction_list))
 
-        ################################ TRIAL WITH TABULATED SETTINGS #################################################
-        #tudat_start_time = datetime(2013, 12, 28)
-        #tudat_end_time = datetime(2013, 12, 29)
-        ## Generate the list of times separated by 10 seconds
-        #time_step = timedelta(seconds=10)
-        #time_list = []
-        #current_time = tudat_start_time
-        #while current_time <= tudat_end_time:
-        #    time_list.append(current_time)
-        #    current_time += time_step
-        #time_list = []
-        #for i, (start_time_bound, end_time_bound) in enumerate(merged_fdets_collection.get_time_bounds_per_set()):
-        #    print(start_time_bound.to_float(), end_time_bound.to_float())
-        #    # Convert to Tudat calendar dates
-        #    tudat_start_time = time_conversion.julian_day_to_calendar_date(
-        #        time_conversion.seconds_since_epoch_to_julian_day(start_time_bound.to_float())
-        #    )
-        #    tudat_end_time = time_conversion.julian_day_to_calendar_date(
-        #        time_conversion.seconds_since_epoch_to_julian_day(end_time_bound.to_float())
-        #    )
-        #    # Generate list of times separated by 10 seconds
-        #    time_step = timedelta(seconds=10)
-        #    current_time = tudat_start_time
-        #    # Initialize a new sublist for each set
-        #    current_time_list = []
-        #    while current_time <= tudat_end_time:
-        #        current_time_list.append(time_conversion.datetime_to_tudat(current_time).epoch())
-        #        current_time += time_step
-        #    # Append the generated list for this set to the main list
-        #    time_list.append(current_time_list)
-        #observation_simulation_settings = []
-        #for i, (receiver, link_definition_list) in enumerate(correct_link_definition_dict.items()):
-        #    for j in range(len(single_fdets_filtered_collections_list)):
-        #        observation_simulation_settings.append(estimation_setup.observation.tabulated_simulation_settings(
-        #            estimation_setup.observation.doppler_measured_frequency_type,
-        #            correct_link_definition_dict[receiver][i], time_list[j] # set the correct time for uplink simulation(s)
-        #        ))
-        ###################################################################################################
-
         # Create observation simulators.
         observation_simulators = estimation_setup.create_observation_simulators(observation_simulation_settings, bodies)
 
@@ -515,10 +479,10 @@ if __name__ == "__main__":
         estimation.compute_residuals_and_dependent_variables(merged_fdets_collection, observation_simulators, bodies)
 
         # Perform computations
-        observations = merged_fdets_collection.get_observations()
-        computed_observations = merged_fdets_collection.get_computed_observations()
+        observations = merged_fdets_collection.get_concatenated_observations()
+        computed_observations = merged_fdets_collection.get_concatenated_computed_observations()
 
-        tudat_residuals = merged_fdets_collection.get_residuals()
+        tudat_residuals = merged_fdets_collection.get_concatenated_residuals()
         tudat_mean_residuals = merged_fdets_collection.get_mean_residuals()
         tudat_rms_residuals = merged_fdets_collection.get_rms_residuals()
 
@@ -539,13 +503,13 @@ if __name__ == "__main__":
         if site_name not in label_colors:
             label_colors[site_name] = generate_random_color()
 
-        for utc_times, residuals, mean_residuals, rms_residuals in data_list:
+        for utc_times, tudat_residuals, tudat_mean_residuals, tudat_rms_residuals in data_list:
             # Plot all stations' residuals on the same figure
             plt.scatter(
-                utc_times, residuals,
+                utc_times, tudat_residuals,
                 color = label_colors[site_name],
                 marker = '+', s=10,
-                label=f"{site_name}, mean = {round(mean_residuals, 3)}, std = {round(rms_residuals, 3)}"
+                label=f"{site_name}"
                 if site_name not in added_labels else None
             )
             added_labels.add(site_name)  # Avoid duplicate labels in the legend
@@ -560,6 +524,6 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.legend(loc='upper left', bbox_to_anchor=(1.05, 1.0), borderaxespad=0.)
     # Adjust layout to make room for the legend
-    #plt.show()
+    plt.show()
     plt.close('all')
 
