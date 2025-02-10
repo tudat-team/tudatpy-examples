@@ -60,6 +60,7 @@ def compute_h(p, sat_positions, sat_velocities, transmitting_station):
 
     # Compute Doppler shift
     h_computed = - (f0 / c) * range_rate
+
     return h_computed
 def compute_station_shift(h_observed, h_computed, p_old, sat_positions, sat_velocities, transmitting_station, delta=1e3):
     """
