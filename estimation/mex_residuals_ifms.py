@@ -142,9 +142,6 @@ for ifms_file in ifms_files:
 
     ifms_collection = observation.observations_from_ifms_files([ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band, apply_troposphere_correction = True)
 
-    # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    #compressed_observations = estimation_setup.observation.create_compressed_doppler_collection(
-    #    ifms_collection, 60, 10)
 
     compressed_observations = ifms_collection
 
