@@ -202,10 +202,15 @@ def get_filtered_fdets_collection(
     transmitting_stations_list = []
     fdets_collections_list = []
     ifms_collections_list = []
+
     for ifms_file in ifms_files:
+        if ifms_file.split('/')[7].startswith('.'):
+            continue
         #station_code = ifms_file.split('/')[3][1:3]
         print(ifms_file)
-        station_code = ifms_file.split('/')[3][1:3]
+        station_code = ifms_file.split('/')[7][1:3]
+        print(station_code)
+
         if station_code == '14':
             transmitting_station_name = 'DSS14'
 
@@ -230,7 +235,6 @@ def get_filtered_fdets_collection(
 
         start_ifms_time = min(ifms_times)
         end_ifms_time = max(ifms_times)
-
 
 
         start_mjd_time = time_conversion.seconds_since_epoch_to_julian_day(start_ifms_time)
@@ -369,10 +373,10 @@ def get_filtered_fdets_collection_new(fdets_file, ifms_file, bodies, base_freque
 
 if __name__ == "__main__":
     # Set Folders Containing Relevant Files
-    mex_kernels_folder = 'mex_phobos_flyby/kernels/'
-    mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
-    mex_ifms_folder = 'mex_phobos_flyby/ifms/filtered'
-    mex_odf_folder = 'mex_phobos_flyby/odf/'
+    mex_kernels_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/kernels'
+    mex_fdets_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete'
+    mex_ifms_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/ifms/filtered'
+    mex_odf_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/odf/'
 
     # Load Required Spice Kernels
     spice.load_standard_kernels()
@@ -469,6 +473,8 @@ if __name__ == "__main__":
             continue
 
         for ifms_file in ifms_files:
+            if ifms_file.split('/')[7].startswith('.'):
+                continue
 
             filtered_collections_list, transmitting_stations_list, start_ifms_utc_time, end_ifms_utc_time = get_filtered_fdets_collection(fdets_file, [ifms_file], receiving_station_name)
             site_name = get_fdets_receiving_station_name(fdets_file)
@@ -557,7 +563,7 @@ if __name__ == "__main__":
 
 # Output files creation
 for site_name, data in fdets_station_residuals.items():
-    fdets_residuals_path = 'mex_phobos_flyby/output/fdets_residuals'
+    fdets_residuals_path = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/fdets_residuals'
     os.makedirs(fdets_residuals_path, exist_ok=True)
     filename = f"{site_name}_residuals.csv"
     file_path = os.path.join(fdets_residuals_path, filename)
@@ -614,7 +620,7 @@ plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 plt.grid(True)
 plt.legend(loc='lower left', bbox_to_anchor=(0.8, 1), borderaxespad=0.)
 # Adjust layout to make room for the legend
-single_residuals_path = f'mex_phobos_flyby/output/single_residual_plots/'
+single_residuals_path = f'/Users/lgisolfi/Desktop/mex_phobos_flyby/output/single_residual_plots/'
 os.makedirs(single_residuals_path, exist_ok=True)
 plt.show()
 plt.savefig('residuals_fdets')
