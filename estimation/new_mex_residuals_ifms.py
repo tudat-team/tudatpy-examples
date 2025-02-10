@@ -53,10 +53,10 @@ def create_single_ifms_collection_from_file(
 
 
 # Set Folders Containing Relevant Files
-mex_kernels_folder = 'mex_phobos_flyby/kernels/'
-mex_fdets_folder = 'mex_phobos_flyby/fdets/complete'
-mex_ifms_folder = 'mex_phobos_flyby/ifms/filtered'
-mex_odf_folder = 'mex_phobos_flyby/odf/'
+mex_kernels_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/kernels/'
+mex_fdets_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete'
+mex_ifms_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/ifms/filtered'
+mex_odf_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/odf/'
 
 # Load Required Spice Kernels
 spice.load_standard_kernels()
@@ -128,8 +128,9 @@ transmission_band = observation.FrequencyBands.x_band
 labels = set()
 ifms_station_residuals = dict()
 for ifms_file in ifms_files:
-    print(ifms_file)
-    station_code = ifms_file.split('/')[3][1:3]
+    if ifms_file.split('/')[7].startswith('.'):
+        continue
+    station_code = ifms_file.split('/')[7][1:3]
     if station_code == '14':
         transmitting_station_name = 'DSS14'
 
@@ -225,7 +226,7 @@ for ifms_file in ifms_files:
 
 # Output files creation
 for site_name, data in ifms_station_residuals.items():
-    ifms_residuals_path = 'mex_phobos_flyby/output/ifms_residuals'
+    ifms_residuals_path = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/ifms_residuals'
     os.makedirs(ifms_residuals_path, exist_ok=True)
     filename = f"{site_name}_residuals.csv"
     file_path = os.path.join(ifms_residuals_path, filename)
