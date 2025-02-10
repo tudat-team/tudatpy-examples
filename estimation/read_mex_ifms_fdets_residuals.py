@@ -21,8 +21,8 @@ def generate_random_color():
     )
 
 # File path
-ifms_residuals_folder = 'mex_phobos_flyby/output/ifms_residuals'
-fdets_residuals_folder = 'mex_phobos_flyby/output/fdets_residuals'
+ifms_residuals_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/ifms_residuals'
+fdets_residuals_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/fdets_residuals'
 
 station_residuals = dict()
 
