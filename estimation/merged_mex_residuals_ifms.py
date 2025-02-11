@@ -26,6 +26,48 @@ import random
 import matplotlib.dates as mdates
 
 from urllib.request import urlretrieve
+from datetime import datetime
+
+from datetime import datetime
+
+def parse_tracking_data(file_path='/Users/lgisolfi/Desktop/data_archiving-1.0/ramp.mex.gr035'):
+    parsed_data = {}
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            parts = line.strip().split()
+
+            start_time_str = parts[0] + ' ' + parts[1]
+            end_time_str = parts[2] + ' ' + parts[3]
+            start_frequency = float(parts[4])
+            ramp_rate = float(parts[5])
+            transmitter = parts[6]
+
+            # Convert timestamps to datetime objects
+            start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S.%f")
+            end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S.%f")
+
+            # Convert to UTC seconds
+            start_time  = time_conversion.julian_day_to_seconds_since_epoch(time_conversion.calendar_date_to_julian_day(start_time))
+            end_time = time_conversion.julian_day_to_seconds_since_epoch(time_conversion.calendar_date_to_julian_day(end_time))
+
+            # Initialize dictionary entry if the station is not yet present
+            if transmitter not in parsed_data:
+                parsed_data[transmitter] = {
+                    "start_times": [],
+                    "end_times": [],
+                    "start_frequencies": [],
+                    "ramp_rates": []
+                }
+
+            # Append values to the corresponding station key
+            parsed_data[transmitter]["start_times"].append(start_time)
+            parsed_data[transmitter]["end_times"].append(end_time)
+            parsed_data[transmitter]["start_frequencies"].append(start_frequency)
+            parsed_data[transmitter]["ramp_rates"].append(ramp_rate)
+
+    return parsed_data
+
 def generate_random_color():
     """Generate a random color in hexadecimal format."""
     return "#{:02x}{:02x}{:02x}".format(
@@ -67,8 +109,11 @@ start = datetime(2013, 12, 28)
 end = datetime(2013, 12, 30)
 
 # Add a time buffer of one day
-start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
+start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 2*86400.0
 end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
+
+
+dictionary = parse_tracking_data()
 
 # Create default body settings for celestial bodies
 bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
@@ -120,17 +165,32 @@ ifms_files = list()
 transmitting_stations_list = list()
 reception_band = observation.FrequencyBands.x_band
 transmission_band = observation.FrequencyBands.x_band
-for ifms_file in os.listdir(mex_ifms_folder):
+
+
+ramp_dictionary = parse_tracking_data()
+DSS63_start_ramp_times = ramp_dictionary['DSS63']['start_times']
+DSS63_end_ramp_times = ramp_dictionary['DSS63']['end_times']
+DSS63_ramp_rates = ramp_dictionary['DSS63']['ramp_rates']
+DSS63_start_frequencies= ramp_dictionary['DSS63']['start_frequencies']
+
+bodies.get('Earth').get_ground_station('DSS63').transmitting_frequency_calculator = numerical_simulation.environment.set_transmitting_frequency_calculator(
+    DSS63_start_ramp_times ,
+    DSS63_end_ramp_times,
+    DSS63_ramp_rates,
+    DSS63_start_frequencies
+)
+
+#for ifms_file in ['M32ICL2L02_D2X_133621904_00.TAB', 'M32ICL1L02_D2X_133630120_00.TAB', 'M32ICL1L02_D2X_133630203_00.TAB', 'M63ODFXL02_DPX_133630348_00.TAB', 'M14ODFXL02_DPX_133631130_00.TAB', 'M32ICL1L02_D2X_133631902_00.TAB', 'M32ICL1L02_D2X_133632221_00.TAB', 'M32ICL1L02_D2X_133632301_00.TAB', 'M32ICL1L02_D2X_133642046_00.TAB']:
+for ifms_file in ['M63ODFXL02_DPX_133630348_00.TAB']:
     if ifms_file.startswith('.'):
         continue
     station_code = ifms_file[1:3]
+    print(station_code)
     if station_code == '14':
         transmitting_station_name = 'DSS-14'
-        continue
 
     elif station_code == '63':
         transmitting_station_name = 'DSS63'
-        continue
 
     elif station_code == '32':
         transmitting_station_name = 'NWNORCIA'
