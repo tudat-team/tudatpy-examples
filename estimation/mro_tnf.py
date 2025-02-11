@@ -123,17 +123,17 @@ def get_mro_files(local_path, start_date, end_date):
     for f in ion_files:
         print(f)
 
-    # ODF files (multiple ODF files are required, typically one per day)
+    # TNF files (multiple TNF files are required, typically one per day)
     print("---------------------------------------------")
-    print("Download MRO ODF files")
-    # Define url where ODF files can be downloaded for MRO
+    print("Download MRO TNF files")
+    # Define url where TNF files can be downloaded for MRO
     url_odf = (
-        "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/odf/"
+        "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/tnf/"
     )
-    # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
-    odf_files = download_url_files_time(
+    # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
+    tnf_files = download_url_files_time(
         local_path=local_path,
-        filename_format="mromagr*_\w\w\w\wxmmmv1.odf",
+        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,
@@ -141,9 +141,9 @@ def get_mro_files(local_path, start_date, end_date):
         indices_date_filename=[7],
     )
 
-    # Print the name of all relevant ODF files that have been identified over the time interval of interest
-    print("relevant odf files")
-    for f in odf_files:
+    # Print the name of all relevant TNF files that have been identified over the time interval of interest
+    print("relevant TNF files")
+    for f in tnf_files:
         print(f)
 
     # MRO trajectory files (multiple files are necessary to cover one entire year, typically each file covers ~ 3-4 months)
@@ -209,14 +209,14 @@ def get_mro_files(local_path, start_date, end_date):
     structure_file = local_path + structure_file
     print(structure_file)
 
-    # Return filenames lists for clock files, orientation kernels, tropospheric and ionospheric corrections, odf files,
+    # Return filenames lists for clock files, orientation kernels, tropospheric and ionospheric corrections, TNF files,
     # trajectory files, MRO reference frames file, and MRO structure file.
     return (
         clock_files,
         orientation_files,
         tro_files,
         ion_files,
-        odf_files,
+        tnf_files,
         trajectory_files,
         frames_def_file,
         structure_file,
@@ -235,26 +235,11 @@ endTimeDatetime = datetime(2012, 1, 9, 0, 0, 0)
     orientation_files,
     tro_files,
     ion_files,
-    odf_files,
+    tnf_files,
     trajectory_files,
     frames_def_file,
     structure_file,
 ) = get_mro_files("mro_kernels/", startTimeDatetime, endTimeDatetime)
-
-dir_path = "/Users/valeriofilice/Workspace/tudat-bundle/tudatpy/examples/estimation/mroDownloads/tnf/"
-# dir_path = "."
-# file_names = os.listdir(dir_path)
-tnfFiles = [
-    dir_path + "mromagr2012_001_2220xmmmv1.tnf",
-    dir_path + "mromagr2012_005_1255xmmmv1.tnf",
-    dir_path + "mromagr2012_004_1550xmmmv1.tnf",
-    dir_path + "mromagr2012_008_2200xmmmv1.tnf",
-    dir_path + "mromagr2012_007_1640xmmmv1.tnf",
-    dir_path + "mromagr2012_003_1407xmmmv1.tnf",
-    dir_path + "mromagr2012_002_1426xmmmv1.tnf",
-    dir_path + "mromagr2012_006_1355xmmmv1.tnf",
-    # fileName,
-]
 
 # downloader = LoadPDS()
 # kernel_files_mro, radio_science_files_mro, ancillary_files_mro = (
@@ -268,7 +253,7 @@ tnfFiles = [
 #     )
 # )
 
-# tnfFiles = radio_science_files_mro["tnf"]
+# tnf_files = radio_science_files_mro["tnf"]
 # orientation_files = kernel_files_mro["ck"]
 # clock_files = kernel_files_mro["sclk"]
 # tro_files = ancillary_files_mro["tro"]
@@ -395,7 +380,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 observationCollection, rampDf, dopplerDf = (
     processTrk234.create_observation_collection_from_tnf(
-        tnfFiles, bodies, spacecraftName="MRO"
+        tnf_files[:-1], bodies, spacecraftName="MRO"
     )
 )
 
@@ -517,6 +502,7 @@ compressed_observations.filter_observations(filter_residuals)
 # %%
 time = np.array(compressed_observations.concatenated_float_times)
 residuals = compressed_observations.get_concatenated_residuals()
+rms = np.sqrt(np.mean(residuals**2))
 
 plt.rc("font", size=20)
 
@@ -525,5 +511,7 @@ ax.scatter((time - np.min(time)) / 86400.0, residuals)
 ax.set_xlabel("Time [days since {}]".format(startTimeDatetime))
 ax.set_ylabel("Residuals [Hz]")
 ax.grid(which="both", linestyle="--", alpha=0.6)
+ax.set_title("Doppler residuals. RMS: {:.2e} Hz".format(rms))
 
 plt.rcdefaults()
+plt.show()
