@@ -5,13 +5,9 @@
 ##################################################################################################################
 import os
 import csv
-from lzma import compress
-from xmlrpc.client import DateTime
 import numpy as np
 from matplotlib import pyplot as plt
 from astropy.time import Time
-
-# Load required tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
 from tudatpy.astro import time_conversion, element_conversion
@@ -19,18 +15,13 @@ from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup, environment
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
-from tudatpy import util
-from load_pds_files import download_url_files_time, download_url_files_time_interval
-from datetime import datetime
 import random
 import matplotlib.dates as mdates
-
-from urllib.request import urlretrieve
-from datetime import datetime
-
 from datetime import datetime
 
 def parse_tracking_data(file_path='/Users/lgisolfi/Desktop/data_archiving-1.0/ramp.mex.gr035'):
+
+    """ Ad-hoc function to parse ramp.mex.gr035 ramp file by T. Bocanegra """
     parsed_data = {}
 
     with open(file_path, 'r') as file:
@@ -48,8 +39,8 @@ def parse_tracking_data(file_path='/Users/lgisolfi/Desktop/data_archiving-1.0/ra
             end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S.%f")
 
             # Convert to UTC seconds
-            start_time  = time_conversion.julian_day_to_seconds_since_epoch(time_conversion.calendar_date_to_julian_day(start_time))
-            end_time = time_conversion.julian_day_to_seconds_since_epoch(time_conversion.calendar_date_to_julian_day(end_time))
+            start_time  = time_conversion.datetime_to_tudat(start_time).epoch()
+            end_time = time_conversion.datetime_to_tudat(end_time).epoch()
 
             # Initialize dictionary entry if the station is not yet present
             if transmitter not in parsed_data:
@@ -68,30 +59,6 @@ def parse_tracking_data(file_path='/Users/lgisolfi/Desktop/data_archiving-1.0/ra
 
     return parsed_data
 
-def generate_random_color():
-    """Generate a random color in hexadecimal format."""
-    return "#{:02x}{:02x}{:02x}".format(
-        random.randint(0, 255),  # Red
-        random.randint(0, 255),  # Green
-        random.randint(0, 255)   # Blue
-    )
-def create_single_ifms_collection_from_file(
-        ifms_file,
-        bodies,
-        spacecraft_name,
-        transmitting_station_name,
-        reception_band,
-        transmission_band):
-
-    # Loading IFMS file
-    #print(f'IFMS file: {ifms_file}\n with transmitting station: {transmitting_station_name} will be loaded.')
-    single_ifms_collection = observation.observations_from_ifms_files(
-        [ifms_file], bodies, spacecraft_name, transmitting_station_name, reception_band, transmission_band
-    )
-
-    return(single_ifms_collection)
-
-
 # Set Folders Containing Relevant Files
 mex_kernels_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/kernels/'
 mex_fdets_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete'
@@ -104,24 +71,22 @@ for kernel in os.listdir(mex_kernels_folder):
     kernel_path = os.path.join(mex_kernels_folder, kernel)
     spice.load_kernel(kernel_path)
 
-# Define Start and end Dates of Simulation
+# Define Start and end Dates of Simulation.
 start = datetime(2013, 12, 28)
 end = datetime(2013, 12, 30)
 
-# Add a time buffer of one day
-start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 2*86400.0
+# Add a time buffer of one day to avoid interpolation issues
+start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() - 86400.0
 end_time = time_conversion.datetime_to_tudat(end).epoch().to_float() + 86400.0
 
-
-dictionary = parse_tracking_data()
-
-# Create default body settings for celestial bodies
+# Create default body settings for celestial bodies and set origin and orientation of global frame
 bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
 global_frame_origin = "SSB"
 global_frame_orientation = "J2000"
+
+# Create body settings
 body_settings = environment_setup.get_default_body_settings_time_limited(
     bodies_to_create, start_time, end_time, global_frame_origin, global_frame_orientation)
-
 # Modify Earth default settings
 body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
 body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
@@ -132,14 +97,13 @@ body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_
                                                          start_time, end_time, 3600.0),
     interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
                                                          start_time, end_time, 60.0))
-
 body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
+
+
+# Create MEX spacecraft and its settings
 spacecraft_name = "MEX" # Set Spacecraft Name
 spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
-# Retrieve translational ephemeris from SPICE
-#body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.direct_spice(
-#    'SSB', 'J2000', 'MEX')
 body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
     start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
 # Retrieve rotational ephemeris from SPICE
@@ -149,223 +113,134 @@ body_settings.get("Earth").ground_station_settings = environment_setup.ground_st
 
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
-########## IMPORTANT STEP ###################################
+
 # Set the transponder turnaround ratio function
 vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body("MEX").system_models = vehicleSys
-#print(environment_setup.get_ground_station_list(bodies.get_body("Earth")))
 ###############################################################
 
-labels = set()
-ifms_station_residuals = dict()
-single_ifms_collections_list = list()
-atmospheric_corrections_list = list()
-ifms_files = list()
-transmitting_stations_list = list()
+# Set reception and transmission bands
 reception_band = observation.FrequencyBands.x_band
 transmission_band = observation.FrequencyBands.x_band
 
-
+# Retrieve lists of ramp values and times, as well as start frequencies, for each station
 ramp_dictionary = parse_tracking_data()
-DSS63_start_ramp_times = ramp_dictionary['DSS63']['start_times']
-DSS63_end_ramp_times = ramp_dictionary['DSS63']['end_times']
-DSS63_ramp_rates = ramp_dictionary['DSS63']['ramp_rates']
-DSS63_start_frequencies= ramp_dictionary['DSS63']['start_frequencies']
 
-bodies.get('Earth').get_ground_station('DSS63').transmitting_frequency_calculator = numerical_simulation.environment.set_transmitting_frequency_calculator(
-    DSS63_start_ramp_times ,
-    DSS63_end_ramp_times,
-    DSS63_ramp_rates,
-    DSS63_start_frequencies
-)
+# Set Ramped Frequencies with the new PiecewiseLinearFrequencyInterpolator function
+for key in ramp_dictionary.keys():
+    station_start_ramp_times = ramp_dictionary[key]['start_times']
+    station_end_ramp_times = ramp_dictionary[key]['end_times']
+    station_ramp_rates = ramp_dictionary[key]['ramp_rates']
+    station_start_frequencies= ramp_dictionary[key]['start_frequencies']
 
-#for ifms_file in ['M32ICL2L02_D2X_133621904_00.TAB', 'M32ICL1L02_D2X_133630120_00.TAB', 'M32ICL1L02_D2X_133630203_00.TAB', 'M63ODFXL02_DPX_133630348_00.TAB', 'M14ODFXL02_DPX_133631130_00.TAB', 'M32ICL1L02_D2X_133631902_00.TAB', 'M32ICL1L02_D2X_133632221_00.TAB', 'M32ICL1L02_D2X_133632301_00.TAB', 'M32ICL1L02_D2X_133642046_00.TAB']:
-for ifms_file in ['M63ODFXL02_DPX_133630348_00.TAB']:
-    if ifms_file.startswith('.'):
-        continue
-    station_code = ifms_file[1:3]
-    print(station_code)
-    if station_code == '14':
-        transmitting_station_name = 'DSS-14'
+    station_ramp = numerical_simulation.environment.PiecewiseLinearFrequencyInterpolator(
+        station_start_ramp_times ,
+        station_end_ramp_times,
+        station_ramp_rates,
+        station_start_frequencies
+    )
 
-    elif station_code == '63':
-        transmitting_station_name = 'DSS63'
+    bodies.get('Earth').get_ground_station(key).transmitting_frequency_calculator = station_ramp
 
-    elif station_code == '32':
-        transmitting_station_name = 'NWNORCIA'
+# This is the manually ordered list of ifms files
+ordered_ifms_list = ['M32ICL2L02_D2X_133621819_00.TAB',
+                     'M32ICL2L02_D2X_133621904_00.TAB',
+                     'M32ICL1L02_D2X_133630120_00.TAB',
+                     'M32ICL1L02_D2X_133630203_00.TAB',
+                     'M63ODFXL02_DPX_133630348_00.TAB',
+                     'M14ODFXL02_DPX_133631130_00.TAB',
+                     'M32ICL1L02_D2X_133631902_00.TAB',
+                     'M32ICL1L02_D2X_133632221_00.TAB',
+                     'M32ICL1L02_D2X_133632301_00.TAB']
 
-    ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
-    transmitting_stations_list.append(transmitting_station_name)
 
-ifms_collection = observation.observations_from_multi_station_ifms_files(ifms_files, bodies, spacecraft_name, transmitting_stations_list, reception_band, transmission_band, apply_troposphere_correction = True)
-compressed_observations = ifms_collection
-antenna_position_history = dict()
-com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
-times = compressed_observations.get_concatenated_observation_times()
-times = [time.to_float() for time in times]
-mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
-utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
+fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)  # Two subplots, sharing x-axis
+file_list_labels = ["List from os.listdir", "Ordered IFMS List"] # Subplots labels for comparison between  ordered and non-ordered list
 
-antenna_state = np.zeros((6, 1))
-antenna_state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", times[0])
-antenna_state[:3,0] = antenna_state[:3,0] - com_position
-antenna_ephemeris_settings = environment_setup.ephemeris.constant(antenna_state, "-41000",  "MEX_SPACECRAFT")
-antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
-compressed_observations.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.retransmitter)
+for idx, ifms_file_list in enumerate([os.listdir(mex_ifms_folder), ordered_ifms_list]):
+    ifms_files = []
+    transmitting_stations_list = []
 
-light_time_correction_list = list()
-light_time_correction_list.append(
-    estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+    for ifms_file in ifms_file_list:
+        if ifms_file.startswith('.'):
+            continue
+        station_code = ifms_file[1:3]
 
-doppler_link_ends = compressed_observations.link_definitions_per_observable[
-    estimation_setup.observation.dsn_n_way_averaged_doppler]
+        if station_code == '14':
+            transmitting_station_name = 'DSS14'
+        elif station_code == '63':
+            transmitting_station_name = 'DSS63'
+        elif station_code == '32':
+            transmitting_station_name = 'NWNORCIA'
+        else:
+            continue  # Skip unknown station codes
 
-observation_model_settings = list()
-for current_link_definition in doppler_link_ends:
-    print(current_link_definition.link_end_id(observation.retransmitter).reference_point)
-    print(current_link_definition.link_end_id(observation.transmitter).reference_point)
-    print(current_link_definition.link_end_id(observation.receiver).reference_point)
-    observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
-        current_link_definition, light_time_correction_list, subtract_doppler_signature = False ))
+        ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
+        transmitting_stations_list.append(transmitting_station_name)
 
-observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+    # Use the observations_from_multi_station_ifms_files function
+    ifms_collection = observation.observations_from_multi_station_ifms_files(
+        ifms_files, bodies, spacecraft_name, transmitting_stations_list,
+        reception_band, transmission_band, apply_troposphere_correction=True
+    )
 
-elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
-elevation_angle_parser = compressed_observations.add_dependent_variable( elevation_angle_settings, bodies )
-sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
-sep_angle_parser = compressed_observations.add_dependent_variable( sep_angle_settings, bodies )
+    compressed_observations = ifms_collection # Do not compress for now, since we need to compare them with PRIDE open-loop data
+    antenna_position_history = dict()
+    com_position = [-1.3,0.0,0.0] # estimated based on the MEX_V16.TF file description
+    times = compressed_observations.get_concatenated_observation_times()
+    times = [time.to_float() for time in times]
+    mjd_times = [time_conversion.seconds_since_epoch_to_julian_day(t) for t in times]
+    utc_times = np.array([Time(mjd_time, format='jd', scale='utc').datetime for mjd_time in mjd_times])
 
-estimation.compute_residuals_and_dependent_variables(compressed_observations, observation_simulators, bodies)
+    antenna_state = np.zeros((6, 1))
+    antenna_state[:3,0] = spice.get_body_cartesian_position_at_epoch("-41020", "-41000", "MEX_SPACECRAFT", "none", times[0])
+    antenna_state[:3,0] = antenna_state[:3,0] - com_position
+    antenna_ephemeris_settings = environment_setup.ephemeris.constant(antenna_state, "-41000",  "MEX_SPACECRAFT")
+    antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(antenna_ephemeris_settings, "Antenna")
+    compressed_observations.set_reference_point(bodies, antenna_ephemeris, "Antenna", "MEX", observation.retransmitter)
 
-concatenated_obs = compressed_observations.get_concatenated_observations()
-concatenated_computed_obs = compressed_observations.get_concatenated_computed_observations()
-concatenated_residuals = compressed_observations.get_concatenated_residuals()
-rms_residuals = compressed_observations.get_rms_residuals()
-mean_residuals = compressed_observations.get_mean_residuals()
+    light_time_correction_list = list()
+    light_time_correction_list.append(
+        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
 
-#print(f'Residuals: {concatenated_residuals}')
-print(f'Mean Residuals: {mean_residuals}')
-print(f'RMS Residuals: {rms_residuals}')
+    doppler_link_ends = compressed_observations.link_definitions_per_observable[
+        estimation_setup.observation.dsn_n_way_averaged_doppler]
 
-plt.scatter(utc_times, concatenated_residuals, s = 5)
+    observation_model_settings = list()
+    for current_link_definition in doppler_link_ends:
+        observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
+            current_link_definition, light_time_correction_list, subtract_doppler_signature = False ))
+
+    observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+
+    elevation_angle_settings = observation.elevation_angle_dependent_variable( observation.receiver )
+    elevation_angle_parser = compressed_observations.add_dependent_variable( elevation_angle_settings, bodies )
+    sep_angle_settings = observation.avoidance_angle_dependent_variable("Sun", observation.retransmitter, observation.receiver)
+    sep_angle_parser = compressed_observations.add_dependent_variable( sep_angle_settings, bodies )
+
+    estimation.compute_residuals_and_dependent_variables(compressed_observations, observation_simulators, bodies)
+
+    concatenated_obs = compressed_observations.get_concatenated_observations()
+    concatenated_computed_obs = compressed_observations.get_concatenated_computed_observations()
+    concatenated_residuals = compressed_observations.get_concatenated_residuals()
+    rms_residuals = compressed_observations.get_rms_residuals()
+    mean_residuals = compressed_observations.get_mean_residuals()
+
+    print(f'Mean Residuals: {mean_residuals}')
+    print(f'RMS Residuals: {rms_residuals}')
+
+    # Plot in respective subplot
+    axes[idx].scatter(utc_times, concatenated_residuals, s=5)
+    axes[idx].set_title(f'IFMS Pre-fit Residuals ({file_list_labels[idx]})')
+    axes[idx].set_ylabel('Frequency (Hz)')
+    axes[idx].grid(True)
+    axes[idx].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+    axes[idx].xaxis.set_major_locator(mdates.AutoDateLocator())
+
+# Common x-label and formatting
+axes[-1].set_xlabel('UTC Time')
+plt.gcf().autofmt_xdate()
+plt.tight_layout()  # Adjust layout to prevent overlapping
 plt.show()
 exit()
-#Populate Station Residuals Dictionary
-site_name = transmitting_station_name
-if site_name not in ifms_station_residuals.keys():
-    ifms_station_residuals[site_name] = [(times, utc_times, concatenated_residuals, mean_residuals, rms_residuals)]
-else:
-    ifms_station_residuals[site_name].append((times, utc_times, concatenated_residuals, mean_residuals, rms_residuals))
-
-# Output files creation
-for site_name, data in ifms_station_residuals.items():
-    ifms_residuals_path = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/ifms_residuals'
-    os.makedirs(ifms_residuals_path, exist_ok=True)
-    filename = f"{site_name}_residuals.csv"
-    file_path = os.path.join(ifms_residuals_path, filename)
-    with open(file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-
-        # Write the header
-        writer.writerow([f'# Station: {site_name}'])
-        writer.writerow(['# Time | UTC Time | Residuals'])
-
-        # Write the data rows
-        for record in data:
-            times, utc_times, concatenated_residuals, _, _ = record
-
-            # Write each UTC time and residual in a separate row
-            for time, utc_time, residual in zip(times, utc_times, concatenated_residuals):
-                writer.writerow([
-                    time,
-                    utc_time.strftime("%Y-%m-%d %H:%M:%S"),  # Convert datetime to string
-                    residual
-                ])
-
-    print(f"File created: {file_path}")
-
-# Plot Residuals
-added_labels = set()
-label_colors = dict()
-# Plot residuals for each station
-for site_name, data_list in ifms_station_residuals.items():
-    if site_name not in label_colors:
-        label_colors[site_name] = generate_random_color()
-
-    for times, utc_times, residuals, mean_residuals, rms_residuals in data_list:
-        # Plot all stations' residuals on the same figure
-        plt.scatter(
-            utc_times, residuals,
-            color = label_colors[site_name],
-            marker = '+', s=10,
-            label=f"{site_name}, mean = {mean_residuals}, rms = {rms_residuals}"
-            if site_name not in added_labels else None
-        )
-        added_labels.add(site_name)  # Avoid duplicate labels in the legend
-
-# Format the x-axis for dates
-plt.title('IFMS Residuals')
-plt.xlabel('Time [s]')
-plt.ylabel('Residuals [Hz]')
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
-plt.grid(True)
-plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
-# Adjust layout to make room for the legend
-plt.show()
-plt.close('all')
-exit()
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, INCORPORATING ATMOSPHERIC CORRECTIONS PROVIDED IN IFMS FILES #####
-residuals_by_hand =(concatenated_computed_obs - (concatenated_obs - atmospheric_corrections))
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand))}\n')
-
-# Filtering Residuals ???
-filtered_residuals_by_hand = residuals_by_hand[residuals_by_hand < 0.1]
-print(f'mean_filtered_residuals: {abs(np.mean(filtered_residuals_by_hand))}\n')
-print(f'rms_filtered_residuals: {abs(np.sqrt(np.mean(filtered_residuals_by_hand**2)))}')
-####################################################################################################
-
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, WITHOUT ATMOSPHERIC CORRECTIONS #####
-residuals_by_hand_no_atm_corr =(concatenated_computed_obs - concatenated_obs)
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, NO Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand_no_atm_corr))}\n')
-####################################################################################################
-
-####################################################################################################
-# TUDATPY-PROVIDED RESIDUALS
-print('Tudatpy Residuals')
-print(f'rms_residuals: {rms_residuals}')
-print(f'mean_residuals: {mean_residuals}\n')
-####################################################################################################
-
-### SAVING FILES ####
-#np.savetxt('mex_unfiltered_residuals_rms' + '.dat',
-#           np.vstack(rms_residuals), delimiter=',')
-#np.savetxt('mex_unfiltered_residuals_mean' + '.dat',
-#           np.vstack(mean_residuals), delimiter=',')
-#####################
-
-# Retrieve the observation times list
-times = merged_ifms_collection.get_observation_times()
-times = [time.to_float() for time in times[0]]
-times = np.array(times)
-# Residuals Plot
-print(residuals_by_hand < 0.1)
-plt.scatter(times, residuals_by_hand, s = 6, marker = '+', label = 'Atm. Corr.')
-plt.axhline(abs(np.mean(residuals_by_hand)), label = f'mean residuals = {round(abs(np.mean(residuals_by_hand)),6)}', color = 'black', linestyle = '--')
-plt.axhline(abs(np.sqrt(np.mean(residuals_by_hand**2))), label = f'rms residuals = {round(abs(np.sqrt(np.mean(residuals_by_hand**2))),6)}', linestyle = '--')
-plt.axhline(-abs(np.sqrt(np.mean(residuals_by_hand**2))), linestyle = '--')
-plt.legend()
-plt.title('Mex Residuals')
-plt.xlabel('Time (s)')
-plt.ylabel('Residuals (Hz)')
-plt.show()
