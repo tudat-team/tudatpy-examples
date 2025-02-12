@@ -248,7 +248,12 @@ if __name__ == "__main__":
     fdets_files = []
     ifms_files = []
 
+    ###############################################################################################################################################
+
+    # Temporary: Change this line if you want to compute residuals for different fdets.
     fdets_list = ['Fdets.mex2013.12.28.Ur.complete.r2i.txt', 'Fdets.mex2013.12.28.Ht.complete.r2i.txt', 'Fdets.mex2013.12.28.On.complete.r2i.txt']
+
+    ###############################################################################################################################################
 
     for ifms_file in os.listdir(mex_ifms_folder):
         ifms_files.append(os.path.join(mex_ifms_folder, ifms_file))
