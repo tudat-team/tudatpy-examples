@@ -26,8 +26,10 @@ fdets_residuals_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/fdets_
 
 station_residuals = dict()
 
-
-fdets_files_trial = ['METSAHOV_residuals.csv', 'MK-VLBA_residuals.csv']
+####################################################################################################################################
+# Here you can set the residuals to be plotted. I think these three make a good example (they can be compared to Tatiana's).
+fdets_files_trial = ['ONSALA60_residuals.csv', 'HARTRAO_residuals.csv', 'URUMQI_residuals.csv']
+####################################################################################################################################
 # Plotting the residuals
 plt.figure(figsize=(10, 6))
 
@@ -56,6 +58,8 @@ for fdets_file in fdets_files_trial:
     else:
         station_residuals[site_name].append((fdets_utc_times, fdets_residuals))
 
+########################################################################################################################
+# If uncommented, the following  allows to plot the IFMS residuals (after running the mex_residuals_ifms.py script)
 
 #plt.scatter(fdets_utc_times, fdets_residuals, marker="o",  color="b", label="Fdets Residuals", s = 10)
 #plt.scatter(np.array(ifms_utc_times)[np.array(ifms_residuals) <= 1000], np.array(ifms_residuals)[np.array(ifms_residuals) <= 1000], marker="+",  color="r", label="IFMS Residuals", s = 10)
@@ -71,6 +75,7 @@ for fdets_file in fdets_files_trial:
 #plt.tight_layout()
 # Show the plot
 #plt.show()
+########################################################################################################################
 
 # Plot Residuals
 added_labels = set()
