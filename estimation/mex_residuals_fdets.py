@@ -2,7 +2,6 @@
 
 # This script allows to create residuals csv files (PRIDE data).
 # These are saved and can later be plotted via the read_mex_ifms_fdets_residuals.py function.
-
 ##################################################################################################################
 import os
 import csv
@@ -223,9 +222,6 @@ if __name__ == "__main__":
     spacecraft_name = "MEX" # Set Spacecraft Name
     spacecraft_central_body = "Mars" # Set Central Body (Mars)
     body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
-    # Retrieve translational ephemeris from SPICE
-    #body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.direct_spice(
-    #    'SSB', 'J2000', 'MEX')
     body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
         start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
     # Retrieve rotational ephemeris from SPICE
@@ -234,17 +230,13 @@ if __name__ == "__main__":
 
     body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 
-
-
     # Create System of Bodies using the above-defined body_settings
     bodies = environment_setup.create_system_of_bodies(body_settings)
-
     ########## IMPORTANT STEP ###################################
     # Set the transponder turnaround ratio function
     vehicleSys = environment.VehicleSystems()
     vehicleSys.set_default_transponder_turnaround_ratio_function()
     bodies.get_body("MEX").system_models = vehicleSys
-    #print(environment_setup.get_ground_station_list(bodies.get_body("Earth")))
     ###############################################################
 
     base_frequency = 8412e6
