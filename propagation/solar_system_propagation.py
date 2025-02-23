@@ -41,9 +41,9 @@ from tudatpy.astro.time_conversion import DateTime
 
 """
 ## Configuration
-NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
+NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be made known to `tudatpy`.
 
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `1e7`, corresponding to 10 million seconds ($\approx$ 115.74 days) after the 1st of January 2000. The end epoch is set 5 years later.
+Then, the start and end simulation epochs are setup. The start epoch is set arbitrarily to 25th April 2000, with the end epoch being set 5 years later.
 
 The times should always be specified in seconds since J2000.
 Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
