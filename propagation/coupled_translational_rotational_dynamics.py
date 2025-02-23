@@ -588,7 +588,7 @@ time_step = 300.0  # This is 5 minutes in seconds.
 coefficients = propagation_setup.integrator.CoefficientSets.rkdp_87
 integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step( time_step,
                                                                            coefficients,
-                                                                           propagation_setup.integrator.higher )
+                                                                           propagation_setup.integrator.OrderToIntegrate.higher )
 
 # INITIAL TIME
 initial_epoch = DateTime(2000, 1, 1).epoch()

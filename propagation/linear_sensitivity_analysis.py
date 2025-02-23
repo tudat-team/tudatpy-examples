@@ -199,12 +199,11 @@ Within this example, we will retrieve the initial state of Delfi-C3 using its Tw
 
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
-delfi_tle = environment_setup.ephemeris.sgp4(
+delfi_tle = environment.Tle(
     "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
     "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68",
-    frame_origin = "Earth", frame_orientation = "J2000"
 )
-delfi_ephemeris = environment_setup.create_body_ephemeris(delfi_tle)
+delfi_ephemeris = environment.TleEphemeris("Earth", "J2000", delfi_tle, False)
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
 
@@ -224,10 +223,9 @@ Then, the translational propagator settings are defined. These are used to simul
 termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 # Create numerical integrator settings
-fixed_step_size = 10.0
 integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
     time_step = 10.0,
-    coefficient_set = propagation_setup.integrator.rk_4 )
+    coefficient_set = propagation_setup.integrator.CoefficientSets.rk_4 )
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
