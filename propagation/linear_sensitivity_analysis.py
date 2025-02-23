@@ -6,7 +6,7 @@ This example is an extension of the Perturbed Satellite Orbit Application. It ad
 
 The script demonstrates how the basic numerical simulation setup (aiming to propagate the state of the system) can swiftly be extended to enable a study of the system's sensitivity.
 
-Via the `estimation_setup.parameter module`, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the numerical_simulation module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
+Via the `estimation_setup.parameter` module, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the `numerical_simulation` module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
 
 The availability of variational equations in tudat enables many more, advanced functionalities, such as covariance analysis and precise orbit determination.
 """
@@ -39,18 +39,11 @@ from tudatpy.astro.time_conversion import DateTime
 """
 ## Configuration
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth, the Sun, the Moon, Venus, or Mars, can be make known to `tudatpy`.
-
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
 """
 
 
 # Load spice kernels
 spice.load_standard_kernels()
-
-# Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
-simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
 
 
 """
@@ -89,7 +82,7 @@ When setting up the radiation pressure interface, the Earth is set as a body tha
 # Create empty body settings for the satellite
 body_settings.add_empty_settings("Delfi-C3")
 
-body_settings.get("Delfi-C3").constant_mass = 400
+body_settings.get("Delfi-C3").constant_mass = 2.2
 
 # Create aerodynamic coefficient interface settings
 reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
@@ -186,6 +179,21 @@ acceleration_models = propagation_setup.create_acceleration_models(
     acceleration_settings,
     bodies_to_propagate,
     central_bodies)
+
+
+"""
+### Define simulation start and end epoch
+
+Next, the start and end simulation epochs are specified.
+In Tudat, all epochs are defined as seconds since J2000.
+For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+"""
+
+
+# Set simulation start and end epochs
+simulation_start_epoch = DateTime(2008, 4, 28).epoch()
+simulation_end_epoch   = DateTime(2008, 4, 29).epoch()
 
 
 """

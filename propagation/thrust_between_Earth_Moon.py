@@ -46,7 +46,7 @@ from tudatpy.astro.time_conversion import DateTime
 
 NAIF's `SPICE` kernels are first loaded so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
-Then the start and end simulation epochs are set up. In this case, the start epoch is set to `1e7`, which corresponds to 10 million seconds ($\approx$ 115.74 days) after the 1st of January 2000.
+Then, the start and end simulation epochs are setup. The start epoch is set arbitrarily to 25th April 2000, with the end epoch being set 30 days later.
 
 The times should always be specified in seconds since the epoch of J2000.
 Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
@@ -337,7 +337,7 @@ propagator_settings = propagation_setup.propagator.multitype(
 
 The orbit from the Earth to the Moon is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
 This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
