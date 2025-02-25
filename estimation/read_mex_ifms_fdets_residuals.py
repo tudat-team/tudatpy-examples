@@ -85,8 +85,6 @@ for site_name, data_list in station_residuals.items():
     if site_name not in label_colors:
         label_colors[site_name] = generate_random_color()
 
-    print(label_colors)
-    print(data_list)
     for utc_times, residuals in data_list:
         # Plot all stations' residuals on the same figure
         plt.scatter(
@@ -100,7 +98,7 @@ for site_name, data_list in station_residuals.items():
 
 # Format the x-axis for dates
 plt.xlabel("UTC Time", fontsize=12)
-plt.ylabel("Residuals", fontsize=12)
+plt.ylabel("Residuals (Hz)", fontsize=12)
 plt.ylim(-1,1)
 plt.title("Mars Express GR035 Experiment", fontsize=14)
 plt.grid(True, linestyle="--", alpha=0.6)
