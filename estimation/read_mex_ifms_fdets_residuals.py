@@ -28,7 +28,7 @@ station_residuals = dict()
 
 ####################################################################################################################################
 # Here you can set the residuals to be plotted. I think these three make a good example (they can be compared to Tatiana's).
-fdets_files_trial = ['ONSALA60_residuals.csv', 'HARTRAO_residuals.csv', 'URUMQI_residuals.csv']
+fdets_files_trial = ['URUMQI_residuals.csv', 'HART15M_residuals.csv', 'ONSALA60_residuals.csv']
 ####################################################################################################################################
 # Plotting the residuals
 plt.figure(figsize=(10, 6))
@@ -97,18 +97,18 @@ for site_name, data_list in station_residuals.items():
         added_labels.add(site_name)  # Avoid duplicate labels in the legend
 
 # Format the x-axis for dates
-plt.xlabel("UTC Time", fontsize=12)
-plt.ylabel("Residuals (Hz)", fontsize=12)
-plt.ylim(-1,1)
-plt.title("Mars Express GR035 Experiment", fontsize=14)
-plt.grid(True, linestyle="--", alpha=0.6)
+plt.xlabel("UTC Time", fontsize=15)
+plt.ylabel("Residuals (Hz)", fontsize=15)
+plt.ylim(-0.045,0.045)
+plt.title("Mars Express GR035 Experiment", fontsize=15)
+plt.grid(True, linestyle="--", alpha=0.2)
 plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
 plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
 plt.gcf().autofmt_xdate()  # Auto-rotate date labels for better readability
 lgnd = plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
 #change the marker size manually for both lines
 lgnd.legend_handles[0].set_sizes([20])
-lgnd.legend_handles[1].set_sizes([20])
+#lgnd.legend_handles[1].set_sizes([20])
 
 # Adjust layout to make room for the legend
 plt.show()

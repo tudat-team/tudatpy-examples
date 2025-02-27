@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from astropy.time import Time
 from collections import defaultdict
 import matplotlib.dates as mdates
-
+import tudatpy.data as data
 def ID_to_site(site_ID):
     """
     Maps a site ID to its corresponding ground station name.
@@ -128,9 +128,11 @@ def get_filtered_fdets_collection(
 
         if station_code == '14':
             transmitting_station_name = 'DSS14'
+            continue
 
         elif station_code == '63':
             transmitting_station_name = 'DSS63'
+
 
         elif station_code == '32':
             transmitting_station_name = 'NWNORCIA'
@@ -232,7 +234,12 @@ if __name__ == "__main__":
 
     # Create System of Bodies using the above-defined body_settings
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    ########## IMPORTANT STEP ###################################
+    observation.set_vmf_troposphere_data(
+        [ "/Users/lgisolfi/Desktop/mex_phobos_flyby/VMF/y2013.vmf3_r.txt" ], True, False, bodies, False, True )
+    # Meteorological (tropospsheric) uplink and downlink corrections
+    weather_files = ([os.path.join('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met', met_file) for met_file in os.listdir('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met')])
+    body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'NWNORCIA'))
+########## IMPORTANT STEP ###################################
     # Set the transponder turnaround ratio function
     vehicleSys = environment.VehicleSystems()
     vehicleSys.set_default_transponder_turnaround_ratio_function()
@@ -305,6 +312,8 @@ if __name__ == "__main__":
                 light_time_correction_list = list()
                 light_time_correction_list.append(
                     estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+                light_time_correction_list.append(
+                    estimation_setup.observation.saastamoinen_tropospheric_light_time_correction( ))
 
                 # Define the observation model settings
                 observation_model_settings = [

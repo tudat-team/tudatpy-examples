@@ -26,6 +26,7 @@ from load_pds_files import download_url_files_time, download_url_files_time_inte
 from datetime import datetime
 import random
 import matplotlib.dates as mdates
+import tudatpy.data as data
 
 from urllib.request import urlretrieve
 def generate_random_color():
@@ -106,6 +107,11 @@ body_settings.get("Earth").ground_station_settings = environment_setup.ground_st
 
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
+
+# Meteorological (tropospsheric) uplink and downlink corrections
+weather_files = ([os.path.join('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met', met_file) for met_file in os.listdir('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met')])
+body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'NWNORCIA'))
+
 ########## IMPORTANT STEP ###################################
 # Set the transponder turnaround ratio function
 vehicleSys = environment.VehicleSystems()
@@ -133,9 +139,11 @@ for ifms_file in ifms_files:
     station_code = ifms_file.split('/')[7][1:3]
     if station_code == '14':
         transmitting_station_name = 'DSS14'
+        continue
 
     elif station_code == '63':
         transmitting_station_name = 'DSS63'
+        continue
 
     elif station_code == '32':
         transmitting_station_name = 'NWNORCIA'
@@ -170,6 +178,10 @@ for ifms_file in ifms_files:
     light_time_correction_list = list()
     light_time_correction_list.append(
         estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"]))
+
+    # Add light time corrections due to tropospheric effects
+    light_time_correction_list.append(
+        estimation_setup.observation.saastamoinen_tropospheric_light_time_correction( ))
 
     doppler_link_ends = compressed_observations.link_definitions_per_observable[
         estimation_setup.observation.dsn_n_way_averaged_doppler]
