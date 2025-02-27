@@ -128,11 +128,9 @@ def get_filtered_fdets_collection(
 
         if station_code == '14':
             transmitting_station_name = 'DSS14'
-            continue
 
         elif station_code == '63':
             transmitting_station_name = 'DSS63'
-
 
         elif station_code == '32':
             transmitting_station_name = 'NWNORCIA'
