@@ -355,7 +355,7 @@ moon_map = flyby_moon.lower() + '_map.jpg'
 img = plt.imread(moon_map)
 
 fig, ax = plt.subplots()
-ax.imshow(img, extent=[0, 360, -90, 90])
+ax.imshow(img, extent=[0, 360, -90, 90], alpha = 0.6)
 for k in range(number_of_flybys):
     dependent_variables = result2array(propagation_results[k].dependent_variable_history)
 
@@ -364,7 +364,7 @@ for k in range(number_of_flybys):
         if dependent_variables[i, 2] < 0:
             dependent_variables[i, 2] = dependent_variables[i, 2] + 2.0 * np.pi
 
-    plot = ax.scatter(dependent_variables[:, 2] * 180 / np.pi, dependent_variables[:, 1] * 180 / np.pi, s=2,
+    plot = ax.scatter(dependent_variables[:, 2] * 180 / np.pi, dependent_variables[:, 1] * 180 / np.pi, s=7,
                       c=dependent_variables[:, 3] / 1e3, cmap='rainbow_r', vmin=0, vmax=5000)
 cb = plt.colorbar(plot)
 
