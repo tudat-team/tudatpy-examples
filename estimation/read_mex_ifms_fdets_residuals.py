@@ -28,7 +28,7 @@ station_residuals = dict()
 
 ####################################################################################################################################
 # Here you can set the residuals to be plotted. I think these three make a good example (they can be compared to Tatiana's).
-fdets_files_trial = ['URUMQI_residuals.csv', 'HART15M_residuals.csv']
+fdets_files_trial = ['URUMQI_residuals.csv', 'HART15M_residuals.csv', 'ONSALA60_residuals.csv']
 ####################################################################################################################################
 # Plotting the residuals
 plt.figure(figsize=(10, 6))

@@ -1,7 +1,10 @@
 ######################### # IMPORTANT #############################################################################
 
-# This code reproduces TUDAT's weird behavior when computing the residuals for multiple ifms at once.
+# This code reproduces TUDAT's weird behavior when computing
+# residuals for multiple ifms at once (uses observations_from_multi_station_ifms_files function).
 
+# Ramp settings from T. Bocanegra mex ramp file are also implemented.
+# (But seem to have no effect, so please check they are indeed set as they should)
 ##################################################################################################################
 import os
 import csv
@@ -141,6 +144,7 @@ for key in ramp_dictionary.keys():
         station_start_frequencies
     )
 
+    # Set the ramp
     bodies.get('Earth').get_ground_station(key).transmitting_frequency_calculator = station_ramp
 
 # This is the manually ordered list of ifms files
@@ -154,10 +158,10 @@ ordered_ifms_list = ['M32ICL2L02_D2X_133621819_00.TAB',
                      'M32ICL1L02_D2X_133632221_00.TAB',
                      'M32ICL1L02_D2X_133632301_00.TAB']
 
-
 fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)  # Two subplots, sharing x-axis
 file_list_labels = ["List from os.listdir", "Ordered IFMS List"] # Subplots labels for comparison between  ordered and non-ordered list
 
+# Perform the analysis for both the unordered and ordered list.
 for idx, ifms_file_list in enumerate([os.listdir(mex_ifms_folder), ordered_ifms_list]):
     ifms_files = []
     transmitting_stations_list = []

@@ -1,9 +1,9 @@
 ######################### # IMPORTANT #############################################################################
 
+# This example computes the residuals for the MEX IFMS, one at the time (uses observations_from_ifms_files function)
 # In order to test this example, I am using a Phobos Flyby IFMS file missing the few last/first lines...
 # The removed lines were classified as outliers, but they should be filtered with the proper tudat functionality,
 # rather than manually (as done for now)
-
 ##################################################################################################################
 import os
 import csv
@@ -178,9 +178,8 @@ for ifms_file in ifms_files:
         estimation_setup.observation.dsn_n_way_averaged_doppler]
 
     ########## IMPORTANT STEP #######################################################################
-    # When woerking with IFMS, Add: subtract_doppler_signature = False, or it won't work
+    # When working with IFMS, Add: subtract_doppler_signature = False, or it won't work
     observation_model_settings = list()
-
 
     for current_link_definition in doppler_link_ends:
         print(current_link_definition.link_end_id(observation.retransmitter).reference_point)
@@ -201,13 +200,8 @@ for ifms_file in ifms_files:
     # Compute and set residuals in the IFMS observation collection
     estimation.compute_residuals_and_dependent_variables(compressed_observations, observation_simulators, bodies)
 
-    ### ------------------------------------------------------------------------------------------
-    ### RETRIEVE AND SAVE VARIOUS OBSERVATION OUTPUTS
-    ### ------------------------------------------------------------------------------------------
-
     concatenated_obs = compressed_observations.get_concatenated_observations()
     concatenated_computed_obs = compressed_observations.get_concatenated_computed_observations()
-
     # Retrieve RMS and mean of the residuals
     concatenated_residuals = compressed_observations.get_concatenated_residuals()
     rms_residuals = compressed_observations.get_rms_residuals()
@@ -283,55 +277,3 @@ plt.legend(loc='upper left', bbox_to_anchor=(1.00, 1.0), borderaxespad=0.)
 plt.show()
 plt.close('all')
 exit()
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, INCORPORATING ATMOSPHERIC CORRECTIONS PROVIDED IN IFMS FILES #####
-residuals_by_hand =(concatenated_computed_obs - (concatenated_obs - atmospheric_corrections))
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand))}\n')
-
-# Filtering Residuals ???
-filtered_residuals_by_hand = residuals_by_hand[residuals_by_hand < 0.1]
-print(f'mean_filtered_residuals: {abs(np.mean(filtered_residuals_by_hand))}\n')
-print(f'rms_filtered_residuals: {abs(np.sqrt(np.mean(filtered_residuals_by_hand**2)))}')
-####################################################################################################
-
-####################################################################################################
-##### COMPUTE RESIDUALS BY HAND, WITHOUT ATMOSPHERIC CORRECTIONS #####
-residuals_by_hand_no_atm_corr =(concatenated_computed_obs - concatenated_obs)
-#print(f'residuals_array: {abs(residuals_by_hand)}')
-print('Residuals by Hand, NO Atmospheric Corrections')
-print(f'rms_residuals: {abs(np.sqrt(np.mean(residuals_by_hand_no_atm_corr**2)))}')
-print(f'mean_residuals: {abs(np.mean(residuals_by_hand_no_atm_corr))}\n')
-####################################################################################################
-
-####################################################################################################
-# TUDATPY-PROVIDED RESIDUALS
-print('Tudatpy Residuals')
-print(f'rms_residuals: {rms_residuals}')
-print(f'mean_residuals: {mean_residuals}\n')
-####################################################################################################
-
-### SAVING FILES ####
-#np.savetxt('mex_unfiltered_residuals_rms' + '.dat',
-#           np.vstack(rms_residuals), delimiter=',')
-#np.savetxt('mex_unfiltered_residuals_mean' + '.dat',
-#           np.vstack(mean_residuals), delimiter=',')
-#####################
-
-# Retrieve the observation times list
-times = merged_ifms_collection.get_observation_times()
-times = [time.to_float() for time in times[0]]
-times = np.array(times)
-# Residuals Plot
-print(residuals_by_hand < 0.1)
-plt.scatter(times, residuals_by_hand, s = 6, marker = '+', label = 'Atm. Corr.')
-plt.axhline(abs(np.mean(residuals_by_hand)), label = f'mean residuals = {round(abs(np.mean(residuals_by_hand)),6)}', color = 'black', linestyle = '--')
-plt.axhline(abs(np.sqrt(np.mean(residuals_by_hand**2))), label = f'rms residuals = {round(abs(np.sqrt(np.mean(residuals_by_hand**2))),6)}', linestyle = '--')
-plt.axhline(-abs(np.sqrt(np.mean(residuals_by_hand**2))), linestyle = '--')
-plt.legend()
-plt.title('Mex Residuals')
-plt.xlabel('Time (s)')
-plt.ylabel('Residuals (Hz)')
-plt.show()
