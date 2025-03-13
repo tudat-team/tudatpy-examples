@@ -213,7 +213,7 @@ def create_observations(observation_model_settings, bodies):
     observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
 
     # Get the simulator settings directly from the real observations
-    observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(observations)
+    observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(observations, bodies)
 
     # Simulate the observations
     simulated_observations = estimation.simulate_observations(observation_simulation_settings, observation_simulators, bodies)

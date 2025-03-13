@@ -389,19 +389,35 @@ Subsequently, the integrator settings are defined using a RK4 integrator with th
 
 
 # Define a termination conditions to stop once altitude goes below 25 km
-termination_altitude_settings = propagation_setup.propagator.dependent_variable_termination(
-    dependent_variable_settings=propagation_setup.dependent_variable.altitude("STS", "Earth"),
-    limit_value=25.0e3,
-    use_as_lower_limit=True)
+altitude_limit = 25.0e3
+termination_altitude_settings = (
+    propagation_setup.propagator.dependent_variable_termination(
+        dependent_variable_settings=propagation_setup.dependent_variable.altitude(
+            "STS", "Earth"
+        ),
+        limit_value=altitude_limit,
+        use_as_lower_limit=True,
+    )
+)
 # Define a termination condition to stop after a given time (to avoid an endless skipping re-entry)
 termination_time_settings = propagation_setup.propagator.time_termination(simulation_start_epoch + max_simulation_time)
 # Combine the termination settings to stop when one of them is fulfilled
+termination_conditions = [termination_altitude_settings, termination_time_settings]
+# Add string representations of the termination conditions
+termination_conditions_repr = [
+    f"Altitude Termination at {altitude_limit/1e3}km",
+    "Time Termination",
+]
+
 combined_termination_settings = propagation_setup.propagator.hybrid_termination(
-    [termination_altitude_settings, termination_time_settings], fulfill_single_condition=True )
+    termination_conditions, fulfill_single_condition=True
+)
 
 # Create numerical integrator settings
 fixed_step_size = 0.5
-integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
+)
 
 # Create the propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -450,21 +466,45 @@ The results of the propagation are then processed to a more user-friendly form.
 """
 
 """
+### Termination Condition
+
+First, let's assess which of the two termination conditions that were defined in the `hybrid_termination()` condition triggered the termination of the propagation.
+This can be retrieved from the `termination_details` attribute of the `propagation_results` object, which will be an instance of `PropagationTerminationDetailsFromHybridCondition`.
+
+The `PropagationTerminationDetailsFromHybridCondition.was_condition_met_when_stopping` attribute is a list of boolean flags, which signs if each of the defined termination conditions in the `hybrid_termination()` condition was fulfilled.
+"""
+
+
+termination_details = dynamics_simulator.propagation_results.termination_details
+condition_met_flags = termination_details.was_condition_met_when_stopping
+
+condition_fulfilled = [
+    f"{condition:<35}: {met}"
+    for condition, met in zip(termination_conditions_repr, condition_met_flags)
+]
+
+print("Termination Conditions fulfilled:")
+print("\n".join(condition_fulfilled))
+
+
+"""
 ### Altitude over time
 
-First, let's plot the altitude of the `STS` vehicle over time.
+We can confirm that the propagation was terminated due to the altitude termination condition, by plotting it over the relative propagation time:
 """
 
 
 # Extract the time from the dependent variables array (and convert from seconds to minutes)
-time_min = dependent_variables_array[:,0] / 60
+time_min = (dependent_variables_array[:, 0] - dependent_variables_array[0, 0]) / 60
 
 # Define a matplotlib.pyplot figure
 plt.figure(figsize=(9, 5))
 # Plot the altitude over time
-plt.plot(time_min, dependent_variables_array[:,2]/1e3)
+plt.plot(time_min, dependent_variables_array[:, 2] / 1e3, label="Spacecraft Altitude")
+plt.axhline(altitude_limit / 1e3, color="r", label="Altitude Termination Limit")
+plt.legend()
 # Add label to the axis
-plt.xlabel("Time [min]"), plt.ylabel("Altitude [km]")
+plt.xlabel("Relative Time [min]"), plt.ylabel("Altitude [km]")
 # Add a grid
 plt.grid()
 # Use a tight layout to save space
@@ -497,8 +537,8 @@ The following plot then shows the total acceleration on the vehicle in `g` (Eart
 
 # Plot the g-load over time
 plt.figure(figsize=(9, 5))
-plt.plot(time_min, dependent_variables_array[:,9]/9.81)
-plt.xlabel("Time [min]"), plt.ylabel("Total g-load [-]")
+plt.plot(time_min, dependent_variables_array[:, 9] / 9.81)
+plt.xlabel("Relative Time [min]"), plt.ylabel("Total g-load [-]")
 plt.grid()
 plt.tight_layout()
 plt.show()
@@ -516,7 +556,7 @@ plt.figure(figsize=(9, 5))
 plt.plot(time_min, dependent_variables_array[:,5], label="Drag")
 plt.plot(time_min, dependent_variables_array[:,7], label="Lift")
 plt.plot(time_min, dependent_variables_array[:,7]/dependent_variables_array[:,5], label="Lift/Drag")
-plt.xlabel("Time [min]"), plt.ylabel("Aerodynamic coefficient [-]")
+plt.xlabel("Relative Time [min]"), plt.ylabel("Aerodynamic coefficient [-]")
 # Also add a legend
 plt.legend()
 plt.grid()
@@ -536,7 +576,7 @@ plt.figure(figsize=(9, 5))
 plt.plot(time_min, np.rad2deg(dependent_variables_array[:,3]), label="Bank angle")
 plt.plot(time_min, np.rad2deg(dependent_variables_array[:,4]), label="Angle of attack")
 plt.plot(time_min, np.rad2deg(dependent_variables_array[:,1]), label="Flight-path angle")
-plt.xlabel("Time [min]"), plt.ylabel("Angle [deg]")
+plt.xlabel("Relative Time [min]"), plt.ylabel("Angle [deg]")
 plt.legend()
 plt.grid()
 plt.tight_layout()
@@ -568,13 +608,13 @@ Plotting the derivative of the flight path angle over time finally allows to ana
 """
 
 
-flight_path_angle = dependent_variables_array[:,1]
+flight_path_angle = dependent_variables_array[:, 1]
 # Compute the derivative of the flight path angle over time (dot(gamma) = Delta gamma / Delta t)
 flight_path_angle_derivative = np.fabs(( flight_path_angle[1:flight_path_angle.size] - flight_path_angle[0:-1])/fixed_step_size)
 # Plot the derivative of the flight path angle over time
 plt.figure(figsize=(9, 5))
 plt.plot(time_min[0:-1], np.rad2deg(flight_path_angle_derivative))
-plt.xlabel("Time [min]"), plt.ylabel("Absolute flight-path angle rate [deg/s]")
+plt.xlabel("Relative Time [min]"), plt.ylabel("Absolute flight-path angle rate [deg/s]")
 # Make the y-axis logarithmic
 plt.yscale("log")
 # Have a tick on the y-axis every power of 10

@@ -3,7 +3,7 @@
 ## Objectives
 This example demonstrates the propagation of a (quasi-massless) body dominated by a central point-mass attractor, but also including multiple perturbing accelerations exerted by the central body as well as third bodies.
 
-The example showcases the ease with which a simulation environment can be extended to a multi-body system. It also demonstrates the wide variety of acceleration types that can be modelled using the propagation_setup.acceleration module, including accelerations from non-conservative forces such as drag and radiation pressure. Note that the modelling of these acceleration types requires special environment interfaces (implemented via `add_aerodynamic_coefficient_interface()`, `add_radiation_pressure_interface()`) of the body undergoing the accelerations.
+The example showcases the ease with which a simulation environment can be extended to a multi-body system. It also demonstrates the wide variety of acceleration types that can be modelled using the `propagation_setup.acceleration` module, including accelerations from non-conservative forces such as drag and radiation pressure. Note that the modelling of these acceleration types requires special environment interfaces (implemented via [AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html#tudatpy.numerical_simulation.environment_setup.aerodynamic_coefficients.AerodynamicCoefficientSettings) and [RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.numerical_simulation.environment_setup.radiation_pressure.RadiationPressureTargetModelSettings)) of the body undergoing the accelerations.
 
 It also demonstrates and motivates the usage of dependent variables. By keeping track of such variables throughout the propagation, valuable insight, such as contributions of individual acceleration types, ground tracks or the evolution of Kepler elements, can be derived in the post-propagation analysis.
 """
@@ -38,28 +38,25 @@ from tudatpy.astro.time_conversion import DateTime
 """
 ## Configuration
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
-
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000. The times should be specified in seconds since J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+See [SPICE in Tudat](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/default_env_models.html#spice-in-tudat) for an overview of the use of SPICE in Tudat.
 """
 
 
 # Load spice kernels
 spice.load_standard_kernels()
 
-# Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
-simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
-
 
 """
 ## Environment setup
 Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
 
-### Create the bodies
-Bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
+For more information on how to create and customize settings, see the [user guide on how to create bodies](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html#body-creation-procedure).
 
-The default body settings (such as atmosphere, body shape, rotation model) are taken from `SPICE`.
+### Create the bodies
+**Celestial** bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
+
+For the most common celestial bodies in our Solar system, default settings (such as atmosphere, body shape, rotation model) come predefined in Tudat.
+See the [user guide on default environment models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html#body-creation-procedure) for a comprehensive list of default models.
 
 These settings can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
 """
@@ -72,7 +69,7 @@ bodies_to_create = ["Sun", "Earth", "Moon", "Mars", "Venus"]
 global_frame_origin = "Earth"
 global_frame_orientation = "J2000"
 
-# Create default body settings, usually from `spice`.
+# Create default body settings
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create,
     global_frame_origin,
@@ -81,7 +78,8 @@ body_settings = environment_setup.get_default_body_settings(
 
 """
 ### Create the vehicle
-Let's now create the 2.2 kg satellite for which the perturbed orbit around Earth will be propagated.
+Let's now create `Delfi-C3`, the satellite for which the perturbed orbit around Earth will be propagated.
+Since Delfi-C3 is not a predefined celestial object, no default settings are available and the settings have to be created manually.
 """
 
 
@@ -90,7 +88,7 @@ body_settings.add_empty_settings("Delfi-C3")
 
 
 """
-To account for the aerodynamic of the satellite, let's add an aerodynamic interface and add it to the environment setup, taking the followings into account:
+To account for the aerodynamic of the satellite, an aerodynamic interface needs to be defined and assigned to Delfi-C3's settings, taking the followings into account:
 
 - A constant drag coefficient of 1.2.
 - A reference area of 0.035m $^2$ .
@@ -112,6 +110,9 @@ body_settings.get("Delfi-C3").aerodynamic_coefficient_settings = aero_coefficien
 
 """
 To account for the pressure of the solar radiation on the satellite, let's add another interface. This takes a radiation pressure coefficient of 1.2, and a radiation area of 4m $^2$ . This interface also accounts for the variation in pressure cause by the shadow of Earth.
+
+Note: Since we created the Sun using the default environment settings, the Sun will be assigned an isotropic source model with constant luminosity by default and we do not have to assign radiation source settings to the Sun manually.
+However, this can also be adapted to your needs, see [the API reference on radiation pressure](https://py.api.tudat.space/en/latest/radiation_pressure.html) for more information.
 """
 
 
@@ -201,6 +202,21 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 
 """
+### Define propagation start and end epochs
+
+Next, the start and end simulation epochs are specified.
+In Tudat, all epochs are defined as seconds since J2000.
+For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+"""
+
+
+# Set simulation start and end epochs
+simulation_start_epoch = DateTime(2008, 4, 28).epoch()
+simulation_end_epoch   = DateTime(2008, 4, 29).epoch()
+
+
+"""
 ### Define the initial state
 The initial state of the vehicle that will be propagated is now defined. 
 
@@ -213,9 +229,9 @@ Within this example, we will retrieve the initial state of Delfi-C3 using its Tw
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
 delfi_tle = environment.Tle(
     "1 32789U 07021G   08119.60740078 -.00000054  00000-0  00000+0 0  9999",
-    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68"
+    "2 32789 098.0082 179.6267 0015321 307.2977 051.0656 14.81417433    68",
 )
-delfi_ephemeris = environment.TleEphemeris( "Earth", "J2000", delfi_tle, False )
+delfi_ephemeris = environment.TleEphemeris("Earth", "J2000", delfi_tle, False)
 initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 
 
@@ -252,7 +268,7 @@ dependent_variables_to_save = [
         propagation_setup.acceleration.aerodynamic_type, "Delfi-C3", "Earth"
     ),
     propagation_setup.dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.cannonball_radiation_pressure_type, "Delfi-C3", "Sun"
+        propagation_setup.acceleration.radiation_pressure_type, "Delfi-C3", "Sun"
     )
 ]
 
@@ -274,7 +290,9 @@ termination_condition = propagation_setup.propagator.time_termination(simulation
 
 # Create numerical integrator settings
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(fixed_step_size)
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
+)
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -293,7 +311,7 @@ propagator_settings = propagation_setup.propagator.translational(
 ## Propagate the orbit
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -330,7 +348,7 @@ Let's first plot the total acceleration on the satellite over time. This can be 
 
 
 # Plot total acceleration as function of time
-time_hours = dep_vars_array[:,0]/3600
+time_hours = (dep_vars_array[:,0] - dep_vars_array[0,0])/3600
 total_acceleration_norm = np.linalg.norm(dep_vars_array[:,1:4], axis=1)
 plt.figure(figsize=(9, 5))
 plt.title("Total acceleration norm on Delfi-C3 over the course of propagation.")

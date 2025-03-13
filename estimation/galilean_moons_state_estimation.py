@@ -505,7 +505,7 @@ ax2.set_title(r'Difference in Laplace Resonance $\Delta\Phi_L$')
 ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
-ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
+ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]')
 
 
 plt.show()
