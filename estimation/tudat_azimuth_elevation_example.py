@@ -307,7 +307,7 @@ def plot_combined_elevation(
     for idx, station_name in enumerate(station_names):
         horizons_coord = horizons_coordinates_dict[station_name]
 
-        # The following query to Horizons and subsequent application of the Tudatpy 'interpolated_az_el' method
+        # The following query to Horizons and subsequent application of the Tudatpy 'interpolated_station_angles' method
         # allow to retrieve inteprolated azimuths and elevations.
         # This call to horizons differs from the ones we have done before, in that it does not provide Ephemeris,
         # but rather a list of azimuths and elevations (observables).
@@ -320,7 +320,7 @@ def plot_combined_elevation(
                 epoch_step= time_step
             )
 
-            horizons_antenna_az_el = query_az_el.interpolated_az_el(degrees = True)
+            horizons_antenna_az_el = query_az_el.interpolated_station_angles(degrees = True)
             start_end_condition = np.logical_and(
                 horizons_antenna_az_el[:, 0] >= actual_seconds_start_epoch,
                 horizons_antenna_az_el[:, 0] <= actual_seconds_end_epoch
