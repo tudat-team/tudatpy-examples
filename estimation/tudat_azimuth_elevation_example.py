@@ -84,8 +84,8 @@ def plot_combined_elevation(
     # Load standard spice kernels. These are needed - for instance - to properly create the Tudat body_settings.
     spice.load_standard_kernels()
 
-    # Define the list of bodies that will be created in the system model.
-    bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
+    # Define the list of bodies that will be created in the system model. In this case, we only need the Earth.
+    bodies_to_create = ["Earth"]
 
     # Convert start and end epochs to Julian Day
     jd_start_epoch = time_conversion.calendar_date_to_julian_day(datetime.strptime(start_epoch, time_format))
