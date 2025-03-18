@@ -174,7 +174,7 @@ def plot_combined_elevation(
     # These include - but are not limited to: DSN and EStrack Antennas, EVN/VLBA Antennas.
     # The function 'radio_telescope_stations()' of the 'environment_setup.ground_station' class
     # allows to add all Tudat radio stations in the Tudat environment.
-    # See [Tudatpy API Reference](ADD_LINK)
+    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.numerical_simulation.environment_setup.ground_station.radio_telescope_stations)
     all_tudat_radio_telescopes_settings =  environment_setup.ground_station.radio_telescope_stations()
     all_tudat_radio_telescopes_names = [telescope.station_name for telescope in all_tudat_radio_telescopes_settings]
 
@@ -199,7 +199,7 @@ def plot_combined_elevation(
     # Three cases are consdiered:
     # 1) The considered station is part of the Tudat list of stations, and it is not part of the geodetic_positions user-defined dictionary
     #    In this case, the geodetic position is retrieved from the Tudat-defined cartesian position via the 'convert_cartesian_to_geodetic_coordinates' function.
-    #    See: ADD_LINK
+    #    See:[Tudatpy API Reference](https://py.api.tudat.space/en/latest/element_conversion.html#tudatpy.astro.element_conversion.convert_cartesian_to_geodetic_coordinates)
     # 2) The considered station is part of the Tudat list of stations, and it is also part of the geodetic_positions user-defined dictionary.
     #    In this case, the Tudat-default station location is replaced by the cartesian position corresponding to the user-defined geodetic position
     #    This is done via the 'convert_position_elements' function.
