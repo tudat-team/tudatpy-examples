@@ -114,6 +114,7 @@ def plot_combined_elevation(
     # First, we use 'get_default_body_settings_time_limited' to retrieve the default settings
     #for the given set of input bodies, with a limited valid time interval.
     # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.get_default_body_settings_time_limited)
+    # Please note that, although it is not necessary to create time limited settings function, the code will run faster if you use it. 
     body_settings = environment_setup.get_default_body_settings_time_limited(
         bodies_to_create, simulation_seconds_start_epoch, simulation_seconds_end_epoch, global_frame_origin, global_frame_orientation)
     body_settings.add_empty_settings(target)
