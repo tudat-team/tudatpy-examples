@@ -6,6 +6,7 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 # Load required standard modules
 import multiprocessing as mp
 import os
+import shutil
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -19,6 +20,7 @@ from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
 from tudatpy.data import processTrk234
+from tudatpy.data.processTrk234 import Trk234Processor
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
 from datetime import datetime
@@ -443,11 +445,17 @@ def perform_residuals_analysis(inputs):
         # For the latest TNF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
         tnf_files = tnf_files[:-1]
 
-        original_odf_observations, _, _, _ = (
-            processTrk234.create_observation_collection_from_tnf(
-                tnf_files, bodies, spacecraftName="MRO"
-            )
+        tnfProcessor = Trk234Processor(
+            tnf_files, ["doppler", "range"], spacecraft_name="MRO"
         )
+        original_odf_observations = tnfProcessor.process()
+        tnfProcessor.set_tnf_information_in_bodies(bodies)
+
+        # original_odf_observations = (
+        #     processTrk234.create_observation_collection_from_tnf(
+        #         tnf_files, bodies, spacecraftName="MRO"
+        #     )
+        # )
 
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []
