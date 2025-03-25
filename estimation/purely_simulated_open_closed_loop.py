@@ -1,14 +1,7 @@
 """
-THIS SCRIPT SHOWCASES HOW TO GO FROM OPEN-LOOP DATA (PRIDE) to EQUIVALENT CLOSED-LOOP DATA.
-PRIDE OBSERVABLES (FDETS) OBTAINED DURING THE GR035 EXPERIMENT ARE COMPARED AGAINST BOTH ODF AND IFMS TO VALIDATE THE RESULTS.
-THE DIFFERENCE WE SEE IN FREQUENCY AFTER CONVERSION IS GIVEN BY THE DIFFERENCE IN STATION POSITIONS
-(PRIDE: ONSALA60, ODF: DSS-63, IFMS: NWNORCIA)
-
-THIS SCRIPT ALSO SHOWCASES HOW TO GO FROM SIMULATED OPEN-LOOP DATA (within TUDAT) to SIMULATED EQUIVALENT CLOSED-LOOP DATA.
-THE DIFFERENCE WE SEE IN FREQUENCY AFTER CONVERSION IS GIVEN BY THE DIFFERENCE IN STATION POSITIONS
-(PRIDE: ONSALA60, ODF: DSS-63, IFMS: NWNORCIA)
-
-PLEASE NOTE THE RESIDUALS DO NOT HAVE THE TROPOSPHERIC CORRECTION IMPLEMENTED YET.
+THIS SCRIPT SHOWCASES HOW TO GO FROM SIMULATED OPEN-LOOP DATA (within TUDAT) to SIMULATED EQUIVALENT CLOSED-LOOP DATA.
+WE DO NOT IMPLEMENT TROPOSPHERIC CORRECTION YET.
+USE DEVELOP BRANCH for TUDTA AND TUDATPY, tudat::Time scalar type
 """
 import os
 from tudatpy.interface import spice
@@ -201,6 +194,12 @@ closed_loop_collection = estimation.simulate_observations(closed_loop_observatio
 estimation.compute_residuals_and_dependent_variables(closed_loop_collection, closed_loop_observation_simulators, bodies) # ifms simulator
 exit()
 
+# END OF INTERESTING PART OF THE CODE, UP TO THE FIRST TRIGGERED ERROR (on line 200, in simulate_observations)
+# RuntimeError: Error in nearest neighbour search, size of input vector is 1
+###################################################################################################
+###################################################################################################
+############################################################################################################
+
 simulated_observations_fdets = fdets_collection.get_computed_observations() # simulated open-loop (FDETS)
 simulated_observations_ifms = ifms_collection.get_computed_observations() # simulated closed-loop (IFMS)
 
@@ -276,7 +275,7 @@ axs[2].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=7)
 axs[2].grid(True)
 plt.show()
 exit()
-###################################################################################################vations = fdets_collection.get_computed_observations()
+###################################################################################################
 
 
 ###############################################################################################################
