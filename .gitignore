@@ -15,6 +15,8 @@ boost-numpy-eigen-*-Linux.tar.gz
 *.o
 *.so
 data/
+mro_kernels/
+outputs/
 
 # Common build output folders
 cmake-build-debug/
