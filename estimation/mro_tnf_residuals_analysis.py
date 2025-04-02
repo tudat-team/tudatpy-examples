@@ -451,12 +451,6 @@ def perform_residuals_analysis(inputs):
         original_odf_observations = tnfProcessor.process()
         tnfProcessor.set_tnf_information_in_bodies(bodies)
 
-        # original_odf_observations = (
-        #     processTrk234.create_observation_collection_from_tnf(
-        #         tnf_files, bodies, spacecraftName="MRO"
-        #     )
-        # )
-
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []
         for date in dates_to_filter:
@@ -918,26 +912,28 @@ if __name__ == "__main__":
     setup_outputs_folder("outputs")
 
     # Specify the number of cores over which this example is to run
-    nb_cores = 6
+    # nb_cores = 6
+    nb_cores = 1
 
     # Define start and end dates for the six time intervals to be analysed in parallel computations.
     # Each parallel run covers two months of data for the example to parse a total timespan of one year.
     start_dates = [
-        datetime(2012, 1, 1),
-        datetime(2012, 3, 1),
-        datetime(2012, 5, 1),
-        datetime(2012, 7, 1),
-        datetime(2012, 9, 1),
-        datetime(2012, 11, 1),
+        datetime(2012, 1, 2),
+        # datetime(2012, 3, 1),
+        # datetime(2012, 5, 1),
+        # datetime(2012, 7, 1),
+        # datetime(2012, 9, 1),
+        # datetime(2012, 11, 1),
     ]
 
     end_dates = [
+        # datetime(2012, 1, 4),
         datetime(2012, 2, 29),
-        datetime(2012, 4, 30),
-        datetime(2012, 6, 30),
-        datetime(2012, 8, 31),
-        datetime(2012, 10, 31),
-        datetime(2012, 12, 31),
+        # datetime(2012, 4, 30),
+        # datetime(2012, 6, 30),
+        # datetime(2012, 8, 31),
+        # datetime(2012, 10, 31),
+        # datetime(2012, 12, 31),
     ]
 
     # For each parallel run
