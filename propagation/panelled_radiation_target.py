@@ -248,6 +248,18 @@ vehicle_system_settings = environment_setup.vehicle_systems.full_panelled_body_s
     panel_settings
 )
 
+# Note: The previous manual setup is equivalent to using the box-wing setup function
+# vehicle_system_settings = environment_setup.vehicle_systems.box_wing_body_settings(
+#     L,
+#     W,
+#     H,
+#     solar_array_area=L * W * 2,
+#     box_specular_reflectivity=0.0,
+#     box_diffuse_reflectivity=0.5,
+#     solar_array_specular_reflectivity=0.5,
+#     solar_array_diffuse_reflectivity=0.5,
+# )
+
 body_settings.get("Delfi-NP").vehicle_shape_settings = vehicle_system_settings
 
 # Define that Delfi-NP should use be modelled as panelled_radiation_target
