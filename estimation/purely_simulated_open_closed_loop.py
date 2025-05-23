@@ -15,13 +15,20 @@ from datetime import datetime
 from tudatpy.numerical_simulation import Time
 import matplotlib.pyplot as plt
 import numpy as np
-from tudatpy import data
 from scipy.interpolate import interp1d
-from scipy.integrate import fixed_quad, quad
-
+from scipy.integrate import quad
 
 
 #########################################################
+
+def compute_midpoint_indices(array_length, integration_time):
+    indices = []
+    num_windows = array_length // integration_time
+    for i in range(num_windows):
+        start_index = i * integration_time
+        midpoint_index = start_index + (integration_time - 1) // 2
+        indices.append(midpoint_index)
+    return indices
 
 def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
     results = list()
@@ -58,13 +65,11 @@ for kernel in os.listdir(mex_kernels_folder):
 start = datetime(2013, 12, 29, 1, 00, 00)
 end = datetime(2013, 12, 29, 11, 00, 00)
 
-integration_time = 200
-open_loop_cadence = 1
+integration_time = 600
+open_loop_cadence = 10
 
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() # in utc
 end_time = time_conversion.datetime_to_tudat(end).epoch().to_float()  # in utc
-times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc
-tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc
 
 # Create default body settings for celestial bodies
 bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
@@ -90,21 +95,20 @@ spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
 body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
     start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
-
 # Retrieve rotational ephemeris from SPICE
 body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
     global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
-
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
-
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
-
 body_fixed_station_position = bodies.get('Earth').get_ground_station('ONSALA60').station_state.get_cartesian_position(0)
 
 ################# First conversion: Convert UTC times to TDB. ########################################
+times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
+tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
+
 time_scale_converter = time_conversion.default_time_scale_converter()
-tudat_times_linspace_tdb = list() #prepare TDB tudat::Time list
+tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
 for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TDB
     tudat_times_linspace_tdb.append( time_scale_converter.convert_time(
         input_scale = time_conversion.utc_scale,
@@ -112,7 +116,31 @@ for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TD
         input_value = time_utc,
         earth_fixed_position = body_fixed_station_position))
 
-times_linspace_tdb = [tudat_times_tdb.to_float() for tudat_times_tdb in tudat_times_linspace_tdb]
+times_linspace_tdb = [tudat_times_tdb.to_float() for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
+
+#################################### ANOTHER VALIDATION PLOT ######################################################
+tdb_utc_diff = [tdb - utc for tdb, utc in zip(times_linspace_tdb, times_linspace)] # Compute TDB - UTC difference
+utc_spacing = [times_linspace[i+1] - times_linspace[i] for i in range(len(times_linspace)-1)] # Compute UTC spacing
+tdb_spacing = [times_linspace_tdb[i+1] - times_linspace_tdb[i] for i in range(len(times_linspace_tdb)-1)] # Compute TDB spacing
+fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+# First subplot: TDB - UTC
+axs[0].scatter(times_linspace, tdb_utc_diff, label='TDB - UTC', color='blue', s=10)
+axs[0].set_title('Difference Between TDB and UTC')
+axs[0].set_ylabel('TDB - UTC [s]')
+axs[0].grid(True)
+# Second subplot: UTC spacing
+axs[1].plot(times_linspace[1:], utc_spacing, label='UTC Spacing', color='green')
+axs[1].set_title('UTC Time Step Spacing')
+axs[1].set_ylabel('Δt [s]')
+axs[1].grid(True)
+# Third subplot: TDB spacing
+axs[2].plot(times_linspace_tdb[1:], tdb_spacing, label='TDB Spacing', color='red')
+axs[2].set_title('TDB Time Step Spacing')
+axs[2].set_xlabel('Time [s]')
+axs[2].set_ylabel('Δt [s]')
+axs[2].grid(True)
+plt.tight_layout()
+plt.show()
 ########################################################################################################
 
 ######## APPLY TROPOSPHERIC CORRECTION FOR UPLINK AND DOWNLINK ########################################################################################################
@@ -130,13 +158,9 @@ vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body("MEX").system_models = vehicleSys
 base_frequency = 8412e6 # MEX Base frequency
-column_types = ["utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max","doppler_measured_frequency_hz", "doppler_noise_hz"]
 reception_band = observation.FrequencyBands.x_band
 transmission_band = observation.FrequencyBands.x_band
 turnaround_ratio = observation.dsn_default_turnaround_ratios( observation.FrequencyBands.x_band,observation.FrequencyBands.x_band)
-sites_list = []
-fdets_files = []
-ifms_files = []
 ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
 bodies.get( "Earth" ).get_ground_station( "NWNORCIA" ).transmitting_frequency_calculator = environment.ConstantTransmittingFrequencyCalculator( 7166445042.992178 )
 ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
@@ -171,6 +195,107 @@ open_loop_observation_simulation_settings = [observation.tabulated_simulation_se
 )]
 #############################################################################################
 
+############### Create OPEN LOOP observation simulator ###############
+open_loop_observation_simulators = estimation_setup.create_observation_simulators(open_loop_observation_model_settings, bodies)
+#############################################################
+
+############### Retrieve OPEN LOOP Collection ########################
+open_loop_collection = estimation.simulate_observations(open_loop_observation_simulation_settings, open_loop_observation_simulators, bodies)
+############### Compute OPEN LOOOP Residuals and Dependent Variables ########################
+estimation.compute_residuals_and_dependent_variables(open_loop_collection, open_loop_observation_simulators, bodies) # fdets simulator
+##################################################################################
+
+############### Retrieve OPEN LOOP Simulated Observations ########################
+simulated_observations_fdets = open_loop_collection.get_observations()[0] # simulated open-loop (FDETS)
+########## ANOTHER VALIDATION PLOT #################
+simulated_fdets = np.array(times_linspace)
+original_tdb = np.array(times_linspace_tdb)
+diff_fdets = simulated_fdets - original_tdb
+fig, axs = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+
+# First subplot: FDETS
+axs[0].plot(simulated_fdets, diff_fdets, label='FDETS_TDB - TDB', color='blue')
+axs[0].set_title('FDETS Simulation TDB − Original TDB')
+axs[0].set_ylabel('Difference [s]')
+axs[0].grid(True)
+
+plt.tight_layout()
+plt.show()
+##############################################################
+# These are the calendar date corresponding to the converted UTC times (in other words, these are the UTC timetags in the fdets files)
+simulated_times_fdets_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in times_linspace]
+################ Interpolated, simulated open loop (FDETS) continous function ##############################
+# Interpolate the simulated open loop and closed loop, using the UTC times (these are basically the float versions of the fdets/ifms time tags)
+simulated_open_loop_continuous_function_utc = interp1d(times_linspace, simulated_observations_fdets, kind='cubic', fill_value='extrapolate')
+################ Compute quadrature to convert simulated open_loop into equivalent simulated closed loop ##############
+simulated_equivalent_closed_loop_observables, simulated_equivalent_closed_loop_times = compute_scipy_quadrature(
+    simulated_open_loop_continuous_function_utc,
+    times_linspace, # quadrature: times enter in UTC
+    integration_time = integration_time)
+
+tudat_simulated_equivalent_closed_loop_times = [Time(time_utc) for time_utc in simulated_equivalent_closed_loop_times]
+closed_loop_tudat_times_linspace_tdb = list()
+for time_utc in tudat_simulated_equivalent_closed_loop_times: # for each UTC epoch, convert it to TDB
+    closed_loop_tudat_times_linspace_tdb.append( time_scale_converter.convert_time(
+        input_scale = time_conversion.utc_scale,
+        output_scale = time_conversion.tdb_scale,
+        input_value = time_utc,
+        earth_fixed_position = body_fixed_station_position))
+
+closed_loop_times_linspace_tdb = [time_tudat_tdb.to_float() for time_tudat_tdb in closed_loop_tudat_times_linspace_tdb]
+#######################################################################################################################
+################# Format times to CALENDAR UTC ################
+simulated_equivalent_closed_loop_times_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in simulated_equivalent_closed_loop_times]
+#######################################################
+# Calculate spacing (differences between consecutive elements)
+spacing_open_loop_utc = np.diff(times_linspace)
+spacing_closed_loop_utc = np.diff(simulated_equivalent_closed_loop_times)
+spacing_open_loop_tdb = np.diff(times_linspace)
+spacing_closed_loop_tdb = np.diff(closed_loop_times_linspace_tdb)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))  # Create a figure with two subplots
+
+# First subplot: Line plots
+axes[0].plot(spacing_open_loop_utc, marker='o', linestyle='-', alpha=0.7, label='Open loop UTC spacing')
+axes[0].plot(spacing_closed_loop_utc, marker='x', linestyle='--', alpha=0.7, label='Closed loop UTC spacing')
+axes[0].set_xlabel('Index')
+axes[0].set_ylabel('Spacing between consecutive UTC elements')
+axes[0].set_title('Spacing Between Consecutive Elements in Each UTC Array')
+axes[0].legend()
+axes[0].grid(True)
+
+# Second subplot: Scatter plots
+axes[1].plot(times_linspace, times_linspace, 'o', alpha=0.5, label='Open Loop UTC')
+axes[1].plot(simulated_equivalent_closed_loop_times,simulated_equivalent_closed_loop_times, '+', label='Closed Loop UTC')
+axes[1].set_xlabel('UTC Time')
+axes[1].set_title('UTC Time Comparisons')
+axes[1].legend()
+
+plt.tight_layout()  # Adjust layout to prevent overlap
+plt.show()
+plt.close()
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))  # Create a figure with two subplots
+
+# First subplot: Line plots
+axes[0].plot(spacing_open_loop_tdb, marker='o', linestyle='-', alpha=0.7, label='Open loop UTC spacing')
+axes[0].plot(spacing_closed_loop_tdb, marker='x', linestyle='--', alpha=0.7, label='Closed loop UTC spacing')
+axes[0].set_xlabel('Index')
+axes[0].set_ylabel('Spacing between consecutive UTC elements')
+axes[0].set_title('Spacing Between Consecutive Elements in Each UTC Array')
+axes[0].legend()
+axes[0].grid(True)
+
+# Second subplot: Scatter plots
+axes[1].plot(times_linspace, times_linspace, 'o', alpha=0.5, label='Open Loop TDB')
+axes[1].plot(closed_loop_times_linspace_tdb,closed_loop_times_linspace_tdb, '+', label='Closed Loop TDB')
+axes[1].set_xlabel('TDB Time')
+axes[1].set_title('TDB Time Comparisons')
+axes[1].legend()
+
+plt.tight_layout()  # Adjust layout to prevent overlap
+plt.show()
+plt.close()
 ################### Define Closed Loop Observation and Ancillary settings ###################
 closed_loop_observation_model_settings = [
     estimation_setup.observation.dsn_n_way_doppler_averaged(
@@ -186,67 +311,23 @@ closed_loop_ancillary_settings = observation.dsn_n_way_doppler_ancilliary_settin
 closed_loop_observation_simulation_settings = [observation.tabulated_simulation_settings(
     observable_type = estimation_setup.observation.dsn_n_way_averaged_doppler,
     link_ends = link_definition,
-    simulation_times = tudat_times_linspace_tdb,
+    simulation_times = closed_loop_tudat_times_linspace_tdb,
     ancilliary_settings = closed_loop_ancillary_settings
 )]
-#############################################################################################
 
-############### Create observation simulators ###############
 closed_loop_observation_simulators = estimation_setup.create_observation_simulators(closed_loop_observation_model_settings, bodies)
-open_loop_observation_simulators = estimation_setup.create_observation_simulators(open_loop_observation_model_settings, bodies)
-#############################################################
-
-############### Retrieve Collections ########################
-open_loop_collection = estimation.simulate_observations(open_loop_observation_simulation_settings, open_loop_observation_simulators, bodies)
 closed_loop_collection = estimation.simulate_observations(closed_loop_observation_simulation_settings, closed_loop_observation_simulators, bodies)
-#############################################################
-
-############### Compute Residuals and Dependent Variables ########################
-estimation.compute_residuals_and_dependent_variables(open_loop_collection, open_loop_observation_simulators, bodies) # fdets simulator
 estimation.compute_residuals_and_dependent_variables(closed_loop_collection, closed_loop_observation_simulators, bodies) # ifms simulator
-##################################################################################
-
-############### Retrieve Simulated Observations ########################
-simulated_observations_fdets = open_loop_collection.get_observations()[0] # simulated open-loop (FDETS)
 simulated_observations_ifms = closed_loop_collection.get_observations()[0] # simulated closed-loop (IFMS)
-simulated_times_fdets = open_loop_collection.get_observation_times()[0] # simulated open-loop (FDETS) # TDB
-simulated_times_ifms = closed_loop_collection.get_observation_times()[0] # simulated closed-loop (IFMS) # TDB
-simulated_times_ifms_float = [time.to_float() for time in simulated_times_ifms] # TDB
-simulated_times_fdets_float = [time.to_float() for time in simulated_times_fdets] # TDB
-
-# These are the calendar date corresponding to the converted UTC times (in other words, these are the UTC timetags in the fdets files)
-simulated_times_fdets_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in times_linspace]
-simulated_times_ifms_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in times_linspace]
-
-################ Interpolated, simulated closed loop continous functions (IFMS and FDETS) ##############################
-# Interpolate the simulated open loop and closed loop, using the UTC times (these are basically the float versions of the fdets/ifms time tags)
-simulated_closed_loop_continuous_function_utc = interp1d(times_linspace, simulated_observations_ifms, kind='cubic', fill_value='extrapolate')
-simulated_open_loop_continuous_function_utc = interp1d(times_linspace, simulated_observations_fdets, kind='cubic', fill_value='extrapolate')
-########################################################################################################################
-
-################ Compute quadrature to convert simulated open_loop into equivalent simulated closed loop ##############
-simulated_equivalent_closed_loop_observables, simulated_equivalent_closed_loop_times = compute_scipy_quadrature(
-    simulated_open_loop_continuous_function_utc,
-    times_linspace, # quadrature: times enter in UTC
-    integration_time = integration_time)
-#######################################################################################################################
-
-################# Format times to CALENDAR UTC ################
-simulated_equivalent_closed_loop_times_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in simulated_equivalent_closed_loop_times]
-#######################################################
-
 ################ Retrieve the tones ###################
 simulated_open_loop_tone = simulated_observations_fdets - base_frequency # (this is in tdb)
 simulated_equivalent_closed_loop_tone = np.array(simulated_equivalent_closed_loop_observables) - base_frequency # (this is evaluated at utc)
-simulated_observations_ifms_tone =  simulated_observations_ifms - base_frequency # (this is in tdb)
+simulated_closed_loop_tone =  simulated_observations_ifms - base_frequency # (this is in tdb equivalent to the utc times of the equivalent closed-loop doppler)
 #######################################################
 
 ################# Retrieve differences between the two simulated closed loop (equivalent-ifms) ################
-simulated_closed_loop_tone = [
-    simulated_closed_loop_continuous_function_utc(midpoint) - base_frequency
-    for midpoint in simulated_equivalent_closed_loop_times]
-
 difference_between_closed_loops_utc = [j-i for i, j in zip(simulated_equivalent_closed_loop_tone,simulated_closed_loop_tone)]
+simulated_times_ifms_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in simulated_equivalent_closed_loop_times]
 ###############################################################################################################
 
 ######################## Retrieve Statistics (mean and rms) #######################
@@ -258,6 +339,31 @@ mean_ifms_residuals = np.mean(closed_loop_collection.get_concatenated_residuals(
 rms_ifms_residuals = np.std(closed_loop_collection.get_concatenated_residuals())
 ###################################################################################
 
+####### ANOTHER VALIDATION PLOT ###########
+open_loop_values = simulated_open_loop_continuous_function_utc(times_linspace) - base_frequency
+closed_loop_values = simulated_closed_loop_tone
+#residual = closed_loop_values - open_loop_values
+fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+axs[0].scatter(times_linspace, open_loop_values, label='Open Loop (FDETS)', color='orange')
+axs[0].scatter(simulated_equivalent_closed_loop_times, closed_loop_values, label='Closed Loop (IFMS)', color='blue')
+axs[0].set_title('Interpolated Doppler Observations (UTC)')
+axs[0].set_ylabel('Doppler Value')
+axs[0].grid(True)
+axs[0].legend()
+
+# Second subplot: Residual
+#axs[1].plot(simulated_equivalent_closed_loop_times[np.abs(residual)<1000], residual[np.abs(residual)<1000], label='Closed - Open Loop', color='green')
+axs[1].set_title('Difference Between Closed and Open Loop Doppler')
+axs[1].set_xlabel('UTC Time [s]')
+axs[1].set_ylabel('Residual')
+axs[1].grid(True)
+axs[1].legend()
+
+plt.tight_layout()
+plt.show()
+########################################################################################################################
+
 ######################## Visualize data and residuals  ###########################
 fig, axs = plt.subplots(3, 1, figsize=(10, 12))
 axs[0].scatter(simulated_times_fdets_utc, simulated_open_loop_tone, marker='o', label='Simulated Open-Loop Tone', s=15, alpha=0.5)
@@ -267,7 +373,7 @@ axs[0].set_ylabel('$f_{tone} = f_{R} - f_{base}$ [Hz], $f_{base} = 8412$ MHz')
 axs[0].legend()
 axs[0].grid(True)
 
-axs[1].scatter(simulated_times_ifms_utc, simulated_observations_ifms_tone, marker='o', label='Simulated Closed-Loop Tone', s=15, alpha=0.5)
+axs[1].scatter(simulated_times_ifms_utc, simulated_closed_loop_tone, marker='o', label='Simulated Closed-Loop Tone', s=15, alpha=0.5)
 axs[1].scatter(simulated_equivalent_closed_loop_times_utc, simulated_equivalent_closed_loop_tone, marker='o', label='Simulated Equivalent Closed-Loop Tone', s=15, alpha=0.5)
 axs[1].set_xlabel('Time [s] (Midpoint of Interval)')
 axs[1].set_ylabel('$f_{tone} = f_{R} - f_{base}$ [Hz], $f_{base} = 8412$ MHz')
