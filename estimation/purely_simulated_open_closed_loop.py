@@ -17,19 +17,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 
 
-#########################################################
 
-def compute_midpoint_indices(array_length, integration_time):
-    indices = []
-    num_windows = array_length // integration_time
-    for i in range(num_windows):
-        start_index = i * integration_time
-        midpoint_index = start_index + (integration_time - 1) // 2
-        indices.append(midpoint_index)
-    return indices
-
+########################################################
 def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
     results = list()
     midpoints = list()
@@ -62,10 +54,11 @@ for kernel in os.listdir(mex_kernels_folder):
     spice.load_kernel(kernel_path)
 
 # Define Start and end Dates of Simulation
-start = datetime(2013, 12, 29, 1, 00, 00)
-end = datetime(2013, 12, 29, 11, 00, 00)
-
-integration_time = 600
+#start = datetime(2013, 12, 28, 00, 00, 00)
+#end = datetime(2013, 12, 31, 23, 00, 00)
+start = datetime(2013, 12, 28, 00, 00, 00)
+end = datetime(2013, 12, 28, 12, 00, 00)
+integration_time = 60
 open_loop_cadence = 10
 
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() # in utc
@@ -208,9 +201,10 @@ estimation.compute_residuals_and_dependent_variables(open_loop_collection, open_
 ############### Retrieve OPEN LOOP Simulated Observations ########################
 simulated_observations_fdets = open_loop_collection.get_observations()[0] # simulated open-loop (FDETS)
 ########## ANOTHER VALIDATION PLOT #################
-simulated_fdets = np.array(times_linspace)
-original_tdb = np.array(times_linspace_tdb)
-diff_fdets = simulated_fdets - original_tdb
+simulated_fdets = np.array(times_linspace) #utc
+original_tdb = np.array(times_linspace_tdb) #tdb
+diff_fdets = simulated_fdets - original_tdb #utc-tdb
+
 fig, axs = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
 
 # First subplot: FDETS
@@ -340,25 +334,54 @@ rms_ifms_residuals = np.std(closed_loop_collection.get_concatenated_residuals())
 ###################################################################################
 
 ####### ANOTHER VALIDATION PLOT ###########
-open_loop_values = simulated_open_loop_continuous_function_utc(times_linspace) - base_frequency
-closed_loop_values = simulated_closed_loop_tone
-#residual = closed_loop_values - open_loop_values
-fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+closed_loop_interpol = interp1d(simulated_equivalent_closed_loop_times,simulated_closed_loop_tone)
+cond = (times_linspace >= np.min(simulated_equivalent_closed_loop_times)) & \
+       (times_linspace <= np.max(simulated_equivalent_closed_loop_times))
 
-axs[0].scatter(times_linspace, open_loop_values, label='Open Loop (FDETS)', color='orange')
-axs[0].scatter(simulated_equivalent_closed_loop_times, closed_loop_values, label='Closed Loop (IFMS)', color='blue')
-axs[0].set_title('Interpolated Doppler Observations (UTC)')
-axs[0].set_ylabel('Doppler Value')
+valid_times = times_linspace[cond]
+closed_loop_values = closed_loop_interpol(valid_times)
+open_loop_values = simulated_open_loop_continuous_function_utc(valid_times) - base_frequency
+residual = closed_loop_values - open_loop_values
+
+first_derivative = np.gradient(open_loop_values, valid_times)
+second_derivative = np.gradient(first_derivative, valid_times)
+fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+
+
+axs[0].scatter(valid_times, open_loop_values, label='Open Loop (FDETS)', color='orange')
+axs[0].scatter(valid_times, closed_loop_values, label='Closed Loop (IFMS)', color='blue', alpha = 0.4, marker = '+')
+axs[0].set_title('Interpolated (Simulated) Doppler Observations')
+axs[0].set_ylabel('Doppler Tone [Hz]')
 axs[0].grid(True)
 axs[0].legend()
 
 # Second subplot: Residual
-#axs[1].plot(simulated_equivalent_closed_loop_times[np.abs(residual)<1000], residual[np.abs(residual)<1000], label='Closed - Open Loop', color='green')
+axs[1].plot(valid_times[np.abs(residual)<1000], residual[np.abs(residual)<1000], label='Closed - Open Loop', color='green')
+axs[1].plot(valid_times, second_derivative*integration_time**2/24, label="Quadratic Term", color='r')
 axs[1].set_title('Difference Between Closed and Open Loop Doppler')
 axs[1].set_xlabel('UTC Time [s]')
-axs[1].set_ylabel('Residual')
+axs[1].set_ylabel(r'$h_c(t) - h_o(t) \approx \frac{T^2}{24} \cdot h_o^{\prime\prime}(t)$ [Hz]')
 axs[1].grid(True)
-axs[1].legend()
+axs[1].legend(loc='upper left')
+
+# Add zoom inset to axs[1]
+axins = inset_axes(axs[1], width="30%", height="20%", loc='upper right')  # Adjust loc if needed
+axins.plot(valid_times, residual, 'green')
+axins.plot(valid_times, second_derivative*integration_time**2/24, 'red')
+
+# Set zoomed region
+axins.set_xlim(valid_times[1520], valid_times[1760])
+axins.set_ylim(-130, 10)
+
+# Draw lines showing zoomed area
+mark_inset(axs[1], axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
+
+axs[2].plot(valid_times, second_derivative*integration_time, label="2nd derivative Open Loop", color='r')
+axs[2].set_ylabel("2nd Derivative Open-Loop [Hz]")
+axs[2].set_xlabel("Time [s]")
+axs[2].set_title("Second Derivative of Open-loop")
+axs[2].legend()
 
 plt.tight_layout()
 plt.show()
@@ -395,3 +418,4 @@ axs[2].legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=7)
 axs[2].grid(True)
 plt.show()
 ###################################################################################
+
