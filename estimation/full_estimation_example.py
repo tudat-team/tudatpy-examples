@@ -1,14 +1,14 @@
 """
 # Parameter Estimation with DELFI-C3
 ## Objectives
-This example will guide you through the set-up of an orbit estimation routine, which usually comprises the estimation of the covariance, as well as the estimation of the initial parameters. In this example we will focus on the latter, and you'll learn: 
- 
+This example will guide you through the set-up of an orbit estimation routine, which usually comprises the estimation of the covariance, as well as the estimation of the initial parameters. In this example we will focus on the latter, and you'll learn:
+
 * how to set up and perform the **full estimation** of a spacecraft's initial state, drag coefficient, and radiation pressure coefficient
- 
+
 For the **covariance analysis** over the course of the spacecraft's orbit see the [Delfi-C3 Covariance Analysis example](covariance_estimated_parameters.ipynb).
- 
+
 If you have already followed the covariance example, you might want to **skip the first part of this example** dealing with the setup of all relevant (environment, propagation, and estimation) modules, and dive straight in to the full estimation of all chosen parameters.
- 
+
 To simulate the orbit of a spacecraft, we will fall back and reiterate on all aspects of orbit propagation that are important within the scope of orbit estimation. Further, we will highlight all relevant features of modelling a tracking station on Earth. Using this station, we will simulate a tracking routine of the spacecraft using a series of open-loop Doppler range-rate measurements at 1 mm/s every 60 seconds. To assure an uninterrupted line-of-sight between the station and the spacecraft, a minimum elevation angle of more than 15 degrees above the horizon - as seen from the station - will be imposed as constraint on the simulation of observations.
 """
 
@@ -46,6 +46,9 @@ First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodie
 Subsequently, the start and end epoch of the simulation are defined. Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of three days.
  
 For more information on J2000 and the conversion between different temporal reference frames, please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module.
+
+NOTE: 
+To avoid issues with the interpolator, we define a time buffer and add we subtract it and add it to the simulation start and end epoch, respectively. 
 """
 
 
@@ -53,9 +56,9 @@ For more information on J2000 and the conversion between different temporal refe
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
-simulation_end_epoch   = DateTime(2000, 1, 4).epoch()
-
+time_buffer = 10
+simulation_start_epoch = DateTime(2000, 1, 1).epoch() - time_buffer
+simulation_end_epoch   = DateTime(2000, 1, 4).epoch() + time_buffer
 
 """
 ## Set up the environment
@@ -206,7 +209,7 @@ For the problem at hand, we will use an RKF78 integrator with a fixed step-size 
 
 
 # Create numerical integrator settings
-integrator_settings = propagation_setup.integrator.\
+integrator_settings = propagation_setup.integrator. \
     runge_kutta_fixed_step_size(initial_time_step=60.0,
                                 coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
 
@@ -268,8 +271,8 @@ Each observable type has its own function for creating observation model setting
 
 # Define the uplink link ends for one-way observable
 link_ends = dict()
-link_ends[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", "TrackingStation")
-link_ends[observation.receiver] = observation.body_origin_link_end_id("Delfi-C3")
+link_ends[observation.receiver] = observation.body_reference_point_link_end_id("Earth", "TrackingStation")
+link_ends[observation.transmitter] = observation.body_origin_link_end_id("Delfi-C3")
 
 # Create observation settings for each link/observable
 link_definition = observation.LinkDefinition(link_ends)
@@ -283,11 +286,13 @@ We now have to define the times at which observations are to be simulated. To th
 Finally, for each observation model, the observation simulation settings set the times at which observations are simulated and defines the viability criteria and noise of the observation.
 
 Note that the actual simulation of the observations requires `Observation Simulators`, which are created automatically by the `Estimator` object. Hence, one cannot simulate observations before the creation of an estimator.
+
+Also, we recall we had applied a time buffer to our start and end epoch, so it is now the time to remove it.
 """
 
 
 # Define observation simulation times for each link (separated by steps of 1 minute)
-observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
+observation_times = np.arange(simulation_start_epoch + time_buffer, simulation_end_epoch - time_buffer, 60.0)
 observation_simulation_settings = observation.tabulated_simulation_settings(
     observation.one_way_instantaneous_doppler_type,
     link_definition,
@@ -365,20 +370,18 @@ simulated_observations = estimation.simulate_observations(
     estimator.observation_simulators,
     bodies)
 
-
 """
 ## Perform the estimation
 Having simulated the observations and created the `Estimator` object - containing the **variational equations** for the parameters to estimate - we have defined everything to conduct the actual estimation. Realise that up to this point, we have not yet specified whether we want to perform a **covariance analysis** or the **full estimation** of all parameters. It should be stressed that the general setup for either path to be followed is entirely **identical**.
 
 ### Set up the inversion
-To set up the inversion of the problem, we collect all relevant inputs in the form of a estimation input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different **weights** - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
+To set up the inversion of the problem, we collect all relevant inputs in the form of a estimation input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different **weights** - if any - of the different observations in the `ObservationCollection`, to give the estimator knowledge about the quality of the individual types of observations.
 """
 
+simulated_observations.set_constant_weight(noise_level ** -2)
 
 # Save the true parameters to later analyse the error
 truth_parameters = parameters_to_estimate.parameter_vector
-
-print(truth_parameters)
 
 # Perturb the initial state estimate from the truth (10 m in position; 0.1 m/s in velocity)
 perturbed_parameters = truth_parameters.copy( )
@@ -400,10 +403,6 @@ estimation_input = estimation.EstimationInput(
 # Set methodological options
 estimation_input.define_estimation_settings(
     reintegrate_variational_equations=False)
-
-# Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
 
 """
@@ -455,10 +454,6 @@ estimation_input = estimation.EstimationInput(
 estimation_input.define_estimation_settings(
     reintegrate_variational_equations=False)
 
-# Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-estimation_input.set_constant_weight_per_observable(weights_per_observable)
-
 # Print the formal errors (diagonal entries of the covariance matrix) and the true-to-formal-errors.
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
@@ -466,10 +461,10 @@ formal_errors = estimation_output.formal_errors #formal errors
 print(f'Formal Errors:\n\n{formal_errors}\n')
 
 true_errors = truth_parameters - parameters_to_estimate.parameter_vector #true_parameters - estimated_parameters = true error
-print(f'True Errors:\n\n{true_errors}\n') 
+print(f'True Errors:\n\n{true_errors}\n')
 
 true_to_formal_ratio = true_errors/formal_errors #true-to-formal-error ratio
-print(f'True-To-Formal-Error Ratio:\n\n{true_to_formal_ratio}\n') 
+print(f'True-To-Formal-Error Ratio:\n\n{true_to_formal_ratio}\n')
 
 
 """
