@@ -19,7 +19,6 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
-from tudatpy.data import processTrk234
 from tudatpy.data.processTrk234 import Trk234Processor
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
@@ -558,7 +557,7 @@ def perform_residuals_analysis(inputs):
         #  Create light-time corrections list
         light_time_correction_list = list()
         light_time_correction_list.append(
-            estimation_setup.observation.first_order_relativistic_light_time_correction(
+            estimation_setup.observation.second_order_relativistic_light_time_correction(
                 ["Sun"]
             )
         )
@@ -595,10 +594,11 @@ def perform_residuals_analysis(inputs):
             )
 
         # Add solar corona correction only for range observables.
+        # Values form Verma et al. (2013), from MEX 2011 solar conjunction data
         light_time_correction_list.append(
             estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction(
-                [3.6e10],
-                [2],
+                [1.70e12],
+                [2.44],
             )
         )
 
@@ -912,28 +912,26 @@ if __name__ == "__main__":
     setup_outputs_folder("outputs")
 
     # Specify the number of cores over which this example is to run
-    # nb_cores = 6
-    nb_cores = 1
+    nb_cores = 6
 
     # Define start and end dates for the six time intervals to be analysed in parallel computations.
     # Each parallel run covers two months of data for the example to parse a total timespan of one year.
     start_dates = [
         datetime(2012, 1, 2),
-        # datetime(2012, 3, 1),
-        # datetime(2012, 5, 1),
-        # datetime(2012, 7, 1),
-        # datetime(2012, 9, 1),
-        # datetime(2012, 11, 1),
+        datetime(2012, 3, 1),
+        datetime(2012, 5, 1),
+        datetime(2012, 7, 1),
+        datetime(2012, 9, 1),
+        datetime(2012, 11, 1),
     ]
 
     end_dates = [
-        # datetime(2012, 1, 4),
         datetime(2012, 2, 29),
-        # datetime(2012, 4, 30),
-        # datetime(2012, 6, 30),
-        # datetime(2012, 8, 31),
-        # datetime(2012, 10, 31),
-        # datetime(2012, 12, 31),
+        datetime(2012, 4, 30),
+        datetime(2012, 6, 30),
+        datetime(2012, 8, 31),
+        datetime(2012, 10, 31),
+        datetime(2012, 12, 31),
     ]
 
     # For each parallel run
