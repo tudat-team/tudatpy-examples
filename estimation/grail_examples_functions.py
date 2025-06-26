@@ -213,7 +213,7 @@ def get_grail_files(local_path, start_date, end_date):
     # Lunar reference frame kernel
     print('---------------------------------------------')
     print('Download lunar reference frame kernel')
-    lunar_frame_file = "moon_de440_220930.tf"
+    lunar_frame_file = "moon_de440_250416.tf"
     # Define url where the lunar reference frame kernel can be downloaded
     url_lunar_frame_file = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/"
     # Check if the reference frame kernel exists locally
