@@ -401,85 +401,118 @@ dep_vars_array = result2array(dep_vars)
 ## Post-process the propagation results
 The results of the propagation are then processed to a more user-friendly form.
 
-### Total acceleration over time
-Let's first plot the total acceleration on the satellite over time. This can be done by taking the norm of the first three columns of the dependent variable list.
 """
 
+
+from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 
 relative_time_hours = (states_array[:, 0] - states_array[0, 0]) / 3600.0
 
-cb_state = states_array[:, 1:7]
-np_state = states_array[:, 7:13]
+states_cb = states_array[:, 1:7]
+states_np = states_array[:, 7:13]
 
-nb_state_diff = np_state - cb_state
-pos_norm = np.linalg.norm(nb_state_diff[:, 0:3], axis=1)
-vel_norm = np.linalg.norm(nb_state_diff[:, 3:6], axis=1)
+inertial_to_rsw_rotation_matrices = [
+    inertial_to_rsw_rotation_matrix(state) for state in states_cb
+]
 
-acceleration_difference = dep_vars_array[:, 13:16] - dep_vars_array[:, 16:19]
-acceleration_norm = np.linalg.norm(acceleration_difference, axis=1)
+nb_state_differences_inertial = states_np - states_cb
+pos_norm = np.linalg.norm(nb_state_differences_inertial[:, 0:3], axis=1)
+vel_norm = np.linalg.norm(nb_state_differences_inertial[:, 3:6], axis=1)
+
+nb_state_differences_rsw = np.array(
+    [
+        rot_mat @ state_difference[:3]
+        for rot_mat, state_difference in zip(
+            inertial_to_rsw_rotation_matrices, nb_state_differences_inertial
+        )
+    ]
+)
+
+acceleration_cb = dep_vars_array[:, 13:16]
+acceleration_np = dep_vars_array[:, 16:19]
+
+acceleration_norm_cb = np.linalg.norm(acceleration_cb, axis=1)
+acceleration_norm_np = np.linalg.norm(acceleration_np, axis=1)
+
+acceleration_difference_inertial = acceleration_np - acceleration_cb
+
+acceleration_difference_rsw = np.array(
+    [
+        rot_mat @ acc_diff
+        for rot_mat, acc_diff in zip(
+            inertial_to_rsw_rotation_matrices, acceleration_difference_inertial
+        )
+    ]
+)
+
+
+"""
+### Total acceleration over time
+Let's first plot the acceleration magnitudes for the cannonball and panelled model on the satellite over time. Additionally, we plot the magnitude of the position difference over time, to see how the difference in acceleration compounds.
+"""
+
 
 fig, ax = plt.subplots()
-ax.plot(
-    relative_time_hours,
-    pos_norm,
-)
-ax.set_xlabel("Relative time [hr]")
-ax.set_ylabel("Position Difference [m]", color="tab:blue")
+ax.plot(relative_time_hours, acceleration_norm_cb, label="Cannonball")
+ax.plot(relative_time_hours, acceleration_norm_np, linestyle="--", label="Panelled")
 
 ax2 = ax.twinx()
-ax2.scatter(relative_time_hours, acceleration_norm, c="tab:orange", s=1)
-ax2.set_ylabel("Acceleration Difference [m/s^2]", color="tab:orange")
+ax2.plot(relative_time_hours, pos_norm, label="norm", color="tab:green")
 
-ax.set_title("Position and Acceleration Difference: Panelled - Cannonball")
+ax.legend()
+
+ax.set_xlabel("Relative time [hr]")
+ax.set_ylabel("Acceleration Magnitude [$\mathrm{m}/\mathrm{s}^2$]")
+ax2.set_ylabel("Position Difference Magnitude [m]", color="tab:green")
+ax2.tick_params(axis="y", labelcolor="tab:green")
+
+ax.set_title("Panelled vs. Cannonball Model")
 
 
 """
-### Kepler elements over time
-Let's now plot each of the 6 Kepler element as a function of time, also as saved in the dependent variables.
+### Acceleration difference in RSW components
+
+To get a more intuitive understanding how the models are different, we also plot the difference in acceleration and position in the RSW frame centered on the cannonball spacecraft.
+In this case, only the first 3.5 hours of the orbit are plotted (corresponding to roughly two orbital revolutions), as the pattern in the accelerations repeats once per orbit.
 """
 
 
-# Plot Kepler elements as a function of time
-delta_kepler_elements = dep_vars_array[:, 7:13] - dep_vars_array[:, 1:7]
-fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(9, 12))
-fig.suptitle("Kepler elements difference: Panelled - Cannonball.")
+idx = np.searchsorted(relative_time_hours, 3.5)
 
-# Semi-major Axis
-semi_major_axis = delta_kepler_elements[:, 0] / 1e3
-ax1.plot(relative_time_hours, semi_major_axis)
-ax1.set_ylabel("Semi-major axis [km]")
+fig, axs = plt.subplots(2, sharex=True)
 
-# Eccentricity
-eccentricity = delta_kepler_elements[:, 1]
-ax2.plot(relative_time_hours, eccentricity)
-ax2.set_ylabel("Eccentricity [-]")
+axs[0].plot(
+    relative_time_hours[:idx],
+    nb_state_differences_rsw[:idx],
+    label=["radial", "tangential", "normal"],
+)
 
-# Inclination
-inclination = np.rad2deg(delta_kepler_elements[:, 2])
-ax3.plot(relative_time_hours, inclination)
-ax3.set_ylabel("Inclination [deg]")
+axs[1].scatter(
+    relative_time_hours[:idx],
+    acceleration_difference_rsw[:idx, 0],
+    label="radial",
+    s=1,
+)
+axs[1].scatter(
+    relative_time_hours[:idx],
+    acceleration_difference_rsw[:idx, 1],
+    label="tangential",
+    s=1,
+)
+axs[1].scatter(
+    relative_time_hours[:idx],
+    acceleration_difference_rsw[:idx, 2],
+    label="normal",
+    s=1,
+)
 
-# Argument of Periapsis
-argument_of_periapsis = np.rad2deg(delta_kepler_elements[:, 3])
-ax4.plot(relative_time_hours, argument_of_periapsis)
-ax4.set_ylabel("Argument of Periapsis [deg]")
+axs[0].set_ylabel("Position\n Difference [m]")
+axs[1].set_xlabel("Relative time [hr]")
+axs[1].set_ylabel("Acceleration\n Difference [$\mathrm{m}/\mathrm{s}^2$]")
 
-# Right Ascension of the Ascending Node
-raan = np.rad2deg(delta_kepler_elements[:, 4])
-ax5.plot(relative_time_hours, raan)
-ax5.set_ylabel("RAAN [deg]")
+axs[0].legend()
 
-# True Anomaly
-true_anomaly = np.rad2deg(delta_kepler_elements[:, 5])
-ax6.scatter(relative_time_hours, true_anomaly, s=1)
-ax6.set_ylabel("True Anomaly [deg]")
-ax6.set_yticks(np.arange(0, 361, step=60))
-
-for ax in fig.get_axes():
-    ax.set_xlabel("Relative time [hr]")
-    ax.set_xlim([min(relative_time_hours), max(relative_time_hours)])
-    ax.grid()
-plt.tight_layout()
+fig.suptitle("Panelled - Cannonball Differences in RSW Frame during first two orbits")
 
 
 plt.show()
