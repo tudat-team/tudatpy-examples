@@ -19,7 +19,17 @@ from scipy.interpolate import interp1d
 from scipy.integrate import quad
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 
+
 ########################################################
+
+def make_state_interpolator(times: np.ndarray, states: np.ndarray):
+    interpolators = [interp1d(times, states[:, i], kind='linear', fill_value="extrapolate") for i in range(6)]
+
+    def state_function(t: float) -> np.ndarray:
+        return np.array([[f(t)] for f in interpolators])  # shape (6, 1)
+
+    return state_function
+
 def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
     results = list()
     midpoints = list()
@@ -39,6 +49,8 @@ def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
 
     return results, midpoints
 ################################## COMMON SETTINGS and RELEVANT QUANTITIES ##################################
+
+straight_trajectory_flag = True
 # Set Folders Containing Relevant Files
 mex_kernels_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/kernels'
 mex_fdets_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/fdets/complete'
@@ -84,9 +96,36 @@ body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "
 spacecraft_name = "MEX" # Set Spacecraft Name
 spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
-body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-    start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
-# Retrieve rotational ephemeris from SPICE
+
+times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
+tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
+
+if straight_trajectory_flag:
+    initial_state_mex = np.array([ 8.66335594e+05,-6.71856322e+06,1.13422482e+07,-1.11986497e+03,
+                                   -5.49981761e+02,2.67200771e+02])
+    #final_state_mex = np.array([-2.99178963e+06, 8.97049285e+05,-3.10138365e+06,3.31557232e+03,
+    #                            1.67203612e+03,-8.94232091e+02])
+
+    final_state_mex = initial_state_mex # change this to final_state_mex above to make mex move in a straight line from p0 to p1 (these were taken from spice)
+    p0 =np.array(initial_state_mex[:3])
+    p1 =np.array(final_state_mex[:3])
+    N = len(times_linspace)
+    v = (p1 - p0) / (start_time - end_time)
+    positions = p0 + np.outer(times_linspace - start_time, v) # Compute position over time
+    velocities = np.tile(v, (N, 1)) # Repeat velocity for each time
+    straight_trajectory = np.hstack((positions, velocities)) # stack them
+    state_function = make_state_interpolator(times_linspace, straight_trajectory) # create state function for custom_ephemeris
+    custom_ephem = environment_setup.ephemeris.custom_ephemeris(
+        custom_state_function=state_function,
+        frame_origin=spacecraft_central_body,
+        frame_orientation=global_frame_orientation
+    )
+    body_settings.get(spacecraft_name).ephemeris_settings = custom_ephem
+
+else:
+    body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+        start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
+
 body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
     global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
@@ -95,18 +134,14 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 receiver_station_name = 'ONSALA60' # you can chenge this to CEDUNA or PARKES to test different stations
 body_fixed_station_position = bodies.get('Earth').get_ground_station(receiver_station_name).station_state.get_cartesian_position(0)
 
-## The following was a trial to see whether changing the geodetic altitude of the station would make the residuals worse (it looks like it does not).
-
+## The following was a trial to see whether changing the geodetic altitude of the station would make the residuals worse (it does not).
 #flattening = 1.0 / 298.257223563
 #equatorial_radius = 6378137.0
 #geodetic_body_fixed_station = element_conversion.convert_cartesian_to_geodetic_coordinates(body_fixed_station_position, equatorial_radius, flattening, 10)
 #geodetic_body_fixed_station[0] += 10000
 #fake_body_fixed_station_position = element_conversion.convert_position_elements(
 #    geodetic_body_fixed_station, element_conversion.geodetic_position_type,element_conversion.cartesian_position_type,bodies.get('Earth').shape_model, 10)
-
 ################# First conversion: Convert UTC times to TDB. ########################################
-times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
-tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
 
 time_scale_converter = time_conversion.default_time_scale_converter()
 tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
