@@ -17,9 +17,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
+from tudatpy.numerical_simulation import propagation
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 
+
 ########################################################
+
+def make_state_interpolator(times: np.ndarray, states: np.ndarray):
+    interpolators = [interp1d(times, states[:, i], kind='linear', fill_value="extrapolate") for i in range(6)]
+
+    def state_function(t: float) -> np.ndarray:
+        return np.array([[f(t)] for f in interpolators])  # shape (6, 1)
+
+    return state_function
 def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
     results = list()
     midpoints = list()
@@ -47,16 +57,13 @@ mex_odf_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/odf/'
 
 # Load Required Spice Kernels
 spice.load_standard_kernels()
-for kernel in os.listdir(mex_kernels_folder):
-    kernel_path = os.path.join(mex_kernels_folder, kernel)
-    spice.load_kernel(kernel_path)
 
 # Define Start and end Dates of Simulation
-start = datetime(2013, 12, 28, 00, 00, 00) # simulate over multiple days to see periodic trend
-end = datetime(2013, 12, 31, 23, 00, 00)
-#start = datetime(2013, 12, 28, 00, 00, 00) # simulate over the relevant GR035 timeframe
-#end = datetime(2013, 12, 28, 23, 59, 00)
-integration_time = 60
+start = datetime(2013, 12, 28, 00, 00, 00)
+end = datetime(2013, 12, 30, 23, 59, 00)
+#start = datetime(2013, 12, 28, 00, 00, 00)
+#end = datetime(2013, 12, 28, 12, 00, 00)
+integration_time = 60 # change as you please to make it faster
 open_loop_cadence = 10
 
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() # in utc
@@ -84,30 +91,49 @@ body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "
 spacecraft_name = "MEX" # Set Spacecraft Name
 spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
-body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-    start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
-# Retrieve rotational ephemeris from SPICE
+
+times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
+tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
+
+#body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+#    start_time, end_time, 10.0, spacecraft_central_body, global_frame_orientation)
+initial_state_mex = np.array([ 8.66335594e+05,-6.71856322e+06,1.13422482e+07,-1.11986497e+03,
+                               -5.49981761e+02,2.67200771e+02])
+#final_state_mex = np.array([-2.99178963e+06, 8.97049285e+05,-3.10138365e+06,3.31557232e+03,
+#                            1.67203612e+03,-8.94232091e+02])
+final_state_mex = initial_state_mex # change this to final_state_mex above to make mex move in a straight line from p0 to p1 (these were taken from spice)
+p0 =np.array(initial_state_mex[:3])
+p1 =np.array(final_state_mex[:3])
+N = len(times_linspace)
+v = (p1 - p0) / (start_time - end_time)
+positions = p0 + np.outer(times_linspace - start_time, v) # Compute position over time
+velocities = np.tile(v, (N, 1)) # Repeat velocity for each time
+straight_trajectory = np.hstack((positions, velocities)) # stack them
+state_function = make_state_interpolator(times_linspace, straight_trajectory) # create state function for custom_ephemeris
+custom_ephem = environment_setup.ephemeris.custom_ephemeris(
+    custom_state_function=state_function,
+    frame_origin=global_frame_origin,  # or "Earth" etc.
+    frame_orientation=global_frame_orientation
+)
+body_settings.get(spacecraft_name).ephemeris_settings = custom_ephem
+
+# Retrieve rotational ephemeris for MEX from SPICE
 body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
     global_frame_orientation, spacecraft_name + "_SPACECRAFT", "")
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
-receiver_station_name = 'ONSALA60' # you can chenge this to CEDUNA or PARKES to test different stations
+receiver_station_name = 'ONSALA60'
 body_fixed_station_position = bodies.get('Earth').get_ground_station(receiver_station_name).station_state.get_cartesian_position(0)
 
-## The following was a trial to see whether changing the geodetic altitude of the station would make the residuals worse (it looks like it does not).
-
+## The following was a trial to see whether changing the geodetic altitude of the station would make the residuals worse (it does not).
 #flattening = 1.0 / 298.257223563
 #equatorial_radius = 6378137.0
 #geodetic_body_fixed_station = element_conversion.convert_cartesian_to_geodetic_coordinates(body_fixed_station_position, equatorial_radius, flattening, 10)
 #geodetic_body_fixed_station[0] += 10000
 #fake_body_fixed_station_position = element_conversion.convert_position_elements(
 #    geodetic_body_fixed_station, element_conversion.geodetic_position_type,element_conversion.cartesian_position_type,bodies.get('Earth').shape_model, 10)
-
 ################# First conversion: Convert UTC times to TDB. ########################################
-times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
-tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
-
 time_scale_converter = time_conversion.default_time_scale_converter()
 tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
 fake_tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
@@ -116,7 +142,7 @@ for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TD
         input_scale = time_conversion.utc_scale,
         output_scale = time_conversion.tdb_scale,
         input_value = time_utc,
-        earth_fixed_position = body_fixed_station_position)) # if trying the geodetic altitude change, use fake_body_fixed_station_position
+        earth_fixed_position = body_fixed_station_position))
 
 times_linspace_tdb = [tudat_times_tdb.to_float() for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
 #################################### ANOTHER VALIDATION PLOT ######################################################
@@ -130,12 +156,12 @@ axs[0].set_title('Difference Between TDB and UTC')
 axs[0].set_ylabel('TDB - UTC [s]')
 axs[0].grid(True)
 # Second subplot: UTC spacing
-axs[1].scatter(times_linspace[1:], utc_spacing, label='UTC Spacing', color='green')
+axs[1].plot(times_linspace[1:], utc_spacing, label='UTC Spacing', color='green')
 axs[1].set_title('UTC Time Step Spacing')
 axs[1].set_ylabel('Δt [s]')
 axs[1].grid(True)
 # Third subplot: TDB spacing
-axs[2].plot(times_linspace_tdb[1:], tdb_spacing, label='TDB Spacing', color='red', linewidth=0.02)
+axs[2].plot(times_linspace_tdb[1:], tdb_spacing, label='TDB Spacing', color='red')
 axs[2].set_title('TDB Time Step Spacing')
 axs[2].set_xlabel('Time [s]')
 axs[2].set_ylabel('Δt [s]')
@@ -144,7 +170,7 @@ plt.tight_layout()
 plt.show()
 ########################################################################################################
 
-######## OPTIONALLY APPLY TROPOSPHERIC CORRECTION FOR UPLINK AND DOWNLINK ########################################################################################################
+######## APPLY TROPOSPHERIC CORRECTION FOR UPLINK AND DOWNLINK ########################################################################################################
 #observation.set_vmf_troposphere_data(
 #    [ "/Users/lgisolfi/Desktop/mex_phobos_flyby/VMF/y2013.vmf3_r" ], True, False, bodies, False, True
 #)
@@ -375,16 +401,16 @@ axs[1].grid(True)
 axs[1].legend(loc='upper left')
 
 # Add zoom inset to axs[1]
-axins = inset_axes(axs[1], width="30%", height="20%", loc='upper right')  # Adjust loc if needed
-axins.scatter(shared_times, residual, color = 'green', s = 8)
-axins.plot(shared_times, second_derivative*integration_time**2/24, 'red')
+#axins = inset_axes(axs[1], width="30%", height="20%", loc='upper right')  # Adjust loc if needed
+#axins.scatter(shared_times, residual, color = 'green', s = 8)
+#axins.plot(shared_times, second_derivative*integration_time**2/24, 'red')
 
 # Set zoomed region
-axins.set_xlim(valid_times[1550], valid_times[1730])
-axins.set_ylim(-35, 10)
+#axins.set_xlim(valid_times[1550], valid_times[1730])
+#axins.set_ylim(-35, 10)
 
 # Draw lines showing zoomed area
-mark_inset(axs[1], axins, loc1=2, loc2=4, fc="none", ec="0.5")
+#mark_inset(axs[1], axins, loc1=2, loc2=4, fc="none", ec="0.5")
 
 
 axs[2].plot(shared_times, second_derivative*integration_time, label="2nd derivative Open Loop", color='r')
@@ -418,6 +444,7 @@ filtered_simulated_equivalent_closed_loop_times_utc = np.array(simulated_equival
 
 mean_filtered_difference = np.mean(filtered_difference)
 rms_filtered_difference = np.std(filtered_difference)
+
 
 axs[2].scatter(filtered_simulated_equivalent_closed_loop_times_utc, filtered_difference, marker='o', label = f'Simulated-Data Eq. Closed-Loop\nmean:{mean_filtered_difference:.2g}\nrms = {rms_filtered_difference:.2g}',s=10, alpha=0.6)
 axs[2].set_xlabel('Time [s] (Midpoint of Interval)')
