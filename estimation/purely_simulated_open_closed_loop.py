@@ -64,10 +64,10 @@ for kernel in os.listdir(mex_kernels_folder):
     spice.load_kernel(kernel_path)
 
 # Define Start and end Dates of Simulation
-start = datetime(2013, 12, 28, 00, 00, 00) # simulate over multiple days to see periodic trend
-end = datetime(2013, 12, 31, 23, 00, 00)
-#start = datetime(2013, 12, 28, 00, 00, 00) # simulate over the relevant GR035 timeframe
-#end = datetime(2013, 12, 28, 23, 59, 00)
+#start = datetime(2013, 12, 28, 00, 00, 00) # simulate over multiple days to see periodic trend
+#end = datetime(2013, 12, 31, 23, 00, 00)
+start = datetime(2013, 12, 28, 00, 00, 00) # simulate over the relevant GR035 timeframe
+end = datetime(2013, 12, 28, 23, 59, 00)
 integration_time = 60
 open_loop_cadence = 10
 
@@ -83,14 +83,14 @@ body_settings = environment_setup.get_default_body_settings_time_limited(
 
 # Modify Earth default settings
 body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
-body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
-    environment_setup.rotation_model.iau_2006, global_frame_orientation,
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 3600.0),
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 3600.0),
-    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                         start_time, end_time, 10.0))
+#body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+#    environment_setup.rotation_model.iau_2006, global_frame_orientation,
+#    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+#                                                         start_time, end_time, 3600.0),
+#    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+#                                                         start_time, end_time, 3600.0),
+#    interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+#                                                         start_time, end_time, 10.0))
 
 body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 spacecraft_name = "MEX" # Set Spacecraft Name
@@ -101,12 +101,16 @@ times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in 
 tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
 
 if straight_trajectory_flag:
-    initial_state_mex = np.array([ 8.66335594e+05,-6.71856322e+06,1.13422482e+07,-1.11986497e+03,
-                                   -5.49981761e+02,2.67200771e+02])
-    #final_state_mex = np.array([-2.99178963e+06, 8.97049285e+05,-3.10138365e+06,3.31557232e+03,
-    #                            1.67203612e+03,-8.94232091e+02])
 
-    final_state_mex = initial_state_mex # change this to final_state_mex above to make mex move in a straight line from p0 to p1 (these were taken from spice)
+    #initial_state_mex = np.array([ 8.66335594e+05,-6.71856322e+06,1.13422482e+07,-1.11986497e+03,
+    #                              -5.49981761e+02,2.67200771e+02]) + start_earth_pos
+    #final_state_mex = np.array([-2.99178963e+06, 8.97049285e+05,-3.10138365e+06,3.31557232e+03,
+    #                            1.67203612e+03,-8.94232091e+02]) + end_earth_pos
+
+    initial_state_mex = np.array([1e8,0,0,0,0,0])
+    #final_state_mex = np.array([2e8,0,0,0,0,0])
+    final_state_mex = initial_state_mex
+    #final_state_mex = initial_state_mex
     p0 =np.array(initial_state_mex[:3])
     p1 =np.array(final_state_mex[:3])
     N = len(times_linspace)
@@ -117,7 +121,7 @@ if straight_trajectory_flag:
     state_function = make_state_interpolator(times_linspace, straight_trajectory) # create state function for custom_ephemeris
     custom_ephem = environment_setup.ephemeris.custom_ephemeris(
         custom_state_function=state_function,
-        frame_origin=spacecraft_central_body,
+        frame_origin='Earth',
         frame_orientation=global_frame_orientation
     )
     body_settings.get(spacecraft_name).ephemeris_settings = custom_ephem
@@ -131,6 +135,10 @@ body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.r
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 # Create System of Bodies using the above-defined body_settings
 bodies = environment_setup.create_system_of_bodies(body_settings)
+#start_earth_pos = bodies.get('Earth').ephemeris.cartesian_state(start_time)
+#end_earth_pos = bodies.get('Earth').ephemeris.cartesian_state(end_time)
+#print(start_earth_pos, end_earth_pos)
+#exit()
 receiver_station_name = 'ONSALA60' # you can chenge this to CEDUNA or PARKES to test different stations
 body_fixed_station_position = bodies.get('Earth').get_ground_station(receiver_station_name).station_state.get_cartesian_position(0)
 
