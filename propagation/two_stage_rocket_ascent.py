@@ -31,12 +31,7 @@ from datetime import datetime
 # Load tudatpy modules
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import (
-    environment,
-    environment_setup,
-    propagation,
-    propagation_setup,
-)
+from tudatpy.numerical_simulation import environment, environment_setup, propagation, propagation_setup
 from tudatpy.astro import element_conversion, time_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
@@ -56,13 +51,9 @@ spice.load_standard_kernels()
 # Set simulation start as the 17th of February 2031
 simulation_start_datetime = datetime(2031, 2, 17)
 # Convert simulation start to Julian Days
-simulation_start_JD = time_conversion.calendar_date_to_julian_day(
-    simulation_start_datetime
-)
+simulation_start_JD = time_conversion.calendar_date_to_julian_day(simulation_start_datetime)
 # Convert simulation start to seconds since J2000
-simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(
-    simulation_start_JD
-)
+simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(simulation_start_JD)
 
 
 """
@@ -93,18 +84,17 @@ def create_bodies():
 
     # Create default body settings, usually from `spice`.
     body_settings = environment_setup.get_default_body_settings(
-        bodies_to_create, global_frame_origin, global_frame_orientation
+        bodies_to_create,
+        global_frame_origin,
+        global_frame_orientation
     )
 
     # Add a predefined exponential atmosphere model for Mars
-    body_settings.get("Mars").atmosphere_settings = (
-        environment_setup.atmosphere.exponential_predefined("Mars")
-    )
+    body_settings.get("Mars").atmosphere_settings = environment_setup.atmosphere.exponential_predefined("Mars")
 
     # Return the system of selected celestial bodies
     return environment_setup.create_system_of_bodies(body_settings)
-
-
+    
 # Create the system of selected celestial bodies
 bodies = create_bodies()
 
@@ -131,7 +121,6 @@ def create_rocket_section(section_name, wet_mass):
     # Assign the initial mass of the body (the section wet mass)
     bodies.get(section_name).mass = wet_mass
 
-
 # Create the first rocket section body with a wet mass of 370kg
 create_rocket_section("Section 1", 370.0)
 
@@ -151,13 +140,15 @@ To account for the aerodynamic of the first section, let's add an aerodynamic in
 def add_aero_coefficients(section_name, CD, CL, ref_area=0.25):
     # Create aerodynamic coefficient interface settings
     aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-        ref_area, [CD, 0, CL]
+        ref_area,
+        [CD, 0, CL]
     )
     # Add the aerodynamic coefficient interface settings to the environment, linked to the rocket section
     environment_setup.add_aerodynamic_coefficient_interface(
-        bodies, section_name, aero_coefficient_settings
+        bodies,
+        section_name,
+        aero_coefficient_settings
     )
-
 
 # Create an aerodynamic coefficient interface for the first rocket section
 add_aero_coefficients("Section 1", 0.85, 0.4)
@@ -213,15 +204,13 @@ $$
 
 class ThrustModel:
 
-    def __init__(
-        self, magnitude, Isp, vertical_angle, propagated_body, section_dry_mass
-    ):
-        self.magnitude = magnitude  # Thrust magnitude [N]
-        self.Isp = Isp  # Specific impulse [s]
-        self.vertical_angle = vertical_angle  # Angle from the vertical [rad]
-        self.propagated_body = propagated_body  # Body that is being propagated (tudatpy.numerical_simulation.environment.Body)
-        self.section_dry_mass = section_dry_mass  # Dry mass of the section [kg]
-        self.t0 = None  # Initial burn time for this section [s]
+    def __init__(self, magnitude, Isp, vertical_angle, propagated_body, section_dry_mass):
+        self.magnitude = magnitude               # Thrust magnitude [N]
+        self.Isp = Isp                           # Specific impulse [s]
+        self.vertical_angle = vertical_angle     # Angle from the vertical [rad]
+        self.propagated_body = propagated_body   # Body that is being propagated (tudatpy.numerical_simulation.environment.Body)
+        self.section_dry_mass = section_dry_mass # Dry mass of the section [kg]
+        self.t0 = None                           # Initial burn time for this section [s]
 
     def is_thrust_on(self, time):
         # The thrust is on (true) if the current section mass is strictly greater than its dry mass
@@ -236,7 +225,7 @@ class ThrustModel:
             return 0
 
         if (time - self.t0) < 15:
-            return 1.75 * self.magnitude
+            return 1.75*self.magnitude
         return self.magnitude
 
     def get_specific_impulse(self, time):
@@ -245,27 +234,19 @@ class ThrustModel:
 
     def get_thrust_direction(self, time):
         # Get aerodynamic angle calculator
-        aerodynamic_angle_calculator = (
-            self.propagated_body.flight_conditions.aerodynamic_angle_calculator
-        )
-
+        aerodynamic_angle_calculator = self.propagated_body.flight_conditions.aerodynamic_angle_calculator
+        
         # Set thrust in vertical frame and transpose it
-        thrust_direction_vertical_frame = np.array(
-            [[0, np.sin(self.vertical_angle), -np.cos(self.vertical_angle)]]
-        ).T
-
+        thrust_direction_vertical_frame = np.array([[0, np.sin(self.vertical_angle), - np.cos(self.vertical_angle)]]).T
+        
         # Retrieve rotation matrix from vertical to inertial frame from the aerodynamic angle calculator
-        vertical_to_inertial_frame = (
-            aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
-                environment_setup.AerodynamicsReferenceFrames.vertical_frame,
-                environment_setup.AerodynamicsReferenceFrames.inertial_frame,
-            )
-        )
-
+        vertical_to_inertial_frame = aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
+            environment_setup.AerodynamicsReferenceFrames.vertical_frame,
+            environment_setup.AerodynamicsReferenceFrames.inertial_frame)
+        
         # Compute the thrust in the inertial frame
-        thrust_inertial_frame = np.dot(
-            vertical_to_inertial_frame, thrust_direction_vertical_frame
-        )
+        thrust_inertial_frame = np.dot(vertical_to_inertial_frame,
+                                    thrust_direction_vertical_frame)
         # Return the thrust direction in the inertial frame
         return thrust_inertial_frame
 
@@ -286,29 +267,29 @@ For this first section, the following parameters are used for the thrust:
 # Define a function to create acceleration settings based on the direction and magnitude from the custom thrust class
 def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
     # Define the thrust direction settings for the first section from the custom direction function
-    rotation_model_settings = (
-        environment_setup.rotation_model.custom_inertial_direction_based(
-            current_thrust_model.get_thrust_direction, "J2000", "VehicleFixed"
-        )
+    rotation_model_settings = environment_setup.rotation_model.custom_inertial_direction_based(
+        current_thrust_model.get_thrust_direction,
+                "J2000", "VehicleFixed"
     )
+    
+    environment_setup.add_rotation_model( bodies, body_name, rotation_model_settings )
 
-    environment_setup.add_rotation_model(bodies, body_name, rotation_model_settings)
 
     # Define the thrust magnitude settings for the first section from the custom functions
     thrust_magnitude_settings = propagation_setup.thrust.custom_thrust_magnitude(
         current_thrust_model.get_thrust_magnitude,
-        current_thrust_model.get_specific_impulse,
+        current_thrust_model.get_specific_impulse
     )
-
+    
     environment_setup.add_engine_model(
-        body_name, "MainEngine", thrust_magnitude_settings, bodies
-    )
+    body_name,
+    "MainEngine",
+    thrust_magnitude_settings,
+    bodies )
 
 
 # Setup the thrust model for the first section
-current_thrust_model = ThrustModel(
-    4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185.0
-)
+current_thrust_model = ThrustModel(4250, 275, np.deg2rad(40), bodies.get("Section 1"), 185.0)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 1")
 
 
@@ -332,9 +313,11 @@ def create_section_accelerations(section_name):
     accelerations_on_rocket = {
         "Mars": [
             propagation_setup.acceleration.spherical_harmonic_gravity(4, 4),
-            propagation_setup.acceleration.aerodynamic(),
+            propagation_setup.acceleration.aerodynamic()
         ],
-        section_name: [propagation_setup.acceleration.thrust_from_all_engines()],
+        section_name: [
+            propagation_setup.acceleration.thrust_from_all_engines( )
+        ]
     }
 
     # Create acceleration models for the given section
@@ -342,7 +325,7 @@ def create_section_accelerations(section_name):
         bodies,
         {section_name: accelerations_on_rocket},
         bodies_to_propagate,
-        central_bodies,
+        central_bodies
     )
 
 
@@ -369,14 +352,12 @@ initial_mars_fixed_state = element_conversion.spherical_to_cartesian_elementwise
     longitude=np.deg2rad(77.52),
     speed=1.0,
     flight_path_angle=np.deg2rad(40),
-    heading_angle=0,
+    heading_angle=0
 )
 
 # Convert the Mars fixed initial state to the inertial frame
 initial_inertial_state = environment.transform_to_inertial_orientation(
-    initial_mars_fixed_state,
-    simulation_start_epoch,
-    bodies.get_body("Mars").rotation_model,
+    initial_mars_fixed_state, simulation_start_epoch, bodies.get_body("Mars").rotation_model
 )
 
 
@@ -389,27 +370,19 @@ Different dependent variables can be saved alongside the state of the vehicle du
 # Define a function to return the list of dependent variables to save for a given section
 def define_dependent_variables_to_save(section_name):
     return [
-        propagation_setup.dependent_variable.altitude(section_name, "Mars"),
-        propagation_setup.dependent_variable.airspeed(section_name, "Mars"),
-        propagation_setup.dependent_variable.dynamic_pressure(section_name, "Mars"),
-        propagation_setup.dependent_variable.body_mass(section_name),
-        propagation_setup.dependent_variable.total_acceleration_norm(section_name),
+        propagation_setup.dependent_variable.altitude( section_name, "Mars" ),
+        propagation_setup.dependent_variable.airspeed( section_name, "Mars" ),
+        propagation_setup.dependent_variable.dynamic_pressure( section_name, "Mars" ),
+        propagation_setup.dependent_variable.body_mass( section_name ),
+        propagation_setup.dependent_variable.total_acceleration_norm( section_name ),
         propagation_setup.dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.spherical_harmonic_gravity_type,
-            section_name,
-            "Mars",
-        ),
+            propagation_setup.acceleration.spherical_harmonic_gravity_type, section_name, "Mars"),
         propagation_setup.dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.thrust_acceleration_type,
-            section_name,
-            section_name,
-        ),
+            propagation_setup.acceleration.thrust_acceleration_type, section_name, section_name),
         propagation_setup.dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.aerodynamic_type, section_name, "Mars"
-        ),
+            propagation_setup.acceleration.aerodynamic_type, section_name, "Mars")
     ]
-
-
+    
 # Define the dependent variables to save for the first rocket section
 dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 
@@ -426,13 +399,13 @@ In this case, for the first rocket section, two termination settings are used:
 
 
 class VehicleFalling:
-
+    
     def __init__(self, body, initial_time):
         # Initialise the class used to compute wether a body is falling or not
         self.body = body
         self.last_h = -np.inf
         self.init_t = initial_time
-
+        
     def is_it_falling(self, time):
         # Compute the difference in altitude since this function was last called
         dh = self.body.flight_conditions.altitude - self.last_h
@@ -442,23 +415,18 @@ class VehicleFalling:
         # Return True (vehicle is falling) if the vehicle looses altitude, and lift-off was more than a second ago
         return dh < 0 and time_elapsed > 1
 
-
 # Define a termination setting based on the custom function defining wether the vehicle falls or not
 vehicle_falling_model = VehicleFalling(bodies.get("Section 1"), simulation_start_epoch)
-termination_apogee_settings = propagation_setup.propagator.custom_termination(
-    vehicle_falling_model.is_it_falling
-)
+termination_apogee_settings = propagation_setup.propagator.custom_termination(vehicle_falling_model.is_it_falling)
 
 # Define a termination setting to stop 225 minutes after lift-off
-end_epoch = simulation_start_epoch + 225 * 60
+end_epoch = simulation_start_epoch + 225*60
 termination_max_time_settings = propagation_setup.propagator.time_termination(end_epoch)
 
 # Combine both termination settings into a hybrid termination
-combined_termination_settings_section_1 = (
-    propagation_setup.propagator.hybrid_termination(
-        [termination_apogee_settings, termination_max_time_settings],
-        fulfill_single_condition=True,
-    )
+combined_termination_settings_section_1 = propagation_setup.propagator.hybrid_termination(
+    [termination_apogee_settings, termination_max_time_settings],
+    fulfill_single_condition=True
 )
 
 
@@ -482,24 +450,14 @@ def define_integrator_settings():
     maximum_time_step = 10
     tolerance = 1e-14
 
-    control_settings = (
-        propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance(
-            tolerance, tolerance
-        )
-    )
-    validation_settings = propagation_setup.integrator.step_size_validation(
-        minimum_time_step,
-        maximum_time_step,
-        minimum_step_size_handling=propagation_setup.integrator.MinimumIntegrationTimeStepHandling.set_to_minimum_step_every_time_warning,
-    )
+    control_settings = propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance( tolerance, tolerance )
+    validation_settings = propagation_setup.integrator.step_size_validation(minimum_time_step, maximum_time_step, minimum_step_size_handling = propagation_setup.integrator.MinimumIntegrationTimeStepHandling.set_to_minimum_step_every_time_warning)
 
     return propagation_setup.integrator.runge_kutta_variable_step(
         initial_time_step,
         propagation_setup.integrator.CoefficientSets.rkf_78,
-        step_size_control_settings=control_settings,
-        step_size_validation_settings=validation_settings,
-    )
-
+        step_size_control_settings = control_settings,
+        step_size_validation_settings = validation_settings)
 
 # Define the integrator settings
 integrator_settings = define_integrator_settings()
@@ -517,14 +475,7 @@ The translational and mass propagation settings are combined together, to propag
 
 
 # Define a function to create translational and mass propagation settings for a given rocket section
-def create_propagator_settings(
-    section_name,
-    initial_state,
-    simulation_start_epoch,
-    initial_mass,
-    termination_settings,
-    integrator_settings,
-):
+def create_propagator_settings(section_name, initial_state, simulation_start_epoch, initial_mass, termination_settings, integrator_settings):
     # Define the translational propagator settings with a Cowell propagator
     translational_propagator_settings = propagation_setup.propagator.translational(
         central_bodies,
@@ -535,12 +486,14 @@ def create_propagator_settings(
         integrator_settings,
         termination_settings,
         propagation_setup.propagator.cowell,
-        output_variables=dependent_variables_to_save,
+        output_variables=dependent_variables_to_save
     )
     # Define a mass rate model so that the mass lost by the rocket is consistent with its thrust and specific impulse
-    mass_rate_settings = {section_name: [propagation_setup.mass_rate.from_thrust()]}
+    mass_rate_settings = {section_name:[propagation_setup.mass_rate.from_thrust()]}
     mass_rate_models = propagation_setup.create_mass_rate_models(
-        bodies, mass_rate_settings, acceleration_models
+        bodies,
+        mass_rate_settings,
+        acceleration_models
     )
     # Define the mass propagator settings, taking the initial section mass into account
     mass_propagator_settings = propagation_setup.propagator.mass(
@@ -549,7 +502,7 @@ def create_propagator_settings(
         [initial_mass],
         simulation_start_epoch,
         integrator_settings,
-        termination_settings,
+        termination_settings
     )
     # Return the translational and mass propagator settings combined
     return propagation_setup.propagator.multitype(
@@ -557,19 +510,11 @@ def create_propagator_settings(
         integrator_settings,
         simulation_start_epoch,
         termination_settings,
-        dependent_variables_to_save,
+        dependent_variables_to_save
     )
-
-
+    
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings(
-    "Section 1",
-    initial_inertial_state,
-    simulation_start_epoch,
-    370,
-    combined_termination_settings_section_1,
-    integrator_settings,
-)
+propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings_section_1, integrator_settings)
 
 
 """
@@ -582,7 +527,8 @@ The state and dependent variables history is then extracted from the dynamics si
 
 # Run the numerical simulation of the first rocket section
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings
+    bodies,
+    propagator_settings
 )
 # Extract the propagated states and dependent variables and convert them to numpy arrays
 states = dynamics_simulator.propagation_results.state_history
@@ -597,8 +543,8 @@ Because we now want to simulate the second section from our rocket, we need to s
 """
 
 
-final_state_section_1 = states_array_section_1[-1, 1:7]
-final_epoch_section_1 = states_array_section_1[-1, 0]
+final_state_section_1 = states_array_section_1[-1,1:7]
+final_epoch_section_1 = states_array_section_1[-1,0]
 
 
 """
@@ -624,9 +570,7 @@ bodies = create_bodies()
 # Create the second rocket section body with a wet mass of 85kg
 create_rocket_section("Section 2", 85.0)
 # Setup the thrust model for the first section
-current_thrust_model = ThrustModel(
-    2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25
-)
+current_thrust_model = ThrustModel(2250, 280, np.deg2rad(90), bodies.get("Section 2"), 38.25)
 create_body_settings_for_thrust(current_thrust_model, bodies, "Section 2")
 
 # Create an aerodynamic coefficient interface for the second rocket section
@@ -685,14 +629,7 @@ Also, the initial mass of the second section is set as 85kg for the mass propaga
 
 
 # Define the translational and mass propagator settings for the first rocket section
-propagator_settings = create_propagator_settings(
-    "Section 2",
-    final_state_section_1,
-    final_epoch_section_1,
-    85,
-    combined_termination_settings_section_2,
-    integrator_settings,
-)
+propagator_settings = create_propagator_settings("Section 2", final_state_section_1, final_epoch_section_1, 85, combined_termination_settings_section_2, integrator_settings)
 
 
 """
@@ -706,7 +643,8 @@ The state and dependent variable histories for the second section are now saved 
 
 
 dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings
+    bodies,
+    propagator_settings
 )
 states = dynamics_simulator.state_history
 states_array_section_2 = result2array(states)
@@ -734,17 +672,17 @@ Let's now extract each of the relevant data array from the dependent variables m
 """
 
 
-times = dep_vars_array[:, 0]
+times = dep_vars_array[:,0]
 times_since_launch = times - times[0]
 
-altitudes = dep_vars_array[:, 1]
-airspeeds = dep_vars_array[:, 2]
-dyna_pressures = dep_vars_array[:, 3]
-mass = dep_vars_array[:, 4]
-total_a = dep_vars_array[:, 5]
-SH_a = dep_vars_array[:, 6]
-thrust_a = dep_vars_array[:, 7]
-aero_a = dep_vars_array[:, 8]
+altitudes = dep_vars_array[:,1]
+airspeeds = dep_vars_array[:,2]
+dyna_pressures = dep_vars_array[:,3]
+mass = dep_vars_array[:,4]
+total_a = dep_vars_array[:,5]
+SH_a = dep_vars_array[:,6]
+thrust_a = dep_vars_array[:,7]
+aero_a = dep_vars_array[:,8]
 
 
 """
