@@ -241,8 +241,8 @@ class ThrustModel:
         
         # Retrieve rotation matrix from vertical to inertial frame from the aerodynamic angle calculator
         vertical_to_inertial_frame = aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
-            environment.AerodynamicsReferenceFrames.vertical_frame,
-            environment.AerodynamicsReferenceFrames.inertial_frame)
+            environment_setup.AerodynamicsReferenceFrames.vertical_frame,
+            environment_setup.AerodynamicsReferenceFrames.inertial_frame)
         
         # Compute the thrust in the inertial frame
         thrust_inertial_frame = np.dot(vertical_to_inertial_frame,

@@ -281,8 +281,15 @@ def perform_residuals_analysis(inputs):
     # to ensure that the simulation environment covers the full time span of the loaded TNF files. This is mostly needed because some TNF
     # files - while typically assigned to a certain date - actually spans over (slightly) longer than one day. Without this time buffer,
     # some observation epochs might thus lie outside the time boundaries within which the dynamical environment is defined.
+<<<<<<< HEAD
     start_time = time_conversion.datetime_to_tudat(inputs[1]).to_epoch() - 86400.0
     end_time = time_conversion.datetime_to_tudat(inputs[2]).to_epoch() + 86400.0
+=======
+    start_time = (
+        time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float() - 86400.0
+    )
+    end_time = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float() + 86400.0
+>>>>>>> origin/master
 
     # Retrieve lists of relevant kernels and input files to load (TNF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)
@@ -366,19 +373,31 @@ def perform_residuals_analysis(inputs):
             environment_setup.rotation_model.gcrs_to_itrs(
                 environment_setup.rotation_model.iau_2006,
                 global_frame_orientation,
+<<<<<<< HEAD
                 interpolators.interpolator_generation_settings(
+=======
+                interpolators.interpolator_generation_settings_float(
+>>>>>>> origin/master
                     interpolators.cubic_spline_interpolation(),
                     start_time,
                     end_time,
                     3600.0,
                 ),
+<<<<<<< HEAD
                 interpolators.interpolator_generation_settings(
+=======
+                interpolators.interpolator_generation_settings_float(
+>>>>>>> origin/master
                     interpolators.cubic_spline_interpolation(),
                     start_time,
                     end_time,
                     3600.0,
                 ),
+<<<<<<< HEAD
                 interpolators.interpolator_generation_settings(
+=======
+                interpolators.interpolator_generation_settings_float(
+>>>>>>> origin/master
                     interpolators.cubic_spline_interpolation(),
                     start_time,
                     end_time,
@@ -451,6 +470,7 @@ def perform_residuals_analysis(inputs):
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []
         for date in dates_to_filter:
+<<<<<<< HEAD
             dates_to_filter_float.append(date.to_epoch())
             # Create filter object for specific date
             date_filter = estimation.observation_filter(
@@ -458,6 +478,17 @@ def perform_residuals_analysis(inputs):
                 date.to_epoch() - 3600.0,
                 # time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
                 time_conversion.add_days_to_datetime(date, 1.0).to_epoch() + 0.0,
+=======
+            dates_to_filter_float.append(date.epoch().to_float())
+            # Create filter object for specific date
+            date_filter = estimation.observation_filter(
+                estimation.time_bounds_filtering,
+                date.epoch().to_float() - 0.0,
+                time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
+                .epoch()
+                .to_float()
+                + 0.0,
+>>>>>>> origin/master
             )
             # Filter out observations from observation collection
             original_odf_observations.filter_observations(date_filter)
@@ -514,7 +545,11 @@ def perform_residuals_analysis(inputs):
         # This is to ensure that the antenna position history spans over a slightly extended time interval than the observation epochs
         # of the given set. When simulating Doppler data to compute the MRO residuals, we might indeed need to access the antenna position
         # slightly outside the exact time bounds defined by the observation epochs because of the light-time delay.
+<<<<<<< HEAD
         for obs_times in compressed_observations.get_observation_times_objects():
+=======
+        for obs_times in compressed_observations.get_observation_times():
+>>>>>>> origin/master
             time = obs_times[0].to_float() - 3600.0
             while time <= obs_times[-1].to_float() + 3600.0:
                 state = np.zeros((6, 1))
@@ -553,7 +588,11 @@ def perform_residuals_analysis(inputs):
         #  Create light-time corrections list
         light_time_correction_list = list()
         light_time_correction_list.append(
+<<<<<<< HEAD
             estimation_setup.observation.approximated_second_order_relativistic_light_time_correction(
+=======
+            estimation_setup.observation.second_order_relativistic_light_time_correction(
+>>>>>>> origin/master
                 ["Sun"]
             )
         )
@@ -671,8 +710,13 @@ def perform_residuals_analysis(inputs):
             )
 
             # Retrieve the time bounds of each observation set within the observation collection
+<<<<<<< HEAD
             time_bounds_per_set = (
                 parsed_observations.get_time_bounds_per_set_time_object(obsType_parser)
+=======
+            time_bounds_per_set = parsed_observations.get_time_bounds_per_set(
+                obsType_parser
+>>>>>>> origin/master
             )
             time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
             for j in range(len(time_bounds_per_set)):
@@ -714,7 +758,11 @@ def perform_residuals_analysis(inputs):
                 "outputs/mro_{}_filtered_time_".format(obsName)
                 + filename_suffix
                 + ".dat",
+<<<<<<< HEAD
                 parsed_observations.concatenated_times,
+=======
+                parsed_observations.concatenated_float_times,
+>>>>>>> origin/master
                 delimiter=",",
             )
 
@@ -739,9 +787,13 @@ def perform_residuals_analysis(inputs):
             )
 
             # Retrieve time bounds per observation set
+<<<<<<< HEAD
             time_bounds_per_filtered_set = (
                 parsed_observations.get_time_bounds_per_set_time_object()
             )
+=======
+            time_bounds_per_filtered_set = parsed_observations.get_time_bounds_per_set()
+>>>>>>> origin/master
             time_bounds_filtered_array = np.zeros(
                 (len(time_bounds_per_filtered_set), 2)
             )
@@ -825,7 +877,11 @@ def perform_residuals_analysis(inputs):
 
                 # Retrieve residuals, observation times and dependent variables over the first day
                 first_day_observation_times = (
+<<<<<<< HEAD
                     parsed_observations.get_concatenated_observation_times(
+=======
+                    parsed_observations.get_concatenated_float_observation_times(
+>>>>>>> origin/master
                         first_day_parser
                     )
                 )
