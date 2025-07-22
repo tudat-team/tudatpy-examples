@@ -234,7 +234,7 @@ aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 #coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
 #    force_coefficient_files=aero_coefficients_files,
 #    reference_area=2690.0*0.3048*0.3048,
-#    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
+#    independent_variable_names=[environment_setup.angle_of_attack_dependent, environment_setup.mach_number_dependent],
 #    are_coefficients_in_aerodynamic_frame=True,
 #    are_coefficients_in_negative_axis_direction=True
 #)
@@ -243,7 +243,7 @@ aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
     force_coefficient_files=aero_coefficients_files,
     reference_area=2690.0*0.3048*0.3048,
-    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
+    independent_variable_names=[environment_setup.angle_of_attack_dependent, environment_setup.mach_number_dependent],
 )
 
 # Add predefined aerodynamic coefficients database to the body
