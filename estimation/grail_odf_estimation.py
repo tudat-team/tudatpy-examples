@@ -86,7 +86,7 @@ def run_odf_estimation(inputs):
     input_index = inputs[0]
 
     # Convert the datetime object defining the day of interest to a Tudat Time variable.
-    date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
+    date = time_conversion.datetime_to_tudat(inputs[1]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, manoeuvres file, antennas switch files, GRAIL trajectory files, GRAIL
@@ -164,7 +164,7 @@ def run_odf_estimation(inputs):
         # Retrieve time bounds of the ODF observations. A time buffer of 1h is subtracted/added to the observation
         # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
         # loaded ODF observations, without interpolation errors at the arc boundaries.
-        observation_time_limits = original_odf_observations.time_bounds
+        observation_time_limits = original_odf_observations.time_bounds_time_object
         obs_start_time = observation_time_limits[0] - 3600.0
         obs_end_time = observation_time_limits[1] + 3600.0
 
@@ -193,11 +193,11 @@ def run_odf_estimation(inputs):
         body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
         body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
             environment_setup.rotation_model.iau_2006, global_frame_orientation,
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  obs_start_time.to_float(), obs_end_time.to_float(), 60.0))
         body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
@@ -403,7 +403,7 @@ def run_odf_estimation(inputs):
         np.savetxt(output_folder + 'residuals_wrt_spice_' + filename_suffix + '.dat',
                    compressed_observations.get_concatenated_residuals(), delimiter=',')
         np.savetxt(output_folder + 'observation_times_' + filename_suffix + '.dat',
-                   compressed_observations.concatenated_float_times, delimiter=',')
+                   compressed_observations.concatenated_times, delimiter=',')
         np.savetxt(output_folder + 'link_end_ids_' + filename_suffix + '.dat',
                    compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
@@ -462,7 +462,7 @@ def run_odf_estimation(inputs):
         np.savetxt(output_folder + 'postfit_residuals_' + filename_suffix + '.dat', estimation_output.residual_history[:,-1], delimiter=',')
 
         # Retrieve the post-fit state history of GRAIL
-        estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
+        estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history
 
         # Print estimated parameters values
         print("post-fit estimated parameters", parameters_to_estimate.parameter_vector)
@@ -529,7 +529,7 @@ if __name__ == "__main__":
         postfit_residuals = np.loadtxt(output_folder + "postfit_residuals_" + str(i) + ".dat")
         difference_rsw_wrt_spice = np.loadtxt(output_folder + "postfit_rsw_state_difference_" + str(i) + ".dat", delimiter=',')
 
-        start_date = time_conversion.datetime_to_tudat(dates[i]).epoch().to_float()
+        start_date = time_conversion.datetime_to_tudat(dates[i]).to_epoch()
 
 
         # Plot the results of the current estimation.

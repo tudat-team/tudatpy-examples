@@ -59,7 +59,7 @@ def run_spice_fit(inputs):
     # Convert the datetime object defining the current date to a Tudat Time variable.
     # A time buffer of 10 min is added to ensure that the GRAIL orientation kernel fully covers the time interval of interest,
     # without interpolation errors in case the current kernel starts exactly on the day under consideration.
-    start_time = time_conversion.datetime_to_tudat(inputs[1]).epoch() + 600.0
+    start_time = time_conversion.datetime_to_tudat(inputs[1]).to_epoch_time_object() + 600.0
     end_time = start_time + 86400.0
 
     # Retrieve index of the setup to consider (this defines both the model to be used to propagate GRAIL's dynamics
@@ -286,7 +286,7 @@ def run_spice_fit(inputs):
                                       numerical_simulation.Time( 0, 60.0 ), extra_parameters, results_print_frequency = 3600.0/integration_step)
 
         # Retrieve GRAIL's post-fit estimated trajectory
-        estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history_float
+        estimated_state_history = estimation_output.simulation_results_per_iteration[-1].dynamics_results.state_history
 
         # Compute the difference between GRAIL's post-fit state history and its reference spice trajectory, in the RSW frame
         # (radial, along-track, cross-track).
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     for index_date in range(nb_dates):
 
         # Retrieve start of the current date in seconds
-        start_date = time_conversion.datetime_to_tudat(dates[index_date]).epoch().to_float()
+        start_date = time_conversion.datetime_to_tudat(dates[index_date]).to_epoch()
 
         # Retrieve string corresponding to the current date
         date_string = dates[index_date].strftime('%m/%d/%Y').replace('/', '')
