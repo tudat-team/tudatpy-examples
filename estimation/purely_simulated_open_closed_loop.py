@@ -68,7 +68,7 @@ for kernel in os.listdir(mex_kernels_folder):
 #end = datetime(2013, 12, 31, 23, 00, 00)
 start = datetime(2013, 12, 28, 00, 00, 00) # simulate over the relevant GR035 timeframe
 end = datetime(2013, 12, 28, 23, 59, 00)
-integration_time = 60
+integration_time = 10
 open_loop_cadence = 10
 
 start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() # in utc
