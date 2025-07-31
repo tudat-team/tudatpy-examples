@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from tudatpy.data.spacetrack import SpaceTrackQuery
 from tudatpy.dynamics import parameters_setup, parameters, propagation, propagation_setup
+from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 
 # Load spice standard kernels
 spice.load_standard_kernels()
@@ -23,22 +24,15 @@ SpaceTrackQuery = SpaceTrackQuery(username, password)
 # OMM Dict
 json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
 
-# retrieve orbital elements from json_dict
-
-a,e,i,omega,raan,true_anomaly = SpaceTrackQuery.OMMUtils.get_tudat_keplerian_element_set(SpaceTrackQuery.OMMUtils,json_dict)
-
 # Retrieve TLEs
 tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
-
 tle_line1, tle_line2 = tle_dict[str(norad_id)][0], tle_dict[str(norad_id)][1]
 
-# Retrieve TLE Reference epoch
+# Retrieve TLE Reference epoch, this will be start epoch of simulation
 tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
 
-tle_ephemeris_object = SpaceTrackQuery.OMMUtils.tle_to_TleEphemeris_object(SpaceTrackQuery, tle_line1, tle_line2)
-
 number_of_pod_iterations = 6 # number of iterations for our estimation
-timestep_global = 5 # timestep of 120 seconds for our estimation
+timestep_global = 60 # timestep of 120 seconds for our estimation
 time_buffer = 60 # uncomment only if needed.
 
 # Define Simulation Start and End (Date)Times
@@ -66,11 +60,20 @@ body_settings = environment_setup.get_default_body_settings(
 body_settings.add_empty_settings(str(norad_id))
 
 
+# create ephemeris for the object via sgp4 ephemeris
 original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
     tle_line1,
     tle_line2,
     frame_origin = global_frame_origin,
     frame_orientation = global_frame_orientation)
+
+# Creating tabulated ephemeris is required for the Estimator to work.
+norad_id_ephemeris = environment_setup.ephemeris.tabulated_from_existing(
+    original_sgp4_ephemeris,
+    float_observations_start,
+    float_observations_end,
+    timestep_global)
+
 
 body_settings.get(str(norad_id)).ephemeris_settings =  environment_setup.ephemeris.tabulated_from_existing(
     original_sgp4_ephemeris,
@@ -79,21 +82,10 @@ body_settings.get(str(norad_id)).ephemeris_settings =  environment_setup.ephemer
     timestep_global)
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
-
-earth_gravitational_parameter = bodies.get_body('Earth').gravitational_parameter
-initial_state = element_conversion.keplerian_to_cartesian_elementwise(
-    gravitational_parameter=earth_gravitational_parameter,
-    semi_major_axis= a,
-    eccentricity=e,
-    inclination=i,
-    argument_of_periapsis=omega,
-    longitude_of_ascending_node=raan,
-    true_anomaly=true_anomaly,
-)
+initial_state = bodies.get(str(norad_id)).ephemeris.cartesian_state(float_observations_start)
 
 bodies_to_propagate = [str(norad_id)]
 central_bodies = [global_frame_origin]
-
 
 # Create propagator settings
 integrator_settings = propagation_setup.integrator. \
@@ -109,7 +101,7 @@ accelerations = {
         propagation_setup.acceleration.point_mass_gravity(),
     ],
     "Earth": [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
-    "Moon": [propagation_setup.acceleration.point_mass_gravity()],
+    "Moon": [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
 }
 
 # Set up the accelerations settings for each body, in this case only for our norad_id
@@ -155,8 +147,9 @@ stations_altitude = 0.0
 delft_latitude = np.deg2rad(52.00667)
 delft_longitude = np.deg2rad(4.35556)
 
-aruba_latitude = np.deg2rad(12.517572)
-aruba_longitude = np.deg2rad(-69.9649462)
+# Uncomment to add link end in Aruba
+#aruba_latitude = np.deg2rad(12.517572)
+#aruba_longitude = np.deg2rad(-69.9649462)
 
 environment_setup.add_ground_station(
     bodies.get_body("Earth"),
@@ -164,38 +157,46 @@ environment_setup.add_ground_station(
     [stations_altitude, delft_latitude, delft_longitude],
     element_conversion.geodetic_position_type)
 
-environment_setup.add_ground_station(
-    bodies.get_body("Earth"),
-    reference_point_backup,
-    [stations_altitude, aruba_latitude, aruba_longitude],
-    element_conversion.geodetic_position_type)
+# Uncomment to add link end in Aruba
+#environment_setup.add_ground_station(
+#    bodies.get_body("Earth"),
+#    reference_point_backup,
+#    [stations_altitude, aruba_latitude, aruba_longitude],
+#    element_conversion.geodetic_position_type)
 
 link_ends_list = [{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point),
-                   observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))},
-                  {observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
-                   observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))}, ]
+                   observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))}]
 
+                  # Add this to the list if probing with link end in Aruba
+                  #{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
+                  # observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))}, ]
+
+# Create Link Ends
 link_definition_list = []
 for link_ends in link_ends_list:
     link_definition_list.append(observable_models_setup.links.link_definition(link_ends))
-
-
 observation_model_settings = list()
 
+# Create observation model settings
 for link_definition in link_definition_list:
     observation_model_settings.append(observable_models_setup.model_settings.angular_position(
         link_definition, light_time_correction_list))
 
+# Create observations times. Results of the estimation slightly depend on this time buffer.
+# Consider exploring why things do not work with time_buffer = 0
 observation_times = np.arange(float_observations_start + time_buffer, float_observations_end - time_buffer, timestep_global)
 observation_simulation_settings = list()
 body_state_history = dict()
 
+
+# Create Simulation (propagation) Settings
 for link_definition in link_definition_list:
     observation_simulation_settings.append(observations_setup.observations_simulation_settings.tabulated_simulation_settings(
         observable_models_setup.model_settings.angular_position_type,
         link_definition,
         observation_times))
 
+# Add random noise to the observations
 noise_level = 1e-6 # typical astrometry error for detection is around 1 arcsec, corresponding to 1e-6 radians.
 observations_setup.random_noise.add_gaussian_noise_to_observable(
     observation_simulation_settings,
@@ -206,29 +207,38 @@ observations_setup.random_noise.add_gaussian_noise_to_observable(
 # Create observation simulators
 observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(observation_model_settings, bodies)
 
+# Retrieve observation collection
 norad_id_simulated_observations = observations_setup.observations_wrapper.simulate_observations(
     observation_simulation_settings,
     observation_simulators,
     bodies)
 
-norad_id_simulated_observations.set_constant_weight(1e-6)
+# Add weights to the observation collection
+# (if not set, default = 1 [radians]. This would be too big!)
+# When using radio links, default = 1 [m]. In that case, that would be fine...
+
+norad_id_simulated_observations.set_constant_weight(noise_level)
+
 # Compute and set residuals in the compressed observation collection
 observations.compute_residuals_and_dependent_variables(norad_id_simulated_observations, observation_simulators, bodies)
 
-# Filter residual outliers
+# Filter residual outliers (if any)
 norad_id_simulated_observations.filter_observations(
     observations.observations_processing.observation_filter(observations.observations_processing.residual_filtering, 0.1))
 
-weights = norad_id_simulated_observations.concatenated_weights
-
+# Retrieve relevant quantities (observations, residuals, observation times) from observation collection
 concatenated_observations = norad_id_simulated_observations.concatenated_observations
 concatenated_residuals = norad_id_simulated_observations.get_concatenated_residuals()
 concatenated_times= norad_id_simulated_observations.concatenated_times
 
+# Separate Ra and Dec coordinates (they are found together in concatenated observations)
 concatenated_ra = concatenated_observations[::2]
 concatenated_dec = concatenated_observations[1::2]
+
+# Convert to degrees
 concatenated_ra_deg = [np.rad2deg(ra) for ra in concatenated_ra]
 concatenated_dec_deg = [np.rad2deg(dec) for dec in concatenated_dec]
+
 # Plot observations
 fig, axs = plt.subplots(
     1,
@@ -237,15 +247,15 @@ fig, axs = plt.subplots(
     sharex=True,
     sharey=False,
 )
+
 # plot the residuals, split between RA and DEC types
 for idx, ax in enumerate(fig.get_axes()):
     ax.grid()
-    # we take every second
     ax.scatter(
         concatenated_times[::2],
         concatenated_ra_deg,
         marker="+",
-        s=60,
+        s=40,
         label="Right Ascension",
     )
 
@@ -253,25 +263,22 @@ for idx, ax in enumerate(fig.get_axes()):
         concatenated_times[::2],
         concatenated_dec_deg,
         marker="+",
-        s=60,
+        s=40,
         label="Declination",
     )
 
-
 plt.legend()
 plt.tight_layout()
-plt.show()
-
-plt.scatter(concatenated_times,concatenated_observations, s = 5)
-plt.show()
 plt.xlabel('Observation Times [s]')
-plt.ylabel('Observations')
+plt.ylabel('Ra and Dec [deg]')
+plt.show()
 
 # Plot PRE-FIT Residuals
-plt.scatter(concatenated_times,concatenated_residuals, s = 5)
-plt.show()
+plt.scatter(concatenated_times,concatenated_residuals, s = 8)
 plt.xlabel('Observation Times [s]')
-plt.ylabel('Residuals')
+plt.ylabel('Pre-Fit Residuals [rad]')
+plt.show()
+
 
 # Set up the estimator
 estimator = estimation_analysis.Estimator(
@@ -289,40 +296,39 @@ estimation_input = estimation_analysis.EstimationInput(
     ),
 )
 
-# Set methodological options
+# Set estimation methodological options
 estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
+
 # Define weighting of the observations in the inversion
 estimation_input.set_weights_from_observation_collection()
 
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
 
-# retrieve the estimated initial state.
+# retrieve the estimated initial state and compare it to the truth.
 
+initial_state_updated = parameters_to_estimate.parameter_vector
+print('Done with the estimation...\n')
+print(f'Updated initial states: {initial_state_updated}\n')
 
-initial_states_updated = parameters_to_estimate.parameter_vector
-print('Done with the estimation...')
-print(f'Updated initial states: {initial_states_updated}')
-
-vector_error_final = (np.array(initial_states_updated) - truth_parameters)[0:3]
+vector_error_final = (np.array(initial_state_updated) - truth_parameters)[0:3]
 error_magnitude_final = np.linalg.norm(vector_error_final)/1000
 
 print(
-    f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 2)} km"
+    f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 2)} km\n"
 )
 
 
+# These three lines might be useful later when adding multiple parameters to estimate
 simulator_object = estimation_output.simulation_results_per_iteration[-1]
 state_history = simulator_object.dynamics_results.state_history
 dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
 
+
+# Plot the propagated orbit and highlight truth vs estimated state
 ephemeris_state = list()
 for epoch in state_history.keys():
     ephemeris_state.append(state_history[epoch])
-
-
-print(ephemeris_state)
-from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 
 # Extract x, y, z components
 x_values = [state[0]/1000 for state in ephemeris_state]
@@ -333,23 +339,17 @@ z_values = [state[2]/1000 for state in ephemeris_state]
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.plot(x_values, y_values, z_values)
-ax.scatter(0,0,0, label ='Earth', s = 2)
-
-# (Optional) Label axes
+SpaceTrackQuery.OMMUtils.plot_earth(SpaceTrackQuery, ax)
+ax.scatter(initial_state[0]/1000, initial_state[1]/1000, initial_state[2]/1000, label ='True Initial State', s = 10)
+ax.scatter(initial_state_updated[0]/1000, initial_state_updated[1]/1000, initial_state_updated[2]/1000, label ='Estimated Initial State', s = 10)
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
-ax.set_title('3D Ephemeris Trajectory')
-
+ax.set_title(f'NORAD_ID: {str(norad_id)}')
+ax.legend()
 plt.show()
 
-"""
-## Visualising the results
-
-### Change in residuals per iteration
-We want to visualise the residuals, splitting them between Right Ascension and Declination. Internally, `concatenated_observations` orders the observations alternating RA, DEC, RA, DEC,... This allows us to map the colors accordingly by taking every other item in the `residual_history`/`concatenated_observations`, i.e. by slicing [::2].
-"""
-
+# Print Residuals History
 residual_history = estimation_output.residual_history
 
 # Number of columns and rows for our plot
@@ -412,23 +412,15 @@ axs[0, 0].legend()
 
 plt.show()
 
-"""
-### Residuals Correlations Matrix
-Lets check out the correlation of the estimated parameters.
-"""
-
+# Retrieve and plot correlation matrix
 # Correlation can be retrieved using the CovarianceAnalysisInput class:
 covariance_input = estimation_analysis.CovarianceAnalysisInput(norad_id_simulated_observations)
 covariance_output = estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
 estimated_param_names = ["x", "y", "z", "vx", "vy", "vz"]
-
-
 fig, ax = plt.subplots(1, 1, figsize=(9, 7))
-
 im = ax.imshow(correlations, cmap=cm.RdYlBu_r, vmin=-1, vmax=1)
-
 ax.set_xticks(np.arange(len(estimated_param_names)), labels=estimated_param_names)
 ax.set_yticks(np.arange(len(estimated_param_names)), labels=estimated_param_names)
 
@@ -440,12 +432,9 @@ for i in range(len(estimated_param_names)):
         )
 
 cb = plt.colorbar(im)
-
 ax.set_xlabel("Estimated Parameter")
 ax.set_ylabel("Estimated Parameter")
-
 fig.suptitle(f"Correlations for estimated parameters for {norad_id}")
-
 fig.set_tight_layout(True)
 plt.show()
 
