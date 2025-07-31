@@ -17,19 +17,19 @@ import os
 from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy import numerical_simulation
-from tudatpy.astro import time_conversion
+from tudatpy.astro import time_conversion, time_representation
 from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation.environment_setup import radiation_pressure
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.numerical_simulation import estimation_setup
+from tudatpy import estimation
+from tudatpy.estimation.observable_models_setup import observation
 from tudatpy import util
 
 from datetime import datetime
 
 # Import GRAIL examples functions
 from grail_examples_functions import get_grail_files, get_grail_panel_geometry
-
 
 ### ------------------------------------------------------------------------------------------
 ### IMPORTANT PRELIMINARY REMARKS
@@ -77,8 +77,8 @@ def perform_residuals_analysis(inputs):
     input_index = inputs[0]
 
     # Convert start and end datetime objects to Tudat Time variables.
-    start_date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
-    end_date = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float()
+    start_date = time_conversion.datetime_to_tudat(inputs[1]).epoch()
+    end_date = time_conversion.datetime_to_tudat(inputs[2]).epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, antennas switch files, GRAIL trajectory files, GRAIL reference frames file,
@@ -145,13 +145,13 @@ def perform_residuals_analysis(inputs):
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
         original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
-            multi_odf_file_contents, [estimation_setup.observation.dsn_n_way_averaged_doppler],
-            [numerical_simulation.Time(0, np.nan), numerical_simulation.Time(0, np.nan)])
+            multi_odf_file_contents, [estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type],
+            [time_representation.Time(0, np.nan), time_representation.Time(0, np.nan)])
 
         # Filter all ODF observations that exceed the time interval defined by the start and end dates. This is only necessary because
         # the last ODF file might span over longer than one day (as any other ODF file), thus exceeding the time interval over which the
         # dynamical model is defined.
-        day_arc_filter = estimation.observation_filter(
+        day_arc_filter = estimation.observable_models_setup.observation_filter(
             estimation.time_bounds_filtering, start_date, end_date, use_opposite_condition = True)
         original_odf_observations.filter_observations(day_arc_filter)
         original_odf_observations.remove_empty_observation_sets()
@@ -272,10 +272,10 @@ def perform_residuals_analysis(inputs):
         # Reconstruct dictionary containing the antenna switch history (including the GRAIL-fixed position of the relevant antenna at
         # initial and final times)
         antenna_switch_history = dict()
-        antenna_switch_history[obs_start_time.to_float()] = np.array(antenna_switch_positions[0:3])
+        antenna_switch_history[obs_start_time] = np.array(antenna_switch_positions[0:3])
         for k in range(len(antenna_switch_times)):
             antenna_switch_history[antenna_switch_times[k]] = np.array(antenna_switch_positions[k * 3:(k + 1) * 3])
-        antenna_switch_history[obs_end_time.to_float()] = np.array(antenna_switch_positions[-3:])
+        antenna_switch_history[obs_end_time] = np.array(antenna_switch_positions[-3:])
 
         # Set GRAIL's reference point position to follow the antenna switch history (the antennas' positions should be provided in the
         # spacecraft-fixed frame). For the input_index = 1, the antenna position offset wrt GRAIL's COM is neglected.
@@ -313,7 +313,7 @@ def perform_residuals_analysis(inputs):
 
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
-            observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
+            observation_model_settings.append(estimation.observable_models_setup.model_settings.dsn_n_way_doppler_averaged(
                 current_link_definition, light_time_correction_list))
 
         # Create observation simulators
@@ -324,7 +324,7 @@ def perform_residuals_analysis(inputs):
 
         # Filter residual outliers
         compressed_observations.filter_observations(
-            estimation.observation_filter(estimation.residual_filtering, 0.1))
+            estimation.observations.observations_processing.observation_filter(estimation.observations.observations_processing.residual_filtering, 0.1))
 
         # Save residuals as directly computed w.r.t. the reference SPICE trajectory for GRAIL, along with the
         # observation times and link ends IDs.
@@ -349,8 +349,8 @@ def perform_residuals_analysis(inputs):
         time_bounds_per_set = compressed_observations.get_time_bounds_per_set()
         time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
         for j in range(len(time_bounds_per_set)):
-            time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
-            time_bounds_array[j, 1] = time_bounds_per_set[j][1].to_float()
+            time_bounds_array[j, 0] = time_bounds_per_set[j][0]
+            time_bounds_array[j, 1] = time_bounds_per_set[j][1]
 
         # Save time bounds for each observation set
         np.savetxt(output_folder + 'time_bounds_' + filename_suffix + '.dat', time_bounds_array, delimiter=',')
@@ -420,7 +420,7 @@ if __name__ == "__main__":
         residuals_rms = np.loadtxt(output_folder + "residuals_rms_" + str(i) + ".dat")
         residuals_mean = np.loadtxt(output_folder + "residuals_mean_" + str(i) + ".dat")
 
-        start_date_float = time_conversion.datetime_to_tudat(start_date).epoch().to_float()
+        start_date_float = time_conversion.datetime_to_tudat(start_date).epoch()
 
         # Plot full residuals wrt reference spice trajectory
         axs1[i].scatter((obs_times-start_date_float)/86400, residuals_wrt_spice, c=link_ends_ids, s=10)

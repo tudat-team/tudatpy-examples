@@ -237,6 +237,7 @@ plt.plot(observation_times_year, residuals_simple, ".")
 plt.title("Most simple simulation")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
+
 plt.grid("on")
 plt.axhline(0, color="k", zorder=0)
 plt.show()
