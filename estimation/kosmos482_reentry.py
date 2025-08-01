@@ -352,7 +352,7 @@ print(" ")
 from numpy import savetxt
 
 # Save intermediate data to a comma-delimited txt file if option was chosen earlier
-if outopt == 'full':
+if outopt == 'selected':
     savetxt('variables_out' + filenamesuf + '.txt', dependent_variables_array, delimiter=',')
     savetxt('J2Kstate_out' + filenamesuf + '.txt', states_array, delimiter=',')
 
@@ -423,7 +423,7 @@ lc.set_array(times_since)
 
 # Satellite imagery tiler
 tiler = cimgt.QuadtreeTiles()  # Good for testing
-fig = plt.figure(figsize=(14, 7))
+fig = plt.figure(figsize=(12, 5))
 ax = plt.axes(projection=tiler.crs)
 #ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 ax.add_image(tiler, 4)
@@ -431,7 +431,8 @@ ax.add_image(tiler, 4)
 # Add colored ground track
 ax.add_collection(lc)
 cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
-cbar.set_label(f'Elapsed Hours Since {utc_times[0]}', fontsize = 13)
+cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
+
 
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
