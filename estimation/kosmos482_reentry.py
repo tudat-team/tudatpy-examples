@@ -81,7 +81,7 @@ simulation_end_epoch_utc = DateTime(2026, 2, 1, 0, 0, 0).epoch()
 
 # SET OPTION FULL OUTPUT OR ONLY END RESULT? ('full', 'selected',"J2K",'endonly')
      
-outopt = 'selected'
+outopt = 'full'
 
     # full = selected data, J2K States and end result out
     # selected = only selected data and end result out
