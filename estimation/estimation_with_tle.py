@@ -14,7 +14,7 @@ from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
 # Load spice standard kernels
 spice.load_standard_kernels()
 
-norad_id = 64865
+norad_id = str(64865)
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
@@ -26,13 +26,13 @@ json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_i
 
 # Retrieve TLEs
 tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
-tle_line1, tle_line2 = tle_dict[str(norad_id)][0], tle_dict[str(norad_id)][1]
+tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
 
 # Retrieve TLE Reference epoch, this will be start epoch of simulation
 tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
 
 number_of_pod_iterations = 6 # number of iterations for our estimation
-timestep_global = 60 # timestep of 120 seconds for our estimation
+timestep_global = 5 # timestep of 120 seconds for our estimation
 time_buffer = 60 # uncomment only if needed.
 
 # Define Simulation Start and End (Date)Times
@@ -57,7 +57,7 @@ body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation
 )
 
-body_settings.add_empty_settings(str(norad_id))
+body_settings.add_empty_settings(norad_id)
 
 
 # create ephemeris for the object via sgp4 ephemeris
@@ -75,16 +75,16 @@ norad_id_ephemeris = environment_setup.ephemeris.tabulated_from_existing(
     timestep_global)
 
 
-body_settings.get(str(norad_id)).ephemeris_settings =  environment_setup.ephemeris.tabulated_from_existing(
+body_settings.get(norad_id).ephemeris_settings =  environment_setup.ephemeris.tabulated_from_existing(
     original_sgp4_ephemeris,
     float_observations_start,
     float_observations_end,
     timestep_global)
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
-initial_state = bodies.get(str(norad_id)).ephemeris.cartesian_state(float_observations_start)
+initial_state = bodies.get(norad_id).ephemeris.cartesian_state(float_observations_start)
 
-bodies_to_propagate = [str(norad_id)]
+bodies_to_propagate = [norad_id]
 central_bodies = [global_frame_origin]
 
 # Create propagator settings
@@ -106,7 +106,7 @@ accelerations = {
 
 # Set up the accelerations settings for each body, in this case only for our norad_id
 acceleration_settings = {}
-acceleration_settings[str(norad_id)] = accelerations
+acceleration_settings[norad_id] = accelerations
 
 # create the acceleration models
 acceleration_models = propagation_setup.create_acceleration_models(
@@ -165,11 +165,11 @@ environment_setup.add_ground_station(
 #    element_conversion.geodetic_position_type)
 
 link_ends_list = [{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point),
-                   observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))}]
+                   observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)}]
 
                   # Add this to the list if probing with link end in Aruba
                   #{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
-                  # observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(str(norad_id))}, ]
+                  # observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)}, ]
 
 # Create Link Ends
 link_definition_list = []
@@ -345,7 +345,7 @@ ax.scatter(initial_state_updated[0]/1000, initial_state_updated[1]/1000, initial
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
-ax.set_title(f'NORAD_ID: {str(norad_id)}')
+ax.set_title(f'NORAD_ID: {norad_id}')
 ax.legend()
 plt.show()
 
