@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from tudatpy.data.spacetrack import SpaceTrackQuery
 import math
 from collections import defaultdict
+
+
+
 def cartesian2radec(vec):
     """
     Convert 3D Cartesian vector to (range, RA, Dec).
@@ -36,18 +39,17 @@ def cartesian2radec(vec):
     return r, ra_deg, dec_deg
 
 
-DEMO_FLAG = False
+DEMO_FLAG = True
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
 if DEMO_FLAG:
     q = SpaceTrackQuery(username, password)
-    q.download_tle.single_norad_id(5001, 5)
-    q.download_tle.single_norad_id(5000, 5)
-    q.download_tle.descending_epoch(5)
+    json_dict_5001 = q.download_tle.single_norad_id(5001, 5)
+    json_dict_5000 = q.download_tle.single_norad_id(5000, 5)
+    json_dict_descending = q.download_tle.descending_epoch(5)
 
-    # List of JSON TLE files
-    json_filenames = ['single_5000_4.json','single_5001_5.json','gp_descending_5.json']
+    json_dict_list = [json_dict_5001,json_dict_descending, json_dict_5000]
 
     # Time span (e.g., 12 hours sampled every minute)
     simulation_start_epoch = DateTime(2025, 7, 15, 0).epoch()
@@ -55,19 +57,22 @@ if DEMO_FLAG:
     list_of_times = np.arange(simulation_start_epoch, simulation_end_epoch, 120)
 
     # Determine subplot grid size (square or close to square)
-    n = len(json_filenames)
+    n = len(json_dict_list)
     cols = math.ceil(np.sqrt(n))
     rows = math.ceil(n / cols)
 
     # Create figure
-    for idx, json_filename in enumerate(json_filenames):
-        tle_dict = q.TleUtils.get_tle_dict_from_json(SpaceTrackQuery, json_filename)
+    for idx, json_dict in enumerate(json_dict_list):
+        tle_dict = q.OMMUtils.get_tles(SpaceTrackQuery, json_dict)
         trajectory_dict = defaultdict(list)
         radec_dict = defaultdict(list)
         for key, value in tle_dict.items():
             if len(value) > 1:
-                print(f"[{json_filename}] Multiple TLEs for object {key}. Plotting the most recent one.")
-            tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)
+                print(f"Multiple TLEs for object {key}. Plotting the most recent one.")
+                tle_line_1, tle_line_2 = value[0], value[1] # most recent tle (or single tle if len(value) = 1)]
+            elif len(value) == 1:
+                tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)]
+
             object_tle = environment.Tle(tle_line_1, tle_line_2)
             object_ephemeris = environment.TleEphemeris("Earth", "J2000", object_tle, False)
             for t in list_of_times:
@@ -79,7 +84,7 @@ if DEMO_FLAG:
         # Create 3D figure and axis
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
-        q.TleUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
+        q.OMMUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
 
         # Plot each trajectory
         for key, value in trajectory_dict.items():
@@ -154,13 +159,13 @@ else:
     rows = math.ceil(n / cols)
 
     # Create figure
-    for idx, json_filename in enumerate(json_filenames):
-        tle_dict = q.TleUtils.get_tle_dict_from_json(SpaceTrackQuery, json_filename)
+    for idx, json_dict in enumerate(json_dict_list):
+        tle_dict = q.OMMUtils.get_tles(SpaceTrackQuery, json_dict)
         trajectory_dict = defaultdict(list)
         radec_dict = defaultdict(list)
         for key, value in tle_dict.items():
             if len(value) > 1:
-                print(f"[{json_filename}] Multiple TLEs for object {key}. Plotting the most recent one.")
+                print(f"Multiple TLEs for object {key}. Plotting the most recent one.")
             tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)
             object_tle = environment.Tle(tle_line_1, tle_line_2)
             object_ephemeris = environment.TleEphemeris("Earth", "J2000", object_tle, False)
@@ -175,7 +180,7 @@ else:
         # Create 3D figure and axis
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
-        q.TleUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
+        q.OMMUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
 
         # Plot each trajectory
         for key, value in trajectory_dict.items():
