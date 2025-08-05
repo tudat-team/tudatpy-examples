@@ -24,8 +24,8 @@ from tudatpy.math import interpolators
 from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import propagation
 from tudatpy.numerical_simulation.environment_setup import radiation_pressure
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
+from tudatpy.numerical_simulation import propagation_setup, estimation_setup
+from tudatpy.estimation import observable_models_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
 
@@ -86,7 +86,7 @@ def run_odf_estimation(inputs):
     input_index = inputs[0]
 
     # Convert the datetime object defining the day of interest to a Tudat Time variable.
-    date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
+    date = time_conversion.datetime_to_tudat(inputs[1]).epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, manoeuvres file, antennas switch files, GRAIL trajectory files, GRAIL
@@ -152,11 +152,11 @@ def run_odf_estimation(inputs):
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
         original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
-            multi_odf_file_contents, [estimation_setup.observation.dsn_n_way_averaged_doppler],
+            multi_odf_file_contents, [observable_models_setup.dsn_n_way_averaged_doppler],
             [numerical_simulation.Time(0, np.nan), numerical_simulation.Time(0, np.nan)])
 
         # Filter all ODF observations that exceed the arc duration of one day
-        day_arc_filter = estimation.observation_filter(
+        day_arc_filter = estimation.observable_models_setup.observation_filter(
             estimation.time_bounds_filtering, date, date + 86400.0, use_opposite_condition = True)
         original_odf_observations.filter_observations(day_arc_filter)
         original_odf_observations.remove_empty_observation_sets()
@@ -187,18 +187,18 @@ def run_odf_estimation(inputs):
         global_frame_origin = "SSB"
         global_frame_orientation = "J2000"
         body_settings = environment_setup.get_default_body_settings_time_limited(
-            bodies_to_create, obs_start_time.to_float(), obs_end_time.to_float(), global_frame_origin, global_frame_orientation)
+            bodies_to_create, obs_start_time, obs_end_time, global_frame_origin, global_frame_orientation)
 
         # Modify default shape, rotation, and gravity field settings for the Earth
         body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
         body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
             environment_setup.rotation_model.iau_2006, global_frame_orientation,
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
+                                                                 obs_start_time, obs_end_time, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 3600.0),
+                                                                 obs_start_time, obs_end_time, 3600.0),
             interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
-                                                                 obs_start_time.to_float(), obs_end_time.to_float(), 60.0))
+                                                                 obs_start_time, obs_end_time, 60.0))
         body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
         # Set up DSN ground stations
@@ -236,7 +236,7 @@ def run_odf_estimation(inputs):
 
         # Define translational ephemeris from SPICE
         body_settings.get(spacecraft_name).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-            obs_start_time.to_float(), obs_end_time.to_float(), 10.0, spacecraft_central_body, global_frame_orientation)
+            obs_start_time, obs_end_time, 10.0, spacecraft_central_body, global_frame_orientation)
 
         # Define rotational ephemeris from SPICE
         body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.rotation_model.spice(
@@ -277,10 +277,10 @@ def run_odf_estimation(inputs):
         # Reconstruct dictionary containing the antenna switch history (including the GRAIL-fixed position of the relevant antenna at
         # initial and final times)
         antenna_switch_history = dict()
-        antenna_switch_history[obs_start_time.to_float()] = np.array(antenna_switch_positions[0:3])
+        antenna_switch_history[obs_start_time] = np.array(antenna_switch_positions[0:3])
         for k in range(len(antenna_switch_times)):
             antenna_switch_history[antenna_switch_times[k]] = np.array(antenna_switch_positions[k * 3:(k + 1) * 3])
-        antenna_switch_history[obs_end_time.to_float()] = np.array(antenna_switch_positions[-3:])
+        antenna_switch_history[obs_end_time] = np.array(antenna_switch_positions[-3:])
 
         # Set GRAIL's reference point position to follow the antenna switch history (the antennas' positions should be provided in the
         # spacecraft-fixed frame)
@@ -297,7 +297,7 @@ def run_odf_estimation(inputs):
         # Store the manoeuvres epochs if they occur within the time interval under consideration
         relevant_manoeuvres = []
         for manoeuvre_time in manoeuvres_times:
-            if (manoeuvre_time >= obs_start_time.to_float() and manoeuvre_time <= obs_end_time.to_float()):
+            if (manoeuvre_time >= obs_start_time and manoeuvre_time <= obs_end_time):
                 relevant_manoeuvres.append(manoeuvre_time)
 
         # Save list of manoeuvre epochs occurring within the time interval under consideration
@@ -354,7 +354,7 @@ def run_odf_estimation(inputs):
         # Define propagator settings
         propagator_settings = propagation_setup.propagator.translational(
             central_bodies, acceleration_models, bodies_to_propagate, initial_state, obs_start_time,
-            integrator_settings, propagation_setup.propagator.time_termination(obs_end_time.to_float()))
+            integrator_settings, propagation_setup.propagator.time_termination(obs_end_time))
         propagator_settings.print_settings.results_print_frequency_in_steps = 3600.0 / integration_step
 
 
@@ -383,6 +383,8 @@ def run_odf_estimation(inputs):
         doppler_link_ends = compressed_observations.link_definitions_per_observable[
             estimation_setup.observation.dsn_n_way_averaged_doppler]
 
+        print(doppler_link_ends)
+
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
             observation_model_settings.append(estimation_setup.observation.dsn_n_way_doppler_averaged(
@@ -396,7 +398,7 @@ def run_odf_estimation(inputs):
 
         # Filter residual outliers
         compressed_observations.filter_observations(
-            estimation.observation_filter(estimation.residual_filtering, 0.1))
+            estimation.observable_models_setup.observation_filter(estimation.residual_filtering, 0.1))
 
         # Save residuals as directly computed w.r.t. the reference SPICE trajectory for GRAIL, along with the
         # observation times and link ends IDs.
@@ -529,7 +531,7 @@ if __name__ == "__main__":
         postfit_residuals = np.loadtxt(output_folder + "postfit_residuals_" + str(i) + ".dat")
         difference_rsw_wrt_spice = np.loadtxt(output_folder + "postfit_rsw_state_difference_" + str(i) + ".dat", delimiter=',')
 
-        start_date = time_conversion.datetime_to_tudat(dates[i]).epoch().to_float()
+        start_date = time_conversion.datetime_to_tudat(dates[i]).epoch()
 
 
         # Plot the results of the current estimation.
