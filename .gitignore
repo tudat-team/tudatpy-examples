@@ -62,3 +62,7 @@ jupyter-lab.log
 estimation/grail_parallel_outputs
 estimation/grail_kernels
 estimation/mro_parallel_outputs
+estimation/Archive_grail
+estimation/outputs_mro
+estimation/grail_residuals_output
+estimation/grail_estimation_output
