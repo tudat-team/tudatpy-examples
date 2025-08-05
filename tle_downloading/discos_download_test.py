@@ -4,5 +4,5 @@ token = 'ImU4NjY4OTBkLTVmOGYtNGIzNC1hZDg2LTRiYzVjZGYzMGJmMSI.JFqNE3ULKz5JE8WaIBm
 dq = DiscosQuery(token)
 # Query object 40485 and print attributes
 attributes = dq.query_object(10000)
-mass = dq.get_object_attribute(10000, 'masas')
+mass = dq.get_object_attribute(10000, 'mass')
 print(mass)
