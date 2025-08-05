@@ -241,8 +241,8 @@ class ThrustModel:
         
         # Retrieve rotation matrix from vertical to inertial frame from the aerodynamic angle calculator
         vertical_to_inertial_frame = aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
-            environment.AerodynamicsReferenceFrames.vertical_frame,
-            environment.AerodynamicsReferenceFrames.inertial_frame)
+            environment_setup.AerodynamicsReferenceFrames.vertical_frame,
+            environment_setup.AerodynamicsReferenceFrames.inertial_frame)
         
         # Compute the thrust in the inertial frame
         thrust_inertial_frame = np.dot(vertical_to_inertial_frame,
@@ -455,7 +455,7 @@ def define_integrator_settings():
 
     return propagation_setup.integrator.runge_kutta_variable_step(
         initial_time_step,
-        propagation_setup.integrator.rkf_78,
+        propagation_setup.integrator.CoefficientSets.rkf_78,
         step_size_control_settings = control_settings,
         step_size_validation_settings = validation_settings)
 

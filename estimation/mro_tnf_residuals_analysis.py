@@ -1,11 +1,12 @@
 """
-MRO - Comparing Doppler and range measurements from ODF files to simulated observables
+MRO - Comparing Doppler and range measurements from TNF files to simulated observables
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
 # Load required standard modules
 import multiprocessing as mp
 import os
+import shutil
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -18,6 +19,7 @@ from tudatpy.numerical_simulation import environment_setup
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
+from tudatpy.data.processTrk234 import Trk234Processor
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
 from datetime import datetime
@@ -35,7 +37,7 @@ from urllib.request import urlretrieve
 # tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
 #
 # Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, TNF files containing the Doppler
 # measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
 # (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
 # each relevant file is already present locally and only proceeds to the download if it is not. This also means that running this
@@ -151,17 +153,17 @@ def get_mro_files(local_path, start_date, end_date):
     for f in ion_files:
         print(f)
 
-    # ODF files (multiple ODF files are required, typically one per day)
+    # TNF files (multiple TNF files are required, typically one per day)
     print("---------------------------------------------")
-    print("Download MRO ODF files")
-    # Define url where ODF files can be downloaded for MRO
+    print("Download MRO TNF files")
+    # Define url where TNF files can be downloaded for MRO
     url_odf = (
-        "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/odf/"
+        "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/tnf/"
     )
-    # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
-    odf_files = download_url_files_time(
+    # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
+    tnf_files = download_url_files_time(
         local_path=local_path,
-        filename_format="mromagr*_\w\w\w\wxmmmv1.odf",
+        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,
@@ -169,9 +171,9 @@ def get_mro_files(local_path, start_date, end_date):
         indices_date_filename=[7],
     )
 
-    # Print the name of all relevant ODF files that have been identified over the time interval of interest
-    print("relevant odf files")
-    for f in odf_files:
+    # Print the name of all relevant TNF files that have been identified over the time interval of interest
+    print("relevant TNF files")
+    for f in tnf_files:
         print(f)
 
     # MRO trajectory files (multiple files are necessary to cover one entire year, typically each file covers ~ 3-4 months)
@@ -244,7 +246,7 @@ def get_mro_files(local_path, start_date, end_date):
         orientation_files,
         tro_files,
         ion_files,
-        odf_files,
+        tnf_files,
         trajectory_files,
         frames_def_file,
         structure_file,
@@ -252,7 +254,7 @@ def get_mro_files(local_path, start_date, end_date):
 
 
 # This function performs Doppler and range residual analysis for the MRO spacecraft by adopting the following approach:
-# 1) MRO Doppler and range measurements are loaded from the relevant ODF files
+# 1) MRO Doppler and range measurements are loaded from the relevant TNF files
 # 2) Synthetic Doppler and range observables are simulated for all "real" observation times, using the spice kernels as reference for the MRO trajectory
 # 3) Residuals are computed as the difference between simulated and real observations.
 #
@@ -260,7 +262,7 @@ def get_mro_files(local_path, start_date, end_date):
 #   1- the index of the current run (the perform_residuals_analysis function being run in parallel on several cores in this example)
 #   2- the start date of the time interval under consideration
 #   3- the end date of the time interval under consideration
-#   4- the list of ODF files to be loaded to cover the above-mentioned time interval
+#   4- the list of TNF files to be loaded to cover the above-mentioned time interval
 #   5- the list of clock files to be loaded
 #   6- the list of orientation kernels to be loaded
 #   7- the list of tropospheric correction files to be loaded
@@ -276,7 +278,7 @@ def perform_residuals_analysis(inputs):
     input_index = inputs[0]
 
     # Convert start and end datetime objects to Tudat Time variables. A time buffer of one day is subtracted/added to the start/end date
-    # to ensure that the simulation environment covers the full time span of the loaded ODF files. This is mostly needed because some ODF
+    # to ensure that the simulation environment covers the full time span of the loaded TNF files. This is mostly needed because some TNF
     # files - while typically assigned to a certain date - actually spans over (slightly) longer than one day. Without this time buffer,
     # some observation epochs might thus lie outside the time boundaries within which the dynamical environment is defined.
     start_time = (
@@ -284,9 +286,9 @@ def perform_residuals_analysis(inputs):
     )
     end_time = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float() + 86400.0
 
-    # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels,
+    # Retrieve lists of relevant kernels and input files to load (TNF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)
-    odf_files = inputs[3]
+    tnf_files = inputs[3]
     clock_files = inputs[4]
     orientation_files = inputs[5]
     tro_files = inputs[6]
@@ -332,96 +334,6 @@ def perform_residuals_analysis(inputs):
 
         # Load MRO spacecraft structure file (for antenna position in spacecraft-fixed frame)
         spice.load_kernel(structure_file)
-
-        # Dates to filter out because of incomplete spacecraft orientation kernels (see note when loading orientation kernels on line 168)
-        dates_to_filter = [
-            time_conversion.DateTime(2012, 10, 15, 0, 0, 0.0),
-            time_conversion.DateTime(2012, 10, 30, 0, 0, 0),
-            time_conversion.DateTime(2012, 11, 6, 0, 0, 0),
-            time_conversion.DateTime(2012, 11, 7, 0, 0, 0),
-        ]
-
-        # Remove latest ODF file.
-        # This step is necessary because some ODF observation sets - although time-tagged to a specific date - might spill over the next day.
-        # For the latest ODF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
-        odf_files = odf_files[:-1]
-
-        ### ------------------------------------------------------------------------------------------
-        ### LOAD ODF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
-        ### ------------------------------------------------------------------------------------------
-
-        # Load ODF files
-        multi_odf_file_contents = (
-            estimation_setup.observation.process_odf_data_multiple_files(
-                odf_files, "MRO", True
-            )
-        )
-
-        # Create observation collection from ODF files, only retaining Doppler and sequential range observations. An observation collection contains
-        # multiple "observation sets". Within a given observation set, the observables are of the same type (here Doppler and range) and defined from the same link ends.
-        # However, within the "global" observation collection, multiple observation sets can typically be found for a given observable type and link ends, but they
-        # will cover different observation time intervals. When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
-        # set match those of the corresponding ODF file).
-        original_odf_observations = (
-            estimation_setup.observation.create_odf_observed_observation_collection(
-                multi_odf_file_contents,
-                [
-                    estimation_setup.observation.dsn_n_way_averaged_doppler,
-                    estimation_setup.observation.dsn_n_way_range,
-                ],
-                [
-                    numerical_simulation.Time(0, np.nan),
-                    numerical_simulation.Time(0, np.nan),
-                ],
-            )
-        )
-
-        # Filter out observations on dates when orientation kernels are incomplete
-        dates_to_filter_float = []
-        for date in dates_to_filter:
-            dates_to_filter_float.append(date.epoch().to_float())
-            # Create filter object for specific date
-            date_filter = estimation.observation_filter(
-                estimation.time_bounds_filtering,
-                date.epoch().to_float() - 0.0,
-                time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
-                .epoch()
-                .to_float()
-                + 0.0,
-            )
-            # Filter out observations from observation collection
-            original_odf_observations.filter_observations(date_filter)
-
-        # Remove empty observation sets, if there is any once the filtering is completed
-        original_odf_observations.remove_empty_observation_sets()
-
-        # Split observation sets at dates when orientation kernels are incomplete.
-        # While all problematic observation epochs have already been filtered out in the previous step, the splitting is still necessary
-        # to ensure that the time span of each observation set is fully covered by the available kernels. Without this additional step,
-        # one could not parse from the lower to upper time bounds of a given observation set without risking accessing unavailable information from spice.
-        # This step only becomes relevant when retrieving the position of the MRO antenna over the observation time intervals, as will be done later in the example.
-        date_splitter = estimation.observation_set_splitter(
-            estimation.time_tags_splitter, dates_to_filter_float
-        )
-        original_odf_observations.split_observation_sets(date_splitter)
-
-        # Remove empty observation sets, if there is any once both the splitting is completed
-        original_odf_observations.remove_empty_observation_sets()
-
-        print("original_odf_observations")
-        original_odf_observations.print_observation_sets_start_and_size()
-
-        # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = (
-            estimation_setup.observation.create_compressed_doppler_collection(
-                original_odf_observations, 60, 10
-            )
-        )
-        print("Compressed observations: ")
-        print(compressed_observations.concatenated_observations.size)
-
-        # Add transpondr delay
-        compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
 
         ### ------------------------------------------------------------------------------------------
         ### CREATE DYNAMICAL ENVIRONMENT
@@ -509,10 +421,81 @@ def perform_residuals_analysis(inputs):
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
 
-        # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the MRO spacecraft
-        estimation_setup.observation.set_odf_information_in_bodies(
-            multi_odf_file_contents, bodies
+        ### ------------------------------------------------------------------------------------------
+        ### LOAD TNF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
+        ### ------------------------------------------------------------------------------------------
+
+        # Create observation collection from TNF files, only retaining Doppler and sequential range observations. An observation collection contains
+        # multiple "observation sets". Within a given observation set, the observables are of the same type (here Doppler and range) and defined from the same link ends.
+        # However, within the "global" observation collection, multiple observation sets can typically be found for a given observable type and link ends, but they
+        # will cover different observation time intervals. When loading TNF data, a separate observation set is created for each TNF file (which means the time intervals of each
+        # set match those of the corresponding TNF file).
+
+        # Dates to filter out because of incomplete spacecraft orientation kernels (see note when loading orientation kernels on line 168)
+        dates_to_filter = [
+            time_conversion.DateTime(2012, 10, 15, 0, 0, 0.0),
+            time_conversion.DateTime(2012, 10, 30, 0, 0, 0),
+            time_conversion.DateTime(2012, 11, 6, 0, 0, 0),
+            time_conversion.DateTime(2012, 11, 7, 0, 0, 0),
+        ]
+
+        # Remove latest TNF file.
+        # This step is necessary because some TNF observation sets - although time-tagged to a specific date - might spill over the next day.
+        # For the latest TNF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
+        tnf_files = tnf_files[:-1]
+
+        tnfProcessor = Trk234Processor(
+            tnf_files, ["doppler", "range"], spacecraft_name="MRO"
         )
+        original_odf_observations = tnfProcessor.process()
+        tnfProcessor.set_tnf_information_in_bodies(bodies)
+
+        # Filter out observations on dates when orientation kernels are incomplete
+        dates_to_filter_float = []
+        for date in dates_to_filter:
+            dates_to_filter_float.append(date.epoch().to_float())
+            # Create filter object for specific date
+            date_filter = estimation.observation_filter(
+                estimation.time_bounds_filtering,
+                date.epoch().to_float() - 0.0,
+                time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
+                .epoch()
+                .to_float()
+                + 0.0,
+            )
+            # Filter out observations from observation collection
+            original_odf_observations.filter_observations(date_filter)
+
+        # Remove empty observation sets, if there is any once the filtering is completed
+        original_odf_observations.remove_empty_observation_sets()
+
+        # Split observation sets at dates when orientation kernels are incomplete.
+        # While all problematic observation epochs have already been filtered out in the previous step, the splitting is still necessary
+        # to ensure that the time span of each observation set is fully covered by the available kernels. Without this additional step,
+        # one could not parse from the lower to upper time bounds of a given observation set without risking accessing unavailable information from spice.
+        # This step only becomes relevant when retrieving the position of the MRO antenna over the observation time intervals, as will be done later in the example.
+        date_splitter = estimation.observation_set_splitter(
+            estimation.time_tags_splitter, dates_to_filter_float
+        )
+        original_odf_observations.split_observation_sets(date_splitter)
+
+        # Remove empty observation sets, if there is any once both the splitting is completed
+        original_odf_observations.remove_empty_observation_sets()
+
+        print("original_odf_observations")
+        original_odf_observations.print_observation_sets_start_and_size()
+
+        # Compress Doppler observations from 1.0 s integration time to 60.0 s
+        compressed_observations = (
+            estimation_setup.observation.create_compressed_doppler_collection(
+                original_odf_observations, 60, 10
+            )
+        )
+        print("Compressed observations: ")
+        print(compressed_observations.concatenated_observations.size)
+
+        # Add transpondr delay
+        compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
 
         ### ------------------------------------------------------------------------------------------
         ### SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
@@ -558,7 +541,7 @@ def perform_residuals_analysis(inputs):
         )
 
         # Create tabulated ephemeris for the MRO antenna
-        antenna_ephemeris = environment_setup.ephemeris.create_body_ephemeris(
+        antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(
             antenna_ephemeris_settings, "Antenna"
         )
 
@@ -574,7 +557,7 @@ def perform_residuals_analysis(inputs):
         #  Create light-time corrections list
         light_time_correction_list = list()
         light_time_correction_list.append(
-            estimation_setup.observation.first_order_relativistic_light_time_correction(
+            estimation_setup.observation.second_order_relativistic_light_time_correction(
                 ["Sun"]
             )
         )
@@ -611,10 +594,11 @@ def perform_residuals_analysis(inputs):
             )
 
         # Add solar corona correction only for range observables.
+        # Values form Verma et al. (2013), from MEX 2011 solar conjunction data
         light_time_correction_list.append(
             estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction(
-                [3.6e10],
-                [2],
+                [1.70e12],
+                [2.44],
             )
         )
 
@@ -933,7 +917,7 @@ if __name__ == "__main__":
     # Define start and end dates for the six time intervals to be analysed in parallel computations.
     # Each parallel run covers two months of data for the example to parse a total timespan of one year.
     start_dates = [
-        datetime(2012, 1, 1),
+        datetime(2012, 1, 2),
         datetime(2012, 3, 1),
         datetime(2012, 5, 1),
         datetime(2012, 7, 1),

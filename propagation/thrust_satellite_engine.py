@@ -39,13 +39,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from tudatpy.util import result2array
-from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.astro import element_conversion, time_conversion
+from tudatpy import constants
+from tudatpy.interface import spice
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import environment
+from tudatpy.numerical_simulation import environment_setup
+from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.astro import element_conversion, time_conversion
 
 # Load spice kernels.
 spice.load_standard_kernels()
@@ -343,8 +343,8 @@ In this case, an RK4 fixed step size integrator is used, with a given step size 
 
 # Create numerical integrator settings.
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    fixed_step_size
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
 )
 
 
