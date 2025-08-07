@@ -115,6 +115,10 @@ if compare_dynamical_model_vs_sgp4:
         # Validation print statement: check that aerodynamic coefficients were set
         print(bodies[dynamical_model].get(norad_id).aerodynamic_coefficient_interface.current_coefficients)
         print(bodies[dynamical_model].get('Earth').atmosphere_model)
+        environment_setup.add_flight_conditions( bodies[dynamical_model], norad_id, 'Earth' )
+        vehicle_flight_conditions = bodies[dynamical_model].get(norad_id).flight_conditions
+        aerodynamic_angle_calculator = vehicle_flight_conditions.aerodynamic_angle_calculator
+        aerodynamic_coefficient_interface = vehicle_flight_conditions.aerodynamic_coefficient_interface
 
         if not propagator_settings[dynamical_model]:
             # !!!!!!!!!!!!!!!!!!!
@@ -153,7 +157,7 @@ if compare_dynamical_model_vs_sgp4:
         #aruba_longitude = np.deg2rad(-69.9649462)
 
         environment_setup.add_ground_station(
-            bodies[dynamical_model].get_body("Earth"),
+            bodies[dynamical_model].get("Earth"),
             reference_point,
             [stations_altitude, delft_latitude, delft_longitude],
             element_conversion.geodetic_position_type)
@@ -216,7 +220,6 @@ if compare_dynamical_model_vs_sgp4:
         # Add weights to the observation collection
         # (if not set, default = 1 [radians]. This would be too big!)
         # When using radio links, default = 1 [m]. In that case, that would be fine...
-
         norad_id_simulated_observations.set_constant_weight(noise_level)
 
         # Compute and set residuals in the compressed observation collection
@@ -238,6 +241,51 @@ if compare_dynamical_model_vs_sgp4:
         # Convert to degrees
         concatenated_ra_deg = [np.rad2deg(ra) for ra in concatenated_ra]
         concatenated_dec_deg = [np.rad2deg(dec) for dec in concatenated_dec]
+
+        # Set up the estimator
+        print(bodies[dynamical_model])
+        estimator = estimation_analysis.Estimator(
+            bodies=bodies[dynamical_model],
+            estimated_parameters=parameters_to_estimate,
+            observation_settings=observation_model_settings,
+            propagator_settings=propagator_settings[dynamical_model],
+        )
+
+        print('yeye 1')
+        # provide the observation collection as input, and limit number of iterations for estimation.
+        estimation_input = estimation_analysis.EstimationInput(
+            observations_and_times=norad_id_simulated_observations,
+            convergence_checker=estimation_analysis.estimation_convergence_checker(
+                maximum_iterations=10,
+            ),
+        )
+
+
+        # Set estimation methodological options
+        estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
+
+
+        # Perform the estimation
+        estimation_output = estimator.perform_estimation(estimation_input)
+
+        # retrieve the estimated initial state and compare it to the truth.
+        initial_state_updated = parameters_to_estimate.parameter_vector
+        print('yeye 3')
+        print('Done with the estimation...\n')
+        print(f'Updated initial states: {initial_state_updated}\n')
+
+        vector_error_final = (np.array(initial_state_updated) - truth_parameters)[0:3]
+        error_magnitude_final = np.linalg.norm(vector_error_final)/1000
+
+        print(
+            f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 2)} km\n"
+        )
+
+
+        # These three lines might be useful later when adding multiple parameters to estimate
+        simulator_object = estimation_output.simulation_results_per_iteration[-1]
+        state_history = simulator_object.dynamics_results.state_history
+        dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
 
         # Plot observations
         fig, axs = plt.subplots(
@@ -278,50 +326,6 @@ if compare_dynamical_model_vs_sgp4:
         plt.xlabel('Observation Times [s]')
         plt.ylabel('Pre-Fit Residuals [rad]')
         plt.show()
-
-
-        # Set up the estimator
-        estimator = estimation_analysis.Estimator(
-            bodies=bodies[dynamical_model],
-            estimated_parameters=parameters_to_estimate,
-            observation_settings=observation_model_settings,
-            propagator_settings=propagator_settings[dynamical_model],
-        )
-
-        # provide the observation collection as input, and limit number of iterations for estimation.
-        estimation_input = estimation_analysis.EstimationInput(
-            observations_and_times=norad_id_simulated_observations,
-            convergence_checker=estimation_analysis.estimation_convergence_checker(
-                maximum_iterations=10,
-            ),
-        )
-
-        # Set estimation methodological options
-        estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
-
-
-        # Perform the estimation
-        estimation_output = estimator.perform_estimation(estimation_input)
-
-        # retrieve the estimated initial state and compare it to the truth.
-
-        initial_state_updated = parameters_to_estimate.parameter_vector
-        print('Done with the estimation...\n')
-        print(f'Updated initial states: {initial_state_updated}\n')
-
-        vector_error_final = (np.array(initial_state_updated) - truth_parameters)[0:3]
-        error_magnitude_final = np.linalg.norm(vector_error_final)/1000
-
-        print(
-            f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 2)} km\n"
-        )
-
-
-        # These three lines might be useful later when adding multiple parameters to estimate
-        simulator_object = estimation_output.simulation_results_per_iteration[-1]
-        state_history = simulator_object.dynamics_results.state_history
-        dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
-
 
         # Plot the propagated orbit and highlight truth vs estimated state
         ephemeris_state = list()
