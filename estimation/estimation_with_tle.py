@@ -10,6 +10,8 @@ import matplotlib.cm as cm
 from tudatpy.data.spacetrack import SpaceTrackQuery
 from tudatpy.dynamics import parameters_setup, parameters, propagation, propagation_setup
 
+
+
 # Load spice standard kernels
 spice.load_standard_kernels()
 
@@ -21,6 +23,7 @@ password = 'l.gisolfi*tudelft.nl'
 spactrack_request = SpaceTrackQuery(username, password)
 tle_query = spactrack_request.DownloadTle(spactrack_request)
 omm_utils = spactrack_request.OMMUtils(tle_query)
+
 # OMM Dict
 json_dict = tle_query.single_norad_id(norad_id)
 
@@ -292,9 +295,6 @@ estimation_input = estimation_analysis.EstimationInput(
 
 # Set estimation methodological options
 estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
-
-# Define weighting of the observations in the inversion
-estimation_input.set_weights_from_observation_collection()
 
 # Perform the estimation
 estimation_output = estimator.perform_estimation(estimation_input)
