@@ -3,13 +3,13 @@ from tudatpy.data.discos import DiscosQuery
 from collections import defaultdict
 from tudatpy.dynamics import environment_setup, propagation_setup
 
-from tudatpy.dynamics.propagation_setup.acceleration.orbital_regimes import *
+from tudatpy.dynamics.propagation_setup.acceleration import orbital_regimes
 from tudatpy.dynamics.environment_setup.ephemeris.create_ephemeris_settings import *
 
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 SpaceTrackQuery = SpaceTrackQuery(username, password)
-GetAccelerationSettingsPerRegime = GetAccelerationSettingsPerRegime()
+GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
 CreateEphemerisSettings = environment_setup.ephemeris.CreateEphemerisSettings(SpaceTrackQuery, GetAccelerationSettingsPerRegime)
 
 filter_oe_dict = {'SEMIMAJOR_AXIS': [10000,100000]}

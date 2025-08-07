@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from tudatpy.data.spacetrack import SpaceTrackQuery
 from tudatpy.dynamics import parameters_setup, parameters, propagation, propagation_setup
-from mpl_toolkits.mplot3d import Axes3D  # Required for 3D plotting
+
 
 # Load spice standard kernels
 spice.load_standard_kernels()
@@ -19,17 +19,18 @@ username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
 # Initialize SpaceTrackQuery
-SpaceTrackQuery = SpaceTrackQuery(username, password)
-
+spactrack_request = SpaceTrackQuery(username, password)
+tle_query = spactrack_request.DownloadTle(spactrack_request)
+omm_utils = spactrack_request.OMMUtils(tle_query)
 # OMM Dict
-json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
+json_dict = tle_query.single_norad_id(norad_id)
 
 # Retrieve TLEs
-tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
+tle_dict = omm_utils.get_tles(json_dict)
 tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
 
 # Retrieve TLE Reference epoch, this will be start epoch of simulation
-tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
+tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
 
 number_of_pod_iterations = 6 # number of iterations for our estimation
 timestep_global = 5 # timestep of 120 seconds for our estimation
@@ -67,14 +68,8 @@ original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
     frame_origin = global_frame_origin,
     frame_orientation = global_frame_orientation)
 
-# Creating tabulated ephemeris is required for the Estimator to work.
-norad_id_ephemeris = environment_setup.ephemeris.tabulated_from_existing(
-    original_sgp4_ephemeris,
-    float_observations_start,
-    float_observations_end,
-    timestep_global)
 
-
+# tabulated ephemeris are required for the Estimator to work.
 body_settings.get(norad_id).ephemeris_settings =  environment_setup.ephemeris.tabulated_from_existing(
     original_sgp4_ephemeris,
     float_observations_start,
