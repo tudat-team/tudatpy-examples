@@ -21,17 +21,19 @@ username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
 # Initialize SpaceTrackQuery
-SpaceTrackQuery = SpaceTrackQuery(username, password)
-
+spactrack_request = SpaceTrackQuery(username, password)
+tle_query = spactrack_request.DownloadTle(spactrack_request)
+omm_utils = spactrack_request.OMMUtils(tle_query)
+get_acceleration_settings_per_regime= orbital_regimes.GetAccelerationSettingsPerRegime()
 # OMM Dict
-json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
+json_dict = tle_query.single_norad_id( norad_id)
 
 # Retrieve TLEs
-tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
+tle_dict = omm_utils.get_tles(json_dict)
 tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
 
 # Retrieve TLE Reference epoch, this will be start epoch of simulation
-tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
+tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
 
 number_of_pod_iterations = 6 # number of iterations for our estimation
 timestep_global = 5 # timestep of 120 seconds for our estimation
@@ -54,8 +56,7 @@ bodies_to_create = [
     "Moon",
 ]
 
-GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
-CreateEphemerisSettings = create_ephemeris_settings.CreateEphemerisSettings(SpaceTrackQuery, GetAccelerationSettingsPerRegime)
+CreateEphemerisSettings = create_ephemeris_settings.CreateEphemerisSettings(spactrack_request, get_acceleration_settings_per_regime)
 
 # !!!!!!!!!!!!!!!!!
 # The following function in CreateEphemerisSettings should be modified from source to handle non-starlink, non cubesat satellites
@@ -334,7 +335,7 @@ z_values = [state[2]/1000 for state in ephemeris_state]
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.plot(x_values, y_values, z_values)
-SpaceTrackQuery.OMMUtils.plot_earth(SpaceTrackQuery, ax)
+omm_utils.plot_earth(ax)
 ax.scatter(initial_state[0]/1000, initial_state[1]/1000, initial_state[2]/1000, label ='True Initial State', s = 10)
 ax.scatter(initial_state_updated[0]/1000, initial_state_updated[1]/1000, initial_state_updated[2]/1000, label ='Estimated Initial State', s = 10)
 ax.set_xlabel('X')

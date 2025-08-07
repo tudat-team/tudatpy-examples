@@ -10,7 +10,6 @@ import matplotlib.cm as cm
 from tudatpy.data.spacetrack import SpaceTrackQuery
 from tudatpy.dynamics import parameters_setup, parameters, propagation, propagation_setup
 
-
 # Load spice standard kernels
 spice.load_standard_kernels()
 
