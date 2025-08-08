@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from tudatpy.data.spacetrack import SpaceTrackQuery
 from tudatpy.dynamics import parameters_setup, parameters, propagation, propagation_setup
-
+from tudatpy.dynamics.propagation_setup.acceleration import orbital_regimes
+from tudatpy.dynamics.simulator import create_dynamics_simulator
 
 
 # Load spice standard kernels
@@ -35,7 +36,7 @@ tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
 tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
 
 number_of_pod_iterations = 6 # number of iterations for our estimation
-timestep_global = 5 # timestep of 120 seconds for our estimation
+timestep_global = 5# timestep of estimation
 time_buffer = 60 # uncomment only if needed.
 
 # Define Simulation Start and End (Date)Times
@@ -55,13 +56,40 @@ bodies_to_create = [
     "Moon",
 ]
 
-# Create system of bodies
+# Create default body settings
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation
 )
 
-body_settings.add_empty_settings(norad_id)
+body_settings.get("Earth").rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+    environment_setup.rotation_model.iau_2006,
+    global_frame_orientation )
+body_settings.get("Earth").gravity_field_settings.associated_reference_frame = "ITRS"
+# create atmosphere settings and add to body settings of body "Earth"
+body_settings.get( "Earth" ).atmosphere_settings = environment_setup.atmosphere.nrlmsise00()
 
+# create empty settings for norad_id
+mass = 260
+body_settings.add_empty_settings(norad_id)
+body_settings.get(norad_id).constant_mass = mass
+
+reference_area = 20  # Average projection area of a 3U CubeSat
+drag_coefficient = 1.2
+aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
+    reference_area, [drag_coefficient, 0.0, 0.0]
+)
+# Add the aerodynamic interface to the environment
+body_settings.get(norad_id).aerodynamic_coefficient_settings = aero_coefficient_settings
+
+# Create radiation pressure settings
+reference_area_radiation = 20  # Average projection area of a 3U CubeSat
+radiation_pressure_coefficient = 1.2
+occulting_bodies = dict()
+occulting_bodies["Sun"] = ["Earth"]
+radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
+# Add the radiation pressure interface to the environment
+body_settings.get(norad_id).radiation_pressure_target_settings = radiation_pressure_settings
 
 # create ephemeris for the object via sgp4 ephemeris
 original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
@@ -70,17 +98,16 @@ original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
     frame_origin = global_frame_origin,
     frame_orientation = global_frame_orientation)
 
+# The following ephemeris creation DOES NOT add the ephemeris to the environment.
+# In this case, this is a desired behaviour because in the end, we would like to set up
+# the actual norad_id ephemeris with the state_history of the propagation,
+# which is in turn based on a selected (LEO, MEO, GEO, etc...) dynamical model.
+# We use create_body_ephemeris here just to retrieve the intial_state to initiate the propagation.
+original_sgp4_ephemeris = environment_setup.create_body_ephemeris(original_sgp4_ephemeris, norad_id)
+initial_state = original_sgp4_ephemeris.cartesian_state(float_observations_start)
 
-# tabulated ephemeris are required for the Estimator to work.
-body_settings.get(norad_id).ephemeris_settings =  environment_setup.ephemeris.tabulated_from_existing(
-    original_sgp4_ephemeris,
-    float_observations_start,
-    float_observations_end,
-    timestep_global)
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
-initial_state = bodies.get(norad_id).ephemeris.cartesian_state(float_observations_start)
-
 bodies_to_propagate = [norad_id]
 central_bodies = [global_frame_origin]
 
@@ -88,24 +115,23 @@ central_bodies = [global_frame_origin]
 integrator_settings = propagation_setup.integrator. \
     runge_kutta_fixed_step_size(initial_time_step= time_representation.Time(timestep_global),
                                 coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
+
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.time_termination(float_observations_end)
 
-# Define acceleration model
-acceleration_settings_on_spacecraft = dict()
-accelerations = {
-    "Sun": [
-        propagation_setup.acceleration.point_mass_gravity(),
-    ],
-    "Earth": [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
-    "Moon": [propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
-}
+# get acceleration model by orbital regime
+orbital_regime, orbital_regime_definition = omm_utils.get_orbital_regime(json_dict[0])
 
-# Set up the accelerations settings for each body, in this case only for our norad_id
-acceleration_settings = {}
-acceleration_settings[norad_id] = accelerations
+GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
+acceleration_settings = GetAccelerationSettingsPerRegime.get_acceleration_settings(
+    bodies,
+    norad_id,
+    orbital_regime,
+    aerodynamics = False,
+    radiation_pressure = False
+)
 
-# create the acceleration models
+acceleration_settings = {norad_id: acceleration_settings}
 acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
@@ -119,6 +145,11 @@ propagator_settings = propagation_setup.propagator.translational(
     integrator_settings=integrator_settings,
     termination_settings=termination_condition
 )
+
+#this line is crucial, as it allows to set ephemeris automatically as a result of the propagation
+propagator_settings.processing_settings.set_integrated_result = True
+
+dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings)
 
 # Setup parameters settings to propagate the state transition matrix
 parameter_settings = parameters_setup.initial_states(
@@ -139,7 +170,6 @@ light_time_correction_list.append(
 
 # Define TU Delft Rooftop station and coordinates
 reference_point = "TU_DELFT_ROOFTOP"
-reference_point_backup = "ARUBA_ROOFTOP"
 stations_altitude = 0.0
 delft_latitude = np.deg2rad(52.00667)
 delft_longitude = np.deg2rad(4.35556)
@@ -157,16 +187,16 @@ environment_setup.add_ground_station(
 # Uncomment to add link end in Aruba
 #environment_setup.add_ground_station(
 #    bodies.get_body("Earth"),
-#    reference_point_backup,
+#    reference_point_backup)
 #    [stations_altitude, aruba_latitude, aruba_longitude],
 #    element_conversion.geodetic_position_type)
 
 link_ends_list = [{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point),
                    observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)}]
 
-                  # Add this to the list if probing with link end in Aruba
-                  #{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
-                  # observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)}, ]
+# Add this to the list if probing with link end in Aruba
+#link_ends_list.append({observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
+# observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)})
 
 # Create Link Ends
 link_definition_list = []
@@ -184,7 +214,6 @@ for link_definition in link_definition_list:
 observation_times = np.arange(float_observations_start + time_buffer, float_observations_end - time_buffer, timestep_global)
 observation_simulation_settings = list()
 body_state_history = dict()
-
 
 # Create Simulation (propagation) Settings
 for link_definition in link_definition_list:
@@ -236,6 +265,58 @@ concatenated_dec = concatenated_observations[1::2]
 concatenated_ra_deg = [np.rad2deg(ra) for ra in concatenated_ra]
 concatenated_dec_deg = [np.rad2deg(dec) for dec in concatenated_dec]
 
+# Set up the estimator
+estimator = estimation_analysis.Estimator(
+    bodies=bodies,
+    estimated_parameters=parameters_to_estimate,
+    observation_settings=observation_model_settings,
+    propagator_settings=propagator_settings,
+)
+
+# provide the observation collection as input, and limit number of iterations for estimation.
+estimation_input = estimation_analysis.EstimationInput(
+    observations_and_times=norad_id_simulated_observations,
+    convergence_checker=estimation_analysis.estimation_convergence_checker(
+        maximum_iterations=6,
+    ),
+)
+
+# Set estimation methodological options
+estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
+
+# Perform the estimation
+estimation_output = estimator.perform_estimation(estimation_input)
+
+# retrieve the estimated initial state and compare it to the truth.
+
+initial_state_updated = parameters_to_estimate.parameter_vector
+print('Done with the estimation...\n')
+print(f'Updated initial states: {initial_state_updated}\n')
+
+vector_error_final = (np.array(initial_state_updated) - truth_parameters)[0:3]
+error_magnitude_final = np.linalg.norm(vector_error_final)/1000
+
+print(
+    f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 5)} km\n"
+)
+
+
+# These three lines might be useful later when adding multiple parameters to estimate
+simulator_object = estimation_output.simulation_results_per_iteration[-1]
+state_history = simulator_object.dynamics_results.state_history
+dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
+
+# Plot the propagated orbit and highlight truth vs estimated state
+ephemeris_state = list()
+for epoch in state_history.keys():
+    ephemeris_state.append(state_history[epoch])
+
+# Extract x, y, z components
+x_values = [state[0]/1000 for state in ephemeris_state]
+y_values = [state[1]/1000 for state in ephemeris_state]
+z_values = [state[2]/1000 for state in ephemeris_state]
+
+
 # Plot observations
 fig, axs = plt.subplots(
     1,
@@ -276,58 +357,6 @@ plt.xlabel('Observation Times [s]')
 plt.ylabel('Pre-Fit Residuals [rad]')
 plt.show()
 
-
-# Set up the estimator
-estimator = estimation_analysis.Estimator(
-    bodies=bodies,
-    estimated_parameters=parameters_to_estimate,
-    observation_settings=observation_model_settings,
-    propagator_settings=propagator_settings,
-)
-
-# provide the observation collection as input, and limit number of iterations for estimation.
-estimation_input = estimation_analysis.EstimationInput(
-    observations_and_times=norad_id_simulated_observations,
-    convergence_checker=estimation_analysis.estimation_convergence_checker(
-        maximum_iterations=10,
-    ),
-)
-
-# Set estimation methodological options
-estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
-
-# Perform the estimation
-estimation_output = estimator.perform_estimation(estimation_input)
-
-# retrieve the estimated initial state and compare it to the truth.
-
-initial_state_updated = parameters_to_estimate.parameter_vector
-print('Done with the estimation...\n')
-print(f'Updated initial states: {initial_state_updated}\n')
-
-vector_error_final = (np.array(initial_state_updated) - truth_parameters)[0:3]
-error_magnitude_final = np.linalg.norm(vector_error_final)/1000
-
-print(
-    f"{norad_id} final error to TLE initial state: {round(error_magnitude_final, 2)} km\n"
-)
-
-
-# These three lines might be useful later when adding multiple parameters to estimate
-simulator_object = estimation_output.simulation_results_per_iteration[-1]
-state_history = simulator_object.dynamics_results.state_history
-dependent_variable_history = simulator_object.dynamics_results.dependent_variable_history
-
-
-# Plot the propagated orbit and highlight truth vs estimated state
-ephemeris_state = list()
-for epoch in state_history.keys():
-    ephemeris_state.append(state_history[epoch])
-
-# Extract x, y, z components
-x_values = [state[0]/1000 for state in ephemeris_state]
-y_values = [state[1]/1000 for state in ephemeris_state]
-z_values = [state[2]/1000 for state in ephemeris_state]
 
 # Create 3D figure and plot
 fig = plt.figure()
