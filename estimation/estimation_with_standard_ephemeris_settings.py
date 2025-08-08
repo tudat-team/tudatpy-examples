@@ -1,5 +1,4 @@
 # Tudat imports for propagation and estimation
-from mypy.checkexpr import defaultdict
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, simulator
 from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
@@ -114,7 +113,10 @@ if compare_dynamical_model_vs_sgp4:
 
         # Validation print statement: check that aerodynamic coefficients were set
         print(bodies[dynamical_model].get(norad_id).aerodynamic_coefficient_interface.current_coefficients)
-        print(bodies[dynamical_model].get('Earth').atmosphere_model)
+        print(bodies[dynamical_model].get('Earth').gravity_field_model)
+        print(bodies[dynamical_model].get('Earth').inertial_to_body_fixed_frame)
+
+
         environment_setup.add_flight_conditions( bodies[dynamical_model], norad_id, 'Earth' )
         vehicle_flight_conditions = bodies[dynamical_model].get(norad_id).flight_conditions
         aerodynamic_angle_calculator = vehicle_flight_conditions.aerodynamic_angle_calculator
@@ -243,7 +245,6 @@ if compare_dynamical_model_vs_sgp4:
         concatenated_dec_deg = [np.rad2deg(dec) for dec in concatenated_dec]
 
         # Set up the estimator
-        print(bodies[dynamical_model])
         estimator = estimation_analysis.Estimator(
             bodies=bodies[dynamical_model],
             estimated_parameters=parameters_to_estimate,
@@ -251,7 +252,6 @@ if compare_dynamical_model_vs_sgp4:
             propagator_settings=propagator_settings[dynamical_model],
         )
 
-        print('yeye 1')
         # provide the observation collection as input, and limit number of iterations for estimation.
         estimation_input = estimation_analysis.EstimationInput(
             observations_and_times=norad_id_simulated_observations,
@@ -264,13 +264,11 @@ if compare_dynamical_model_vs_sgp4:
         # Set estimation methodological options
         estimation_input.define_estimation_settings(save_state_history_per_iteration = True, reintegrate_variational_equations=True)
 
-
         # Perform the estimation
         estimation_output = estimator.perform_estimation(estimation_input)
 
         # retrieve the estimated initial state and compare it to the truth.
         initial_state_updated = parameters_to_estimate.parameter_vector
-        print('yeye 3')
         print('Done with the estimation...\n')
         print(f'Updated initial states: {initial_state_updated}\n')
 
