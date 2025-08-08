@@ -73,6 +73,7 @@ if DEMO_FLAG:
             elif len(value) == 1:
                 tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)]
 
+            # Consider switching to sgp4 propagator
             object_tle = environment.Tle(tle_line_1, tle_line_2)
             object_ephemeris = environment.TleEphemeris("Earth", "J2000", object_tle, False)
             for t in list_of_times:

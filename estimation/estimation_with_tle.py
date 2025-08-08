@@ -21,9 +21,9 @@ username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
 # Initialize SpaceTrackQuery
-spactrack_request = SpaceTrackQuery(username, password)
-tle_query = spactrack_request.DownloadTle(spactrack_request)
-omm_utils = spactrack_request.OMMUtils(tle_query)
+spacetrack_request = SpaceTrackQuery(username, password)
+tle_query = spacetrack_request.DownloadTle(spacetrack_request)
+omm_utils = spacetrack_request.OMMUtils(tle_query)
 
 # OMM Dict
 json_dict = tle_query.single_norad_id(norad_id)
@@ -148,7 +148,6 @@ propagator_settings = propagation_setup.propagator.translational(
 
 #this line is crucial, as it allows to set ephemeris automatically as a result of the propagation
 propagator_settings.processing_settings.set_integrated_result = True
-
 dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings)
 
 # Setup parameters settings to propagate the state transition matrix
