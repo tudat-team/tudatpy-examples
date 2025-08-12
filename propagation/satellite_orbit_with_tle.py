@@ -36,7 +36,6 @@ tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
 timestep_global = 5 #seconds
 
 # Define Simulation Start and End (Date)Times
-observations_start = tle_reference_epoch # set as tle reference epoch for now, but can vary
 propagation_start_epoch = time_representation.DateTime.from_python_datetime(tle_reference_epoch).to_epoch()
 propagation_end_epoch =  propagation_start_epoch + 86400/2 # one day propagation
 
@@ -64,27 +63,27 @@ body_settings.get("Earth").gravity_field_settings.associated_reference_frame = "
 body_settings.get( "Earth" ).atmosphere_settings = environment_setup.atmosphere.nrlmsise00()
 
 # create empty settings for norad_id
-mass = 260
+mass = 2.2
 body_settings.add_empty_settings(norad_id)
 body_settings.get(norad_id).constant_mass = mass
 
-reference_area = 20  # Average projection area of a 3U CubeSat
+# Create aerodynamic coefficient interface settings
+reference_area_drag = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 drag_coefficient = 1.2
 aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-    reference_area, [drag_coefficient, 0.0, 0.0]
+    reference_area_drag, [drag_coefficient, 0.0, 0.0]
 )
+
 # Add the aerodynamic interface to the environment
 body_settings.get(norad_id).aerodynamic_coefficient_settings = aero_coefficient_settings
 
 # Create radiation pressure settings
-reference_area_radiation = 20  # Average projection area of a 3U CubeSat
+reference_area_radiation = (4*0.3*0.1+2*0.1*0.1)/4  # Average projection area of a 3U CubeSat
 radiation_pressure_coefficient = 1.2
-occulting_bodies = dict()
-occulting_bodies["Sun"] = ["Earth"]
+occulting_bodies_dict = dict()
+occulting_bodies_dict["Sun"] = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
-    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies)
-# Add the radiation pressure interface to the environment
-body_settings.get(norad_id).radiation_pressure_target_settings = radiation_pressure_settings
+    reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
 
 # create ephemeris for the object via sgp4 ephemeris
 original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
