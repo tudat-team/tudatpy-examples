@@ -122,16 +122,21 @@ termination_condition = propagation_setup.propagator.time_termination(float_obse
 # get acceleration model by orbital regime
 orbital_regime, orbital_regime_definition = omm_utils.get_orbital_regime(json_dict[0])
 
+
+add_forces = {'Jupiter': [propagation_setup.acceleration.point_mass_gravity()]}
 GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
-acceleration_settings = GetAccelerationSettingsPerRegime.get_acceleration_settings(
+acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleration_settings(
     bodies,
+    body_settings,
     norad_id,
     orbital_regime,
     aerodynamics = False,
-    radiation_pressure = False
+    radiation_pressure = False,
+    add_forces = Jupiter
 )
 
 acceleration_settings = {norad_id: acceleration_settings}
+
 acceleration_models = propagation_setup.create_acceleration_models(
     bodies, acceleration_settings, bodies_to_propagate, central_bodies
 )
