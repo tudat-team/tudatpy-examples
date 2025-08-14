@@ -116,9 +116,9 @@ termination_condition = propagation_setup.propagator.time_termination(propagatio
 orbital_regime, orbital_regime_definition = omm_utils.get_orbital_regime(json_dict_list[0])
 
 GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
-acceleration_settings = GetAccelerationSettingsPerRegime.get_acceleration_settings(
+acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleration_settings(
     bodies,
-    norad_id,
+    body_settings,
     orbital_regime,
     aerodynamics = False,
     radiation_pressure = False
