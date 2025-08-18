@@ -7,7 +7,6 @@ import math
 from collections import defaultdict
 
 
-
 def cartesian2radec(vec):
     """
     Convert 3D Cartesian vector to (range, RA, Dec).
@@ -43,11 +42,15 @@ DEMO_FLAG = True
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
+spacetrack_request = SpaceTrackQuery(username, password)
+tle_query = spacetrack_request.DownloadTle(spacetrack_request)
+omm_utils = spacetrack_request.OMMUtils(tle_query)
+
+
 if DEMO_FLAG:
-    q = SpaceTrackQuery(username, password)
-    json_dict_5001 = q.download_tle.single_norad_id(5001, 5)
-    json_dict_5000 = q.download_tle.single_norad_id(5000, 5)
-    json_dict_descending = q.download_tle.descending_epoch(5)
+    json_dict_5001 = tle_query.single_norad_id(5001, 5)
+    json_dict_5000 = tle_query.single_norad_id(5000, 5)
+    json_dict_descending = tle_query.descending_epoch(5)
 
     json_dict_list = [json_dict_5001,json_dict_descending, json_dict_5000]
 
@@ -63,7 +66,7 @@ if DEMO_FLAG:
 
     # Create figure
     for idx, json_dict in enumerate(json_dict_list):
-        tle_dict = q.OMMUtils.get_tles(SpaceTrackQuery, json_dict)
+        tle_dict = omm_utils.get_tles(json_dict)
         trajectory_dict = defaultdict(list)
         radec_dict = defaultdict(list)
         for key, value in tle_dict.items():
@@ -85,7 +88,7 @@ if DEMO_FLAG:
         # Create 3D figure and axis
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
-        q.OMMUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
+        omm_utils.plot_earth(ax) #plot Earth as sphere of radius 6378 km
 
         # Plot each trajectory
         for key, value in trajectory_dict.items():
@@ -143,9 +146,8 @@ if DEMO_FLAG:
         plt.show()
 
 else:
-    q = SpaceTrackQuery(username, password)
     filter_oe_dict = {'SEMIMAJOR_AXIS': [10000,100000]}
-    q.download_tle.filtered_by_oe_dict(filter_oe_dict, 100)
+    json_dict_list = tle_query.filtered_by_oe_dict(filter_oe_dict, 100)
     # List of JSON TLE files
     json_filenames = ['filtered_results.json']
 
@@ -159,15 +161,17 @@ else:
     cols = math.ceil(np.sqrt(n))
     rows = math.ceil(n / cols)
 
-    # Create figure
     for idx, json_dict in enumerate(json_dict_list):
-        tle_dict = q.OMMUtils.get_tles(SpaceTrackQuery, json_dict)
+        tle_dict = omm_utils.get_tles(json_dict)
         trajectory_dict = defaultdict(list)
         radec_dict = defaultdict(list)
         for key, value in tle_dict.items():
             if len(value) > 1:
                 print(f"Multiple TLEs for object {key}. Plotting the most recent one.")
-            tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)
+                tle_line_1, tle_line_2 = value[0], value[1] # most recent tle (or single tle if len(value) = 1)]
+            elif len(value) == 1:
+                tle_line_1, tle_line_2 = value[0][0], value[0][1] # most recent tle (or single tle if len(value) = 1)]
+
             object_tle = environment.Tle(tle_line_1, tle_line_2)
             object_ephemeris = environment.TleEphemeris("Earth", "J2000", object_tle, False)
             for t in list_of_times:
@@ -181,7 +185,7 @@ else:
         # Create 3D figure and axis
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
-        q.OMMUtils.plot_earth(SpaceTrackQuery, ax) #plot Earth as sphere of radius 6378 km
+        omm_utils.plot_earth(ax) #plot Earth as sphere of radius 6378 km
 
         # Plot each trajectory
         for key, value in trajectory_dict.items():
@@ -225,9 +229,6 @@ else:
             x = radec_dict[:, 0] # km
             y = radec_dict[:, 1]
             ax.scatter(x, y, label=f'NORAD {key}', s=0.5)
-
-        # Plot Earth center
-        #ax.scatter(0, 0, 0, color='blue', label='Earth Center', s=30)
 
         # Labels and formatting
         ax.set_xlabel("Ra [Deg]")
