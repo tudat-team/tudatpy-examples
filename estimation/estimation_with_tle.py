@@ -129,7 +129,6 @@ GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerReg
 acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleration_settings(
     bodies,
     body_settings,
-    norad_id,
     orbital_regime,
     aerodynamics = False,
     radiation_pressure = False,
@@ -228,7 +227,7 @@ for link_definition in link_definition_list:
         observation_times))
 
 # Add random noise to the observations
-noise_level = 1e-6 # typical astrometry error for detection is around 1 arcsec, corresponding to 1e-6 radians.
+noise_level = 1e-5 # typical astrometry error for detection is around 1-10 arcsec, corresponding to 1e-6/1e-5 radians.
 observations_setup.random_noise.add_gaussian_noise_to_observable(
     observation_simulation_settings,
     noise_level,
@@ -331,7 +330,7 @@ fig, axs = plt.subplots(
     sharey=False,
 )
 
-# plot the residuals, split between RA and DEC types
+# plot observations, split between RA and DEC types
 for idx, ax in enumerate(fig.get_axes()):
     ax.grid()
     ax.scatter(
