@@ -36,12 +36,12 @@ tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
 tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
 
 number_of_pod_iterations = 6 # number of iterations for our estimation
-timestep_global = 5# timestep of estimation
+timestep_global = 5 # timestep of estimation
 time_buffer = 60 # uncomment only if needed.
 
 # Define Simulation Start and End (Date)Times
 observations_start = tle_reference_epoch # set as tle reference epoch for now, but can vary
-observations_end = tle_reference_epoch + timedelta(seconds=60*30) # one hour after observation start
+observations_end = tle_reference_epoch + timedelta(seconds=60*60) # one hour after observation start
 float_observations_start = time_representation.DateTime.from_python_datetime(observations_start).to_epoch()
 float_observations_end = time_representation.DateTime.from_python_datetime(observations_end).to_epoch()
 
