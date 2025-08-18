@@ -1,6 +1,6 @@
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, simulator
-from tudatpy.astro import element_conversion, time_representation
+from tudatpy.astro import element_conversion, time_representation, frame_conversion
 import numpy as np
 import matplotlib.pyplot as plt
 from tudatpy.data.spacetrack import SpaceTrackQuery
@@ -85,6 +85,8 @@ occulting_bodies_dict["Sun"] = ["Earth"]
 radiation_pressure_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
     reference_area_radiation, radiation_pressure_coefficient, occulting_bodies_dict )
 
+body_settings.get(norad_id).radiation_pressure_target_settings = radiation_pressure_settings
+
 # create ephemeris for the object via sgp4 ephemeris
 original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
     tle_line1,
@@ -120,8 +122,8 @@ acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleratio
     bodies,
     body_settings,
     orbital_regime,
-    aerodynamics = False,
-    radiation_pressure = False
+    aerodynamics = True,
+    radiation_pressure = True
 )
 
 acceleration_settings = {norad_id: acceleration_settings}
@@ -147,7 +149,7 @@ dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings)
 states = dynamics_simulator.propagation_results.state_history
 states_array = result2array(states)
 
-times_list = np.arange(propagation_start_epoch, propagation_end_epoch, 5)
+times_list = states_array[:, 0]
 sgp4_states_array = np.array([original_sgp4_ephemeris.cartesian_state(t) for t in times_list])
 
 """
@@ -202,9 +204,9 @@ fig = plt.figure(figsize=(6,6), dpi=125)
 ax = fig.add_subplot(111)
 ax.set_title(f'Delfi-C3 trajectory around Earth')
 
-x_diff = states_array[:-1, 1] - sgp4_states_array[:, 0]
-y_diff = states_array[:-1, 2] - sgp4_states_array[:, 1]
-z_diff = states_array[:-1, 3] - sgp4_states_array[:, 2]
+x_diff = states_array[:, 1] - sgp4_states_array[:, 0]
+y_diff = states_array[:, 2] - sgp4_states_array[:, 1]
+z_diff = states_array[:, 3] - sgp4_states_array[:, 2]
 
 new_times_list = np.array([time - times_list[0] for time in times_list])
 # Plot main differences
@@ -217,3 +219,40 @@ ax.set_xlabel('Time [hours]')
 ax.set_ylabel('Difference [km]')
 
 plt.show()
+
+rsw_R_mats = np.array([
+    frame_conversion.inertial_to_rsw_rotation_matrix(state_6d)
+    for state_6d in sgp4_states_array[:, 0:6]
+])
+
+GM_earth = spice.get_body_gravitational_parameter('Earth')
+dr_rsw = np.array([R @ d[:3] for R, d in zip(rsw_R_mats, states_array[:,1:] - sgp4_states_array)])
+
+r_diff = dr_rsw[:, 0]
+s_diff = dr_rsw[:, 1]
+w_diff = dr_rsw[:, 2]
+
+fig = plt.figure(figsize=(6,6), dpi=125)
+ax = fig.add_subplot(111)
+ax.set_title('Delfi-C3 trajectory around Earth (RSW difference, ref = SGP4)')
+ax.plot((times_list - times_list[0]) / 3600, r_diff / 1000, label='ΔR (LEO−SGP4)')
+ax.plot((times_list - times_list[0]) / 3600, s_diff / 1000, label='ΔS (LEO−SGP4)')
+ax.plot((times_list - times_list[0]) / 3600, w_diff / 1000, label='ΔW (LEO−SGP4)')
+ax.set_xlabel('Time [hours]')
+ax.set_ylabel('Difference [km]')
+ax.legend()
+plt.show()
+
+orbital_elements = np.array([element_conversion.cartesian_to_keplerian(state, GM_earth) for state in states_array[:,1:]])
+sgp4_orbital_elements = np.array([element_conversion.cartesian_to_keplerian(state, GM_earth) for state in sgp4_states_array])
+
+fig = plt.figure(figsize=(6,6), dpi=125)
+ax = fig.add_subplot(111)
+ax.set_title('Semi major axis difference (LEO-SGP4)')
+ax.plot((times_list - times_list[0]) / 3600, (orbital_elements[:,0]-sgp4_orbital_elements[:,0])/1000, label='Δa (LEO-SGP4)')
+ax.set_xlabel('Time [hours]')
+ax.set_ylabel('a-Difference [km]')
+ax.legend()
+plt.show()
+
+exit()
