@@ -16,8 +16,8 @@ from tudatpy.dynamics.simulator import create_dynamics_simulator
 # Load spice standard kernels
 spice.load_standard_kernels()
 
-#norad_id = str(4353) # GSO object
-norad_id = str(32789) # Delfi C3
+norad_id = str(4353) # GSO object norad id
+#norad_id = str(32789) # Delfi C3 norad id
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
@@ -42,7 +42,7 @@ time_buffer = 60 # uncomment only if needed.
 
 # Define Simulation Start and End (Date)Times
 observations_start = tle_reference_epoch # set as tle reference epoch for now, but can vary
-observations_end = tle_reference_epoch + timedelta(seconds=60*60) # one hour after observation start
+observations_end = tle_reference_epoch + timedelta(seconds=86400/2)
 float_observations_start = time_representation.DateTime.from_python_datetime(observations_start).to_epoch()
 float_observations_end = time_representation.DateTime.from_python_datetime(observations_end).to_epoch()
 
@@ -103,9 +103,8 @@ original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
 original_sgp4_ephemeris = environment_setup.create_body_ephemeris(original_sgp4_ephemeris, norad_id)
 
 initial_state = original_sgp4_ephemeris.cartesian_state(float_observations_start)
-GM_earth = spice.get_body_gravitational_parameter('Earth')
-
 ################ START: ADDING NOISE DIRECTLY TO THE OSCULATING KEPLERIAN ELEMENTS ###################
+#GM_earth = spice.get_body_gravitational_parameter('Earth')
 #osculating_elements = element_conversion.cartesian_to_keplerian(initial_state, GM_earth)
 #osculating_elements[0] += np.random.rand(1)*1e5
 #osculating_elements[1] += np.random.rand(1)*1e-1
@@ -137,7 +136,7 @@ acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleratio
     orbital_regime,
     aerodynamics = True,
     radiation_pressure = True,
-    add_forces = add_forces
+    add_forces = None
 )
 
 acceleration_settings = {norad_id: acceleration_settings}
@@ -164,9 +163,9 @@ dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings)
 parameter_settings = parameters_setup.initial_states(
     propagator_settings, bodies
 )
-parameter_settings.append(parameters_setup.gravitational_parameter("Earth"))
-parameter_settings.append(parameters_setup.constant_drag_coefficient(norad_id))
-parameter_settings.append(parameters_setup.radiation_pressure_coefficient(norad_id))
+#parameter_settings.append(parameters_setup.gravitational_parameter("Earth"))
+#parameter_settings.append(parameters_setup.constant_drag_coefficient(norad_id))
+#parameter_settings.append(parameters_setup.radiation_pressure_coefficient(norad_id))
 
 parameters_to_estimate = parameters_setup.create_parameter_set(
     parameter_settings, bodies, propagator_settings
@@ -183,13 +182,14 @@ light_time_correction_list.append(
 
 # Define TU Delft Rooftop station and coordinates
 reference_point = "TU_DELFT_ROOFTOP"
+reference_point_backup = "ARUBA"
 stations_altitude = 0.0
 delft_latitude = np.deg2rad(52.00667)
 delft_longitude = np.deg2rad(4.35556)
 
 # Uncomment to add link end in Aruba
-#aruba_latitude = np.deg2rad(12.517572)
-#aruba_longitude = np.deg2rad(-69.9649462)
+aruba_latitude = np.deg2rad(12.517572)
+aruba_longitude = np.deg2rad(-69.9649462)
 
 environment_setup.add_ground_station(
     bodies.get_body("Earth"),
@@ -198,18 +198,18 @@ environment_setup.add_ground_station(
     element_conversion.geodetic_position_type)
 
 # Uncomment to add link end in Aruba
-#environment_setup.add_ground_station(
-#    bodies.get_body("Earth"),
-#    reference_point_backup)
-#    [stations_altitude, aruba_latitude, aruba_longitude],
-#    element_conversion.geodetic_position_type)
+environment_setup.add_ground_station(
+    bodies.get_body("Earth"),
+    reference_point_backup,
+    [stations_altitude, aruba_latitude, aruba_longitude],
+    element_conversion.geodetic_position_type)
 
 link_ends_list = [{observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point),
                    observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)}]
 
 # Add this to the list if probing with link end in Aruba
-#link_ends_list.append({observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
-# observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)})
+link_ends_list.append({observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', reference_point_backup),
+                       observable_models_setup.links.transmitter: observable_models_setup.links.body_origin_link_end_id(norad_id)})
 
 # Create Link Ends
 link_definition_list = []
@@ -222,9 +222,9 @@ for link_definition in link_definition_list:
     observation_model_settings.append(observable_models_setup.model_settings.angular_position(
         link_definition, light_time_correction_list))
 
-# Create observations times. Results of the estimation slightly depend on this time buffer.
-# Consider exploring why things do not work with time_buffer = 0
+# Create observations times.
 observation_times = np.arange(float_observations_start + time_buffer, float_observations_end - time_buffer, timestep_global)
+
 observation_simulation_settings = list()
 body_state_history = dict()
 
@@ -236,11 +236,18 @@ for link_definition in link_definition_list:
         observation_times))
 
 # Add random noise to the observations
-noise_level = 1e-5 # typical astrometry error for detection is around 1-10 arcsec, corresponding to 1e-6/1e-5 radians.
+noise_level = 1e-6 # typical astrometry error for detection is around 1-10 arcsec, corresponding to 1e-6/1e-5 radians.
 observations_setup.random_noise.add_gaussian_noise_to_observable(
     observation_simulation_settings,
     noise_level,
     observable_models_setup.model_settings.angular_position_type
+)
+
+viability_settings = [observations_setup.viability.elevation_angle_viability(["Earth", 'TU_DELFT_ROOFTOP'], np.deg2rad(0)),
+                      observations_setup.viability.elevation_angle_viability(["Earth", 'ARUBA'], np.deg2rad(15))]
+observations_setup.viability.add_viability_check_to_all(
+    observation_simulation_settings,
+    viability_settings
 )
 
 # Create observation simulators
@@ -453,7 +460,7 @@ covariance_input = estimation_analysis.CovarianceAnalysisInput(norad_id_simulate
 covariance_output = estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
-estimated_param_names = ["x", "y", "z", "vx", "vy", "vz"]
+estimated_param_names = ["x", "y", "z", "vx", "vy", "vz"]# '$GM_{Earth}$', '$C_{D}$', '$C_{P}$']
 fig, ax = plt.subplots(1, 1, figsize=(9, 7))
 im = ax.imshow(correlations, cmap=cm.RdYlBu_r, vmin=-1, vmax=1)
 ax.set_xticks(np.arange(len(estimated_param_names)), labels=estimated_param_names)
