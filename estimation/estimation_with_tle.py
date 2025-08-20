@@ -16,8 +16,8 @@ from tudatpy.dynamics.simulator import create_dynamics_simulator
 # Load spice standard kernels
 spice.load_standard_kernels()
 
-#norad_id = str(4353)
-norad_id = str(64865)
+#norad_id = str(4353) # GSO object
+norad_id = str(32789) # Delfi C3
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
 
@@ -128,7 +128,6 @@ integrator_settings = propagation_setup.integrator. \
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.time_termination(float_observations_end)
 
-
 add_forces = {"Jupiter": ["central_gravity"]}
 
 GetAccelerationSettingsPerRegime = orbital_regimes.GetAccelerationSettingsPerRegime()
@@ -165,6 +164,10 @@ dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings)
 parameter_settings = parameters_setup.initial_states(
     propagator_settings, bodies
 )
+parameter_settings.append(parameters_setup.gravitational_parameter("Earth"))
+parameter_settings.append(parameters_setup.constant_drag_coefficient(norad_id))
+parameter_settings.append(parameters_setup.radiation_pressure_coefficient(norad_id))
+
 parameters_to_estimate = parameters_setup.create_parameter_set(
     parameter_settings, bodies, propagator_settings
 )
