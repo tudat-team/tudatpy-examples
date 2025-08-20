@@ -16,6 +16,7 @@ from tudatpy.dynamics.simulator import create_dynamics_simulator
 # Load spice standard kernels
 spice.load_standard_kernels()
 
+#norad_id = str(4353)
 norad_id = str(64865)
 username = 'l.gisolfi@tudelft.nl'
 password = 'l.gisolfi*tudelft.nl'
@@ -49,12 +50,8 @@ float_observations_end = time_representation.DateTime.from_python_datetime(obser
 global_frame_origin = "Earth"
 global_frame_orientation = "J2000"
 
-# List the bodies for our environment
-bodies_to_create = [
-    "Sun",
-    "Earth",
-    "Moon",
-]
+# get orbital regime to later define acceleration models
+orbital_regime, orbital_regime_definition, bodies_to_create = omm_utils.get_orbital_regime(json_dict[0])
 
 # Create default body settings
 body_settings = environment_setup.get_default_body_settings(
@@ -104,8 +101,20 @@ original_sgp4_ephemeris =  environment_setup.ephemeris.sgp4(
 # which is in turn based on a selected (LEO, MEO, GEO, etc...) dynamical model.
 # We use create_body_ephemeris here just to retrieve the intial_state to initiate the propagation.
 original_sgp4_ephemeris = environment_setup.create_body_ephemeris(original_sgp4_ephemeris, norad_id)
-initial_state = original_sgp4_ephemeris.cartesian_state(float_observations_start)
 
+initial_state = original_sgp4_ephemeris.cartesian_state(float_observations_start)
+GM_earth = spice.get_body_gravitational_parameter('Earth')
+
+################ START: ADDING NOISE DIRECTLY TO THE OSCULATING KEPLERIAN ELEMENTS ###################
+#osculating_elements = element_conversion.cartesian_to_keplerian(initial_state, GM_earth)
+#osculating_elements[0] += np.random.rand(1)*1e5
+#osculating_elements[1] += np.random.rand(1)*1e-1
+#osculating_elements[2] += np.random.rand(1)*1e-01
+#osculating_elements[3] += np.random.rand(1)*1e-01
+#osculating_elements[4] += np.random.rand(1)*1e-01
+#osculating_elements[5] += np.random.rand(1)*1e0
+#initial_state = element_conversion.keplerian_to_cartesian(osculating_elements, GM_earth)
+################ END: ADDING NOISE DIRECTLY TO THE OSCULATING KEPLERIAN ELEMENTS #####################
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
 bodies_to_propagate = [norad_id]
@@ -119,9 +128,6 @@ integrator_settings = propagation_setup.integrator. \
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.time_termination(float_observations_end)
 
-# get acceleration model by orbital regime
-orbital_regime, orbital_regime_definition = omm_utils.get_orbital_regime(json_dict[0])
-
 
 add_forces = {"Jupiter": ["central_gravity"]}
 
@@ -130,8 +136,8 @@ acceleration_settings, bodies = GetAccelerationSettingsPerRegime.get_acceleratio
     bodies,
     body_settings,
     orbital_regime,
-    aerodynamics = False,
-    radiation_pressure = False,
+    aerodynamics = True,
+    radiation_pressure = True,
     add_forces = add_forces
 )
 
@@ -246,7 +252,6 @@ norad_id_simulated_observations = observations_setup.observations_wrapper.simula
 # Add weights to the observation collection
 # (if not set, default = 1 [radians]. This would be too big!)
 # When using radio links, default = 1 [m]. In that case, that would be fine...
-
 norad_id_simulated_observations.set_constant_weight(noise_level)
 
 # Compute and set residuals in the compressed observation collection
@@ -281,7 +286,7 @@ estimator = estimation_analysis.Estimator(
 estimation_input = estimation_analysis.EstimationInput(
     observations_and_times=norad_id_simulated_observations,
     convergence_checker=estimation_analysis.estimation_convergence_checker(
-        maximum_iterations=6,
+        maximum_iterations= number_of_pod_iterations,
     ),
 )
 
