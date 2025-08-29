@@ -1498,8 +1498,9 @@ residual_history = final_pod_output.residual_history
 residual_times = (
     np.array(final_observation_collection.concatenated_times) / (86400 * 365.25) + 2000
 )
-finalresiduals = np.array(residual_history[:, -1])
 
+prefitresiduals = np.array(residual_history[:, 0])
+finalresiduals = np.array(residual_history[:, -1])
 
 
 # This piece of code collects the 10 largest observatories
@@ -1538,7 +1539,71 @@ mask_not_top = [
 n_obs_not_top = int(sum(mask_not_top) / 2)
 
 
+######## PREFIT RESIDUALS PLOTTING ################
+fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
+# Plot remaining observatories first
+# RA
+
+axs[0].scatter(
+    residual_times[mask_not_top][::2],
+    prefitresiduals[mask_not_top][::2],
+    marker=".",
+    s=30,
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][::2]) * 1e6:.2f}",
+    color="lightgrey",
+)
+# DEC
+axs[1].scatter(
+    residual_times[mask_not_top][1::2],
+    prefitresiduals[mask_not_top][1::2],
+    marker=".",
+    s=30,
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][1::2]) * 1e6:.2f}",
+    color="lightgrey",
+)
+
+# plots the highlighted top 10 observatories
+for observatory in top_observatories:
+    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
+    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
+
+    axs[0].scatter(
+        residual_times[concatenated_receiving_observatories == observatory][::2],
+        prefitresiduals[concatenated_receiving_observatories == observatory][::2],
+        marker=".",
+        s=30,
+        label=name_ra,
+        zorder=100,
+    )
+    axs[1].scatter(
+        residual_times[concatenated_receiving_observatories == observatory][1::2],
+        prefitresiduals[concatenated_receiving_observatories == observatory][1::2],
+        marker=".",
+        s=30,
+        label=name_dec,
+        zorder=100,
+    )
+
+axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+
+for ax in fig.get_axes():
+    ax.grid()
+    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_xlabel("Year")
+    # this step hides a few outliers (~3 observations)
+    ax.set_ylim(-1.5e-5, 1.5e-5)
+
+axs[0].set_title("Right Ascension")
+axs[1].set_title("Declination")
+
+fig.suptitle(f"Pre-Fit Residuals for {target_name}")
+fig.set_tight_layout(True)
+
+plt.show()
+
+######## POSTFIT RESIDUALS PLOTTING ################
 fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
 # Plot remaining observatories first
@@ -1548,7 +1613,7 @@ axs[0].scatter(
     finalresiduals[mask_not_top][::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 # DEC
@@ -1557,19 +1622,20 @@ axs[1].scatter(
     finalresiduals[mask_not_top][1::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][1::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 
 # plots the highlighted top 10 observatories
 for observatory in top_observatories:
-    name = f"{observatory} | {observatory_names.loc[observatory].Name} | {int(observatory_names.loc[observatory]['count'])} obs"
+    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
+    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
     axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
         finalresiduals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
-        label=name,
+        label=name_ra,
         zorder=100,
     )
     axs[1].scatter(
@@ -1577,11 +1643,11 @@ for observatory in top_observatories:
         finalresiduals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
-        label=name,
+        label=name_dec,
         zorder=100,
     )
 
-
+axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
@@ -1598,7 +1664,7 @@ fig.suptitle(f"Final Iteration residuals for {target_name}")
 fig.set_tight_layout(True)
 
 plt.show()
-
+######## POSTFIT RESIDUALS PLOTTING ################
 
 """
 ### Histograms per observatory
@@ -1609,8 +1675,6 @@ num_observatories = 6
 nbins = 20
 number_of_columns = 2
 transparency = 0.6
-
-
 
 number_of_rows = (
     int(num_observatories / number_of_columns)
