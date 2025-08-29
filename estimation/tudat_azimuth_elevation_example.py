@@ -655,3 +655,5 @@ plot_combined_elevation(
     custom_ephemeris = None
 )
 
+
+plt.show()

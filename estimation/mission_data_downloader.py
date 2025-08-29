@@ -368,3 +368,5 @@ object.get_mission_files(
     custom_output = custom_local_path, 
     all_meta_kernel_files = True)
 
+
+plt.show()
