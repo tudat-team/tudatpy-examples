@@ -15,7 +15,6 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
 from tudatpy.dynamics import environment_setup, parameters_setup, parameters, propagation, propagation_setup
 from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
@@ -34,6 +33,9 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from tudatpy.astro import time_representation
+from tudatpy.astro.time_representation import DateTime
+from astropy.table import Table
 
 # SPICE KERNELS
 spice.load_standard_kernels()
@@ -100,9 +102,6 @@ At the moment, this is not directly supported through Tudat interfaces, but will
 In this case, the ephemeris uncertainty of Eros has been downloaded manually and is provided in the [data/Eros-Ephemeris-Uncertainty.ecsv](data/Eros-Ephemeris-Uncertainty.ecsv) file, using the code in the following `astroquery` PR: https://github.com/astropy/astroquery/pull/3273
 """
 
-
-from astropy.table import Table
-
 uncertainty_file_path = "data/Eros-Ephemeris-Uncertainty.ecsv"
 ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
 
@@ -112,11 +111,6 @@ print(", ".join(ephemeris_uncertainty_table.colnames))
 """
 As the data provided by JPL is not in SI units, we will first convert it to units compatible with Tudat.
 """
-
-
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import DateTime
-import astropy
 
 ephemeris_uncertainty_table["ephemeris_time"] = [DateTime.from_julian_day(jd) for jd in ephemeris_uncertainty_table["datetime_jd"]]
 
