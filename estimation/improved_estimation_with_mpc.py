@@ -96,6 +96,44 @@ print(f"SPK ID for {target_name} is: {target_spkid}")
 
 
 """
+### Eros Ephemeris Uncertainty
+
+Additionally, we will retrieve the published ephemeris uncertainty from JPL Horizons.
+At the moment, this is not directly supported through Tudat interfaces, but will be added in a future release.
+In this case, the ephemeris uncertainty of Eros has been downloaded manually and is provided in the [data/Eros-Ephemeris-Uncertainty.ecsv](data/Eros-Ephemeris-Uncertainty.ecsv) file, using the code in the following `astroquery` PR: https://github.com/astropy/astroquery/pull/3273
+"""
+
+
+from astropy.table import Table
+
+uncertainty_file_path = "data/Eros-Ephemeris-Uncertainty.ecsv"
+ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
+
+print(", ".join(ephemeris_uncertainty_table.colnames))
+
+
+"""
+As the data provided by JPL is not in SI units, we will first convert it to units compatible with Tudat.
+"""
+
+
+from tudatpy.astro.time_conversion import julian_day_to_seconds_since_epoch
+import astropy
+
+ephemeris_uncertainty_table["ephemeris_time"] = [
+    julian_day_to_seconds_since_epoch(
+        jd,
+    )
+    for jd in ephemeris_uncertainty_table["datetime_jd"]
+]
+
+for col in ephemeris_uncertainty_table.colnames:
+    if col in ["ephemeris_time", "datetime_jd", "datetime_str", "targetname", "H", "G"]:
+        continue
+    ephemeris_uncertainty_table[col] = ephemeris_uncertainty_table[col].quantity.si
+
+
+"""
 ### Combinations and additional body setup
 There are various ways to change our estimation. We can create a system of setups to compare those various options and to facilitate comparison. Throughout the example, the following options are considered:
 
@@ -677,99 +715,20 @@ def plot_residuals(
 
 
 
-def plot_cartesian(
-    state_estimates_set: list,
-    setup_names: list,
-    observation_collection_set: list,
-):
-    # lets get ranges for all gaps in observations larger than 6 months:
-    residual_times = (
-        np.array(observation_collection_set[0].concatenated_times) / (86400 * 365.25)
-        + 2000
-    )
-    gap_in_months = 6
-    gaps = np.abs(np.diff(sorted(residual_times)))
-    num_gaps = (
-        gaps > (gap_in_months / 12)
-    ).sum()  # counts the number of gaps larger than 0.5 years
-    indices_of_largest_gaps = np.argsort(gaps)[-num_gaps:]
+def check_comparison_reference(comparison_reference: str):
 
-    # (start, end) for each of the gaps
-    gap_ranges = [
-        (sorted(residual_times)[idx - 1], sorted(residual_times)[idx + 1])
-        for idx in indices_of_largest_gaps
-    ]
+    comparison_reference = comparison_reference.lower()
+    available_references = ["spice", "horizons"]
 
-    fig, axs = plt.subplots(3, 2, figsize=(12, 15))
-    # retrieve the states for a list of times in:
-    # SPICE
-    spice_states = []
-    for timee in times_get_eph:
-        # from spice
-        state_spice = spice.get_body_cartesian_state_at_epoch(
-            target_spkid, central_bodies[0], global_frame_orientation, "NONE", timee
+    if comparison_reference not in available_references:
+        raise ValueError(
+            f"Comparison reference must be one of {available_references}, got {comparison_reference}."
         )
-        spice_states.append(state_spice)
 
-    # Horizons
-    horizons_query = HorizonsQuery(
-        query_id=f"{target_mpc_code};",
-        location=f"500@{global_frame_origin}",
-        epoch_list=list(times_get_eph),
-        extended_query=True,
-    )
-    horizons_states = horizons_query.cartesian(
-        frame_orientation=global_frame_orientation
-    )[:, 1:]
-
-    times_plot = times_get_eph / (86400 * 365.25) + 2000  # approximate for plot ticks
-    # Get the errors per cartesian component and plot.
-    for state_estt, setup_name in zip(state_estimates_set, setup_names):
-        # Error in kilometers
-        error_spice = (np.array(spice_states) - np.array(state_estt)) / 1000
-        error_jpl = (horizons_states - np.array(state_estt)) / 1000
-
-        # plot
-        axs[0, 0].plot(times_plot, error_spice[:, 0], label=setup_name)
-        axs[1, 0].plot(times_plot, error_spice[:, 1], label=setup_name)
-        axs[2, 0].plot(times_plot, error_spice[:, 2], label=setup_name)
-
-        axs[0, 1].plot(times_plot, error_jpl[:, 0], label=setup_name)
-        axs[1, 1].plot(times_plot, error_jpl[:, 1], label=setup_name)
-        axs[2, 1].plot(times_plot, error_jpl[:, 2], label=setup_name)
-
-    for idx, ax in enumerate(axs.flatten()):
-        # show areas where there are no observations:
-        for i, gap in enumerate(gap_ranges):
-            ax.axvspan(
-                xmin=gap[0],
-                xmax=gap[1],
-                color="red" if idx % 2 == 0 else "blue",
-                alpha=0.1,
-                label="Large gap in observations" if i == 0 else None,
-            )
-        ax.grid()
-
-    axs[0, 0].legend(ncol=1)
-    axs[0, 0].set_ylabel("X Cartesian Error [km]")
-    axs[1, 0].set_ylabel("Y Cartesian Error [km]")
-    axs[2, 0].set_ylabel("Z Cartesian Error [km]")
-    axs[2, 0].set_xlabel("Year")
-
-    axs[0, 0].set_title(f"Error vs SPICE over time for {target_name}")
-    axs[0, 1].set_title(f"Error vs JPL HORIZONS over time for {target_name}")
-    fig.set_tight_layout(True)
-
-    plt.show()
+    return comparison_reference
 
 
-
-def plot_cartesian_single(
-    state_estimate,
-    setup_name,
-    observation_collection,
-    in_RSW_frame=False,
-):
+def get_gap_ranges(observation_collection):
     # lets get ranges for all gaps in observations larger than 6 months:
     gap_in_months = 6
     residual_times = (
@@ -786,93 +745,427 @@ def plot_cartesian_single(
         for idx in indices_of_largest_gaps
     ]
 
-    # retrieve the states for a list of times in SPICE and Horizons:
-    spice_states = []
-    for timee in times_get_eph:
-        # from spice
-        state_spice = spice.get_body_cartesian_state_at_epoch(
-            target_spkid, central_bodies[0], global_frame_orientation, "NONE", timee
+    return gap_ranges
+
+
+
+def plot_cartesian(
+    state_estimates_set: list,
+    setup_names: list,
+    observation_collection_set: list,
+    comparison_reference: str,
+    in_RSW: bool = False,
+):
+
+    comparison_reference = check_comparison_reference(comparison_reference)
+
+    gap_ranges = get_gap_ranges(observation_collection_set[0])
+
+    # retrieve the states for a list of times in:
+    # SPICE
+    if comparison_reference == "spice":
+
+        reference_states = np.array(
+            [
+                spice.get_body_cartesian_state_at_epoch(
+                    target_spkid,
+                    central_bodies[0],
+                    global_frame_orientation,
+                    "NONE",
+                    timee,
+                )
+                for timee in times_get_eph
+            ]
         )
-        spice_states.append(state_spice)
 
-    horizons_query = HorizonsQuery(
-        query_id=f"{target_mpc_code};",
-        location=f"500@{global_frame_origin}",
-        epoch_list=list(times_get_eph),
-        extended_query=True,
-    )
-    horizons_states = horizons_query.cartesian(
-        frame_orientation=global_frame_orientation
-    )[:, 1:]
+    # Horizons
+    elif comparison_reference == "horizons":
 
-    if in_RSW_frame:
-        # convert to RSW frame
-        error_spice = [
-            (inertial_to_rsw_rotation_matrix(state_E) @ (state_E[0:3] - state_S[:3]))
-            / 1000
-            for (state_S, state_E) in zip(spice_states, state_estimate)
-        ]
-        error_jpl = [
-            (inertial_to_rsw_rotation_matrix(state_E) @ (state_E[0:3] - state_H[:3]))
-            / 1000
-            for (state_H, state_E) in zip(horizons_states, state_estimate)
-        ]
-        error_spice = np.array(error_spice)
-        error_jpl = np.array(error_jpl)
-        frame_name = "RSW"
-    else:
-        error_spice = (np.array(spice_states) - np.array(state_estimate)) / 1000
-        error_jpl = (horizons_states - np.array(state_estimate)) / 1000
-        frame_name = "Cartesian"
+        horizons_query = HorizonsQuery(
+            query_id=f"{target_mpc_code};",
+            location=f"500@{global_frame_origin}",
+            epoch_list=list(times_get_eph),
+            extended_query=True,
+        )
+        reference_states = horizons_query.cartesian(
+            frame_orientation=global_frame_orientation
+        )[:, 1:]
 
-    # plot
-    fig, axs = plt.subplots(2, 1, figsize=(12, 9))
     times_plot = times_get_eph / (86400 * 365.25) + 2000  # approximate for plot ticks
-    axs[0].plot(times_plot, error_spice[:, 0], label="Radial" if in_RSW_frame else "X")
-    axs[0].plot(times_plot, error_spice[:, 1], label="Along-Track" if in_RSW_frame else "Y")
-    axs[0].plot(times_plot, error_spice[:, 2], label="Cross-Track" if in_RSW_frame else "Z")
-    axs[0].plot(
-        times_plot,
-        np.linalg.norm(error_spice[:, :3], axis=1),
-        label="magnitude",
-        linestyle="--",
-        color="k",
-    )
 
-    axs[1].plot(times_plot, error_jpl[:, 0])
-    axs[1].plot(times_plot, error_jpl[:, 1])
-    axs[1].plot(times_plot, error_jpl[:, 2])
-    axs[1].plot(
-        times_plot, np.linalg.norm(error_jpl[:, :3], axis=1), linestyle="--", color="k"
-    )
+    fig, axs = plt.subplots(ncols=3, figsize=(12, 4))
+    # Get the errors per cartesian component and plot.
+    for state_est, setup_name in zip(state_estimates_set, setup_names):
+        # Error in kilometers
+        error_to_reference = (reference_states - np.array(state_est)) / 1000
+
+        if in_RSW:
+
+            error_to_reference = np.array(
+                [
+                    inertial_to_rsw_rotation_matrix(reference_state) @ error[:3]
+                    for reference_state, error in zip(
+                        reference_states, error_to_reference
+                    )
+                ]
+            )
+
+        axs[0].plot(times_plot, error_to_reference[:, 0], label=setup_name)
+        axs[1].plot(times_plot, error_to_reference[:, 1], label=setup_name)
+        axs[2].plot(times_plot, error_to_reference[:, 2], label=setup_name)
 
     for idx, ax in enumerate(axs.flatten()):
         # show areas where there are no observations:
         for i, gap in enumerate(gap_ranges):
-            if in_RSW_frame:
-                color = "orange" if idx % 2 == 0 else "purple"
-            else:
-                color = "red" if idx % 2 == 0 else "blue"
             ax.axvspan(
                 xmin=gap[0],
                 xmax=gap[1],
-                color=color,
+                color="red",
                 alpha=0.1,
                 label="Large gap in observations" if i == 0 else None,
             )
         ax.grid()
 
-    axs[0].legend(ncol=5)
-    axs[0].set_ylabel(f"{frame_name} Error [km]")
-    axs[1].set_ylabel(f"{frame_name} Error [km]")
+    axs[0].legend(ncol=1)
+    axs[0].set_ylabel("X Cartesian Error [km]" if not in_RSW else "R Error [km]")
+    axs[1].set_ylabel("Y Cartesian Error [km]" if not in_RSW else "S Error [km]")
+    axs[2].set_ylabel("Z Cartesian Error [km]" if not in_RSW else "W Error [km]")
     axs[0].set_xlabel("Year")
+    axs[1].set_xlabel("Year")
+    axs[2].set_xlabel("Year")
 
-    axs[0].set_title(f"Error vs SPICE over time for {target_name}")
-    axs[1].set_title(f"Error vs JPL HORIZONS over time for {target_name}")
-    fig.suptitle(f"Setup: {setup_name}")
+    fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}")
     fig.set_tight_layout(True)
 
-    plt.show()
+    return fig, axs
+
+
+
+def add_uncertainty_table_to_cartesian_plot(
+    axs, ephemeris_uncertainty_table: Table, in_RSW: bool = False
+):
+
+    if not in_RSW:
+        uncertainty_history = np.array(
+            [
+                ephemeris_uncertainty_table["ephemeris_time"],
+                ephemeris_uncertainty_table["x_s"],
+                ephemeris_uncertainty_table["y_s"],
+                ephemeris_uncertainty_table["z_s"],
+            ]
+        ).T
+    else:
+        uncertainty_history = np.array(
+            [
+                ephemeris_uncertainty_table["ephemeris_time"],
+                ephemeris_uncertainty_table["r_s"],
+                ephemeris_uncertainty_table["t_s"],
+                ephemeris_uncertainty_table["n_s"],
+            ]
+        ).T
+
+    time_filter = np.where(
+        (uncertainty_history[:, 0] >= times_get_eph[0])
+        & (uncertainty_history[:, 0] <= times_get_eph[-1])
+    )
+    uncertainty_history_time_filtered = uncertainty_history[time_filter]
+    jpl_uncertainty_epochs_year = (
+        uncertainty_history_time_filtered[:, 0] / (86400 * 365.25) + 2000
+    )
+    jpl_uncertainties_km = uncertainty_history_time_filtered[:, 1:4] / 1000
+
+    axs[0].plot(
+        jpl_uncertainty_epochs_year,
+        np.array([jpl_uncertainties_km[:, 0], -jpl_uncertainties_km[:, 0]]).T,
+        linestyle="--",
+        color="black",
+        label="JPL $\pm 3\sigma$ uncertainty",
+    )
+    axs[1].plot(
+        jpl_uncertainty_epochs_year,
+        np.array([jpl_uncertainties_km[:, 1], -jpl_uncertainties_km[:, 1]]).T,
+        linestyle="--",
+        color="black",
+        label="JPL $\pm 3\sigma$ uncertainty",
+    )
+    axs[2].plot(
+        jpl_uncertainty_epochs_year,
+        np.array([jpl_uncertainties_km[:, 2], -jpl_uncertainties_km[:, 2]]).T,
+        linestyle="--",
+        color="black",
+        label="JPL $\pm 3\sigma$ uncertainty",
+    )
+
+
+def add_formal_error_to_cartesian_single_plot(
+    ax, formal_error_epochs, formal_errors, in_RSW, sigma_level=3
+):
+
+    labels = ["R", "S", "W"] if not in_RSW else ["X", "Y", "Z"]
+    times_plot = (
+        formal_error_epochs / (86400 * 365.25) + 2000
+    )  # approximate for plot ticks
+
+    for i in range(3):
+        ax.plot(
+            times_plot,
+            sigma_level * formal_errors[:, i] / 1e3,
+            linestyle="--",
+            color=cm.tab10(i),
+            label=f"$\pm {sigma_level}\sigma$ Formal Error {labels[i]}",
+        )
+        ax.plot(
+            times_plot,
+            -sigma_level * formal_errors[:, i] / 1e3,
+            linestyle="--",
+            color=cm.tab10(i),
+        )
+
+
+
+def plot_cartesian_single(
+    state_estimate,
+    setup_name,
+    observation_collection,
+    comparison_reference,
+    in_RSW=False,
+    plot_error_norm=False,
+):
+
+    comparison_reference = check_comparison_reference(comparison_reference)
+
+    gap_ranges = get_gap_ranges(observation_collection)
+
+    # retrieve the states for a list of times in:
+    # SPICE
+    if comparison_reference == "spice":
+
+        reference_states = np.array(
+            [
+                spice.get_body_cartesian_state_at_epoch(
+                    target_spkid,
+                    central_bodies[0],
+                    global_frame_orientation,
+                    "NONE",
+                    timee,
+                )
+                for timee in times_get_eph
+            ]
+        )
+
+    # Horizons
+    elif comparison_reference == "horizons":
+
+        horizons_query = HorizonsQuery(
+            query_id=f"{target_mpc_code};",
+            location=f"500@{global_frame_origin}",
+            epoch_list=list(times_get_eph),
+            extended_query=True,
+        )
+        reference_states = horizons_query.cartesian(
+            frame_orientation=global_frame_orientation
+        )[:, 1:]
+
+    error_to_reference = (reference_states - np.array(state_estimate)) / 1000
+
+    if in_RSW:
+
+        error_to_reference = np.array(
+            [
+                inertial_to_rsw_rotation_matrix(reference_state) @ error[:3]
+                for reference_state, error in zip(reference_states, error_to_reference)
+            ]
+        )
+
+    # plot
+    fig, ax = plt.subplots(constrained_layout=True)
+    times_plot = times_get_eph / (86400 * 365.25) + 2000  # approximate for plot ticks
+    ax.plot(times_plot, error_to_reference[:, 0], label="Radial" if in_RSW else "X")
+    ax.plot(
+        times_plot, error_to_reference[:, 1], label="Along-Track" if in_RSW else "Y"
+    )
+    ax.plot(
+        times_plot, error_to_reference[:, 2], label="Cross-Track" if in_RSW else "Z"
+    )
+
+    if plot_error_norm:
+        ax.plot(
+            times_plot,
+            np.linalg.norm(error_to_reference[:, :3], axis=1),
+            linestyle="--",
+            color="k",
+            label="magnitude",
+        )
+
+    for i, gap in enumerate(gap_ranges):
+        ax.axvspan(
+            xmin=gap[0],
+            xmax=gap[1],
+            color="red",
+            alpha=0.1,
+            label="Large gap in observations" if i == 0 else None,
+        )
+    ax.grid()
+
+    frame_name = "RSW" if in_RSW else "Cartesian"
+
+    ax.legend()
+    ax.set_xlabel("Year")
+    ax.set_ylabel(f"{frame_name} Error [km]")
+
+    ax.set_title(f"Error vs {comparison_reference.upper()} over time for {target_name}")
+    fig.suptitle(f"Setup: {setup_name}")
+    # fig.set_tight_layout(True)
+
+    return fig, ax
+
+
+
+import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
+
+
+def plot_star_catalog_corrections(
+    mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 6)
+):
+
+    if include_satellites:
+        epochs = mpc_batch.table["epochUTC"].values
+        ra_corrections = mpc_batch.table["corr_RA_EFCC18"].values
+        dec_corrections = mpc_batch.table["corr_DEC_EFCC18"].values
+    else:
+        epochs = mpc_batch.table[mpc_batch.table["note2"] != "S"]["epochUTC"].values
+        ra_corrections = mpc_batch.table[mpc_batch.table["note2"] != "S"][
+            "corr_RA_EFCC18"
+        ].values
+        dec_corrections = mpc_batch.table[mpc_batch.table["note2"] != "S"][
+            "corr_DEC_EFCC18"
+        ].values
+
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
+    gs = gridspec.GridSpec(
+        2, 2, width_ratios=[4, 1], height_ratios=[1, 1], hspace=0.1, wspace=0.05
+    )
+
+    # Scatter plots
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
+
+    # Histograms on the right
+    hist1 = fig.add_subplot(gs[0, 1], sharey=ax1)
+    hist2 = fig.add_subplot(gs[1, 1], sharey=ax2)
+
+    # Scatter plots
+    ax1.scatter(epochs, ra_corrections, color="tab:blue", marker="+")
+    ax2.scatter(epochs, dec_corrections, color="tab:orange", marker="+")
+
+    # Histograms
+    hist1.hist(
+        ra_corrections, bins=50, orientation="horizontal", color="tab:blue", alpha=0.6
+    )
+    hist2.hist(
+        dec_corrections,
+        bins=50,
+        orientation="horizontal",
+        color="tab:orange",
+        alpha=0.6,
+    )
+    hist2.set_xlabel("Occurrences")
+
+    ax1.set_ylabel(r"Right Ascension $[rad]$")
+    ax2.set_ylabel(r"Declination $[rad]$")
+    ax2.set_xlabel("Epoch [UTC]")
+    ax1.grid()
+    ax2.grid()
+    ax1.tick_params(labelbottom=False)
+    hist1.tick_params(labelleft=False, labelbottom=False)
+    hist2.tick_params(labelleft=False)
+    fig.suptitle("Star Catalog Corrections (per observation)")
+
+    return fig, ax1, ax2, hist1, hist2
+
+
+def plot_observation_weights(
+    mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 4)
+):
+
+    sat_epochs = mpc_batch.table[mpc_batch.table["note2"] == "S"]["epochUTC"].values
+    sat_weights = mpc_batch.table[mpc_batch.table["note2"] == "S"]["weight"].values
+
+    reg_epochs = mpc_batch.table[mpc_batch.table["note2"] != "S"]["epochUTC"].values
+    reg_weights = mpc_batch.table[mpc_batch.table["note2"] != "S"]["weight"].values
+
+    # Set up figure and GridSpec for scatter + histogram
+    fig = plt.figure(figsize=figsize)
+    gs = gridspec.GridSpec(1, 2, width_ratios=[4, 1], wspace=0.05)
+
+    ax = fig.add_subplot(gs[0])
+    ax.scatter(reg_epochs, reg_weights, marker="+")
+
+    if include_satellites:
+        ax.scatter(
+            sat_epochs, sat_weights, marker="+", color="tab:red", label="Satellite"
+        )
+
+    hist_ax = fig.add_subplot(gs[1])
+
+    hist_ranges = (
+        min(reg_weights.min(), sat_weights.min()),
+        max(reg_weights.max(), sat_weights.max()),
+    )
+
+    hist_ax.hist(
+        reg_weights,
+        range=hist_ranges if include_satellites else None,
+        bins=30,
+        orientation="horizontal",
+        color="tab:blue",
+        alpha=0.6,
+        log=False,
+    )
+
+    if include_satellites:
+        hist_ax.hist(
+            sat_weights,
+            range=hist_ranges,
+            bins=30,
+            orientation="horizontal",
+            color="tab:red",
+            alpha=0.6,
+            log=False,
+        )
+
+    hist_ax.tick_params(labelleft=False)
+    hist_ax.grid(False)
+    hist_ax.set_xlabel("Occurrences")
+
+    if include_satellites:
+        legend_elements = [
+            Line2D(
+                [0],
+                [0],
+                marker="+",
+                color="tab:blue",
+                linestyle="None",
+                label="Regular",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="+",
+                color="tab:red",
+                linestyle="None",
+                label="Satellite",
+            ),
+        ]
+        ax.legend(handles=legend_elements, title="Observatory Type")
+
+    ax.set_ylabel(r"Weight $[rad^{-1}]$")
+    ax.grid()
+    fig.suptitle("Observation Weights per RA/DEC pair")
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+
+    return fig, ax, hist_ax
 
 
 """
@@ -932,7 +1225,8 @@ The result of the estimation is plotted below. The first plot shows similar resi
 
 
 plot_residuals(setup_names, pod_output_set, observation_collection_set)
-plot_cartesian(state_estimates_set, setup_names, observation_collection_set)
+plot_cartesian(state_estimates_set, setup_names, observation_collection_set, "spice")
+plot_cartesian(state_estimates_set, setup_names, observation_collection_set, "horizons")
 
 
 """
@@ -958,26 +1252,10 @@ The plots below show star catalog corrections and observation weights for the ob
 temp = batch.copy()
 temp.to_tudat(bodies=bodies, included_satellites=None, apply_weights_VFCC17=True)
 # mark weights red if it is a satellite observation
-marker_color = ["tab:red" if x == "S" else "tab:blue" for x in temp.table.note2] 
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
-ax1.scatter(temp.table.epochUTC, temp.table.corr_RA_EFCC18, color="tab:blue", marker="+")
-ax2.scatter(temp.table.epochUTC, temp.table.corr_DEC_EFCC18, color="tab:orange", marker="+")
+plot_star_catalog_corrections(temp)
 
-ax1.set_ylabel(r"Right Ascension $[rad]$")
-ax2.set_ylabel(r"Declination $[rad]$")
-ax1.grid()
-ax2.grid()
-fig.suptitle("Star Catalog Corrections (per observation)")
-fig.set_tight_layout(True)
-
-fig, ax = plt.subplots(1, 1, figsize=(9,4))
-ax.scatter(temp.table.epochUTC, temp.table.weight, marker="+", c=marker_color)
-ax.set_yscale("log")
-ax.set_ylabel(r"Weight $[rad^{-1}]$")
-ax.grid()
-fig.suptitle("Observation Weights (per RA/DEC pair) (bigger = more impact) [red=Satellite]")
-fig.set_tight_layout(True)
+plot_observation_weights(temp, include_satellites=False)
 
 
 """
@@ -1051,7 +1329,17 @@ Since the remaining setups do not show a strong difference, let take a closer lo
 
 
 plot_residuals(setup_names_2, pod_output_set_2, observation_collection_set_2)
-plot_cartesian(state_estimates_set_2, setup_names_2, observation_collection_set_2)
+plot_cartesian(
+    state_estimates_set_2, setup_names_2, observation_collection_set_2, "spice"
+)
+fig, axs = plot_cartesian(
+    state_estimates_set_2[:-1],
+    setup_names_2[:-1],
+    observation_collection_set_2[:-1],
+    "horizons",
+)
+
+add_uncertainty_table_to_cartesian_plot(axs, ephemeris_uncertainty_table)
 
 
 """
@@ -1077,8 +1365,78 @@ print(f"Final setup: {final_setup_name}")
 
 
 
-plot_cartesian_single(final_state_estimate, final_setup_name, final_observation_collection, in_RSW_frame=False)
-plot_cartesian_single(final_state_estimate, final_setup_name, final_observation_collection, in_RSW_frame=True)
+plot_cartesian_single(
+    final_state_estimate,
+    final_setup_name,
+    final_observation_collection,
+    "spice",
+    in_RSW=False,
+)
+fig_jpl_xyz, ax_jpl_xyz = plot_cartesian_single(
+    final_state_estimate,
+    final_setup_name,
+    final_observation_collection,
+    "horizons",
+    in_RSW=False,
+)
+plot_cartesian_single(
+    final_state_estimate,
+    final_setup_name,
+    final_observation_collection,
+    "spice",
+    in_RSW=True,
+)
+fig, ax = plot_cartesian_single(
+    final_state_estimate,
+    final_setup_name,
+    final_observation_collection,
+    "horizons",
+    in_RSW=True,
+)
+
+
+"""
+We can also add the formal errors of our solution to the previous plots.
+In order to do that, we propagate our covariance to the output epochs, transform it to the Eros-RSW frame and then compute the corresponding formal errors from the covariance.
+"""
+
+
+from tudatpy.numerical_simulation import estimation
+
+_, covariance_history = estimation.propagate_covariance_split_output(
+    final_pod_output.covariance,
+    final_estimator.state_transition_interface,
+    times_get_eph,
+)
+
+
+inertial_to_rsw_state_rotation_matrices = []
+for state in final_state_estimate:
+
+    inertial_to_rsw_rm = np.zeros((6, 6))
+    i2rsw = inertial_to_rsw_rotation_matrix(state)
+    inertial_to_rsw_rm[:3, :3] = i2rsw
+    inertial_to_rsw_rm[3:, 3:] = i2rsw
+
+    inertial_to_rsw_state_rotation_matrices.append(inertial_to_rsw_rm)
+
+
+covariance_history_rsw = [
+    inertial_to_rsw_state_rotation_matrices[i]
+    @ covariance_history[i]
+    @ inertial_to_rsw_state_rotation_matrices[i].T
+    for i in range(len(covariance_history))
+]
+formal_error_history_rsw = np.array(
+    [np.sqrt(np.diag(cov)) for cov in covariance_history_rsw]
+)
+
+
+
+add_formal_error_to_cartesian_single_plot(
+    ax, times_get_eph, formal_error_history_rsw, in_RSW=True
+)
+fig
 
 
 """
@@ -1140,8 +1498,9 @@ residual_history = final_pod_output.residual_history
 residual_times = (
     np.array(final_observation_collection.concatenated_times) / (86400 * 365.25) + 2000
 )
-finalresiduals = np.array(residual_history[:, -1])
 
+prefitresiduals = np.array(residual_history[:, 0])
+finalresiduals = np.array(residual_history[:, -1])
 
 
 # This piece of code collects the 10 largest observatories
@@ -1180,7 +1539,71 @@ mask_not_top = [
 n_obs_not_top = int(sum(mask_not_top) / 2)
 
 
+######## PREFIT RESIDUALS PLOTTING ################
+fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
+# Plot remaining observatories first
+# RA
+
+axs[0].scatter(
+    residual_times[mask_not_top][::2],
+    prefitresiduals[mask_not_top][::2],
+    marker=".",
+    s=30,
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][::2]) * 1e6:.2f}",
+    color="lightgrey",
+)
+# DEC
+axs[1].scatter(
+    residual_times[mask_not_top][1::2],
+    prefitresiduals[mask_not_top][1::2],
+    marker=".",
+    s=30,
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][1::2]) * 1e6:.2f}",
+    color="lightgrey",
+)
+
+# plots the highlighted top 10 observatories
+for observatory in top_observatories:
+    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
+    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
+
+    axs[0].scatter(
+        residual_times[concatenated_receiving_observatories == observatory][::2],
+        prefitresiduals[concatenated_receiving_observatories == observatory][::2],
+        marker=".",
+        s=30,
+        label=name_ra,
+        zorder=100,
+    )
+    axs[1].scatter(
+        residual_times[concatenated_receiving_observatories == observatory][1::2],
+        prefitresiduals[concatenated_receiving_observatories == observatory][1::2],
+        marker=".",
+        s=30,
+        label=name_dec,
+        zorder=100,
+    )
+
+axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+
+for ax in fig.get_axes():
+    ax.grid()
+    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_xlabel("Year")
+    # this step hides a few outliers (~3 observations)
+    ax.set_ylim(-1.5e-5, 1.5e-5)
+
+axs[0].set_title("Right Ascension")
+axs[1].set_title("Declination")
+
+fig.suptitle(f"Pre-Fit Residuals for {target_name}")
+fig.set_tight_layout(True)
+
+plt.show()
+
+######## POSTFIT RESIDUALS PLOTTING ################
 fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
 # Plot remaining observatories first
@@ -1190,7 +1613,7 @@ axs[0].scatter(
     finalresiduals[mask_not_top][::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 # DEC
@@ -1199,19 +1622,20 @@ axs[1].scatter(
     finalresiduals[mask_not_top][1::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | {n_obs_not_top} obs",
+    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][1::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 
 # plots the highlighted top 10 observatories
 for observatory in top_observatories:
-    name = f"{observatory} | {observatory_names.loc[observatory].Name} | {int(observatory_names.loc[observatory]['count'])} obs"
+    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
+    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
     axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
         finalresiduals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
-        label=name,
+        label=name_ra,
         zorder=100,
     )
     axs[1].scatter(
@@ -1219,11 +1643,11 @@ for observatory in top_observatories:
         finalresiduals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
-        label=name,
+        label=name_dec,
         zorder=100,
     )
 
-
+axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
@@ -1240,7 +1664,7 @@ fig.suptitle(f"Final Iteration residuals for {target_name}")
 fig.set_tight_layout(True)
 
 plt.show()
-
+######## POSTFIT RESIDUALS PLOTTING ################
 
 """
 ### Histograms per observatory
@@ -1251,8 +1675,6 @@ num_observatories = 6
 nbins = 20
 number_of_columns = 2
 transparency = 0.6
-
-
 
 number_of_rows = (
     int(num_observatories / number_of_columns)
@@ -1307,6 +1729,178 @@ fig.suptitle(
 )
 fig.set_tight_layout(True)
 plt.show()
+
+
+"""
+# Plots for IAC paper
+
+The following plots were created for the paper title "Open-Source High-Fidelity Orbit Estimation for Planetary Science and Space Situational Awareness Using the Tudat Software", presented at IAC 2025.
+
+Since these plots are specifically tailored to the paper format, they contain a number of hard-corded setups and are thus not integrated in the previous plotting functions.
+"""
+
+
+fig, _, _, _, _ = plot_star_catalog_corrections(temp, figsize=(6, 4))
+
+# fig.savefig("Eros_observation_weights_per_RA_DEC_pair.pdf")
+
+fig, _, _ = plot_observation_weights(temp, include_satellites=False, figsize=(6, 4))
+# fig.savefig("Eros_star_catalog_corrections.pdf")
+
+
+
+fig = batch.plot_observations_sky(figsize=(6, 4))
+fig.suptitle(f"{batch.size} observations for {target_name} in the sky")
+fig.axes[0].get_legend().remove()
+
+# fig.savefig("Eros_observations_sky.pdf")
+
+
+
+comparison_reference = "horizons"
+
+fig = plt.figure(layout="constrained", figsize=(11, 6))
+
+####################################################
+# TOP FIGURES
+####################################################
+
+subfigs = fig.subfigures(2, 1)
+axs = subfigs[0].subplots(1, 3)
+
+comparison_reference = check_comparison_reference(comparison_reference)
+
+gap_ranges = get_gap_ranges(observation_collection_set[0])
+
+# retrieve the states for a list of times in:
+# SPICE
+if comparison_reference == "spice":
+
+    reference_states = np.array(
+        [
+            spice.get_body_cartesian_state_at_epoch(
+                target_spkid,
+                central_bodies[0],
+                global_frame_orientation,
+                "NONE",
+                timee,
+            )
+            for timee in times_get_eph
+        ]
+    )
+
+# Horizons
+elif comparison_reference == "horizons":
+
+    horizons_query = HorizonsQuery(
+        query_id=f"{target_mpc_code};",
+        location=f"500@{global_frame_origin}",
+        epoch_list=list(times_get_eph),
+        extended_query=True,
+    )
+    reference_states = horizons_query.cartesian(
+        frame_orientation=global_frame_orientation
+    )[:, 1:]
+
+times_plot = times_get_eph / (86400 * 365.25) + 2000  # approximate for plot ticks
+
+
+state_estimates_set = state_estimates_set_2[:-1]
+setup_names = ["None", "Star Cat.", "Star Cat. + Weighting"]
+
+for state_est, setup_name in zip(state_estimates_set, setup_names):
+    # Error in kilometers
+    error_to_reference = (reference_states - np.array(state_est)) / 1000
+
+    error_to_reference = np.array(
+        [
+            inertial_to_rsw_rotation_matrix(reference_state) @ error[:3]
+            for reference_state, error in zip(reference_states, error_to_reference)
+        ]
+    )
+
+    axs[0].plot(times_plot, error_to_reference[:, 0], label=setup_name)
+    axs[1].plot(times_plot, error_to_reference[:, 1], label=setup_name)
+    axs[2].plot(times_plot, error_to_reference[:, 2], label=setup_name)
+
+for idx, ax in enumerate(axs.flatten()):
+    # show areas where there are no observations:
+    for i, gap in enumerate(gap_ranges):
+        ax.axvspan(
+            xmin=gap[0],
+            xmax=gap[1],
+            color="red",
+            alpha=0.1,
+            label="Large gap in observations" if i == 0 else None,
+        )
+    ax.grid()
+
+# axs[0].legend(ncol=1, loc="lower right")
+axs[0].set_ylabel("R Error [km]")
+axs[1].set_ylabel("S Error [km]")
+axs[2].set_ylabel("W Error [km]")
+axs[0].set_xlabel("Year")
+axs[1].set_xlabel("Year")
+axs[2].set_xlabel("Year")
+
+subfigs[0].suptitle(
+    f"Error vs {comparison_reference.upper()} of different pre-processing setups for {target_name}"
+)
+add_uncertainty_table_to_cartesian_plot(axs, ephemeris_uncertainty_table)
+
+h, l = axs[2].get_legend_handles_labels()
+axs[2].legend(
+    handles=h[:-1], labels=l[:-1], ncol=1, loc="upper left", bbox_to_anchor=(1.01, 1.0)
+)
+
+
+####################################################
+# BOTTOM FIGURE
+####################################################
+
+ax = subfigs[1].subplots()
+subfigs[1].suptitle(
+    f"Errors vs {comparison_reference.upper()} of final setup: {setup_names[chosen_setup_index]}, including Tudat formal errors"
+)
+
+state_estimate = state_estimates_set_2[chosen_setup_index]
+
+error_to_reference = (reference_states - np.array(state_estimate)) / 1000
+
+error_to_reference = np.array(
+    [
+        inertial_to_rsw_rotation_matrix(reference_state) @ error[:3]
+        for reference_state, error in zip(reference_states, error_to_reference)
+    ]
+)
+
+# plot
+ax.plot(times_plot, error_to_reference[:, 0], label="R")
+ax.plot(times_plot, error_to_reference[:, 1], label="S")
+ax.plot(times_plot, error_to_reference[:, 2], label="W")
+
+
+for i, gap in enumerate(gap_ranges):
+    ax.axvspan(
+        xmin=gap[0],
+        xmax=gap[1],
+        color="red",
+        alpha=0.1,
+        label="Large gap in observations" if i == 0 else None,
+    )
+ax.grid()
+
+frame_name = "RSW"
+
+ax.set_xlabel("Year")
+ax.set_ylabel(f"{frame_name} Error [km]")
+
+add_formal_error_to_cartesian_single_plot(
+    ax, times_get_eph, formal_error_history_rsw, in_RSW=True
+)
+ax.legend(ncols=1, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+
+# fig.savefig("Eros_estimation_error_overview.pdf", dpi=400)
 
 
 plt.show()
