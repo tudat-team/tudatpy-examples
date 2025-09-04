@@ -701,7 +701,7 @@ def plot_residuals(
     for col in range(number_of_columns):
         axs[int(number_of_rows - 1), col].set_xlabel("Year")
 
-    axs[0, 0].legend()
+    axs[0, 0].legend(fontsize = 11)
 
     plt.show()
 
@@ -825,8 +825,7 @@ def plot_cartesian(
     axs[0].set_xlabel("Year")
     axs[1].set_xlabel("Year")
     axs[2].set_xlabel("Year")
-
-    fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}")
+    fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}", fontsize=15)
     fig.set_tight_layout(True)
 
     return fig, axs
@@ -1581,16 +1580,15 @@ axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Residuals [rad]")
-    ax.set_xlabel("Year")
+    ax.set_ylabel("Residuals [rad]", fontsize = 12)
+    ax.set_xlabel("Year", fontsize = 12)
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
 overall_rms_ra_prefit = np.sqrt(np.mean(prefitresiduals[::2]**2))
 overall_rms_dec_prefit = np.sqrt(np.mean(prefitresiduals[1::2]**2))
-axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}")
-axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}")
-fig.suptitle(f"Pre-Fit Residuals for {target_name}")
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}", fontsize = 15)
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}", fontsize = 15)
 fig.set_tight_layout(True)
 
 plt.show()
@@ -1639,22 +1637,25 @@ for observatory in top_observatories:
         zorder=100,
     )
 
-axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
-axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15), fontsize = 11)
+axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15), fontsize = 11)
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Residuals [rad]")
-    ax.set_xlabel("Year")
+    ax.set_ylabel("Residuals [rad]", fontsize = 15)
+    ax.set_xlabel("Year", fontsize = 15)
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
 overall_rms_ra_postfit = np.sqrt(np.mean(finalresiduals[::2]**2))
 overall_rms_dec_postfit = np.sqrt(np.mean(finalresiduals[1::2]**2))
 
-axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}")
-axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}")
-fig.suptitle(f"Post-fit residuals for {target_name}")
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}", fontsize = 15)
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}", fontsize = 15)
+axs[0].tick_params(axis='x', labelsize=12)  # x-axis ticks
+axs[0].tick_params(axis='y', labelsize=12)  # y-axis ticks
+axs[1].tick_params(axis='x', labelsize=12)  # x-axis ticks
+axs[1].tick_params(axis='y', labelsize=12)  # y-axis ticks
 fig.set_tight_layout(True)
 plt.show()
 ######## POSTFIT RESIDUALS PLOTTING ################
