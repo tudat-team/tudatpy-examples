@@ -4,10 +4,8 @@
 #
 # Kosmos 482 is exemplary because it allows us to showcase:
 #
-# - **Long-term orbital decay modeling** over 53 years  
-# - **Multiple perturbation effects** (atmospheric drag , solar radiation pressure, gravitational perturbations)  
-# - Retrieving TLE data from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**  
-# - **Validation opportunity**, since the actual reentry occurred on **10 May 2025**
+# - **Retrieving TLE data** from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**  
+# - **Validation of Reentry Prediction**, since the actual reentry occurred on **10 May 2025**
 #
 
 # # Import Statements
@@ -564,3 +562,40 @@ ax.scatter(
 
 plt.legend()
 plt.show()
+# -
+
+# ## **Plot Kosmos 482 Altitude and Groundspeed velocity evolution**
+#
+# Using the **dependent variables** saved during propagation, we can plot the evolution of the capsule's altitude and groundspeed velocity.  
+
+# +
+# Extract Altitude data
+altitude = dependent_variables_array[:, 1]
+
+# Plot altitude vs. UTC
+plt.figure(figsize=(10, 5))
+plt.plot(utc_times, altitude/1000, label="Altitude") 
+plt.xlabel("UTC Time", fontsize=12)
+plt.ylabel("Altitude [km]", fontsize=12)
+plt.title("Satellite Altitude over Time", fontsize=14)
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Extract Groundspeed data
+groundspeed = dependent_variables_array[:, -1]
+
+# Plot altitude vs. UTC
+plt.figure(figsize=(10, 5))
+plt.plot(utc_times, groundspeed/1000, label="Groundspeed") 
+plt.xlabel("UTC Time", fontsize=12)
+plt.ylabel("Groundspeed Velocity [km/s]", fontsize=12)
+plt.title("Satellite Groundspeed Velocity over Time", fontsize=14)
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+# -
+
+
