@@ -77,8 +77,8 @@ def perform_residuals_analysis(inputs):
     input_index = inputs[0]
 
     # Convert start and end datetime objects to Tudat Time variables.
-    start_date = time_conversion.datetime_to_tudat(inputs[1]).epoch().to_float()
-    end_date = time_conversion.datetime_to_tudat(inputs[2]).epoch().to_float()
+    start_date = time_conversion.datetime_to_tudat(inputs[1]).to_epoch()
+    end_date = time_conversion.datetime_to_tudat(inputs[2]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, antennas switch files, GRAIL trajectory files, GRAIL reference frames file,
@@ -159,7 +159,7 @@ def perform_residuals_analysis(inputs):
         # Retrieve the time bounds of all ODF observations combined. A time buffer of 1h is subtracted/added to the observation
         # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
         # loaded ODF observations, without interpolation errors at the arc boundaries.
-        observation_time_limits = original_odf_observations.time_bounds
+        observation_time_limits = original_odf_observations.time_bounds_time_object
         obs_start_time = observation_time_limits[0] - 3600.0
         obs_end_time = observation_time_limits[1] + 3600.0
 
@@ -188,11 +188,11 @@ def perform_residuals_analysis(inputs):
         body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
         body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
             environment_setup.rotation_model.iau_2006, global_frame_orientation,
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  start_date, end_date, 3600.0),
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  start_date, end_date, 3600.0),
-            interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+            interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                                  start_date, end_date, 60.0))
         body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
@@ -331,7 +331,7 @@ def perform_residuals_analysis(inputs):
         np.savetxt(output_folder + 'residuals_wrt_spice_' + filename_suffix + '.dat',
                    compressed_observations.get_concatenated_residuals(), delimiter=',')
         np.savetxt(output_folder + 'observation_times_' + filename_suffix + '.dat',
-                   compressed_observations.concatenated_float_times, delimiter=',')
+                   compressed_observations.concatenated_times, delimiter=',')
         np.savetxt(output_folder + 'link_end_ids_' + filename_suffix + '.dat',
                    compressed_observations.concatenated_link_definition_ids, delimiter=',')
 
@@ -346,7 +346,7 @@ def perform_residuals_analysis(inputs):
                    np.vstack(mean_residuals), delimiter=',')
 
         # Retrieve time bounds per observation set
-        time_bounds_per_set = compressed_observations.get_time_bounds_per_set()
+        time_bounds_per_set = compressed_observations.get_time_bounds_per_set_time_object()
         time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
         for j in range(len(time_bounds_per_set)):
             time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
@@ -420,7 +420,7 @@ if __name__ == "__main__":
         residuals_rms = np.loadtxt(output_folder + "residuals_rms_" + str(i) + ".dat")
         residuals_mean = np.loadtxt(output_folder + "residuals_mean_" + str(i) + ".dat")
 
-        start_date_float = time_conversion.datetime_to_tudat(start_date).epoch().to_float()
+        start_date_float = time_conversion.datetime_to_tudat(start_date).to_epoch()
 
         # Plot full residuals wrt reference spice trajectory
         axs1[i].scatter((obs_times-start_date_float)/86400, residuals_wrt_spice, c=link_ends_ids, s=10)
