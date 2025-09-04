@@ -537,7 +537,7 @@ ax.add_image(tiler, 4)
 # Add colored ground track
 ax.add_collection(lc)
 cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
-cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
+cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=15)
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
 ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
@@ -560,7 +560,7 @@ ax.scatter(
     label='Cities > 1M'
 )
 
-plt.legend()
+plt.legend(fontsize = 12)
 plt.show()
 # -
 
