@@ -16,6 +16,7 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, parameters_setup, parameters, propagation, propagation_setup
+from tudatpy import estimation
 from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
@@ -1392,11 +1393,7 @@ fig, ax = plot_cartesian_single(
 We can also add the formal errors of our solution to the previous plots.
 In order to do that, we propagate our covariance to the output epochs, transform it to the Eros-RSW frame and then compute the corresponding formal errors from the covariance.
 """
-
-
-from tudatpy.numerical_simulation import estimation
-
-_, covariance_history = estimation.propagate_covariance_split_output(
+_, covariance_history = estimation.estimation_analysis.propagate_covariance_split_output(
     final_pod_output.covariance,
     final_estimator.state_transition_interface,
     times_get_eph,
@@ -1447,7 +1444,7 @@ Below are the same comparison plots used in the original example. Consider compa
 
 
 # Corellation can be retrieved using the CovarianceAnalysisInput class:
-covariance_input = estimation.CovarianceAnalysisInput(final_observation_collection)
+covariance_input = estimation.estimation_analysis.CovarianceAnalysisInput(final_observation_collection)
 covariance_output = final_estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
@@ -1584,14 +1581,15 @@ axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_ylabel("Residuals [rad]")
     ax.set_xlabel("Year")
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
-axs[0].set_title("Right Ascension")
-axs[1].set_title("Declination")
-
+overall_rms_ra_prefit = np.sqrt(np.mean(prefitresiduals[::2]**2))
+overall_rms_dec_prefit = np.sqrt(np.mean(prefitresiduals[1::2]**2))
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}")
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}")
 fig.suptitle(f"Pre-Fit Residuals for {target_name}")
 fig.set_tight_layout(True)
 
@@ -1646,17 +1644,18 @@ axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_ylabel("Residuals [rad]")
     ax.set_xlabel("Year")
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
-axs[0].set_title("Right Ascension")
-axs[1].set_title("Declination")
+overall_rms_ra_postfit = np.sqrt(np.mean(finalresiduals[::2]**2))
+overall_rms_dec_postfit = np.sqrt(np.mean(finalresiduals[1::2]**2))
 
-fig.suptitle(f"Final Iteration residuals for {target_name}")
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}")
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}")
+fig.suptitle(f"Post-fit residuals for {target_name}")
 fig.set_tight_layout(True)
-
 plt.show()
 ######## POSTFIT RESIDUALS PLOTTING ################
 
