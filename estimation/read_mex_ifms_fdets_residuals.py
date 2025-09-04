@@ -10,8 +10,9 @@ import os
 import matplotlib.dates as mdates
 import numpy as np
 import random
-from tudatpy.astro import time_conversion
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.astro import time_representation
+from tudatpy import numerical_simulation
+from tudatpy.numerical_simulation import estimation
 def generate_random_color():
     """Generate a random color in hexadecimal format."""
     return "#{:02x}{:02x}{:02x}".format(
@@ -26,12 +27,14 @@ fdets_residuals_folder = '/Users/lgisolfi/Desktop/mex_phobos_flyby/output/fdets_
 
 station_residuals = dict()
 
+
 ####################################################################################################################################
 # Here you can set the residuals to be plotted. I think these three make a good example (they can be compared to Tatiana's).
-fdets_files_trial = ['URUMQI_residuals.csv', 'HART15M_residuals.csv', 'ONSALA60_residuals.csv']
+fdets_files_trial = ['NWNORCIA_residuals.csv','URUMQI_residuals.csv', 'HART15M_residuals.csv']
 ####################################################################################################################################
 # Plotting the residuals
 plt.figure(figsize=(10, 6))
+
 
 for fdets_file in fdets_files_trial:
 
@@ -57,6 +60,16 @@ for fdets_file in fdets_files_trial:
         station_residuals[site_name] = [(fdets_utc_times, fdets_residuals)]
     else:
         station_residuals[site_name].append((fdets_utc_times, fdets_residuals))
+
+#tudat_fdets_utc_times = [time_representation.DateTime.from_python_datetime(fdets_utc_time) for fdets_utc_time in fdets_utc_times[]]
+#day_arc_filter = estimation.observations_processing.observation_filter(
+#    estimation.observations_processing.ObservationFilterType.time_bounds_filtering,
+#    time_representation.DateTime.to_epoch(tudat_fdets_utc_times[0]),
+#    time_representation.DateTime.to_epoch(tudat_fdets_utc_times[0]) + 86400.0,
+#    use_opposite_condition=True,
+#    )
+#original_odf_observations.filter_observations(day_arc_filter)
+#original_odf_observations.remove_empty_observation_sets()
 
 ########################################################################################################################
 # If uncommented, the following  allows to plot the IFMS residuals (after running the mex_residuals_ifms.py script)
@@ -85,6 +98,13 @@ for site_name, data_list in station_residuals.items():
     if site_name not in label_colors:
         label_colors[site_name] = generate_random_color()
 
+    if site_name == 'NWNORCIA':
+        label_colors[site_name] = 'lightgray'
+    elif site_name == 'HART15M':
+        label_colors[site_name] = 'orchid'
+    elif site_name == 'URUMQI':
+        label_colors[site_name] = 'royalblue'
+
     for utc_times, residuals in data_list:
         # Plot all stations' residuals on the same figure
         plt.scatter(
@@ -96,11 +116,21 @@ for site_name, data_list in station_residuals.items():
         )
         added_labels.add(site_name)  # Avoid duplicate labels in the legend
 
-# Format the x-axis for dates
+
+# Flatten only the residual values, ignore datetime
+residuals_array = np.concatenate([
+    np.ravel([val[1] for val in v]) if isinstance(v[0], (list, tuple, np.ndarray)) else np.ravel(v)
+    for v in station_residuals.values()
+])
+
+# Compute RMS
+print(residuals_array)
+overall_rms = np.sqrt(np.mean(residuals_array.astype(float)**2))
+print("Overall RMS:", overall_rms)
 plt.xlabel("UTC Time", fontsize=15)
 plt.ylabel("Residuals (Hz)", fontsize=15)
 plt.ylim(-0.045,0.045)
-plt.title("Mars Express GR035 Experiment", fontsize=15)
+plt.title(f"Overall RMS: {overall_rms*1000:.2f} mHz", fontsize=15)
 plt.grid(True, linestyle="--", alpha=0.2)
 plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
 plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
@@ -112,5 +142,66 @@ lgnd.legend_handles[0].set_sizes([20])
 
 # Adjust layout to make room for the legend
 plt.show()
+
+# Define your subset time window
+start_time = datetime(2013, 12, 28, 0, 0, 0)  # replace with your desired start
+end_time   = datetime(2013, 12, 29, 0, 0, 0) # replace with your desired end
+
+# Plot residuals for each station, filtered by subset time window
+plt.figure(figsize=(12, 6))
+added_labels = set()
+subset_residuals_all = []
+
+for site_name, data_list in station_residuals.items():
+
+    if site_name == 'NWNORCIA':
+        color = 'lightgray'
+    elif site_name == 'HART15M':
+        color = 'orchid'
+    elif site_name == 'URUMQI':
+        color = 'royalblue'
+
+    for utc_times, residuals in data_list:
+        # Convert to NumPy arrays for easy boolean indexing
+        utc_times_arr = np.array(utc_times)
+        residuals_arr = np.array(residuals)
+
+        # Filter by subset time window
+        mask = (utc_times_arr >= start_time) & (utc_times_arr <= end_time)
+        utc_subset = utc_times_arr[mask]
+        residuals_subset = residuals_arr[mask]
+
+        # Collect residuals for RMS calculation
+        subset_residuals_all.append(residuals_subset)
+
+        # Plot subset
+        rms_subset = np.sqrt(np.mean(residuals_subset**2))
+        plt.scatter(
+            utc_subset, residuals_subset,
+            label=site_name + f', RMS: {rms_subset*1000:.2f} mHz' if site_name not in added_labels else None,
+            s=7, color = color, alpha = 0.5
+        )
+        added_labels.add(site_name)
+
+# Flatten subset residuals and compute RMS
+subset_residuals_flat = np.concatenate(subset_residuals_all)
+subset_rms = np.sqrt(np.mean(subset_residuals_flat**2))
+
+# Formatting plot
+plt.xlabel("UTC Time", fontsize=15)
+plt.ylabel("Residuals (Hz)", fontsize=15)
+plt.title(f"Overall RMS: {subset_rms*1000:.2f} mHz", fontsize=15)
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gcf().autofmt_xdate()
+plt.tick_params(axis='x', labelsize=11)  # x-axis ticks
+plt.tick_params(axis='y', labelsize=11)  # y-axis ticks
+plt.legend(fontsize = 12)
+plt.tight_layout()
+plt.show()
+
 plt.close('all')
-exit()
+
+
+
