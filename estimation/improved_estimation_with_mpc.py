@@ -701,7 +701,7 @@ def plot_residuals(
     for col in range(number_of_columns):
         axs[int(number_of_rows - 1), col].set_xlabel("Year")
 
-    axs[0, 0].legend(fontsize = 11)
+    axs[0, 0].legend()
 
     plt.show()
 
@@ -825,7 +825,8 @@ def plot_cartesian(
     axs[0].set_xlabel("Year")
     axs[1].set_xlabel("Year")
     axs[2].set_xlabel("Year")
-    fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}", fontsize=15)
+
+    fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}")
     fig.set_tight_layout(True)
 
     return fig, axs
@@ -1534,13 +1535,11 @@ fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
 # Plot remaining observatories first
 # RA
-
 axs[0].scatter(
     residual_times[mask_not_top][::2],
     prefitresiduals[mask_not_top][::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 # DEC
@@ -1549,47 +1548,73 @@ axs[1].scatter(
     prefitresiduals[mask_not_top][1::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(prefitresiduals[mask_not_top][1::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 
-# plots the highlighted top 10 observatories
-for observatory in top_observatories:
-    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
-    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(prefitresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
+# Store legend entries
+legend_labels = []
+legend_handles = []
 
-    axs[0].scatter(
+# Add entry for other observatories
+other_rms_ra = np.std(prefitresiduals[mask_not_top][::2]) * 1e6
+other_rms_dec = np.std(prefitresiduals[mask_not_top][1::2]) * 1e6
+other_label = f"Other Observatories ({len(unique_observatories) - num_observatories}) | RA RMS: {other_rms_ra:.2f} | DEC RMS: {other_rms_dec:.2f}"
+
+# Create a dummy scatter for legend
+other_handle = axs[0].scatter([], [], marker=".", s=30, color="lightgrey")
+legend_handles.append(other_handle)
+legend_labels.append(other_label)
+
+# plots the highlighted top observatories
+for observatory in top_observatories:
+    rms_ra = np.std(prefitresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6
+    rms_dec = np.std(prefitresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6
+    obs_name = observatory_names.loc[observatory].Name
+
+    # Single label with both RA and DEC RMS
+    label = f"{obs_name} | RA RMS: {rms_ra:.2f} | DEC RMS: {rms_dec:.2f}"
+
+    # Plot RA
+    handle_ra = axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
         prefitresiduals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
-        label=name_ra,
         zorder=100,
     )
+
+    # Plot DEC (same color as RA)
     axs[1].scatter(
         residual_times[concatenated_receiving_observatories == observatory][1::2],
         prefitresiduals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
-        label=name_dec,
+        color=handle_ra.get_facecolors()[0],  # Use same color as RA
         zorder=100,
     )
 
-axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
-axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
+    # Add to legend (only once per observatory)
+    legend_handles.append(handle_ra)
+    legend_labels.append(label)
+
+# Create single legend below both subplots
+fig.legend(legend_handles, legend_labels, ncols=2, loc='lower center',
+           bbox_to_anchor=(0.5, -0.001), frameon=True, fancybox=True, shadow=True, fontsize = 10)
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Residuals [rad]", fontsize = 12)
-    ax.set_xlabel("Year", fontsize = 12)
+    ax.set_ylabel("Residuals [rad]", fontsize = 13)
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
-
+ax.set_xlabel('Year')
 overall_rms_ra_prefit = np.sqrt(np.mean(prefitresiduals[::2]**2))
 overall_rms_dec_prefit = np.sqrt(np.mean(prefitresiduals[1::2]**2))
-axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}", fontsize = 15)
-axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}", fontsize = 15)
-fig.set_tight_layout(True)
+
+axs[0].set_title(f"Overall Ra RMS: {overall_rms_ra_prefit*1e6:.2f}", fontsize = 13)
+axs[1].set_title(f"Overall Dec RMS: {overall_rms_dec_prefit*1e6:.2f}", fontsize = 13)
+
+
+plt.subplots_adjust(bottom=0.2)  # Make room for legend
 
 plt.show()
 
@@ -1603,7 +1628,6 @@ axs[0].scatter(
     finalresiduals[mask_not_top][::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 # DEC
@@ -1612,118 +1636,73 @@ axs[1].scatter(
     finalresiduals[mask_not_top][1::2],
     marker=".",
     s=30,
-    label=f"{len(unique_observatories) - num_observatories} Other Observatories | RMS: {np.std(finalresiduals[mask_not_top][1::2]) * 1e6:.2f}",
     color="lightgrey",
 )
 
-# plots the highlighted top 10 observatories
+# Store legend entries
+legend_labels = []
+legend_handles = []
+
+# Add entry for other observatories
+other_rms_ra = np.std(finalresiduals[mask_not_top][::2]) * 1e6
+other_rms_dec = np.std(finalresiduals[mask_not_top][1::2]) * 1e6
+other_label = f"Other Observatories ({len(unique_observatories) - num_observatories}) | RA RMS: {other_rms_ra:.2f} | DEC RMS: {other_rms_dec:.2f}"
+
+# Create a dummy scatter for legend
+other_handle = axs[0].scatter([], [], marker=".", s=30, color="lightgrey")
+legend_handles.append(other_handle)
+legend_labels.append(other_label)
+
+# plots the highlighted top observatories
 for observatory in top_observatories:
-    name_ra = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6:.2f}"
-    name_dec = f"{observatory} | {observatory_names.loc[observatory].Name} | RMS: {np.std(finalresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6:.2f}"
-    axs[0].scatter(
+    rms_ra = np.std(finalresiduals[concatenated_receiving_observatories == observatory][::2]) * 1e6
+    rms_dec = np.std(finalresiduals[concatenated_receiving_observatories == observatory][1::2]) * 1e6
+    obs_name = observatory_names.loc[observatory].Name
+
+    # Single label with both RA and DEC RMS
+    label = f"{obs_name} | RA RMS: {rms_ra:.2f} | DEC RMS: {rms_dec:.2f}"
+
+    # Plot RA
+    handle_ra = axs[0].scatter(
         residual_times[concatenated_receiving_observatories == observatory][::2],
         finalresiduals[concatenated_receiving_observatories == observatory][::2],
         marker=".",
         s=30,
-        label=name_ra,
         zorder=100,
     )
+
+    # Plot DEC (same color as RA)
     axs[1].scatter(
         residual_times[concatenated_receiving_observatories == observatory][1::2],
         finalresiduals[concatenated_receiving_observatories == observatory][1::2],
         marker=".",
         s=30,
-        label=name_dec,
+        color=handle_ra.get_facecolors()[0],  # Use same color as RA
         zorder=100,
     )
 
-axs[0].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15), fontsize = 11)
-axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15), fontsize = 11)
+    # Add to legend (only once per observatory)
+    legend_handles.append(handle_ra)
+    legend_labels.append(label)
+
+# Create single legend below both subplots
+fig.legend(legend_handles, legend_labels, ncols=2, loc='lower center',
+           bbox_to_anchor=(0.5, -0.001), frameon=True, fancybox=True, shadow=True, fontsize = 10)
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Residuals [rad]", fontsize = 15)
-    ax.set_xlabel("Year", fontsize = 15)
+    ax.set_ylabel("Residuals [rad]", fontsize = 13)
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
+ax.set_xlabel("Year", fontsize = 13)
 overall_rms_ra_postfit = np.sqrt(np.mean(finalresiduals[::2]**2))
 overall_rms_dec_postfit = np.sqrt(np.mean(finalresiduals[1::2]**2))
 
-axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}", fontsize = 15)
-axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}", fontsize = 15)
-axs[0].tick_params(axis='x', labelsize=12)  # x-axis ticks
-axs[0].tick_params(axis='y', labelsize=12)  # y-axis ticks
-axs[1].tick_params(axis='x', labelsize=12)  # x-axis ticks
-axs[1].tick_params(axis='y', labelsize=12)  # y-axis ticks
-fig.set_tight_layout(True)
-plt.show()
-######## POSTFIT RESIDUALS PLOTTING ################
+axs[0].set_title(f"Overall Ra RMS: {overall_rms_ra_postfit*1e6:.2f}", fontsize = 15)
+axs[1].set_title(f"Overall Dec RMS: {overall_rms_dec_postfit*1e6:.2f}", fontsize = 15)
+plt.subplots_adjust(bottom=0.2)  # Make room for legend
 
-"""
-### Histograms per observatory
-"""
-
-
-num_observatories = 6
-nbins = 20
-number_of_columns = 2
-transparency = 0.6
-
-
-
-number_of_rows = (
-    int(num_observatories / number_of_columns)
-    if num_observatories % number_of_columns == 0
-    else int((num_observatories + 1) / number_of_columns)
-)
-
-# we retrieve the observatory names again
-observatory_names_hist = (
-    batch.observatories_table(exclude_space_telescopes=True)
-    .set_index("Code")
-    .sort_values("count", ascending=False)
-    .iloc[0:num_observatories]
-)
-
-top_observatories_hist = observatory_names_hist.index.tolist()
-
-
-fig, axs = plt.subplots(
-    number_of_rows,
-    number_of_columns,
-    figsize=(4.5 * number_of_columns, 3 * number_of_rows),
-)
-
-axs = axs.flatten()
-
-for idx, observatory in enumerate(top_observatories_hist):
-    name = f"{observatory} | {observatory_names_hist.loc[observatory].Name} | {int(observatory_names_hist.loc[observatory]['count'])} obs"
-
-    axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][0::2],
-        bins=nbins,
-        alpha=transparency + 0.05,
-        label="Right Ascension",
-    )
-    axs[idx].hist(
-        finalresiduals[concatenated_receiving_observatories == observatory][1::2],
-        bins=nbins,
-        alpha=transparency,
-        label="Declination",
-    )
-
-    axs[idx].grid()
-    axs[idx].set_title(name)
-    axs[idx].set_ylabel("Number of Observations")
-    axs[idx].set_xlabel("Observation Residual [rad]")
-
-axs[0].legend()
-
-fig.suptitle(
-    f"Final residual histograms of the {num_observatories} observatories with the most observations for {target_name}"
-)
-fig.set_tight_layout(True)
 plt.show()
 
 
