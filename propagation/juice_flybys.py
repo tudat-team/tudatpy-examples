@@ -24,13 +24,10 @@ from matplotlib import pyplot as plt
 # Load required tudatpy modules
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation, propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation, propagation_setup, simulator
+from tudatpy.astro.time_representation import DateTime
 from tudatpy.astro import element_conversion
 from tudatpy.util import result2array
 
@@ -65,7 +62,7 @@ def get_juice_position_wrt_moon(time):
 # Only events where the closest distance meets the threshold are selected.
 
 def find_closest_approaches(lower_time_bound, upper_time_bound, threshold):
-    
+
     flyby_times = [] #initialize list of closest approach events
 
     tolerance = 1.0 
@@ -339,8 +336,8 @@ for k in range(number_of_flybys):
 propagator_settings = propagation_setup.propagator.multi_arc(propagator_settings_list)
 
 # Propagate dynamics
-simulator = numerical_simulation.create_dynamics_simulator(bodies, propagator_settings)
-propagation_results = simulator.propagation_results.single_arc_results
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
+propagation_results = dynamics_simulator.propagation_results.single_arc_results
 
 
 """
@@ -396,7 +393,7 @@ for i in range(num_plots):
     time_steps = np.diff(list(propagation_results[i].dependent_variable_history))
     times = list(propagation_results[i].dependent_variable_history)
     flyby_time = closest_approaches_juice[i]
-    
+
     ax = axes[i]
     ax.plot(times[:-1], time_steps, label='Step Size')
     ax.axvline(flyby_time, color='r', linestyle='--', label='Flyby Time')

@@ -70,9 +70,9 @@ from numpy.fft import rfft, rfftfreq
 from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
 from tudatpy.interface import spice
-from tudatpy import constants, numerical_simulation
-from tudatpy.astro.time_conversion import DateTime
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import constants, dynamics
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entries
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
@@ -692,14 +692,14 @@ combined_propagator_settings = propagation_setup.propagator.multitype( propagato
 
 """
 ## Simulating the dynamics
-At this point, one has everything they need to simulate. This is always done through the `numerical_simulation.create_dynamics_simulator` function, regardless of the type of dynamics that is considered
+At this point, one has everything they need to simulate. This is always done through the `simulator.create_dynamics_simulator` function, regardless of the type of dynamics that is considered
 """
 
 
 # DYNAMICS SIMULATION
-simulator = numerical_simulation.create_dynamics_simulator(bodies, combined_propagator_settings)
-state_history = simulator.state_history
-dependent_variable_history = simulator.dependent_variable_history
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, combined_propagator_settings)
+state_history = dynamics_simulator.state_history
+dependent_variable_history = dynamics_simulator.dependent_variable_history
 
 
 """
@@ -821,7 +821,7 @@ In practice, the normal mode will be excited much less than initially, but some 
 phobos_mean_rotational_rate = 0.000228035245  # In rad/s
 # As dissipation times, we will start with 4h and keep duplicating the damping time in each iteration. In the final iteration, a damping time of 4096h means a propagation time of 40960h, which is a bit over 4.5 years.
 dissipation_times = list(np.array([4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0])*3600.0)  # In seconds. Here, we
-damping_results = numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
+damping_results = dynamics.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
                                                                                          combined_propagator_settings,
                                                                                          phobos_mean_rotational_rate,
                                                                                          dissipation_times)
@@ -935,6 +935,10 @@ plt.grid()
 plt.legend()
 
 plt.show()
+
+
+
+
 
 
 plt.show()

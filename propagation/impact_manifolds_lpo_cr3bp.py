@@ -29,11 +29,11 @@ from matplotlib import pyplot as plt
 # Tudatpy imports
 import tudatpy
 from tudatpy.util import result2array
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import propagation_setup, environment_setup, estimation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import propagation_setup, environment_setup, parameters, parameters_setup, simulator
 from tudatpy.astro import polyhedron_utilities
 from tudatpy.math import interpolators, root_finders
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -72,7 +72,7 @@ Since Tudat propagates the trajectories with respect to a frame with inertial or
 
 ########################################################################################################################
 # Get full-state rotation matrix from inertial frame to body-fixed frame
-def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.dynamics.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -88,7 +88,7 @@ def get_inertial_to_body_fixed_full_matrix(bodies: tudatpy.numerical_simulation.
 
 ########################################################################################################################
 # Get full-state rotation matrix from body-fixed frame to inertial frame
-def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.dynamics.environment.SystemOfBodies,
                                            body_name: str,
                                            time: float) -> np.ndarray:
 
@@ -105,7 +105,7 @@ def get_body_fixed_to_inertial_full_matrix(bodies: tudatpy.numerical_simulation.
 ########################################################################################################################
 # Conversion of state from inertial to body-fixed frame
 def convert_state_history_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         body_name: str,
         state_history_inertial: dict) -> dict:
 
@@ -121,7 +121,7 @@ def convert_state_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion of state from body-fixed to inertial frame
 def convert_state_history_body_fixed_to_inertial(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         body_name: str,
         state_history_body_fixed: dict) -> dict:
 
@@ -137,7 +137,7 @@ def convert_state_history_body_fixed_to_inertial(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_history_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         body_name: str,
         stm_history_inertial: dict) -> dict:
 
@@ -155,7 +155,7 @@ def convert_stm_history_inertial_to_body_fixed(
 ########################################################################################################################
 # Conversion state transition matrix from inertial to synodic frame
 def convert_stm_inertial_to_body_fixed(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         body_name: str,
         stm_inertial: np.ndarray,
         time_initial: float,
@@ -507,10 +507,10 @@ time_propagator_settings = create_time_termination_propagator_settings(
     simulation_start_epoch, integrator_settings, period_lpo, dependent_variables_to_save)
 
 # Propagate variational equations, propagating just the STM
-parameter_settings = estimation_setup.parameter.initial_states(time_propagator_settings, bodies)
-lpo_single_arc_solver = numerical_simulation.create_variational_equations_solver(
+parameter_settings = parameters_setup.initial_states(time_propagator_settings, bodies)
+lpo_single_arc_solver = simulator.create_variational_equations_solver(
         bodies, time_propagator_settings,
-        estimation_setup.create_parameter_set(parameter_settings, bodies),
+        parameters_setup.create_parameter_set(parameter_settings, bodies),
         simulate_dynamics_on_creation=True)
 
 # Retrieve state and STM history and convert them to body-fixed frame

@@ -30,15 +30,13 @@ from mpl_toolkits.mplot3d import axes3d
 # Load required tudatpy modules
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation import create_dynamics_simulator
-from tudatpy.numerical_simulation.estimation_setup import observation
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro.time_representation import DateTime
 from tudatpy.astro import element_conversion
-
 # Retrieve current directory
 current_directory = os.getcwd()
 
@@ -153,23 +151,23 @@ Moreover, expanding upon the knowledge from the [Parameter estimation example](f
 
 # Define the uplink link ends for one-way observable
 one_way_nno_mex_link_ends = dict( )
-one_way_nno_mex_link_ends[observation.transmitter] = observation.body_reference_point_link_end_id("Earth", "NNO")
-one_way_nno_mex_link_ends[observation.receiver] = observation.body_origin_link_end_id("MEX")
-one_way_nno_mex_link_definition = observation.LinkDefinition(one_way_nno_mex_link_ends)
+one_way_nno_mex_link_ends[observable_models_setup.links.transmitter] = observable_models_setup.links.body_reference_point_link_end_id("Earth", "NNO")
+one_way_nno_mex_link_ends[observable_models_setup.links.receiver] = observable_models_setup.links.body_origin_link_end_id("MEX")
+one_way_nno_mex_link_definition = observable_models_setup.links.LinkDefinition(one_way_nno_mex_link_ends)
 
 # Define settings for light-time calculations
-light_time_correction_settings = observation.first_order_relativistic_light_time_correction(["Sun"])
+light_time_correction_settings = observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
 
 # Define settings for range bias
-range_bias_settings = observation.absolute_bias([0.01])
+range_bias_settings = observable_models_setup.biases.absolute_bias([0.01])
 
 # Create list of observation settings
 observation_settings_list = list()
-observation_settings_list.append(observation.one_way_range(
+observation_settings_list.append(observable_models_setup.model_settings.one_way_range(
     one_way_nno_mex_link_definition,
     light_time_correction_settings = [light_time_correction_settings],
     bias_settings = range_bias_settings))
-observation_settings_list.append(observation.one_way_doppler_instantaneous(
+observation_settings_list.append(observable_models_setup.model_settings.one_way_doppler_instantaneous(
     one_way_nno_mex_link_definition,
     light_time_correction_settings = [light_time_correction_settings]))
 
@@ -184,35 +182,35 @@ Finally, for each above-defined observation model, we will define **the noise of
 observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 60.0)
 observation_simulation_settings = list()
 
-observation_simulation_settings.append(observation.tabulated_simulation_settings(
-    observation.one_way_instantaneous_doppler_type,
+observation_simulation_settings.append(observations_setup.observations_simulation_settings.tabulated_simulation_settings(
+    observable_models_setup.model_settings.one_way_instantaneous_doppler_type,
     one_way_nno_mex_link_definition,
     observation_times))
 
-observation_simulation_settings.append(observation.tabulated_simulation_settings(
-    observation.one_way_range_type,
+observation_simulation_settings.append(observations_setup.observations_simulation_settings.tabulated_simulation_settings(
+    observable_models_setup.model_settings.one_way_range_type,
     one_way_nno_mex_link_definition,
     observation_times))
 
 # Add noise levels of roughly 1.0E-3 [m/s] and add this as Gaussian noise to the observation
 noise_level_doppler = 1.0E-3
-observation.add_gaussian_noise_to_observable(
+observations_setup.random_noise.add_gaussian_noise_to_observable(
     observation_simulation_settings,
     noise_level_doppler,
-    observation.one_way_instantaneous_doppler_type
+    observable_models_setup.model_settings.one_way_instantaneous_doppler_type
 )
 
 noise_level_range = 1.0
-observation.add_gaussian_noise_to_observable(
+observations_setup.random_noise.add_gaussian_noise_to_observable(
     observation_simulation_settings,
     noise_level_range,
-    observation.one_way_range_type
+    observable_models_setup.model_settings.one_way_range_type
 )
 
 # Create viability settings
-viability_settings = [observation.elevation_angle_viability(["Earth", "NNO"], np.deg2rad(15)),
-                      observation.body_occultation_viability(["NNO", "MEX"], "Mars")]
-observation.add_viability_check_to_all(
+viability_settings = [observations_setup.viability.elevation_angle_viability(["Earth", "NNO"], np.deg2rad(15)),
+                      observations_setup.viability.body_occultation_viability(["NNO", "MEX"], "Mars")]
+observations_setup.viability.add_viability_check_to_all(
     observation_simulation_settings,
     viability_settings
 )
@@ -309,14 +307,14 @@ propagator_settings_simulation = propagation_setup.propagator.translational(
 # Create or update the ephemeris of all propagated bodies (here: MEX) to match the propagated results
 propagator_settings_simulation.processing_settings.set_integrated_result = True
 # Run propagation
-dynamics_simulator = create_dynamics_simulator(bodies, propagator_settings_simulation)
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings_simulation)
 state_history_simulated_observations = dynamics_simulator.propagation_results.state_history
 
 # Create observation simulators
-observation_simulators = estimation_setup.create_observation_simulators(
+observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
     observation_settings_list, bodies)
 # Get MEX simulated observations as ObservationCollection
-mex_simulated_observations = estimation.simulate_observations(
+mex_simulated_observations = observations_setup.observations_wrapper.simulate_observations(
     observation_simulation_settings,
     observation_simulators,
     bodies)
@@ -363,16 +361,16 @@ Having altered the dynamical model as well as the propagator settings, we create
 
 
 # Setup parameters settings to propagate the state transition matrix
-parameter_settings = estimation_setup.parameter.initial_states(propagator_settings_estimation, bodies)
+parameter_settings = parameters_setup.initial_states(propagator_settings_estimation, bodies)
 
 # Add estimated parameters to the sensitivity matrix that will be propagated
-parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Mars"))
+parameter_settings.append(parameters_setup.gravitational_parameter("Mars"))
 
 # Create the parameters that will be estimated
-parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
+parameters_to_estimate = parameters_setup.create_parameter_set(parameter_settings, bodies)
 
 # Create the estimator
-estimator = numerical_simulation.Estimator(
+estimator = estimation_analysis.Estimator(
     bodies,
     parameters_to_estimate,
     observation_settings_list,
@@ -381,19 +379,21 @@ estimator = numerical_simulation.Estimator(
 # Save the true parameters to later analyse the error
 truth_parameters = parameters_to_estimate.parameter_vector
 
+# Define weighting of the observations in the inversion
+weights_per_observable = {observations.observations_processing.observation_parser(
+    observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level_doppler ** -2,
+                          observations.observations_processing.observation_parser(
+                              observable_models_setup.model_settings.one_way_range_type ): noise_level_range ** -2}
+mex_simulated_observations.set_constant_weight_per_observation_parser(weights_per_observable)
+
 # Create input object for the estimation
-estimation_input = estimation.EstimationInput(
+estimation_input = estimation_analysis.EstimationInput(
     mex_simulated_observations)
 
 # Set methodological options
 estimation_input.define_estimation_settings(
     reintegrate_variational_equations=False,
     save_state_history_per_iteration=True)
-
-# Define weighting of the observations in the inversion
-weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level_doppler ** -2,
-                          estimation_setup.observation.one_way_range_type: noise_level_range ** -2}
-estimation_input.set_constant_weight_per_observable(weights_per_observable)
 
 
 """

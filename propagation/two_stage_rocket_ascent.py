@@ -30,9 +30,8 @@ from datetime import datetime
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment, environment_setup, propagation, propagation_setup
-from tudatpy.astro import element_conversion, time_conversion
+from tudatpy.dynamics import environment,environment_setup, propagation, propagation_setup, simulator
+from tudatpy.astro import element_conversion, time_representation
 from tudatpy import constants
 from tudatpy.util import result2array
 
@@ -41,7 +40,7 @@ from tudatpy.util import result2array
 ## Configuration
 NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
 
-Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_conversion` module is then used to convert the `datetime` to the correct format.
+Then, the start and end simulation epochs are setups. In this case, the start epoch is set to the 17th of February 2031. This epoch is first defined using the `datetime` module. Because the times should be specified in seconds since J2000, the `time_representation` module is then used to convert the `datetime` to the correct format.
 """
 
 
@@ -51,9 +50,9 @@ spice.load_standard_kernels()
 # Set simulation start as the 17th of February 2031
 simulation_start_datetime = datetime(2031, 2, 17)
 # Convert simulation start to Julian Days
-simulation_start_JD = time_conversion.calendar_date_to_julian_day(simulation_start_datetime)
+simulation_start_JD = time_representation.DateTime.from_python_datetime(simulation_start_datetime).to_julian_day()
 # Convert simulation start to seconds since J2000
-simulation_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(simulation_start_JD)
+simulation_start_epoch = time_representation.julian_day_to_seconds_since_epoch(simulation_start_JD)
 
 
 """
@@ -94,7 +93,7 @@ def create_bodies():
 
     # Return the system of selected celestial bodies
     return environment_setup.create_system_of_bodies(body_settings)
-    
+
 # Create the system of selected celestial bodies
 bodies = create_bodies()
 
@@ -208,7 +207,7 @@ class ThrustModel:
         self.magnitude = magnitude               # Thrust magnitude [N]
         self.Isp = Isp                           # Specific impulse [s]
         self.vertical_angle = vertical_angle     # Angle from the vertical [rad]
-        self.propagated_body = propagated_body   # Body that is being propagated (tudatpy.numerical_simulation.environment.Body)
+        self.propagated_body = propagated_body   # Body that is being propagated (tudatpy.dynamics.environment.Body)
         self.section_dry_mass = section_dry_mass # Dry mass of the section [kg]
         self.t0 = None                           # Initial burn time for this section [s]
 
@@ -235,15 +234,15 @@ class ThrustModel:
     def get_thrust_direction(self, time):
         # Get aerodynamic angle calculator
         aerodynamic_angle_calculator = self.propagated_body.flight_conditions.aerodynamic_angle_calculator
-        
+
         # Set thrust in vertical frame and transpose it
         thrust_direction_vertical_frame = np.array([[0, np.sin(self.vertical_angle), - np.cos(self.vertical_angle)]]).T
-        
+
         # Retrieve rotation matrix from vertical to inertial frame from the aerodynamic angle calculator
         vertical_to_inertial_frame = aerodynamic_angle_calculator.get_rotation_matrix_between_frames(
-            environment.AerodynamicsReferenceFrames.vertical_frame,
-            environment.AerodynamicsReferenceFrames.inertial_frame)
-        
+            environment_setup.aerodynamic_coefficients.AerodynamicsReferenceFrames.vertical_frame,
+            environment_setup.aerodynamic_coefficients.AerodynamicsReferenceFrames.inertial_frame)
+
         # Compute the thrust in the inertial frame
         thrust_inertial_frame = np.dot(vertical_to_inertial_frame,
                                     thrust_direction_vertical_frame)
@@ -271,7 +270,7 @@ def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
         current_thrust_model.get_thrust_direction,
                 "J2000", "VehicleFixed"
     )
-    
+
     environment_setup.add_rotation_model( bodies, body_name, rotation_model_settings )
 
 
@@ -280,7 +279,7 @@ def create_body_settings_for_thrust(current_thrust_model, bodies, body_name):
         current_thrust_model.get_thrust_magnitude,
         current_thrust_model.get_specific_impulse
     )
-    
+
     environment_setup.add_engine_model(
     body_name,
     "MainEngine",
@@ -382,7 +381,7 @@ def define_dependent_variables_to_save(section_name):
         propagation_setup.dependent_variable.single_acceleration_norm(
             propagation_setup.acceleration.aerodynamic_type, section_name, "Mars")
     ]
-    
+
 # Define the dependent variables to save for the first rocket section
 dependent_variables_to_save = define_dependent_variables_to_save("Section 1")
 
@@ -399,13 +398,13 @@ In this case, for the first rocket section, two termination settings are used:
 
 
 class VehicleFalling:
-    
+
     def __init__(self, body, initial_time):
         # Initialise the class used to compute wether a body is falling or not
         self.body = body
         self.last_h = -np.inf
         self.init_t = initial_time
-        
+
     def is_it_falling(self, time):
         # Compute the difference in altitude since this function was last called
         dh = self.body.flight_conditions.altitude - self.last_h
@@ -512,7 +511,7 @@ def create_propagator_settings(section_name, initial_state, simulation_start_epo
         termination_settings,
         dependent_variables_to_save
     )
-    
+
 # Define the translational and mass propagator settings for the first rocket section
 propagator_settings = create_propagator_settings("Section 1", initial_inertial_state, simulation_start_epoch, 370, combined_termination_settings_section_1, integrator_settings)
 
@@ -526,7 +525,7 @@ The state and dependent variables history is then extracted from the dynamics si
 
 
 # Run the numerical simulation of the first rocket section
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies,
     propagator_settings
 )
@@ -642,7 +641,7 @@ The state and dependent variable histories for the second section are now saved 
 """
 
 
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies,
     propagator_settings
 )

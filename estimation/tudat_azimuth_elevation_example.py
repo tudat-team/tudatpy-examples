@@ -1,15 +1,16 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""
+# Generating Visibility Plots with Tudat
+"""
 
-# # Generating Visibility Plots with Tudat
+"""
+# Objectives
+Whether you're looking to impress your friends by showing them when and where the **International Space Station** 🛰️ will pass overhead, or you need to verify if an **interplanetary probe** will be above a certain **elevation** for radio antenna communication 📡, this example has you covered. In this notebook, we'll demonstrate how to use **Tudatpy** to generate **visibility plots (azimuth and elevation)** for a specific target, from a selected location on Earth, across a given time period. In order to validate our results, we will compare them with results from the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). 
+"""
 
-# # Objectives
-# Whether you're looking to impress your friends by showing them when and where the **International Space Station** 🛰️ will pass overhead, or you need to verify if an **interplanetary probe** will be above a certain **elevation** for radio antenna communication 📡, this example has you covered. In this notebook, we'll demonstrate how to use **Tudatpy** to generate **visibility plots (azimuth and elevation)** for a specific target, from a selected location on Earth, across a given time period. In order to validate our results, we will compare them with results from the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). 
-
-# ## Import Relevant Modules
-# Let's start by importing all relevant modules and libraries. Notably, we will need the [HorizonsQuery class](https://py.api.tudat.space/en/latest/horizons.html#tudatpy.data.horizons.HorizonsQuery), containing wrapper function to the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). We will also make use of Tudat's interface to the NASA's [spice tool](https://py.api.tudat.space/en/latest/spice.html). The Horizons tool provides access to high-precision ephemerides for solar system objects, offering position and velocity data. The SPICE tool, developed by NASA, enables the computation of spacecraft trajectory, orientation, and other mission-related data using detailed planetary and satellite models.
-
-# In[1]:
+"""
+## Import Relevant Modules
+Let's start by importing all relevant modules and libraries. Notably, we will need the [HorizonsQuery class](https://py.api.tudat.space/en/latest/horizons.html#tudatpy.data.horizons.HorizonsQuery), containing wrapper function to the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). We will also make use of Tudat's interface to the NASA's [spice tool](https://py.api.tudat.space/en/latest/spice.html). The Horizons tool provides access to high-precision ephemerides for solar system objects, offering position and velocity data. The SPICE tool, developed by NASA, enables the computation of spacecraft trajectory, orientation, and other mission-related data using detailed planetary and satellite models.
+"""
 
 
 # Load required tudatpy modules
@@ -17,26 +18,28 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tudatpy.data.horizons import HorizonsQuery
 from tudatpy.interface import spice
-from tudatpy.astro import time_conversion, element_conversion
+from tudatpy.astro import time_representation, element_conversion
 from tudatpy.math import interpolators
-from tudatpy.numerical_simulation import environment_setup, environment, propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro.time_representation import DateTime
+
 from datetime import datetime
 import matplotlib.dates as mdates
 from itertools import zip_longest
 
 
-# ## Run the Code and Get Your Results
-# The two functions we set up for you are `plot_combined_elevation` and `read_state_vector`. 
-# 
-# ***If you want to run the code and just get your visibility plot, please feel free to skip directly to the [Get Visibility Plot](#Get-Visibility-Plot) of this notebook.*** There, we show how this example might be turn out to be useful for **Planetary Defense Purposes**.
-# 
-# - `plot_combined_elevation`: this is the core function of this notebook: if you're keen on understanding **how Tudat truly works**, we highly recommend **diving into its comments**. They are well-written and should help you make sense of the process. 
-# 
-# - `read_state_vector`: this function **reads state vector data from a file**, extracting time and state vector components based on the specified column indices. It's just a utility function you might use to parse a file containing ephemeris of a customized object, for which no ephemeris data is found on the Horizons database. The extracted ephemeris can then be used into Tudat.
+"""
+## Run the Code and Get Your Results
+The two functions we set up for you are `plot_combined_elevation` and `read_state_vector`. 
 
-# In[2]:
+***If you want to run the code and just get your visibility plot, please feel free to skip directly to the [Get Visibility Plot](#Get-Visibility-Plot) of this notebook.*** There, we show how this example might be turn out to be useful for **Planetary Defense Purposes**.
+
+- `plot_combined_elevation`: this is the core function of this notebook: if you're keen on understanding **how Tudat truly works**, we highly recommend **diving into its comments**. They are well-written and should help you make sense of the process. 
+
+- `read_state_vector`: this function **reads state vector data from a file**, extracting time and state vector components based on the specified column indices. It's just a utility function you might use to parse a file containing ephemeris of a customized object, for which no ephemeris data is found on the Horizons database. The extracted ephemeris can then be used into Tudat.
+"""
 
 
 def plot_combined_elevation(
@@ -82,7 +85,7 @@ def plot_combined_elevation(
     None
         This function generates a plot of the elevation angles for the target as seen from the specified ground stations.
     """
-    
+
     # Load standard spice kernels. These are needed - for instance - to properly create the Tudat body_settings. 
     spice.load_standard_kernels()
 
@@ -90,32 +93,32 @@ def plot_combined_elevation(
     bodies_to_create = ["Earth"]
 
     # Convert start and end epochs to Julian Day
-    jd_start_epoch = time_conversion.calendar_date_to_julian_day(datetime.strptime(start_epoch, time_format))
-    jd_end_epoch = time_conversion.calendar_date_to_julian_day(datetime.strptime(end_epoch, time_format))
+    jd_start_epoch = time_representation.calendar_date_to_julian_day(datetime.strptime(start_epoch, time_format))
+    jd_end_epoch = time_representation.calendar_date_to_julian_day(datetime.strptime(end_epoch, time_format))
     n_day_buffer = 1
 
     # Add a buffer to the user-defined start and end epochs.
     # This ensures that the simulation interpolator operates without errors nor warnings.
     # While the buffered epochs will differ from the original user-defined range, 
     # the code will later filter out any dates outside the requested range. 
-    calendar_date_simulation_start_epoch = time_conversion.julian_day_to_calendar_date(jd_start_epoch - n_day_buffer)
-    calendar_date_simulation_end_epoch = time_conversion.julian_day_to_calendar_date(jd_end_epoch + n_day_buffer)
+    calendar_date_simulation_start_epoch = time_representation.julian_day_to_calendar_date(jd_start_epoch - n_day_buffer)
+    calendar_date_simulation_end_epoch = time_representation.julian_day_to_calendar_date(jd_end_epoch + n_day_buffer)
 
     # Convert the start and end epochs to seconds since the epoch for simulation. 
     # This conversion is needed, as the 'get_default_body_settings_time_limited' function
     # (as well as other Tudat functions) - which we will use later on -
     # only accept floats (in seconds from J2000) as arguments. 
-    simulation_seconds_start_epoch = time_conversion.julian_day_to_seconds_since_epoch(jd_start_epoch - n_day_buffer)
-    simulation_seconds_end_epoch = time_conversion.julian_day_to_seconds_since_epoch(jd_end_epoch + n_day_buffer)
+    simulation_seconds_start_epoch = time_representation.julian_day_to_seconds_since_epoch(jd_start_epoch - n_day_buffer)
+    simulation_seconds_end_epoch = time_representation.julian_day_to_seconds_since_epoch(jd_end_epoch + n_day_buffer)
 
     # Actual (user-queried) start epoch. Later on, we will filter our results based on this epoch.
-    actual_seconds_start_epoch  = time_conversion.julian_day_to_seconds_since_epoch(jd_start_epoch)
-    actual_seconds_end_epoch  = time_conversion.julian_day_to_seconds_since_epoch(jd_end_epoch)
+    actual_seconds_start_epoch  = time_representation.julian_day_to_seconds_since_epoch(jd_start_epoch)
+    actual_seconds_end_epoch  = time_representation.julian_day_to_seconds_since_epoch(jd_end_epoch)
 
     # Create default Earth and target settings.
     # First, we use 'get_default_body_settings_time_limited' to retrieve the default settings 
     #for the given set of input bodies, with a limited valid time interval.
-    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.get_default_body_settings_time_limited)
+    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.dynamics.environment_setup.get_default_body_settings_time_limited)
     # Please note that, although it is not necessary to create time limited settings function, the code will run faster if you use it.
     body_settings = environment_setup.get_default_body_settings_time_limited(
         bodies_to_create, simulation_seconds_start_epoch, simulation_seconds_end_epoch, global_frame_origin, global_frame_orientation)
@@ -129,11 +132,11 @@ def plot_combined_elevation(
         equatorial_radius = equatorial_radius,
         flattening = flattening,
     )
-    
+
     # Add Earth's rotational settings via the 'environment_setup.rotation_model.gcrs_to_itrs'.
     # This function defines high-accuracy Earth rotation model according to the IERS Conventions 2010. 
     # The model computes the rotation from ITRS to GCRS.
-    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.gcrs_to_itrs)
+    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.dynamics.environment_setup.rotation_model.gcrs_to_itrs)
     body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
         environment_setup.rotation_model.iau_2006, global_frame_orientation,
         interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
@@ -322,7 +325,7 @@ def plot_combined_elevation(
                 epoch_end=calendar_date_simulation_end_epoch,
                 epoch_step= time_step
             )
-            
+
             horizons_antenna_az_el = query_az_el.interpolated_station_angles(degrees = True)
             start_end_condition = np.logical_and(
                 horizons_antenna_az_el[:, 0] >= actual_seconds_start_epoch,
@@ -341,8 +344,8 @@ def plot_combined_elevation(
             horizons_seconds_ephemeris = horizons_antenna_az_el[:,0][start_end_condition]
 
             # Apply conversions for convenience
-            horizons_calendar_ephemeris = [time_conversion.seconds_since_epoch_to_julian_day(horizons_second_ephemeris) for horizons_second_ephemeris in horizons_seconds_ephemeris]
-            horizons_datetime_times = [time_conversion.julian_day_to_calendar_date(horizons_calendar_time) for horizons_calendar_time in horizons_calendar_ephemeris]
+            horizons_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(horizons_second_ephemeris) for horizons_second_ephemeris in horizons_seconds_ephemeris]
+            horizons_datetime_times = [time_representation.julian_day_to_calendar_date(horizons_calendar_time) for horizons_calendar_time in horizons_calendar_ephemeris]
 
             # We would like the times at which the elevation and azimuth is computed in Tudat to be the same as the Horizons ones
             # This is done for ease of comparison. 
@@ -354,8 +357,8 @@ def plot_combined_elevation(
             tudat_seconds_ephemeris = np.linspace(simulation_seconds_start_epoch, simulation_seconds_end_epoch, int(time_step.strip('m'))*10)
             tudat_seconds_ephemeris = tudat_seconds_ephemeris[start_end_condition]
 
-        tudat_calendar_ephemeris = [time_conversion.seconds_since_epoch_to_julian_day(tudat_second_ephemeris) for tudat_second_ephemeris in tudat_seconds_ephemeris]
-        tudat_datetime_times = [time_conversion.julian_day_to_calendar_date(tudat_calendar_time) for tudat_calendar_time in tudat_calendar_ephemeris]
+        tudat_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(tudat_second_ephemeris) for tudat_second_ephemeris in tudat_seconds_ephemeris]
+        tudat_datetime_times = [time_representation.julian_day_to_calendar_date(tudat_calendar_time) for tudat_calendar_time in tudat_calendar_ephemeris]
 
         # We struggled quite a bit to set all the body settings, but now we can finally create our bodies object.
         bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -365,16 +368,16 @@ def plot_combined_elevation(
         # The given antenna is set as a receiver through the function: 'body_reference_point_link_end_id' of the observation module. 
         # (See: https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id)
         link_ends = {
-            observation.receiver: observation.body_reference_point_link_end_id('Earth', station_name),
+            observable_models_setup.model_settings.receiver: observable_models_setup.model_settings.body_reference_point_link_end_id('Earth', station_name),
         }
         # Create a single link definition from the link ends
-        link_definition = observation.LinkDefinition(link_ends)
+        link_definition = observable_models_setup.links.LinkDefinition(link_ends)
 
         # Finally, the Tudat function 'compute_target_angles_and_range' can be used to simulate the observed azimuth and elevation 
         # from the given receiver, at the given observation times (notice how we filter tudat_seconds_ephemeris by start_end_condition)
         # as we only want to cover the user-defined timespan. 
         station_id = ('Earth', station_name)
-        angles_range_dictionary = estimation.compute_target_angles_and_range(
+        angles_range_dictionary = observations.observations_geometry.compute_target_angles_and_range(
             bodies,
             station_id,
             target,
@@ -473,7 +476,7 @@ def plot_combined_elevation(
 
             # Use zip_longest to pair rise_times and set_times, filling missing values with None
             for rise_time, set_time in zip_longest(rise_times, set_times, fillvalue=None):
-                
+
                 if not set_time and rise_time:  # If only rise_time exists
                     print(f'Rise from {station_name}:', rise_time)
                 elif not rise_time and set_time:  # If only set_time exists
@@ -504,7 +507,7 @@ def plot_combined_elevation(
                                   s=10, c='pink', alpha=0.1, marker = 's')
                 axes[idx].scatter(np.array(horizons_datetime_times)[horizons_elevation <= 0], horizons_azimuth[horizons_elevation <= 0],
                               s=10, c='green', alpha=0.1, marker = 's')
-                
+
             axes[idx].scatter(np.array(tudat_datetime_times)[elevation_array > 15], elevation_array[elevation_array > 15],
                               s=5, label='Tudat Elevation', c='blue')
             axes[idx].scatter(np.array(tudat_datetime_times)[elevation_array > 15], azimuth_array[elevation_array > 15],
@@ -542,7 +545,7 @@ def plot_combined_elevation(
 
             # Use zip_longest to pair rise_times and set_times, filling missing values with None
             for rise_time, set_time in zip_longest(rise_times, set_times, fillvalue=None):
-                
+
                 if not set_time and rise_time:  # If only rise_time exists
                     print(f'Rise from {station_name}:', rise_time)
                 elif not rise_time and set_time:  # If only set_time exists
@@ -551,7 +554,7 @@ def plot_combined_elevation(
                     print(f'No rise nor set for {station_name} in the selected timespan.')
                 else:  # If both exist
                     print(f'Rise from {station_name}:', rise_time, f'Set from {station_name}:', set_time)
-        
+
             # Customize x-axis ticks (datetime formatting and positioning)
             axes[idx].xaxis.set_major_formatter(mdates.DateFormatter('%y-%m-%d\n%H:%M'))
             axes[idx].xaxis.set_major_locator(mdates.AutoDateLocator(minticks=10, maxticks=20))
@@ -562,8 +565,6 @@ def plot_combined_elevation(
     # Show the combined plot
     plt.show()
 
-
-# In[3]:
 
 
 def read_state_vector(file_path, time_col=0, state_cols=(1, 2, 3, 4, 5, 6)):
@@ -582,51 +583,51 @@ def read_state_vector(file_path, time_col=0, state_cols=(1, 2, 3, 4, 5, 6)):
     # Initialize empty lists to store state vectors and their corresponding timestamps
     state_vectors = []
     times = []
-    
+
     # Open the file at the specified path in read mode
     with open(file_path, 'r') as f:
         # Loop through each line in the file
         for line in f:
             # Split the line into components (assumes space-separated values)
             parts = line.strip().split()
-    
+
             # Skip lines that don't have enough columns to extract the required data
             if len(parts) <= max(state_cols):
                 continue
-    
+
             try:
                 # Extract the timestamp from the specified column (time_col)
                 time_str = parts[time_col]
-    
+
                 # Extract the state vector by picking values from the specified state_cols and converting them to floats
                 state_vector = np.array([float(parts[i]) for i in state_cols])
-    
+
                 # Append the extracted timestamp to the list of times
                 times.append(time_str)
-    
+
                 # Append the extracted state vector to the list of state vectors
                 state_vectors.append(state_vector)
             except ValueError:
                 # Skip lines that contain invalid (non-numeric) data that can't be converted to floats
                 continue
-    
+
     # Return the list of timestamps and state vectors as output
     return times, state_vectors
 
 
-# ## Get Visibility Plot
-# Imagine we are engaged in planetary defense efforts and aim to determine whether the University of Tasmania's radio antennas (Australia) could conduct radar observations of the Potentially Hazardous Asteroid 2014 HK129 on the date of its closest approach, which occurred on December 20, 2022. We select the following stations (names are taken from [this list of radio telescope stations](https://gitlab.com/gofrito/pysctrack/-/blob/master/cats/glo.sit?ref_type=heads)):
-# 
-# * Tidbinbilla (64m)
-# * Katherine (12m)
-# * Yarragadee (12m)
-# * Hobart (26m)
-# 
-# From the visibility plots, we can see that the asteroid is **initially below the horizon for all locations**, and it rises up some hours later.
-# 
-# *NOTE: Notice how the **custom_ephemeris flag is set to None**. In the case where you had  `your_own_ephemeris` file for 2024 HK129 (or for any other object, you could set that flag to the dictionary created by reading the ephemeris file, through the function `read_state_vector` (or a similar home-made function)*. Try it yourself!
+"""
+## Get Visibility Plot
+Imagine we are engaged in planetary defense efforts and aim to determine whether the University of Tasmania's radio antennas (Australia) could conduct radar observations of the Potentially Hazardous Asteroid 2014 HK129 on the date of its closest approach, which occurred on December 20, 2022. We select the following stations (names are taken from [this list of radio telescope stations](https://gitlab.com/gofrito/pysctrack/-/blob/master/cats/glo.sit?ref_type=heads)):
 
-# In[4]:
+* Tidbinbilla (64m)
+* Katherine (12m)
+* Yarragadee (12m)
+* Hobart (26m)
+
+From the visibility plots, we can see that the asteroid is **initially below the horizon for all locations**, and it rises up some hours later.
+
+*NOTE: Notice how the **custom_ephemeris flag is set to None**. In the case where you had  `your_own_ephemeris` file for 2024 HK129 (or for any other object, you could set that flag to the dictionary created by reading the ephemeris file, through the function `read_state_vector` (or a similar home-made function)*. Try it yourself!
+"""
 
 
 # Select station names

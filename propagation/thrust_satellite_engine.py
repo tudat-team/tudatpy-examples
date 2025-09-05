@@ -41,11 +41,9 @@ from matplotlib import pyplot as plt
 from tudatpy.util import result2array
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.astro import element_conversion, time_conversion
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup, propagation_setup, simulator
+from tudatpy.astro import element_conversion, time_representation
 
 # Load spice kernels.
 spice.load_standard_kernels()
@@ -285,7 +283,7 @@ In this example, the initial state is retrieved from the JUICE spice kernel for 
 """
 
 
-simulation_start_date = time_conversion.DateTime(2035,7,28,14,24)
+simulation_start_date = time_representation.DateTime(2035,7,28,14,24)
 simulation_start_epoch = simulation_start_date.epoch()
 simulation_end_epoch = simulation_start_epoch + 344.0 * constants.JULIAN_DAY / 24.0
 
@@ -414,7 +412,7 @@ propagator_settings.print_settings.print_initial_and_final_conditions = True
 
 The orbit of JUICE around Ganymede is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics, simulator module`.
 This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -429,7 +427,7 @@ Do pay attention that converting to an `ndarray` using the `result2array()` util
 
 
 # Create simulation object and propagate dynamics.
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings)
 
 # Retrieve all data produced by simulation

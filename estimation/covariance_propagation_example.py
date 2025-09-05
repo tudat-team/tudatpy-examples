@@ -22,13 +22,12 @@ from matplotlib import pyplot as plt
 # Load required tudatpy modules
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro.time_representation import DateTime
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
 
@@ -268,12 +267,12 @@ Each observable type has its own function for creating observation model setting
 
 # Define the uplink link ends for one-way observable
 link_ends = dict()
-link_ends[observation.receiver] = observation.body_reference_point_link_end_id("Earth", "TrackingStation")
-link_ends[observation.transmitter] = observation.body_origin_link_end_id("Starlink-32101")
+link_ends[observable_models_setup.links.receiver] = observable_models_setup.links.body_reference_point_link_end_id("Earth", "TrackingStation")
+link_ends[observable_models_setup.links.transmitter] = observable_models_setup.links.body_origin_link_end_id("Starlink-32101")
 
 # Create observation settings for each link/observable
-link_definition = observation.LinkDefinition(link_ends)
-observation_settings_list = [observation.one_way_doppler_instantaneous(link_definition)]
+link_definition = observable_models_setup.links.LinkDefinition(link_ends)
+observation_settings_list = [observable_models_setup.model_settings.one_way_doppler_instantaneous(link_definition)]
 
 
 """
@@ -328,68 +327,69 @@ for n_scenario in [1,2,3]:
     else:
         observation_times = observation_times_3
 
-    observation_simulation_settings = observation.tabulated_simulation_settings(
-        observation.one_way_instantaneous_doppler_type,
+    observation_simulation_settings = observations_setup.observations_simulation_settings.tabulated_simulation_settings(
+        observable_models_setup.model_settings.one_way_instantaneous_doppler_type,
         link_definition,
         observation_times
     )
 
     # Add noise levels of roughly 1.0E-3 [m/s] and add this as Gaussian noise to the observation
     noise_level = 1.0E-3
-    observation.add_gaussian_noise_to_observable(
+    observations_setup.random_noise.add_gaussian_noise_to_observable(
         [observation_simulation_settings],
         noise_level,
-        observation.one_way_instantaneous_doppler_type
+        observable_models_setup.model_settings.one_way_instantaneous_doppler_type
     )
 
     # Create viability settings
-    viability_setting = observation.elevation_angle_viability(["Earth", "TrackingStation"], np.deg2rad(15))
-    observation.add_viability_check_to_all(
+    viability_setting = observations_setup.viability.elevation_angle_viability(["Earth", "TrackingStation"], np.deg2rad(15))
+    observations_setup.viability.add_viability_check_to_all(
         [observation_simulation_settings],
         [viability_setting]
     )
 
 
 # 2 - Define the Parameters to Estimate
-    
+
     # Setup parameters settings to propagate the state transition matrix
-    parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
-    
+    parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
+
     # Add estimated parameters to the sensitivity matrix that will be propagated
-    parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
-    parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Starlink-32101"))
-    
+    parameter_settings.append(parameters_setup.gravitational_parameter("Earth"))
+    parameter_settings.append(parameters_setup.constant_drag_coefficient("Starlink-32101"))
+
     # Create the parameters that will be estimated
-    parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
-    
+    parameters_to_estimate = parameters_setup.create_parameter_set(parameter_settings, bodies)
+
     # Create the estimator
-    estimator = numerical_simulation.Estimator(
+    estimator = estimation_analysis.Estimator(
         bodies,
         parameters_to_estimate,
         observation_settings_list,
         propagator_settings)
 
 # 3 - Perform the observations simulation
-    
+
     # Simulate required observations
-    simulated_observations = estimation.simulate_observations(
+    simulated_observations = observations_setup.observations_wrapper.simulate_observations(
         [observation_simulation_settings],
         estimator.observation_simulators,
         bodies)
 
 # 4 - Define the Input Covariance
-    
+
     # Create input object for covariance analysis
-    covariance_input = estimation.CovarianceAnalysisInput(
+    covariance_input = estimation_analysis.CovarianceAnalysisInput(
         simulated_observations)
-    
+
     # Set methodological options
     covariance_input.define_covariance_settings(
         reintegrate_variational_equations=False)
-    
+
     # Define weighting of the observations in the inversion
-    weights_per_observable = {estimation_setup.observation.one_way_instantaneous_doppler_type: noise_level ** -2}
-    covariance_input.set_constant_weight_per_observable(weights_per_observable)
+    weights_per_observable = {observations.observations_processing.observation_parser(
+        observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
+    simulated_observations.set_constant_weight_per_observation_parser( weights_per_observable )
 
     # Perform the covariance analysis
     covariance_output = estimator.compute_covariance(covariance_input)
@@ -399,11 +399,11 @@ for n_scenario in [1,2,3]:
     state_transition_interface = estimator.state_transition_interface
 
 # 5 - Propagate the Covariances and the Formal Errors
-    
+
     #Propagate the covariancees and the formal errors
-    propagated_covariances = estimation.propagate_covariance_split_output(initial_covariance,state_transition_interface,output_times)
+    propagated_covariances = estimation_analysis.propagate_covariance_split_output(initial_covariance,state_transition_interface,output_times)
     # Propagate formal errors over the course of the orbit
-    propagated_formal_errors = estimation.propagate_formal_errors_split_output(
+    propagated_formal_errors = estimation_analysis.propagate_formal_errors_split_output(
         initial_covariance=initial_covariance,
         state_transition_interface=state_transition_interface,
         output_times=output_times)
@@ -413,13 +413,13 @@ for n_scenario in [1,2,3]:
     formal_errors_list.append(formal_errors)
 
 # 6 - Append Results
-    
+
     covariances = np.array(propagated_covariances[1])
     covariances_list.append(covariances)
     print('... Done.\n')
 
 print('All Done.\n')
-    
+
 
 
 """
@@ -496,7 +496,7 @@ for j in [0, 1, 2]:
         cov = np.matrix(covariances_list[j][i])
         converted_formal_errors_matrix = full_rot_matrix @ cov @ full_rot_matrix.T
         converted_formal_errors_matrix_list[j, i] = converted_formal_errors_matrix
-        
+
 # Plotting the (0, 0) element for each scenario
 fig3, axs3 = plt.subplots(1, 3, figsize=(15, 5))
 
@@ -530,7 +530,7 @@ for ax in axs3.flat:
 # Hide x labels and tick labels for top plots and y ticks for right plots.
 for ax in axs3.flat:
     ax.set_aspect('auto')
-    
+
 plt.tight_layout()
 plt.show()
 
