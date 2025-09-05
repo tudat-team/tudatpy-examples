@@ -386,6 +386,7 @@ weights_per_observable = {observations.observations_processing.observation_parse
                               observable_models_setup.model_settings.one_way_range_type ): noise_level_range ** -2}
 mex_simulated_observations.set_constant_weight_per_observation_parser(weights_per_observable)
 
+
 # Create input object for the estimation
 estimation_input = estimation_analysis.EstimationInput(
     mex_simulated_observations)

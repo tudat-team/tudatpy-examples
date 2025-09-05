@@ -104,6 +104,7 @@ def plot_combined_elevation(
     calendar_date_simulation_start_epoch = time_representation.DateTime.from_julian_day(jd_start_epoch - n_day_buffer).to_python_datetime()
     calendar_date_simulation_end_epoch = time_representation.DateTime.from_julian_day(jd_end_epoch + n_day_buffer).to_python_datetime()
 
+
     # Convert the start and end epochs to seconds since the epoch for simulation. 
     # This conversion is needed, as the 'get_default_body_settings_time_limited' function
     # (as well as other Tudat functions) - which we will use later on -
@@ -140,11 +141,11 @@ def plot_combined_elevation(
     body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
         environment_setup.rotation_model.iau_2006, global_frame_orientation,
         interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
-                                                             simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
+                                                       simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
         interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
-                                                             simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
+                                                       simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
         interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
-                                                             simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60))
+                                                       simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60))
 
     # As you've already seen in the documentation of this function, users can input custom_ephemeris via the custom_ephemeris flag.
     # This is useful for objects that are not present on the Horizons database, 
@@ -344,8 +345,10 @@ def plot_combined_elevation(
             horizons_seconds_ephemeris = horizons_antenna_az_el[:,0][start_end_condition]
 
             # Apply conversions for convenience
-            horizons_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(horizons_second_ephemeris) for horizons_second_ephemeris in horizons_seconds_ephemeris]
-            horizons_datetime_times = [time_representation.DateTime.from_julian_day(horizons_calendar_time).to_python_datetime() for horizons_calendar_time in horizons_calendar_ephemeris]
+            horizons_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(horizons_second_ephemeris) for
+                                           horizons_second_ephemeris in horizons_seconds_ephemeris]
+            horizons_datetime_times = [time_representation.DateTime.from_julian_day(horizons_calendar_time).to_python_datetime() for
+                                       horizons_calendar_time in horizons_calendar_ephemeris]
 
             # We would like the times at which the elevation and azimuth is computed in Tudat to be the same as the Horizons ones
             # This is done for ease of comparison. 
@@ -358,7 +361,8 @@ def plot_combined_elevation(
             tudat_seconds_ephemeris = tudat_seconds_ephemeris[start_end_condition]
 
         tudat_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(tudat_second_ephemeris) for tudat_second_ephemeris in tudat_seconds_ephemeris]
-        tudat_datetime_times = [time_representation.DateTime.from_julian_day(tudat_calendar_time).to_python_datetime()for tudat_calendar_time in tudat_calendar_ephemeris]
+        tudat_datetime_times = [time_representation.DateTime.from_julian_day(tudat_calendar_time).to_python_datetime() for tudat_calendar_time in tudat_calendar_ephemeris]
+
 
         # We struggled quite a bit to set all the body settings, but now we can finally create our bodies object.
         bodies = environment_setup.create_system_of_bodies(body_settings)

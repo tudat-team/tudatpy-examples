@@ -373,6 +373,7 @@ Having simulated the observations and created the `Estimator` object - containin
 To set up the inversion of the problem, we collect all relevant inputs in the form of a covariance input object and define some basic settings of the inversion. Most crucially, this is the step where we can account for different weights - if any - of the different observations, to give the estimator knowledge about the quality of the individual types of observations.
 """
 
+
 # Define weighting of the observations in the inversion
 weights_per_observable = { observations.observations_processing.observation_parser(
     observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
@@ -380,12 +381,11 @@ simulated_observations.set_constant_weight_per_observation_parser(weights_per_ob
 
 # Create input object for covariance analysis
 covariance_input = estimation_analysis.CovarianceAnalysisInput(
-    simulated_observations )
+    simulated_observations)
 
 # Set methodological options
 covariance_input.define_covariance_settings(
     reintegrate_variational_equations=False)
-
 
 
 """

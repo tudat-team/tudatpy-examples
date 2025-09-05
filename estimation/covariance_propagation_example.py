@@ -378,6 +378,11 @@ for n_scenario in [1,2,3]:
 
 # 4 - Define the Input Covariance
 
+    # Define weighting of the observations in the inversion
+    weights_per_observable = {observations.observations_processing.observation_parser(
+        observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
+    simulated_observations.set_constant_weight_per_observation_parser( weights_per_observable )
+
     # Create input object for covariance analysis
     covariance_input = estimation_analysis.CovarianceAnalysisInput(
         simulated_observations)
@@ -385,11 +390,6 @@ for n_scenario in [1,2,3]:
     # Set methodological options
     covariance_input.define_covariance_settings(
         reintegrate_variational_equations=False)
-
-    # Define weighting of the observations in the inversion
-    weights_per_observable = {observations.observations_processing.observation_parser(
-        observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
-    simulated_observations.set_constant_weight_per_observation_parser( weights_per_observable )
 
     # Perform the covariance analysis
     covariance_output = estimator.compute_covariance(covariance_input)
