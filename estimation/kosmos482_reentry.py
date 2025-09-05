@@ -537,7 +537,7 @@ ax.add_image(tiler, 4)
 # Add colored ground track
 ax.add_collection(lc)
 cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
-cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=15)
+cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
 ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
@@ -560,13 +560,13 @@ ax.scatter(
     label='Cities > 1M'
 )
 
-plt.legend(fontsize = 12)
+plt.legend()
 plt.show()
 # -
 
-# ## **Plot Kosmos 482 Altitude and Groundspeed velocity evolution**
+# ## **Plot Kosmos 482 Altitude evolution**
 #
-# Using the **dependent variables** saved during propagation, we can plot the evolution of the capsule's altitude and groundspeed velocity.  
+# Using the **dependent variables** saved during propagation, we can plot the capsule's altitude over time.
 
 # +
 # Extract Altitude data
@@ -582,20 +582,3 @@ plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
-
-# Extract Groundspeed data
-groundspeed = dependent_variables_array[:, -1]
-
-# Plot altitude vs. UTC
-plt.figure(figsize=(10, 5))
-plt.plot(utc_times, groundspeed/1000, label="Groundspeed") 
-plt.xlabel("UTC Time", fontsize=12)
-plt.ylabel("Groundspeed Velocity [km/s]", fontsize=12)
-plt.title("Satellite Groundspeed Velocity over Time", fontsize=14)
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plt.show()
-# -
-
-
