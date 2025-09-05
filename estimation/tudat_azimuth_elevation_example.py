@@ -93,16 +93,16 @@ def plot_combined_elevation(
     bodies_to_create = ["Earth"]
 
     # Convert start and end epochs to Julian Day
-    jd_start_epoch = time_representation.calendar_date_to_julian_day(datetime.strptime(start_epoch, time_format))
-    jd_end_epoch = time_representation.calendar_date_to_julian_day(datetime.strptime(end_epoch, time_format))
+    jd_start_epoch = time_representation.DateTime.from_python_datetime(datetime.strptime(start_epoch, time_format)).to_julian_day()
+    jd_end_epoch = time_representation.DateTime.from_python_datetime(datetime.strptime(end_epoch, time_format)).to_julian_day()
     n_day_buffer = 1
 
     # Add a buffer to the user-defined start and end epochs.
     # This ensures that the simulation interpolator operates without errors nor warnings.
     # While the buffered epochs will differ from the original user-defined range, 
     # the code will later filter out any dates outside the requested range. 
-    calendar_date_simulation_start_epoch = time_representation.julian_day_to_calendar_date(jd_start_epoch - n_day_buffer)
-    calendar_date_simulation_end_epoch = time_representation.julian_day_to_calendar_date(jd_end_epoch + n_day_buffer)
+    calendar_date_simulation_start_epoch = time_representation.DateTime.from_julian_day(jd_start_epoch - n_day_buffer).to_python_datetime()
+    calendar_date_simulation_end_epoch = time_representation.DateTime.from_julian_day(jd_end_epoch + n_day_buffer).to_python_datetime()
 
     # Convert the start and end epochs to seconds since the epoch for simulation. 
     # This conversion is needed, as the 'get_default_body_settings_time_limited' function
@@ -139,11 +139,11 @@ def plot_combined_elevation(
     # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.dynamics.environment_setup.rotation_model.gcrs_to_itrs)
     body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
         environment_setup.rotation_model.iau_2006, global_frame_orientation,
-        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+        interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                              simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
-        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+        interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                              simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60),
-        interpolators.interpolator_generation_settings_float(interpolators.cubic_spline_interpolation(),
+        interpolators.interpolator_generation_settings(interpolators.cubic_spline_interpolation(),
                                                              simulation_seconds_start_epoch, simulation_seconds_end_epoch, 60))
 
     # As you've already seen in the documentation of this function, users can input custom_ephemeris via the custom_ephemeris flag.
@@ -345,7 +345,7 @@ def plot_combined_elevation(
 
             # Apply conversions for convenience
             horizons_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(horizons_second_ephemeris) for horizons_second_ephemeris in horizons_seconds_ephemeris]
-            horizons_datetime_times = [time_representation.julian_day_to_calendar_date(horizons_calendar_time) for horizons_calendar_time in horizons_calendar_ephemeris]
+            horizons_datetime_times = [time_representation.DateTime.from_julian_day(horizons_calendar_time).to_python_datetime() for horizons_calendar_time in horizons_calendar_ephemeris]
 
             # We would like the times at which the elevation and azimuth is computed in Tudat to be the same as the Horizons ones
             # This is done for ease of comparison. 
@@ -358,7 +358,7 @@ def plot_combined_elevation(
             tudat_seconds_ephemeris = tudat_seconds_ephemeris[start_end_condition]
 
         tudat_calendar_ephemeris = [time_representation.seconds_since_epoch_to_julian_day(tudat_second_ephemeris) for tudat_second_ephemeris in tudat_seconds_ephemeris]
-        tudat_datetime_times = [time_representation.julian_day_to_calendar_date(tudat_calendar_time) for tudat_calendar_time in tudat_calendar_ephemeris]
+        tudat_datetime_times = [time_representation.DateTime.from_julian_day(tudat_calendar_time).to_python_datetime()for tudat_calendar_time in tudat_calendar_ephemeris]
 
         # We struggled quite a bit to set all the body settings, but now we can finally create our bodies object.
         bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -368,7 +368,7 @@ def plot_combined_elevation(
         # The given antenna is set as a receiver through the function: 'body_reference_point_link_end_id' of the observation module. 
         # (See: https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id)
         link_ends = {
-            observable_models_setup.model_settings.receiver: observable_models_setup.model_settings.body_reference_point_link_end_id('Earth', station_name),
+            observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', station_name),
         }
         # Create a single link definition from the link ends
         link_definition = observable_models_setup.links.LinkDefinition(link_ends)
