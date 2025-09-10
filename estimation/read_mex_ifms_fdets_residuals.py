@@ -147,8 +147,10 @@ plt.show()
 start_time = datetime(2013, 12, 28, 0, 0, 0)  # replace with your desired start
 end_time   = datetime(2013, 12, 29, 0, 0, 0) # replace with your desired end
 
-# Plot residuals for each station, filtered by subset time window
-plt.figure(figsize=(12, 6))
+# Plot residuals for each station with histogram, filtered by subset time window
+fig, axes = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={'width_ratios':[4,1]})
+ax_main, ax_hist = axes
+
 added_labels = set()
 subset_residuals_all = []
 
@@ -160,6 +162,9 @@ for site_name, data_list in station_residuals.items():
         color = 'orchid'
     elif site_name == 'URUMQI':
         color = 'royalblue'
+
+    # Collect all residuals for this station for histogram
+    station_residuals_for_hist = []
 
     for utc_times, residuals in data_list:
         # Convert to NumPy arrays for easy boolean indexing
@@ -173,31 +178,51 @@ for site_name, data_list in station_residuals.items():
 
         # Collect residuals for RMS calculation
         subset_residuals_all.append(residuals_subset)
+        station_residuals_for_hist.append(residuals_subset)
 
-        # Plot subset
+        # Plot subset on main plot
         rms_subset = np.sqrt(np.mean(residuals_subset**2))
-        plt.scatter(
+        ax_main.scatter(
             utc_subset, residuals_subset,
             label=site_name + f', RMS: {rms_subset*1000:.2f} mHz' if site_name not in added_labels else None,
-            s=7, color = color, alpha = 0.5
+            s=7, color=color, alpha=0.5
         )
         added_labels.add(site_name)
+
+    # Create histogram for this station (combine all data for this station)
+    if station_residuals_for_hist:
+        station_residuals_combined = np.concatenate(station_residuals_for_hist)
+        ax_hist.hist(
+            station_residuals_combined, bins=30,
+            orientation='horizontal', alpha=0.6,
+            color=color
+        )
 
 # Flatten subset residuals and compute RMS
 subset_residuals_flat = np.concatenate(subset_residuals_all)
 subset_rms = np.sqrt(np.mean(subset_residuals_flat**2))
 
-# Formatting plot
-plt.xlabel("UTC Time", fontsize=15)
-plt.ylabel("Residuals (Hz)", fontsize=15)
-plt.title(f"Overall RMS: {subset_rms*1000:.2f} mHz", fontsize=15)
-plt.grid(True, linestyle="--", alpha=0.5)
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-plt.gcf().autofmt_xdate()
-plt.tick_params(axis='x', labelsize=11)  # x-axis ticks
-plt.tick_params(axis='y', labelsize=11)  # y-axis ticks
-plt.legend(fontsize = 12)
+# Format main plot
+ax_main.set_xlabel("UTC Time", fontsize=15)
+ax_main.set_ylabel("Residuals (Hz)", fontsize=15)
+ax_main.set_title(f"Overall RMS: {subset_rms*1000:.2f} mHz", fontsize=15)
+ax_main.grid(True, linestyle="--", alpha=0.5)
+ax_main.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+ax_main.xaxis.set_major_locator(mdates.AutoDateLocator())
+ax_main.tick_params(axis='x', labelsize=11)
+ax_main.tick_params(axis='y', labelsize=11)
+
+# Format histogram
+ax_hist.set_xlabel("Count", fontsize=15)
+ax_hist.grid(True, linestyle='--', alpha=0.3)
+ax_hist.tick_params(left=False, labelleft=False)
+
+# Format x-axis dates for main plot
+fig.autofmt_xdate()
+
+# Add legend
+ax_main.legend(fontsize=12)
+
 plt.tight_layout()
 plt.show()
 
