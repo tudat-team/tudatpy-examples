@@ -87,7 +87,6 @@ def plot_multi_arc_analysis_grail(base_path='parallel_case14_grail', num_arcs=1)
     original_length = len(df)
     df = df[(np.abs(df['postfit']) < residual_threshold)]
     print(df)
-    exit()
     print(f"Filtered data: {original_length- len(df)} observations with residuals > {residual_threshold}")
 
     print(f"\nTotal combined data: {len(df)} observations")
@@ -155,7 +154,6 @@ def plot_multi_arc_analysis_grail(base_path='parallel_case14_grail', num_arcs=1)
         ax_main.grid(True, linestyle='--', alpha=0.3)
         ax_main.set_ylabel('Residuals (Hz)', fontsize=15)
         ax_main.set_xlabel(f"Time [days from {doppler_times_datetime[0].strftime('%Y-%m-%d %H:%M:%S')}]", fontsize=15)
-
         # Format histogram
         ax_hist.set_xlabel("Count", fontsize=15)
         ax_hist.grid(True, linestyle='--', alpha=0.3)
@@ -178,7 +176,7 @@ def plot_multi_arc_analysis_grail(base_path='parallel_case14_grail', num_arcs=1)
                                          label=f"{downlink}, RMS: {rms_val:.2f} Hz")
                 ax_main.set_title(f'Overall RMS: {overall_rms:.2f} Hz', fontsize=15)
             elif 'postfit' in data_col or 'spice' in data_col:
-                ax_main.set_ylim(-0.03, 0.01)
+                ax_main.set_ylim(-0.015, 0.015)
                 handle = ax_main.scatter([], [], color=color_map[downlink],
                                          label=f"{downlink}, RMS: {rms_val*1000:.2f} mHz")
                 ax_main.set_title(f'Overall RMS: {overall_rms*1000:.2f} mHz', fontsize=15)
@@ -1066,6 +1064,13 @@ def plot_combined_grail_rsw_errors():
     # Collect all data for RMS calculation
     all_residuals = [[] for _ in range(3)]  # For each component
 
+    # Variables to track global time reference
+    global_t0 = None
+    t0_datetime = None
+    cumulative_time_offset = 0
+    all_times_plot = []
+    all_residuals_plot = [[] for _ in range(3)]
+
     for setup_idx in range(nb_setups+1):
         file_path = os.path.join(
             base_folder,
@@ -1081,47 +1086,59 @@ def plot_combined_grail_rsw_errors():
                 output_scale=time_representation.utc_scale,
                 input_value=t) for t in times]
 
-            times_datetime = [DateTime.to_python_datetime(DateTime.from_epoch(t)) for t in times_utc]
+            # Set global reference time from first arc
+            if global_t0 is None:
+                global_t0 = times_utc[0]
+                t0_datetime = DateTime.to_python_datetime(DateTime.from_epoch(global_t0))
+
+            # Convert times to days from global start time
+            times_days = [(t - global_t0) / 86400.0 for t in times_utc]  # Convert seconds to days
+
+            # Add cumulative offset for subsequent arcs
+            #times_days_offset = [t + cumulative_time_offset for t in times_days]
+
             residuals = data[:, 1:4]
 
             # Collect data for RMS calculation
             for comp_idx in range(3):
                 all_residuals[comp_idx].extend(residuals[:, comp_idx])
+                all_residuals_plot[comp_idx].extend(residuals[:, comp_idx])
+
+            #all_times_plot.extend(times_days_offset)
 
             # Plot each component
             for comp_idx in range(3):
                 ax.plot(
-                    times_datetime,
+                    times_days,
                     residuals[:, comp_idx],
                     color=colors[comp_idx],
                     linewidth=1,
-                    label=components[comp_idx] if setup_idx == 0 else None  # only label once
+                    label=components[comp_idx] if setup_idx == 0 else ""  # only label once
                 )
 
-            # Update offset to avoid overlapping time values (assuming gaps between arcs are negligible)
-            time_offset = times[-1] + 10  # small gap between arcs
+            # Update cumulative offset for next arc
+            # Add a small gap (e.g., 0.1 days) between arcs for visual separation
+            #if times_days_offset:
+            #    cumulative_time_offset = max(times_days_offset) + 0.1
 
         except OSError:
             print(f"File not found: {file_path}")
             continue
 
-    # Calculate RMS for each component
-    rms_text = []
+    # Calculate RMS for each component and create legend
     new_labels = []
     for comp_idx in range(3):
         if all_residuals[comp_idx]:  # Check if data exists
             rms_value = np.sqrt(np.mean(np.array(all_residuals[comp_idx])**2))
-            rms_text.append(f"{components[comp_idx]}: {rms_value:.3f} m")
+            new_label = f"{components[comp_idx]}, RMS: {rms_value:.2f} m"
+            new_labels.append(new_label)
 
-        handles, labels = ax.get_legend_handles_labels()
-
-        new_label = f"{components[comp_idx]}, RMS: {rms_value:.2f} m"
-
-        new_labels.append(new_label)
-    ax.legend(handles, new_labels, ncols=3, loc='lower right', fontsize = 11)
+    # Update legend
+    handles, _ = ax.get_legend_handles_labels()
+    ax.legend(handles[:3], new_labels, ncols=3, loc='lower right', fontsize=11)
 
     ax.grid(linestyle='--', alpha=0.3)
-    ax.set_xlabel("UTC Date", fontsize=15)
+    ax.set_xlabel(f"Time [days from {t0_datetime.strftime('%Y-%m-%d %H:%M:%S')}]", fontsize=15)
     ax.set_ylabel("Residuals [m]", fontsize=15)
 
     plt.tight_layout()
@@ -1136,9 +1153,9 @@ def plot_combined_grail_rsw_errors():
 #plot_combined_grail_rsw_errors()
 #plot_combined_grail_doppler_pre_fit()
 #plot_combined_grail_doppler_post_fit()
-plot_combined_grail_rsw_errors()
+#plot_combined_grail_rsw_errors()
 
 #plot_mro_pre_post_fit_orbit()
-#plot_multi_arc_analysis_grail()
+plot_multi_arc_analysis_grail()
 
 #plot_mro_doppler_and_range(range_flag=True)
