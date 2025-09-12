@@ -21,7 +21,6 @@ from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
-from tudatpy.astro import frame_conversion
 from tudatpy import util
 
 from tudatpy.dynamics import environment_setup
@@ -157,8 +156,10 @@ def run_odf_estimation(inputs):
             odf_files = ["grail_kernels/gralugf2012_097_0235smmmv1.odf"]
 
         # Load ODF files
-        multi_odf_file_contents = observations_setup.process_odf_data_multiple_files(
-            odf_files, "GRAIL-A", True
+        multi_odf_file_contents = (
+            observations_setup.observations_wrapper.process_odf_data_multiple_files(
+                odf_files, "GRAIL-A", True
+            )
         )
 
         # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
@@ -167,7 +168,7 @@ def run_odf_estimation(inputs):
         # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
-        original_odf_observations = observations_setup.create_odf_observed_observation_collection(
+        original_odf_observations = observations_setup.observations_wrapper.create_odf_observed_observation_collection(
             multi_odf_file_contents,
             [observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type],
             [
@@ -616,7 +617,7 @@ def run_odf_estimation(inputs):
             parameters_setup.radiation_pressure_target_direction_scaling(
                 spacecraft_name, "Moon"
             ),
-            parameters_setup.stimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
+            parameters_setup.radiation_pressure_target_perpendicular_direction_scaling(
                 spacecraft_name, "Moon"
             ),
         ]
@@ -774,8 +775,8 @@ if __name__ == "__main__":
         "The output of each parallel estimation is saved in a separate file named grail_odf_estimation_output_x.dat, "
         "with x the index of the run (all output files are saved in " + output_folder
     )
-    # with mp.get_context("fork").Pool(nb_parallel_runs) as pool:
-    #     pool.map(run_odf_estimation, inputs)
+    with mp.get_context("fork").Pool(nb_parallel_runs) as pool:
+        pool.map(run_odf_estimation, inputs)
 
     all_prefit = []
     all_times = []
