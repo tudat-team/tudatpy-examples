@@ -13,28 +13,27 @@ import multiprocessing as mp
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-import pandas as pd
+from datetime import datetime
 
 # Load required tudatpy modules
 from tudatpy.data import grail_mass_level_0_file_reader
 from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.astro import time_conversion
+from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy.astro import frame_conversion
-from tudatpy.math import interpolators
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation
-from tudatpy.numerical_simulation.environment_setup import radiation_pressure
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy import util
-from tudatpy import estimation
 
-from load_pds_files import download_url_files_time, download_url_files_time_interval
-from datetime import datetime
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics.environment_setup import radiation_pressure
+from tudatpy.dynamics import propagation
+from tudatpy.dynamics import propagation_setup
+from tudatpy.dynamics import parameters, parameters_setup
+
+from tudatpy import estimation
+from tudatpy.estimation import estimation_analysis
+from tudatpy.estimation import observable_models_setup
+from tudatpy.estimation import observations, observations_setup
 
 # Import GRAIL examples functions
 from grail_examples_functions import (
@@ -43,6 +42,7 @@ from grail_examples_functions import (
     get_rsw_state_difference,
 )
 
+# %%
 
 ### ------------------------------------------------------------------------------------------
 ### IMPORTANT PRELIMINARY REMARKS
@@ -95,7 +95,7 @@ def run_odf_estimation(inputs):
     input_index = inputs[0]
 
     # Convert the datetime object defining the day of interest to a Tudat Time variable.
-    date = time_conversion.datetime_to_tudat(inputs[1]).to_epoch()
+    date = time_representation.datetime_to_tudat(inputs[1]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, manoeuvres file, antennas switch files, GRAIL trajectory files, GRAIL
@@ -157,10 +157,8 @@ def run_odf_estimation(inputs):
             odf_files = ["grail_kernels/gralugf2012_097_0235smmmv1.odf"]
 
         # Load ODF files
-        multi_odf_file_contents = (
-            estimation_setup.observation.process_odf_data_multiple_files(
-                odf_files, "GRAIL-A", True
-            )
+        multi_odf_file_contents = observations_setup.process_odf_data_multiple_files(
+            odf_files, "GRAIL-A", True
         )
 
         # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
@@ -169,12 +167,9 @@ def run_odf_estimation(inputs):
         # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
-        original_odf_observations = estimation_setup.observation.create_odf_observed_observation_collection(
+        original_odf_observations = observations_setup.create_odf_observed_observation_collection(
             multi_odf_file_contents,
-            # [estimation_setup.observation.dsn_n_way_averaged_doppler],
-            [
-                estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-            ],
+            [observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type],
             [
                 time_representation.Time(0, np.nan),
                 time_representation.Time(0, np.nan),
@@ -182,8 +177,8 @@ def run_odf_estimation(inputs):
         )
 
         # Filter all ODF observations that exceed the arc duration of one day
-        day_arc_filter = estimation.observations.observations_processing.observation_filter(
-            estimation.observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+        day_arc_filter = observations.observations_processing.observation_filter(
+            observations.observations_processing.ObservationFilterType.time_bounds_filtering,
             date,
             date + 86400.0,
             use_opposite_condition=True,
@@ -205,10 +200,8 @@ def run_odf_estimation(inputs):
         original_odf_observations.print_observation_sets_start_and_size()
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = (
-            estimation_setup.observation.create_compressed_doppler_collection(
-                original_odf_observations, 60, 10
-            )
+        compressed_observations = observations_setup.observations_wrapper.create_compressed_doppler_collection(
+            original_odf_observations, 60, 10
         )
         print(
             "Compressed observations: ",
@@ -330,7 +323,6 @@ def run_odf_estimation(inputs):
         spacecraft_name = "GRAIL-A"
         spacecraft_central_body = "Moon"
         body_settings.add_empty_settings(spacecraft_name)
-        # body_settings.get(spacecraft_name).constant_mass = 150
         body_settings.get(spacecraft_name).constant_mass = 221.69
 
         # Define translational ephemeris from SPICE
@@ -367,19 +359,13 @@ def run_odf_estimation(inputs):
         environment_setup.add_radiation_pressure_target_model(
             bodies,
             spacecraft_name,
-            # radiation_pressure.cannonball_radiation_target(5, 1.5, occulting_bodies),
             radiation_pressure.panelled_radiation_target(
                 occulting_bodies, pixel_source
             ),
         )
-        # environment_setup.add_radiation_pressure_target_model(
-        #     bodies,
-        #     spacecraft_name,
-        #     radiation_pressure.panelled_radiation_target(occulting_bodies, {"Moon": 0}),
-        # )
 
         # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the GRAIL spacecraft
-        estimation_setup.observation.set_odf_information_in_bodies(
+        observations_setup.observations_wrapper.set_odf_information_in_bodies(
             multi_odf_file_contents, bodies
         )
 
@@ -413,7 +399,10 @@ def run_odf_estimation(inputs):
         # Set GRAIL's reference point position to follow the antenna switch history (the antennas' positions should be provided in the
         # spacecraft-fixed frame)
         compressed_observations.set_reference_points(
-            bodies, antenna_switch_history, spacecraft_name, observation.reflector1
+            bodies,
+            antenna_switch_history,
+            spacecraft_name,
+            observable_models_setup.links.LinkEndType.reflector1,
         )
 
         ### ------------------------------------------------------------------------------------------
@@ -454,9 +443,6 @@ def run_odf_estimation(inputs):
             Earth=[propagation_setup.acceleration.point_mass_gravity()],
             Moon=[
                 propagation_setup.acceleration.spherical_harmonic_gravity(256, 256),
-                # propagation_setup.acceleration.radiation_pressure(
-                #     environment_setup.radiation_pressure.cannonball_target
-                # ),
                 propagation_setup.acceleration.radiation_pressure(
                     environment_setup.radiation_pressure.paneled_target
                 ),
@@ -519,14 +505,14 @@ def run_odf_estimation(inputs):
         # Create light-time corrections list
         light_time_correction_list = list()
         light_time_correction_list.append(
-            estimation_setup.observation.first_order_relativistic_light_time_correction(
+            observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(
                 ["Sun"]
             )
         )
 
         # Add tropospheric correction
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(
+            observable_models_setup.light_time_corrections.dsn_tabulated_tropospheric_light_time_correction(
                 tro_files
             )
         )
@@ -535,7 +521,7 @@ def run_odf_estimation(inputs):
         spacecraft_name_per_id = dict()
         spacecraft_name_per_id[177] = "GRAIL-A"
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(
+            observable_models_setup.light_time_corrections.dsn_tabulated_ionospheric_light_time_correction(
                 ion_files, spacecraft_name_per_id
             )
         )
@@ -550,13 +536,13 @@ def run_odf_estimation(inputs):
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
             observation_model_settings.append(
-                estimation_setup.observation.dsn_n_way_doppler_averaged(
+                observable_models_setup.model_settings.dsn_n_way_doppler_averaged(
                     current_link_definition, light_time_correction_list
                 )
             )
 
         # Create observation simulators
-        observation_simulators = estimation_setup.create_observation_simulators(
+        observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
             observation_model_settings, bodies
         )
 
@@ -593,15 +579,13 @@ def run_odf_estimation(inputs):
 
         linkEndsDict = compressed_observations.link_definition_ids
         link_ends_ids = compressed_observations.concatenated_link_definition_ids
-        print(type(linkEndsDict))
-        print(type(link_ends_ids))
         link_ends_names = [
             linkEndsDict[linkId][
-                estimation_setup.observation.transmitter
+                observable_models_setup.links.LinkEndType.transmitter
             ].reference_point
             + " - "
             + linkEndsDict[linkId][
-                estimation_setup.observation.receiver
+                observable_models_setup.links.LinkEndType.receiver
             ].reference_point
             for linkId in link_ends_ids
         ]
@@ -617,22 +601,22 @@ def run_odf_estimation(inputs):
         ### ------------------------------------------------------------------------------------------
 
         # Define parameters to estimate
-        parameter_settings = estimation_setup.parameter.initial_states(
+        parameter_settings = parameters_setup.initial_states(
             propagator_settings, bodies
         )
 
         # Define list of additional parameters
         extra_parameters = [
-            estimation_setup.parameter.radiation_pressure_target_direction_scaling(
+            parameters_setup.radiation_pressure_target_direction_scaling(
                 spacecraft_name, "Sun"
             ),
-            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
+            parameters_setup.radiation_pressure_target_perpendicular_direction_scaling(
                 spacecraft_name, "Sun"
             ),
-            estimation_setup.parameter.radiation_pressure_target_direction_scaling(
+            parameters_setup.radiation_pressure_target_direction_scaling(
                 spacecraft_name, "Moon"
             ),
-            estimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
+            parameters_setup.stimation_setup.parameter.radiation_pressure_target_perpendicular_direction_scaling(
                 spacecraft_name, "Moon"
             ),
         ]
@@ -640,17 +624,17 @@ def run_odf_estimation(inputs):
         # Include the estimation of the manoeuvres if any are detected during the arc of interest
         if len(relevant_manoeuvres) > 0:
             extra_parameters.append(
-                estimation_setup.parameter.quasi_impulsive_shots(spacecraft_name)
+                parameters_setup.quasi_impulsive_shots(spacecraft_name)
             )
 
         # Add additional parameters settings
         parameter_settings += extra_parameters
 
         # Create set of parameters to estimate
-        parameters_to_estimate = estimation_setup.create_parameter_set(
+        parameters_to_estimate = parameters_setup.create_parameter_set(
             parameter_settings, bodies, propagator_settings
         )
-        estimation_setup.print_parameter_names(parameters_to_estimate)
+        parameters.print_parameter_names(parameters_to_estimate)
 
         print("pre-fit parameters values", parameters_to_estimate.parameter_vector)
 
@@ -659,7 +643,7 @@ def run_odf_estimation(inputs):
         ### ------------------------------------------------------------------------------------------
 
         # Create estimator
-        estimator = numerical_simulation.Estimator(
+        estimator = estimation_analysis.Estimator(
             bodies,
             parameters_to_estimate,
             observation_model_settings,
@@ -824,7 +808,7 @@ if __name__ == "__main__":
         all_prefit.append(prefit_residuals)
         all_postfit.append(postfit_residuals)
 
-        start_date = time_conversion.datetime_to_tudat(dates[i]).to_epoch()
+        start_date = time_representation.datetime_to_tudat(dates[i]).to_epoch()
 
         # Plot the results of the current estimation.
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
