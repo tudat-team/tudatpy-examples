@@ -23,11 +23,11 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -386,9 +386,7 @@ propagator_settings = propagation_setup.propagator.translational(
 
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings
-)
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 
 # Extract the resulting state and dependent variable history and convert it to an ndarray
 states = dynamics_simulator.propagation_results.state_history

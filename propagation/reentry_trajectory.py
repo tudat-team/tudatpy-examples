@@ -35,12 +35,12 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup, environment, propagation_setup, propagation
+from tudatpy import dynamics
+from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -121,7 +121,7 @@ class STSAerodynamicGuidance:
 
             # Update the variables on which the aerodynamic coefficients are based (AoA and Mach)
             current_aerodynamics_independent_variables = [self.angle_of_attack, mach_number]
-            
+
             # Update the aerodynamic coefficients
             self.aerodynamic_coefficient_interface.update_coefficients(
                 current_aerodynamics_independent_variables, current_time)
@@ -132,9 +132,9 @@ class STSAerodynamicGuidance:
             aerodynamic_reference_area = self.aerodynamic_coefficient_interface.reference_area
 
             # Get the heading, flight path, and latitude angles from the aerodynamic angle calculator
-            heading = self.aerodynamic_angle_calculator.get_angle(environment.heading_angle)
-            flight_path_angle = self.aerodynamic_angle_calculator.get_angle(environment.flight_path_angle)
-            latitude = self.aerodynamic_angle_calculator.get_angle(environment.latitude_angle)
+            heading = self.aerodynamic_angle_calculator.get_angle(environment_setup.aerodynamic_coefficients.AerodynamicsReferenceFrameAngles.heading_angle)
+            flight_path_angle = self.aerodynamic_angle_calculator.get_angle(environment_setup.aerodynamic_coefficients.AerodynamicsReferenceFrameAngles.flight_path_angle)
+            latitude = self.aerodynamic_angle_calculator.get_angle(environment_setup.aerodynamic_coefficients.AerodynamicsReferenceFrameAngles.latitude_angle)
 
             # Compute the acceleration caused by Lift
             lift_acceleration = 0.5 * density * airspeed ** 2 * aerodynamic_reference_area * current_force_coefficients[2] / body_mass
@@ -234,7 +234,7 @@ aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 #coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
 #    force_coefficient_files=aero_coefficients_files,
 #    reference_area=2690.0*0.3048*0.3048,
-#    independent_variable_names=[environment_setup.angle_of_attack_dependent, environment_setup.mach_number_dependent],
+#    independent_variable_names=[environment.angle_of_attack_dependent, environment.mach_number_dependent],
 #    are_coefficients_in_aerodynamic_frame=True,
 #    are_coefficients_in_negative_axis_direction=True
 #)
@@ -243,7 +243,7 @@ aero_coefficients_files = {0: "input/STS_CD.dat", 2:"input/STS_CL.dat"}
 coefficient_settings = environment_setup.aerodynamic_coefficients.tabulated_force_only_from_files(
     force_coefficient_files=aero_coefficients_files,
     reference_area=2690.0*0.3048*0.3048,
-    independent_variable_names=[environment_setup.angle_of_attack_dependent, environment_setup.mach_number_dependent],
+    independent_variable_names=[environment_setup.aerodynamic_coefficients.AerodynamicCoefficientsIndependentVariables.angle_of_attack_dependent, environment_setup.aerodynamic_coefficients.AerodynamicCoefficientsIndependentVariables.mach_number_dependent],
 )
 
 # Add predefined aerodynamic coefficients database to the body
@@ -437,7 +437,7 @@ propagator_settings = propagation_setup.propagator.translational(
 
 The re-entry trajectory is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator module`.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the dependent variable history is extracted.
@@ -449,7 +449,7 @@ In this example, we are not interested in analysing the state history. This can 
 
 
 # Create the simulation objects and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings
 )
 
