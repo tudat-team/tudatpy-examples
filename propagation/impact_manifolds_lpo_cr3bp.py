@@ -605,7 +605,7 @@ for manifold_direction_to_propagate in [-1, 1]:
             volume_secondary, hybrid_termination_max_distance, hybrid_termination_max_time)
 
         # Propagate manifold
-        manifold_single_arc_solver = numerical_simulation.create_dynamics_simulator(
+        manifold_single_arc_solver = dynamics.create_dynamics_simulator(
             bodies, hybrid_propagator_settings)
 
         if manifold_direction_to_propagate == -1:
