@@ -42,9 +42,9 @@ from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics import propagation_setup
+from tudatpy.dynamics import simulator
 from tudatpy.util import pareto_optimums
 
 # Load pygmo library
@@ -62,7 +62,7 @@ Below a few helper functions are defined that create various custom environment 
 
 """
 ### Itokawa rotation settings
-The first helper function that is setup is `get_itokawa_rotation_settings()`. This function can be called to get Itokawa rotation settings, of type [environment_setup.rotation_model.RotationModelSettings](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.RotationModelSettings), using a constant angular velocity.
+The first helper function that is setup is `get_itokawa_rotation_settings()`. This function can be called to get Itokawa rotation settings, of type [environment_setup.rotation_model.RotationModelSettings](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.dynamics.environment_setup.rotation_model.RotationModelSettings), using a constant angular velocity.
 
 This function only take the name of the body frame of Itokawa as an input.
 In addition, some fixed parameters are defined in this function:
@@ -84,7 +84,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     # Define initial Itokawa orientation in inertial frame (equatorial plane)
     initial_orientation_j2000 = frame_conversion.inertial_to_body_fixed_rotation_matrix(
         pole_declination, pole_right_ascension, meridian_at_epoch)
-    
+
     # Get initial Itokawa orientation in inertial frame but in the Ecliptic plane
     initial_orientation_eclipj2000 = np.matmul(spice.compute_rotation_matrix_between_frames(
         "J2000", "ECLIPJ2000", 0.0), initial_orientation_j2000)
@@ -94,7 +94,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     if check_results:
         np.set_printoptions(precision=100)
         print(initial_orientation_j2000)
-    
+
         print(initial_orientation_eclipj2000)
 
     # Compute rotation rate
@@ -132,19 +132,19 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         np.deg2rad(162.8147699851312),
         np.deg2rad(69.0803904880264),
         np.deg2rad(187.6327516838828)])
-    
+
     # Convert mean anomaly to true anomaly
     itokawa_kepler_elements[5] = element_conversion.mean_to_true_anomaly(
         eccentricity=itokawa_kepler_elements[1],
         mean_anomaly=itokawa_kepler_elements[5])
-    
+
     # Get epoch of initial Kepler elements (in Julian Days)
     kepler_elements_reference_julian_day = 2459000.5
-    
+
     # Sets new reference epoch for Itokawa ephemerides (different from J2000)
     kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000) \
                                       * constants.JULIAN_DAY
-    
+
     # Sets the ephemeris model
     return environment_setup.ephemeris.keplerian(
         itokawa_kepler_elements,
@@ -197,7 +197,7 @@ def get_itokawa_shape_settings(itokawa_radius):
 
 """
 ### Simulation bodies
-Next, the `create_simulation_bodies()` function is setup, that returns an [environment.SystemOfBodies](https://py.api.tudat.space/en/latest/environment.html#tudatpy.numerical_simulation.environment.SystemOfBodies) object. This object contains all the body settings and body objects required by the simulation. Only one input is required to this function: the radius of Itokawa.
+Next, the `create_simulation_bodies()` function is setup, that returns an [environment.SystemOfBodies](https://py.api.tudat.space/en/latest/environment.html#tudatpy.dynamics.environment.SystemOfBodies) object. This object contains all the body settings and body objects required by the simulation. Only one input is required to this function: the radius of Itokawa.
 
 Moreover, in the system of bodies that is returned, a `Spacecraft` body is included, with a mass of 400kg, and a radiation pressure interface. This body is the one for which an orbit is to be optimised around Itokawa.
 """
@@ -366,7 +366,7 @@ One more function is included, `AsteroidOrbitProblem.get_last_run_dynamics_simul
 
 
 class AsteroidOrbitProblem:
-    
+
     def __init__(self,
                  bodies,
                  propagator_settings,
@@ -374,15 +374,15 @@ class AsteroidOrbitProblem:
                  mission_duration,
                  design_variable_lower_boundaries,
                  design_variable_upper_boundaries):
-        
+
         # Sets input arguments as lambda function attributes
         # NOTE: this is done so that the class is "pickable", i.e., can be serialized by pygmo
         self.bodies_function = lambda: bodies
         self.propagator_settings_function = lambda: propagator_settings
-        
+
         # Initialize empty dynamics simulator
         self.dynamics_simulator_function = lambda: None
-        
+
         # Set other input arguments as regular attributes
         self.mission_initial_time = mission_initial_time
         self.mission_duration = mission_duration
@@ -400,10 +400,10 @@ class AsteroidOrbitProblem:
                 orbit_parameters):
         # Retrieves system of bodies
         current_bodies = self.bodies_function()
-        
+
         # Retrieves Itokawa gravitational parameter
         itokawa_gravitational_parameter = current_bodies.get("Itokawa").gravitational_parameter
-        
+
         # Reset the initial state from the design variable vector
         new_initial_state = element_conversion.keplerian_to_cartesian_elementwise(
             gravitational_parameter=itokawa_gravitational_parameter,
@@ -413,15 +413,15 @@ class AsteroidOrbitProblem:
             argument_of_periapsis=np.deg2rad(235.7),
             longitude_of_ascending_node=np.deg2rad(orbit_parameters[3]),
             true_anomaly=np.deg2rad(139.87))
-        
+
         # Retrieves propagator settings object
         propagator_settings = self.propagator_settings_function()
-        
+
         # Reset the initial state
         propagator_settings.initial_states = new_initial_state
 
         # Propagate orbit
-        dynamics_simulator = numerical_simulation.create_dynamics_simulator(current_bodies,
+        dynamics_simulator = simulator.create_dynamics_simulator(current_bodies,
                                                                         propagator_settings)
         # Update dynamics simulator function
         self.dynamics_simulator_function = lambda: dynamics_simulator
@@ -429,12 +429,12 @@ class AsteroidOrbitProblem:
         # Retrieve dependent variable history
         dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
-        
+
         # Retrieve distance
         distance = dependent_variables_list[:, 0]
         # Retrieve latitude
         latitudes = dependent_variables_list[:, 1]
-        
+
         # Compute mean latitude
         mean_latitude = np.mean(np.absolute(latitudes))
         # Computes fitness as mean latitude

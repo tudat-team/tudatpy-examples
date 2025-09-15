@@ -39,9 +39,9 @@ from typing import List, Tuple
 import tudatpy
 from tudatpy.trajectory_design import transfer_trajectory
 from tudatpy import constants
-from tudatpy.numerical_simulation import environment_setup
+from tudatpy.dynamics import environment_setup
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 # Pygmo imports
 import pygmo as pg

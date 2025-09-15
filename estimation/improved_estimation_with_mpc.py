@@ -20,6 +20,8 @@ from tudatpy import estimation
 from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.astro import element_conversion
 
 # import MPC, SBDB and Horizons interface
 from tudatpy.data.mpc import BatchMPC
@@ -71,10 +73,10 @@ observations_end = datetime.datetime(2024, 1, 1)
 number_of_pod_iterations = 6
 
 # timestep of 24 hours for our estimation
-timestep_global = 24 * 3600
+timestep_global = 24 * 3600.0
 
 # 2 month time buffer used to avoid interpolation errors:
-time_buffer = 2 * 31 * 86400
+time_buffer = 2 * 31 * 86400.0
 
 # define the frame origin and orientation.
 global_frame_origin = "SSB"
@@ -149,8 +151,10 @@ use_catalog_cor = [False, False, False]
 use_weighting = [False, False, False]
 
 satellites_names = ["WISE"]
-satellites_MPC_codes = ["C51"] # C51 is the observatory code MPC uses for WISE
-satellites_Horizons_codes = ["-163"]  # -163 is the query ID for WISE in Horizons see explanation below.
+satellites_MPC_codes = ["C51"]  # C51 is the observatory code MPC uses for WISE
+satellites_Horizons_codes = [
+    "-163"
+]  # -163 is the query ID for WISE in Horizons see explanation below.
 
 
 # Consider trying out different combinations of satellites.
@@ -169,23 +173,27 @@ All NEAs from the archive are retrieved, as well as all MBA with a mass greater 
 """
 
 
-lvl3_extra_bodies = ["999", "Triton", "Titania"] # here 999 is Pluto in JPL Horizons
+lvl3_extra_bodies = ["999", "Triton", "Titania"]  # here 999 is Pluto in JPL Horizons
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
 
 
 
 file = "SiMDA_240512.csv"
 
-min_asteroid_mass = 1e20 # kg
+min_asteroid_mass = 1e20  # kg
 target_int = int(target_mpc_code)
 
 simda = (
     pd.read_csv(file)
-    .iloc[18:] # the first 18 rows contain comets, which are omitted
+    .iloc[18:]  # the first 18 rows contain comets, which are omitted
     .assign(NUM=lambda x: np.int32(x.NUM))
-    .query("DYN == 'NEA' | (DYN == 'MBA' & MASS > @min_asteroid_mass)") # filter relevant bodies
-    .query("NUM != @target_int") # remove 433 Eros, which is also a NEA
-    .query("NUM != [1, 4]") # remove Ceres and Vesta which are retrieved through spice kernels
+    .query(
+        "DYN == 'NEA' | (DYN == 'MBA' & MASS > @min_asteroid_mass)"
+    )  # filter relevant bodies
+    .query("NUM != @target_int")  # remove 433 Eros, which is also a NEA
+    .query(
+        "NUM != [1, 4]"
+    )  # remove Ceres and Vesta which are retrieved through spice kernels
     .loc[:, ["NUM", "DESIGNATION", "DIAM", "DYN", "MASS"]]
 )
 
@@ -258,8 +266,8 @@ for code, name in zip(satellites_Horizons_codes, satellites_names):
         location=f"@{global_frame_origin}",
         epoch_start=epoch_start_buffer,
         epoch_end=epoch_end_buffer,
-        epoch_step=f"{int(timestep_global/60)}m", # Horizons does not permit a stepsize in seconds
-        extended_query=True, # extended query allows for more data to be retrieved.
+        epoch_step=f"{int(timestep_global/60)}m",  # Horizons does not permit a stepsize in seconds
+        extended_query=True,  # extended query allows for more data to be retrieved.
     )
 
     sat_ephemeris[name] = query.create_ephemeris_tabulated(
@@ -354,7 +362,9 @@ for name in satellites_names:
 # Add asteroids, their ephemerides and gravity field to body settings
 for asteroid_code, asteroid_mass in zip(lvl3_asteroids, lvl3_asteroids_masses):
     body_settings.add_empty_settings(str(asteroid_code))
-    body_settings.get(str(asteroid_code)).ephemeris_settings = ast_ephemeris[asteroid_code]
+    body_settings.get(str(asteroid_code)).ephemeris_settings = ast_ephemeris[
+        asteroid_code
+    ]
     body_settings.get(str(asteroid_code)).gravity_field_settings = (
         environment_setup.gravity_field.central(asteroid_mass * GRAVITATIONAL_CONSTANT)
     )
@@ -411,18 +421,14 @@ accelerations_2 = {
     ],
     "Mercury": [propagation_setup.acceleration.point_mass_gravity()],
     "Venus": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Earth": [propagation_setup.acceleration.point_mass_gravity()],
     "Moon": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Mars": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Jupiter": [propagation_setup.acceleration.point_mass_gravity()],
     "Io": [propagation_setup.acceleration.point_mass_gravity()],
     "Europa": [propagation_setup.acceleration.point_mass_gravity()],
     "Ganymede": [propagation_setup.acceleration.point_mass_gravity()],
     "Callisto": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Saturn": [propagation_setup.acceleration.point_mass_gravity()],
     "Titan": [propagation_setup.acceleration.point_mass_gravity()],
     "Rhea": [propagation_setup.acceleration.point_mass_gravity()],
@@ -430,7 +436,6 @@ accelerations_2 = {
     "Dione": [propagation_setup.acceleration.point_mass_gravity()],
 
     "Uranus": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Neptune": [propagation_setup.acceleration.point_mass_gravity()],
 }
 
@@ -453,9 +458,7 @@ accelerations_3 = {
 
     "Ceres": [propagation_setup.acceleration.point_mass_gravity()],
     "Vesta": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Jupiter": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Io": [propagation_setup.acceleration.point_mass_gravity()],
     "Europa": [propagation_setup.acceleration.point_mass_gravity()],
     "Ganymede": [propagation_setup.acceleration.point_mass_gravity()],
@@ -469,20 +472,25 @@ accelerations_3 = {
     "Tethys": [propagation_setup.acceleration.point_mass_gravity()],
     "Enceladus": [propagation_setup.acceleration.point_mass_gravity()],
     "Mimas": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Uranus": [propagation_setup.acceleration.point_mass_gravity()],
     "Neptune": [propagation_setup.acceleration.point_mass_gravity()],
 }
 
 # For each asteroid + Pluto, Titania and Triton we create a point mass gravity.
-asteroid_accelerations = {str(num):[propagation_setup.acceleration.point_mass_gravity()] for num in lvl3_asteroids}
-other_accelerations = {str(num):[propagation_setup.acceleration.point_mass_gravity()] for num in lvl3_extra_bodies}
+asteroid_accelerations = {
+    str(num): [propagation_setup.acceleration.point_mass_gravity()]
+    for num in lvl3_asteroids
+}
+other_accelerations = {
+    str(num): [propagation_setup.acceleration.point_mass_gravity()]
+    for num in lvl3_extra_bodies
+}
 
 # we combine the accelerations to achieve the final LVL 3 set
 accelerations_3 = (accelerations_3 | asteroid_accelerations) | other_accelerations
 
 # Dictionary with the three acceleration setting options
-acceleration_sets = {1: accelerations_1, 2: accelerations_2, 3:accelerations_3}
+acceleration_sets = {1: accelerations_1, 2: accelerations_2, 3: accelerations_3}
 
 
 """
@@ -1191,14 +1199,12 @@ state_estimates_set = []
 for idx, setup_name in enumerate(setup_names):
     print(f"\n### Running setup #{idx+1} | {setup_name} ###")
 
-    pod_output, batch, observation_collection, estimator = (
-        perform_estimation(
-            bodies,
-            acceleration_level=accel_levels[idx],
-            use_satellite_data=use_sat_data[idx],
-            apply_star_catalog_debias=use_catalog_cor[idx],
-            apply_weighting_scheme=use_weighting[idx],
-        )
+    pod_output, batch, observation_collection, estimator = perform_estimation(
+        bodies,
+        acceleration_level=accel_levels[idx],
+        use_satellite_data=use_sat_data[idx],
+        apply_star_catalog_debias=use_catalog_cor[idx],
+        apply_weighting_scheme=use_weighting[idx],
     )
     state_estimates = []
     for timee in times_get_eph:
