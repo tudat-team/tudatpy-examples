@@ -187,7 +187,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 Next, the start and end simulation epochs are specified.
 In Tudat, all epochs are defined as seconds since J2000.
 For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
