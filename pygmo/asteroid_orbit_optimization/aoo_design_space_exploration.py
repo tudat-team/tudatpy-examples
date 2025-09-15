@@ -537,13 +537,13 @@ The Monte Carlo variation is made with two nested loops; one for the various orb
 
 for i in range(len(orbit_parameters)): 
 
-    print('Monte Carlo design variable :', orbit_param_names[i])
+    #print('Monte Carlo design variable :', orbit_param_names[i])
     parameter_all_runs = np.random.uniform(design_variable_lb[i], design_variable_ub[i], no_of_runs)
     parameters[:, i] = parameter_all_runs
 
 
     for j in range(no_of_runs):
-        print('Monte Carlo Run :', str(j))
+        #print('Monte Carlo Run :', str(j))
 
         initial_state[i] = parameter_all_runs[j]
         orbit_parameters[i] = parameter_all_runs[j]

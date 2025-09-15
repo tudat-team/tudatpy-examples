@@ -266,7 +266,7 @@ At this stage, the integrator (propagator) is set up. First, we define the integ
 The integrator settings are defined using a RK78 integrator with a **variable step size** with 200 seconds initial step, 1E-12 **absolute and relative tolerances**, and **position/velocity block-wise tolerances**. 
 
 You can find more information about the functionalities used in the following cell by simply clicking on their names in this markdown: 
-- [`step_size_control_custom_blockwise_scalar_tolerance`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.dynamics.propagation_setup.integrator.step_size_control_blockwise_scalar_tolerance), 
+- [`step_size_control_custom_blockwise_scalar_tolerance`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.dynamics.propagation_setup.integrator.step_size_control_blockwise_scalar_tolerance),
 - [`standard_cartesian_state_element_blocks`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.dynamics.propagation_setup.integrator.standard_cartesian_state_element_blocks),
 - [`step_size_validation`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.dynamics.propagation_setup.integrator.step_size_validation),
 - [`runge_kutta_variable_step`](https://py.api.tudat.space/en/latest/integrator.html#tudatpy.dynamics.propagation_setup.integrator.runge_kutta_variable_step)
@@ -295,7 +295,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
 **Dependent variables** such as **latitude, longitude and altitude** of JUICE with respect to the flyby moon are saved along the propagation (these will be used later in the plots).
 
 ### Midpoint Backward and Forward Propagation
-The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 1 hour backwards and forwards from that point, using the [`time_termination`](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.time_termination) settings. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**. 
+The initial time of the propagation is set at the time of closest approach, and JUICE is propagated 1 hour backwards and forwards from that point, using the [`time_termination`](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.time_termination) settings. **This is done for each found closest approach epoch**. At each iteration, the **flyby altitude is printed out**.
 
 The **dynamics is finally propagated** based on the acceleration settings defined above.
 """
@@ -377,7 +377,7 @@ plt.show()
 ## Time Step Evolution 
 
 As we made use of a **variable time step** for our integration, it is instructive to check its **time evolution**.
-The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.dynamics.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**. 
+The `propagation_results` list defined earlier is a list of [`SingleArcSimulationResults`](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.dynamics.propagation.SingleArcSimulationResults) objects (dictionaries) whose keys represent the computation time in seconds. **Taking the difference between the *(i)-th* and the *(i+1)-th* key will give the time step** used during the integration. Adding a vertical red line to the plot corresponding to each flyby's epoch, clearly highlights how **the time step value goes down around the epoch of closest approach with the moon**.
 """
 
 

@@ -797,6 +797,7 @@ plt.ylabel(r'$A [º]$')
 plt.grid()
 plt.legend()
 
+plt.show()
 
 
 """
