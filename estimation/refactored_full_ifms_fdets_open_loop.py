@@ -48,20 +48,67 @@ from tudatpy.data.mission_data_downloader import *
 # =============================================================================
 object = LoadPDS()
 spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
-custom_input_mission = 'mex'
+input_mission = 'mex'
 custom_met_urls = ['https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
                    'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
-                   'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/']
+                   'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/'
+                   ]
+
+custom_ifms_urls = ['https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
+                    'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
+                    'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2'
+                    ]
+
 local_path = './mex_met_archive'
-start_date_mex = datetime(2013, 12, 26)
+start_date_mex = datetime(2013, 12, 27)
 end_date_mex = datetime(2013, 12, 31)
 
-for custom_met_url in custom_met_urls:
-    object.add_custom_mission_kernel_url(custom_input_mission, custom_met_url)
-custom_ck_pattern = '^(?P<station>M32ICL3L1B)_(?P<type>[A-Z0-9]+)_(?P<date_file>\d+)_(?P<number>\d+)(?P<extension>\.TAB)$'
-object.add_custom_mission_kernel_pattern(custom_input_mission, 'met', custom_ck_pattern)
-object.dynamic_download_url_files_single_time(custom_input_mission, local_path, start_date_mex, end_date_mex, custom_met_url)
 
+for custom_met_url in custom_met_urls:
+    object.add_custom_mission_kernel_url(input_mission, custom_met_url)
+    custom_met_pattern = '^(?P<station>M32ICL3L1B)_(?P<type>[A-Z0-9]+)_(?P<date_file>\d+)_(?P<number>\d+)(?P<extension>\.TAB)$'
+    object.add_custom_mission_kernel_pattern(input_mission, 'met', custom_met_pattern)
+    object.dynamic_download_url_files_single_time(input_mission, local_path, start_date_mex, end_date_mex, custom_met_url)
+
+for custom_ifms_url in custom_ifms_urls:
+    object.add_custom_mission_kernel_url(input_mission, custom_ifms_url)
+    custom_ifms_pattern = '^(?P<station>M32ICL3L02|M32ICL2L02)_(?P<type>D2X)_(?P<date_file>\d+)_(?P<number>\d+)(?P<extension>\.TAB)$'
+    object.add_custom_mission_kernel_pattern(input_mission, 'ifms', custom_ifms_pattern)
+    object.dynamic_download_url_files_single_time(input_mission, local_path, start_date_mex, end_date_mex, custom_ifms_url)
+
+import pandas as pd
+from pathlib import Path
+
+def parse_and_filter_file(filename):
+    """
+    Reads a space-delimited file, removes rows where column 10 == -999999999,
+    and saves the cleaned file into ../ifms_filtered/.
+    """
+    # Convert to Path for easier manipulation
+    file_path = Path(filename)
+
+    # Create output folder one level up
+    output_folder = file_path.parent.parent / "ifms_filtered"
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    # Read file
+    df = pd.read_csv(file_path, delim_whitespace=True, header=None)
+
+    # Filter rows (column 10 is index 9)
+    df = df[~df[8].astype(float).between(-1.000000001e9, -999999998.999)]
+
+    # Construct output filename
+    output_filename = output_folder / file_path.name
+
+    # Save filtered file
+    df.to_csv(output_filename, sep=" ", index=False, header=False)
+
+    return output_filename
+
+DOWNLOADED_IFMS_FOLDER = './mex_met_archive/ifms'
+for file in os.listdir(DOWNLOADED_IFMS_FOLDER):
+    filtered_file = parse_and_filter_file(os.path.join(DOWNLOADED_IFMS_FOLDER, file))
+    print("Filtered file saved at:", filtered_file)
 ### 1.2 User Configuration
 
 # =============================================================================
@@ -73,7 +120,7 @@ BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'
 # Subdirectories
 KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
 FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
-IFMS_FOLDER = os.path.join(BASE_DIR, 'ifms/filtered')
+IFMS_FOLDER = './mex_met_archive/ifms_filtered'
 ODF_FOLDER = os.path.join(BASE_DIR, 'odf')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 
