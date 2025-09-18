@@ -33,12 +33,14 @@ import matplotlib.dates as mdates
 from tudatpy import util
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.astro import time_conversion, element_conversion
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro import time_representation
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.astro import element_conversion
 
 
 """
@@ -228,25 +230,25 @@ propagator_settings = propagation_setup.propagator.translational(
 Having defined all settings required for the simulation of the moons' orbits, the orbital estimation can finally be discussed - we will have to create the required **link ends** for the Galilean moons, define the observation model and simulation settings, simulate the states of the moons based on their associated ephemerides, define the estimable parameters, and finally perform the estimation itself.
 
 ### Create Link Ends for the Moons
-Since we will be using the [cartesian_position](https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.cartesian_position) type of observable to simulate the ephemeris-states of the moons, we will have to define the link-ends for all four moons to be of the `observed_body` type. Finally, we will also have to create the complete set of link definitions for each moon individually.
+Since we will be using the [cartesian_position](https://py.api.tudat.space/en/latest/estimation/observable_models_setup/model_settings.html#tudatpy.estimation.observable_models_setup.model_settings.cartesian_position) type of observable to simulate the ephemeris-states of the moons, we will have to define the link-ends for all four moons to be of the `observed_body` type. Finally, we will also have to create the complete set of link definitions for each moon individually.
 """
 
 
 link_ends_io = dict()
-link_ends_io[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Io')
-link_definition_io = estimation_setup.observation.LinkDefinition(link_ends_io)
+link_ends_io[observable_models_setup.links.observed_body] = observable_models_setup.links.body_origin_link_end_id('Io')
+link_definition_io = observable_models_setup.links.LinkDefinition(link_ends_io)
 
 link_ends_europa = dict()
-link_ends_europa[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Europa')
-link_definition_europa = estimation_setup.observation.LinkDefinition(link_ends_europa)
+link_ends_europa[observable_models_setup.links.observed_body] = observable_models_setup.links.body_origin_link_end_id('Europa')
+link_definition_europa = observable_models_setup.links.LinkDefinition(link_ends_europa)
 
 link_ends_ganymede = dict()
-link_ends_ganymede[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Ganymede')
-link_definition_ganymede = estimation_setup.observation.LinkDefinition(link_ends_ganymede)
+link_ends_ganymede[observable_models_setup.links.observed_body] = observable_models_setup.links.body_origin_link_end_id('Ganymede')
+link_definition_ganymede = observable_models_setup.links.LinkDefinition(link_ends_ganymede)
 
 link_ends_callisto = dict()
-link_ends_callisto[estimation_setup.observation.observed_body] = estimation_setup.observation.body_origin_link_end_id('Callisto')
-link_definition_callisto = estimation_setup.observation.LinkDefinition(link_ends_callisto)
+link_ends_callisto[observable_models_setup.links.observed_body] = observable_models_setup.links.body_origin_link_end_id('Callisto')
+link_definition_callisto = observable_models_setup.links.LinkDefinition(link_ends_callisto)
 
 link_definition_dict = {
     'Io': link_definition_io,
@@ -262,10 +264,10 @@ As mentioned above, we will 'observe' the state of the moons at every epoch as b
 """
 
 
-position_observation_settings = [estimation_setup.observation.cartesian_position(link_definition_io),
-                                 estimation_setup.observation.cartesian_position(link_definition_europa),
-                                 estimation_setup.observation.cartesian_position(link_definition_ganymede),
-                                 estimation_setup.observation.cartesian_position(link_definition_callisto)]
+position_observation_settings = [observable_models_setup.model_settings.cartesian_position(link_definition_io),
+                                 observable_models_setup.model_settings.cartesian_position(link_definition_europa),
+                                 observable_models_setup.model_settings.cartesian_position(link_definition_ganymede),
+                                 observable_models_setup.model_settings.cartesian_position(link_definition_callisto)]
 
 
 """
@@ -282,11 +284,11 @@ observation_times = np.arange(simulation_start_epoch, simulation_end_epoch, 3.0 
 # Create the observation simulation settings per moon
 observation_simulation_settings = list()
 for moon in link_definition_dict.keys():
-    observation_simulation_settings.append(estimation_setup.observation.tabulated_simulation_settings(
-        estimation_setup.observation.position_observable_type,
+    observation_simulation_settings.append(observations_setup.observations_simulation_settings.tabulated_simulation_settings(
+        observable_models_setup.model_settings.position_observable_type,
         link_definition_dict[moon],
         observation_times,
-        reference_link_end_type=estimation_setup.observation.observed_body))
+        reference_link_end_type=observable_models_setup.links.observed_body))
 
 
 """
@@ -298,11 +300,11 @@ The way custom-implemented observation simulators are implemented is that they d
 
 
 # Create observation simulators
-ephemeris_observation_simulators = estimation_setup.create_observation_simulators(
+ephemeris_observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
     position_observation_settings, bodies)
 # Get ephemeris states as ObservationCollection
 print('Checking ephemerides...')
-ephemeris_satellite_states = estimation.simulate_observations(
+ephemeris_satellite_states = observations_setup.observations_wrapper.simulate_observations(
     observation_simulation_settings,
     ephemeris_observation_simulators,
     bodies)
@@ -314,26 +316,26 @@ Given the problem at hand - **minimising the discrepancy between the NOE-5 ephem
 """
 
 
-parameters_to_estimate_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
-parameters_to_estimate = estimation_setup.create_parameter_set(parameters_to_estimate_settings, bodies)
+parameters_to_estimate_settings = parameters_setup.initial_states(propagator_settings, bodies)
+parameters_to_estimate = parameters_setup.create_parameter_set(parameters_to_estimate_settings, bodies)
 original_parameter_vector = parameters_to_estimate.parameter_vector
 
 
 """
 ### Perform the Estimation
-Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see the [API reference](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.EstimationInput.define_estimation_settings) of the `define_estimation_settings` function).
+Using the set of **'artificial cartesian observations'** of the moons' ephemerides, we are finally able to estimate improved initial states for each of the four Galilean satellites. To this end, we will make use of the known estimation functionality of tudat. All other settings remain unchanged and thus equal to their default values (for more details see the [API reference](https://py.api.tudat.space/en/latest/estimation/estimation_analysis.html#tudatpy.estimation.estimation_analysis.EstimationInput.define_estimation_settings) of the `define_estimation_settings` function).
 """
 
 
 print('Running propagation...')
 with util.redirect_std():
-    estimator = numerical_simulation.Estimator(bodies, parameters_to_estimate,
+    estimator = estimation_analysis.Estimator(bodies, parameters_to_estimate,
                                                position_observation_settings, propagator_settings)
 
 
 
 # Create input object for the estimation
-estimation_input = estimation.EstimationInput(ephemeris_satellite_states)
+estimation_input = estimation_analysis.EstimationInput(ephemeris_satellite_states)
 # Set methodological options
 estimation_input.define_estimation_settings(save_state_history_per_iteration=True)
 # Perform the estimation
@@ -398,7 +400,7 @@ time2plt = list()
 epochs_julian_seconds = np.vstack(list(state_history.keys()))
 for epoch in epochs_julian_seconds:
     epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
-    time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
+    time2plt.append(time_representation.DateTime.from_julian_day(epoch_days).to_python_datetime())
 
 fig, ax1 = plt.subplots(1, 1, figsize=(10, 6))
 
@@ -489,10 +491,10 @@ time2plt = list()
 epochs_julian_seconds = np.vstack(list(state_history.keys()))
 for epoch in epochs_julian_seconds:
     epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
-    time2plt.append(time_conversion.julian_day_to_calendar_date(epoch_days))
+    time2plt.append(time_representation.DateTime.from_julian_day(epoch_days).to_python_datetime())
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
- 
+
 ax1.plot(time2plt, laplace_stability_prop * 180 / math.pi, label='Propagated', c='#A50034')
 ax1.plot(time2plt, laplace_stability_ephem * 180 / math.pi, label='NOE 5 Ephemeris', c='#EC6842',
          linestyle=(0, (5, 10)))
@@ -505,7 +507,7 @@ ax2.set_title(r'Difference in Laplace Resonance $\Delta\Phi_L$')
 ax2.xaxis.set_major_locator(mdates.MonthLocator(bymonth=1))
 ax2.xaxis.set_minor_locator(mdates.MonthLocator())
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
-ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]');
+ax2.set_ylabel(r'Laplace $\Delta\Phi_L$ [deg]')
 
 
 plt.show()

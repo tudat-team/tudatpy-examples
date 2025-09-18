@@ -11,17 +11,18 @@ We will estimate the initial state of [Eros](https://en.wikipedia.org/wiki/433_E
 
 """
 ## Import statements
-Let's start with importing the required modules. Most - if not all - of them (spice, numerical_simulation, environment, propagation) are used quite extensively in pretty much all tudatpy examples.They will soon become your friends (if they haven't already!).
+Let's start with importing the required modules. Most - if not all - of them (spice, dynamics, environment, propagation) are used quite extensively in pretty much all tudatpy examples.They will soon become your friends (if they haven't already!).
 """
 
 
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy import dynamics
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro.time_representation import DateTime
 
 # import MPC interface
 from tudatpy.data.mpc import BatchMPC
@@ -73,10 +74,10 @@ observations_end = datetime.datetime(2023, 7, 1)
 number_of_pod_iterations = 6
 
 # timestep of 20 hours for our estimation
-timestep_global = 20 * 3600
+timestep_global = 20 * 3600.0
 
 # 1 month time buffer used to avoid interpolation errors:
-time_buffer = 1 * 31 * 86400
+time_buffer = 1 * 31 * 86400.0
 
 # define the frame origin and orientation.
 global_frame_origin = "SSB"
@@ -192,14 +193,14 @@ observation_collection = batch.to_tudat(bodies=bodies, included_satellites=None)
 observation_settings_list = list()
 link_list = list(
     observation_collection.get_link_definitions_for_observables(
-        observable_type=observation.angular_position_type
+        observable_type=observable_models_setup.model_settings.angular_position_type
     )
 )
 
 for link in link_list:
     # add optional bias settings here
     observation_settings_list.append(
-        observation.angular_position(link, bias_settings=None)
+        observable_models_setup.model_settings.angular_position(link, bias_settings=None)
     )
 # Retrieve the first and final observation epochs and add the buffer
 epoch_start_nobuffer = batch.epoch_start
@@ -287,7 +288,7 @@ For the integrator we use the fixed timestep RKF-7(8) setting our initial time t
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     epoch_start_buffer,
     timestep_global,
-    propagation_setup.integrator.rkf_78,
+    propagation_setup.integrator.CoefficientSets.rkf_78,
     timestep_global,
     timestep_global,
     1.0,
@@ -318,12 +319,12 @@ In this example **we will simply estimate the position of Eros** and as such onl
 
 
 # Setup parameters settings to propagate the state transition matrix
-parameter_settings = estimation_setup.parameter.initial_states(
+parameter_settings = parameters_setup.initial_states(
     propagator_settings, bodies
 )
 
 # Create the parameters that will be estimated
-parameters_to_estimate = estimation_setup.create_parameter_set(
+parameters_to_estimate = parameters_setup.create_parameter_set(
     parameter_settings, bodies, propagator_settings
 )
 
@@ -334,7 +335,7 @@ The `Estimator` object collects the environment, observation settings and propag
 
 
 # Set up the estimator
-estimator = numerical_simulation.Estimator(
+estimator = estimation_analysis.Estimator(
     bodies=bodies,
     estimated_parameters=parameters_to_estimate,
     observation_settings=observation_settings_list,
@@ -343,9 +344,9 @@ estimator = numerical_simulation.Estimator(
 )
 
 # provide the observation collection as input, and limit number of iterations for estimation.
-pod_input = estimation.EstimationInput(
+pod_input = estimation_analysis.EstimationInput(
     observations_and_times=observation_collection,
-    convergence_checker=estimation.estimation_convergence_checker(
+    convergence_checker=estimation.estimation_analysis.estimation_convergence_checker(
         maximum_iterations=number_of_pod_iterations,
     ),
 )
@@ -465,7 +466,7 @@ Lets check out the correlation of the estimated parameters.
 
 
 # Correlation can be retrieved using the CovarianceAnalysisInput class:
-covariance_input = estimation.CovarianceAnalysisInput(observation_collection)
+covariance_input = estimation_analysis.CovarianceAnalysisInput(observation_collection)
 covariance_output = estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
@@ -611,7 +612,7 @@ unique_observatories = set(residuals_observatories)
 
 observatory_link_to_mpccode = {
     idx: observation_collection.link_definition_ids[idx][
-        observation.LinkEndType.receiver
+        observable_models_setup.links.receiver
     ].reference_point
     for idx in unique_observatories
 }
