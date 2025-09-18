@@ -34,11 +34,11 @@ from matplotlib import pyplot as plt
 
 # # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -49,7 +49,7 @@ NAIF's `SPICE` kernels are first loaded so that the position of various bodies s
 Then, the start and end simulation epochs are setup. The start epoch is set arbitrarily to 25th April 2000, with the end epoch being set 30 days later.
 
 The times should always be specified in seconds since the epoch of J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
@@ -265,7 +265,7 @@ In this case, a RKF7(8) variable step integrator is used, which has a tolerance 
 # # Setup the variable step integrator time step sizes
 initial_time_step = 10.0
 minimum_time_step = 0.01
-maximum_time_step = 86400
+maximum_time_step = 86400.0
 
 # # Setup the tolerance of the variable step integrator
 tolerance = 1e-10
@@ -337,7 +337,7 @@ propagator_settings = propagation_setup.propagator.multitype(
 
 The orbit from the Earth to the Moon is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module.
 This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -353,7 +353,7 @@ Do pay attention that converting to an `ndarray` using the `result2array()` util
 
 
 # # Instantiate the dynamics simulator and run the simulation
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     system_of_bodies, propagator_settings)
 
 # # Extract the state and dependent variable history

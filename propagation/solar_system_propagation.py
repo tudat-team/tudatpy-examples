@@ -32,11 +32,11 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
+from tudatpy import dynamics
+from tudatpy.dynamics import environment_setup, propagation_setup, propagation, simulator
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -46,7 +46,7 @@ NAIF's `SPICE` kernels are first loaded, so that the position of various bodies 
 Then, the start and end simulation epochs are setup. The start epoch is set arbitrarily to 25th April 2000, with the end epoch being set 5 years later.
 
 The times should always be specified in seconds since J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
@@ -131,7 +131,7 @@ for body_i in bodies_to_create:
                 propagation_setup.acceleration.point_mass_gravity()
             ]
     acceleration_dict[body_i] = current_accelerations
-        
+
 # Convert acceleration mappings into acceleration models for both propagation variants
 for propagation_variant in ["barycentric", "hierarchical"]:
     central_bodies = central_bodies_barycentric if propagation_variant == "barycentric" else central_bodies_hierarchical
@@ -142,7 +142,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
         bodies_to_propagate=bodies_to_propagate,
         central_bodies=central_bodies
     )
-    
+
     if propagation_variant == "barycentric":
         acceleration_models_barycentric = acceleration_models
     else:
@@ -159,14 +159,14 @@ These initial positions are taken directly from SPICE, and are different for bot
 # Define the initial state of each body, taking them from SPICE
 for propagation_variant in ["barycentric", "hierarchical"]:
     central_bodies = central_bodies_barycentric if propagation_variant == "barycentric" else central_bodies_hierarchical
-    
+
     system_initial_state = propagation.get_initial_state_of_bodies(
         bodies_to_propagate=bodies_to_propagate,
         central_bodies=central_bodies,
         body_system=body_system,
         initial_time=simulation_start_epoch
     )
-    
+
     if propagation_variant == "barycentric":
         system_initial_state_barycentric = system_initial_state
     else:
@@ -196,7 +196,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
 
 # Create propagation settings
 for propagation_variant in ["barycentric", "hierarchical"]:
-    
+
     if propagation_variant == "barycentric":
         propagator_settings_barycentric = propagation_setup.propagator.translational(
             central_bodies_barycentric,
@@ -223,7 +223,7 @@ for propagation_variant in ["barycentric", "hierarchical"]:
 ## Propagate the bodies
 Each of the bodies can now be simulated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module.
 This function requires the `body_system` and the appropriate `propagator_settings_X` (with X being the propagation varian), that have all been defined earlier.
 
 In the same step, the history of the propagated states over time, containing both the position and velocity history, is extracted.
@@ -233,12 +233,12 @@ This history takes the form of a dictionary. The keys are the simulated epochs, 
 
 # Propagate the system of bodies and save the state history (all in one step)
 for propagation_variant in ["barycentric", "hierarchical"]:
-    
+
     if propagation_variant == "barycentric":
-        results_barycentric = numerical_simulation.create_dynamics_simulator(
+        results_barycentric = simulator.create_dynamics_simulator(
             body_system, propagator_settings_barycentric).state_history
     else:
-        results_hierarchical = numerical_simulation.create_dynamics_simulator(
+        results_hierarchical = simulator.create_dynamics_simulator(
             body_system, propagator_settings_hierarchical).state_history
 
 
@@ -333,7 +333,7 @@ for ax, ax_lim in zip(axs, ax_lims):
     ax.set_ylim(ax_lim)
     ax.set_zlabel('z [m]')
     ax.set_zlim(ax_lim)
-    
+
 plt.tight_layout()
 
 

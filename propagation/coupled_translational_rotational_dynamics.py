@@ -70,9 +70,9 @@ from numpy.fft import rfft, rfftfreq
 from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
 from tudatpy.interface import spice
-from tudatpy import constants, numerical_simulation
-from tudatpy.astro.time_conversion import DateTime
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import constants, dynamics
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entries
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
@@ -574,7 +574,7 @@ Now that our environment is complete. It is time to start defining the dynamics 
 ## Coupled dynamics
 If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**, and the combined translational-rotational is another example of this multi-type propagation. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
 
-As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational), [rotational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.rotational) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
+As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.translational), [rotational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.rotational) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
 
 Below, we will begin by creating these common inputs and will then move on to the propagator-specific inputs. To analyze our output, we will save Phobos' Kepler elements, Phobos-fixed spherical position of Mars and Phobos' 3-1-3 Euler angles (inertial to body-fixed).
 
@@ -692,14 +692,14 @@ combined_propagator_settings = propagation_setup.propagator.multitype( propagato
 
 """
 ## Simulating the dynamics
-At this point, one has everything they need to simulate. This is always done through the `numerical_simulation.create_dynamics_simulator` function, regardless of the type of dynamics that is considered
+At this point, one has everything they need to simulate. This is always done through the `simulator.create_dynamics_simulator` function, regardless of the type of dynamics that is considered
 """
 
 
 # DYNAMICS SIMULATION
-simulator = numerical_simulation.create_dynamics_simulator(bodies, combined_propagator_settings)
-state_history = simulator.state_history
-dependent_variable_history = simulator.dependent_variable_history
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, combined_propagator_settings)
+state_history = dynamics_simulator.state_history
+dependent_variable_history = dynamics_simulator.dependent_variable_history
 
 
 """
@@ -814,14 +814,14 @@ In reality, Phobos' free modes have been damped due to dissipative effect. Howev
 ## Getting rid of the normal modes
 As we just saw, Phobos does not rotate the way we would expect it to, due to the presence of excited normal modes. The fact that the normal mode is excited is a result of the initial rotational state, which is not consistent with rotational dynamics in which the normal modes are damped. We solve this problem by determining an initial state where these normal modes **are** damped, following the method used by (Rambaux et al. 2010). Specifically, we introduce a _virtual torque_ ("virtual" is a scientific word for "made up") that we know has a strong damping effect, and we propagate the dynamics forward in time. At one point, we will reach a state in which the normal modes have been eliminated from the dynamics (or 'damped'). Now, we remove this damping torque and we propagate the dynamics backward in time from this point onwards, until we reach our original initial time. This new rotational state that we have found, and will call the _damped initial state_ would ideally not excite the normal modes of Phobos when propagated forward again using our 'normal' (e.g. without the virtual torque) dynamical model.
 
-In practice, the normal mode will be excited much less than initially, but some excitation still remains. This is further resolved by repeating the above procedure many times, with increasing 'damping times'. In Tudat, this approach is automated by the `get_damped_proper_mode_initial_rotational_state` function, see the [API reference](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state), where additional details of the algorithm are described. In short, a _damping time_ $\tau_{d}$ is selected, which is a measure of how quick the virtual torque will eliminate the normal modes, and it is used to compute the torque. The propagation is performed forwards in time with the virtual torque enabled, for $10 \tau_{d}$, and backwards to the original time without it. The new initial state is used in another iteration with a new and larger damping time. The implementation of the virtual torque in this algorithm is very specific to bodies in spin-orbit resonance, which will (averaged over long time periods) rotate uniformly around their body-fixed :math:`z` axis, with a period equal to the orbital period. The damping torque will act to prevent the excitation of the normal modes while preserving that uniform rotation. The function thus requires as inputs: (1) the `bodies` object, (2) the `propagator_settings` object, (3) the mean rotational rate of the body around its Z axis, and (4) a list of dissipation times or damping times in order to compute the virtual torques for the different iteration. The above is implemented as follows:
+In practice, the normal mode will be excited much less than initially, but some excitation still remains. This is further resolved by repeating the above procedure many times, with increasing 'damping times'. In Tudat, this approach is automated by the `get_damped_proper_mode_initial_rotational_state` function, see the [API reference](https://py.api.tudat.space/en/latest/propagation.html#tudatpy.dynamics.propagation.get_damped_proper_mode_initial_rotational_state), where additional details of the algorithm are described. In short, a _damping time_ $\tau_{d}$ is selected, which is a measure of how quick the virtual torque will eliminate the normal modes, and it is used to compute the torque. The propagation is performed forwards in time with the virtual torque enabled, for $10 \tau_{d}$, and backwards to the original time without it. The new initial state is used in another iteration with a new and larger damping time. The implementation of the virtual torque in this algorithm is very specific to bodies in spin-orbit resonance, which will (averaged over long time periods) rotate uniformly around their body-fixed :math:`z` axis, with a period equal to the orbital period. The damping torque will act to prevent the excitation of the normal modes while preserving that uniform rotation. The function thus requires as inputs: (1) the `bodies` object, (2) the `propagator_settings` object, (3) the mean rotational rate of the body around its Z axis, and (4) a list of dissipation times or damping times in order to compute the virtual torques for the different iteration. The above is implemented as follows:
 """
 
 
 phobos_mean_rotational_rate = 0.000228035245  # In rad/s
 # As dissipation times, we will start with 4h and keep duplicating the damping time in each iteration. In the final iteration, a damping time of 4096h means a propagation time of 40960h, which is a bit over 4.5 years.
 dissipation_times = list(np.array([4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0])*3600.0)  # In seconds. Here, we
-damping_results = numerical_simulation.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
+damping_results = dynamics.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
                                                                                          combined_propagator_settings,
                                                                                          phobos_mean_rotational_rate,
                                                                                          dissipation_times)
@@ -935,6 +935,10 @@ plt.grid()
 plt.legend()
 
 plt.show()
+
+
+
+
 
 
 plt.show()

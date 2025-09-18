@@ -12,14 +12,16 @@ from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.astro import time_conversion
 from tudatpy.math import interpolators
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.astro import time_representation
 from tudatpy import util
 from tudatpy.data.processTrk234 import Trk234Processor
+
+from tudatpy.dynamics import environment_setup
+from tudatpy import estimation
+from tudatpy.estimation import estimation_analysis
+from tudatpy.estimation import observable_models_setup
+from tudatpy.estimation import observations, observations_setup
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
 from datetime import datetime
@@ -281,8 +283,8 @@ def perform_residuals_analysis(inputs):
     # to ensure that the simulation environment covers the full time span of the loaded TNF files. This is mostly needed because some TNF
     # files - while typically assigned to a certain date - actually spans over (slightly) longer than one day. Without this time buffer,
     # some observation epochs might thus lie outside the time boundaries within which the dynamical environment is defined.
-    start_time = time_conversion.datetime_to_tudat(inputs[1]).to_epoch() - 86400.0
-    end_time = time_conversion.datetime_to_tudat(inputs[2]).to_epoch() + 86400.0
+    start_time = time_representation.datetime_to_tudat(inputs[1]).to_epoch() - 86400.0
+    end_time = time_representation.datetime_to_tudat(inputs[2]).to_epoch() + 86400.0
 
     # Retrieve lists of relevant kernels and input files to load (TNF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)
@@ -431,10 +433,10 @@ def perform_residuals_analysis(inputs):
 
         # Dates to filter out because of incomplete spacecraft orientation kernels (see note when loading orientation kernels on line 168)
         dates_to_filter = [
-            time_conversion.DateTime(2012, 10, 15, 0, 0, 0.0),
-            time_conversion.DateTime(2012, 10, 30, 0, 0, 0),
-            time_conversion.DateTime(2012, 11, 6, 0, 0, 0),
-            time_conversion.DateTime(2012, 11, 7, 0, 0, 0),
+            time_representation.DateTime(2012, 10, 15, 0, 0, 0.0),
+            time_representation.DateTime(2012, 10, 30, 0, 0, 0),
+            time_representation.DateTime(2012, 11, 6, 0, 0, 0),
+            time_representation.DateTime(2012, 11, 7, 0, 0, 0),
         ]
 
         # Remove latest TNF file.
@@ -453,11 +455,10 @@ def perform_residuals_analysis(inputs):
         for date in dates_to_filter:
             dates_to_filter_float.append(date.to_epoch())
             # Create filter object for specific date
-            date_filter = estimation.observation_filter(
-                estimation.time_bounds_filtering,
+            date_filter = observations.observations_processing.observation_filter(
+                observations.observations_processing.ObservationFilterType.time_bounds_filtering,
                 date.to_epoch() - 3600.0,
-                # time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
-                time_conversion.add_days_to_datetime(date, 1.0).to_epoch() + 0.0,
+                time_representation.add_days_to_datetime(date, 1.0).to_epoch() + 0.0,
             )
             # Filter out observations from observation collection
             original_odf_observations.filter_observations(date_filter)
@@ -470,8 +471,9 @@ def perform_residuals_analysis(inputs):
         # to ensure that the time span of each observation set is fully covered by the available kernels. Without this additional step,
         # one could not parse from the lower to upper time bounds of a given observation set without risking accessing unavailable information from spice.
         # This step only becomes relevant when retrieving the position of the MRO antenna over the observation time intervals, as will be done later in the example.
-        date_splitter = estimation.observation_set_splitter(
-            estimation.time_tags_splitter, dates_to_filter_float
+        date_splitter = observations.observations_processing.observation_set_splitter(
+            observations.observations_processing.ObservationSetSplitterType.time_tags_splitter,
+            dates_to_filter_float,
         )
         original_odf_observations.split_observation_sets(date_splitter)
 
@@ -482,10 +484,8 @@ def perform_residuals_analysis(inputs):
         original_odf_observations.print_observation_sets_start_and_size()
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = (
-            estimation_setup.observation.create_compressed_doppler_collection(
-                original_odf_observations, 60, 10
-            )
+        compressed_observations = observations_setup.observations_wrapper.create_compressed_doppler_collection(
+            original_odf_observations, 60, 10
         )
         print("Compressed observations: ")
         print(compressed_observations.concatenated_observations.size)
@@ -543,7 +543,11 @@ def perform_residuals_analysis(inputs):
 
         # Set the spacecraft's reference point position to that of the antenna (in the MRO-fixed frame)
         compressed_observations.set_reference_point(
-            bodies, antenna_ephemeris, "Antenna", "MRO", observation.reflector1
+            bodies,
+            antenna_ephemeris,
+            "Antenna",
+            "MRO",
+            observable_models_setup.links.LinkEndType.reflector1,
         )
 
         ### ------------------------------------------------------------------------------------------
@@ -553,14 +557,14 @@ def perform_residuals_analysis(inputs):
         #  Create light-time corrections list
         light_time_correction_list = list()
         light_time_correction_list.append(
-            estimation_setup.observation.approximated_second_order_relativistic_light_time_correction(
+            observable_models_setup.light_time_corrections.approximated_second_order_relativistic_light_time_correction(
                 ["Sun"]
             )
         )
 
         # Add tropospheric correction
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_tropospheric_light_time_correction(
+            observable_models_setup.light_time_corrections.dsn_tabulated_tropospheric_light_time_correction(
                 tro_files
             )
         )
@@ -569,7 +573,7 @@ def perform_residuals_analysis(inputs):
         spacecraft_name_per_id = dict()
         spacecraft_name_per_id[74] = "MRO"
         light_time_correction_list.append(
-            estimation_setup.observation.dsn_tabulated_ionospheric_light_time_correction(
+            observable_models_setup.light_time_corrections.dsn_tabulated_ionospheric_light_time_correction(
                 ion_files, spacecraft_name_per_id
             )
         )
@@ -578,13 +582,13 @@ def perform_residuals_analysis(inputs):
         # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
         # added to each of these link ends.
         doppler_link_ends = compressed_observations.link_definitions_per_observable[
-            estimation_setup.observation.dsn_n_way_averaged_doppler
+            estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
         ]
 
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
             observation_model_settings.append(
-                estimation_setup.observation.dsn_n_way_doppler_averaged(
+                observable_models_setup.model_settings.dsn_n_way_doppler_averaged(
                     current_link_definition, light_time_correction_list
                 )
             )
@@ -592,7 +596,7 @@ def perform_residuals_analysis(inputs):
         # Add solar corona correction only for range observables.
         # Values form Verma et al. (2013), from MEX 2011 solar conjunction data
         light_time_correction_list.append(
-            estimation_setup.observation.inverse_power_series_solar_corona_light_time_correction(
+            observable_models_setup.light_time_corrections.inverse_power_series_solar_corona_light_time_correction(
                 [1.70e12],
                 [2.44],
             )
@@ -600,37 +604,39 @@ def perform_residuals_analysis(inputs):
 
         # Create observation model settings for the range observables (similar to the Doppler observables).
         range_link_ends = compressed_observations.link_definitions_per_observable[
-            estimation_setup.observation.dsn_n_way_range
+            estimation.observable_models_setup.model_settings.dsn_n_way_range_type
         ]
 
         for current_link_definition in range_link_ends:
             observation_model_settings.append(
-                estimation_setup.observation.dsn_n_way_Range(
+                observable_models_setup.model_settings.dsn_n_way_range(
                     current_link_definition, light_time_correction_list
                 )
             )
 
         # Create observation simulators.
-        observation_simulators = estimation_setup.create_observation_simulators(
+        observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
             observation_model_settings, bodies
         )
 
         # Add elevation and SEP angles dependent variables to the compressed observation collection
-        elevation_angle_settings = observation.elevation_angle_dependent_variable(
-            observation.receiver
+        elevation_angle_settings = observations_setup.observations_dependent_variables.elevation_angle_dependent_variable(
+            observable_models_setup.links.LinkEndType.receiver
         )
         elevation_angle_parser = compressed_observations.add_dependent_variable(
             elevation_angle_settings, bodies
         )
-        sep_angle_settings = observation.avoidance_angle_dependent_variable(
-            "Sun", observation.retransmitter, observation.receiver
+        sep_angle_settings = observations_setup.observations_dependent_variables.avoidance_angle_dependent_variable(
+            "Sun",
+            observable_models_setup.links.LinkEndType.retransmitter,
+            observable_models_setup.links.LinkEndType.receiver,
         )
         sep_angle_parser = compressed_observations.add_dependent_variable(
             sep_angle_settings, bodies
         )
 
         # Compute and set residuals in the compressed observation collection
-        estimation.compute_residuals_and_dependent_variables(
+        observations.compute_residuals_and_dependent_variables(
             compressed_observations, observation_simulators, bodies
         )
 
@@ -640,14 +646,16 @@ def perform_residuals_analysis(inputs):
 
         for obsType, obsName in zip(
             [
-                estimation_setup.observation.dsn_n_way_range,
-                estimation_setup.observation.dsn_n_way_averaged_doppler,
+                estimation.observable_models_setup.model_settings.dsn_n_way_range_type,
+                estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type,
             ],
             ["range", "doppler"],
         ):
-            obsType_parser = estimation.observation_parser(obsType)
+            obsType_parser = observations.observations_processing.observation_parser(
+                obsType
+            )
 
-            parsed_observations = estimation.create_new_observation_collection(
+            parsed_observations = observations.create_new_observation_collection(
                 compressed_observations, obsType_parser
             )
 
@@ -694,8 +702,9 @@ def perform_residuals_analysis(inputs):
             elif obsName == "range":
                 threshold = 40  # residuals > 40 RU
 
-            filter_residuals = estimation.observation_filter(
-                estimation.residual_filtering, threshold
+            filter_residuals = observations.observations_processing.observation_filter(
+                observations.observations_processing.ObservationFilterType.residual_filtering,
+                threshold,
             )
             parsed_observations.filter_observations(filter_residuals, obsType_parser)
 
@@ -796,10 +805,8 @@ def perform_residuals_analysis(inputs):
                 rangeConversionFactors = []
 
                 for obs_set in single_obs_sets:
-                    rangeConversionFactor = (
-                        obs_set.ancilliary_settings.get_float_settings(
-                            observation.range_conversion_factor
-                        )
+                    rangeConversionFactor = obs_set.ancilliary_settings.get_float_settings(
+                        observations_setup.ancillary_settings.range_conversion_factor,
                     )
                     rangeConversionFactors.append(rangeConversionFactor)
 
@@ -819,8 +826,10 @@ def perform_residuals_analysis(inputs):
                 # (starting from the first observation epoch)
                 # first_day_parser = estimation.observation_parser((start_time + 2.0 * 86400.0, start_time + 3.0 * 86400.0))
                 start_obs_times = time_bounds_per_filtered_set[0][0].to_float()
-                first_day_parser = estimation.observation_parser(
-                    (start_obs_times, start_obs_times + 86400.0)
+                first_day_parser = (
+                    observations.observations_processing.observation_parser(
+                        (start_obs_times, start_obs_times + 86400.0)
+                    )
                 )
 
                 # Retrieve residuals, observation times and dependent variables over the first day
@@ -869,10 +878,8 @@ def perform_residuals_analysis(inputs):
                     first_day_range_conversion_factors = []
 
                     for obs_set in single_obs_sets:
-                        rangeConversionFactor = (
-                            obs_set.ancilliary_settings.get_float_settings(
-                                observation.range_conversion_factor
-                            )
+                        rangeConversionFactor = obs_set.ancilliary_settings.get_float_settings(
+                            observations_setup.ancillary_settings.range_conversion_factor,
                         )
                         first_day_range_conversion_factors.append(rangeConversionFactor)
 
@@ -910,12 +917,12 @@ if __name__ == "__main__":
     setup_outputs_folder("outputs")
 
     # Specify the number of cores over which this example is to run
-    nb_cores = 6
+    nb_cores = 1
 
     # Define start and end dates for the six time intervals to be analysed in parallel computations.
     # Each parallel run covers two months of data for the example to parse a total timespan of one year.
     start_dates = [
-        datetime(2012, 1, 2),
+        datetime(2012, 1, 1),
         datetime(2012, 3, 1),
         datetime(2012, 5, 1),
         datetime(2012, 7, 1),
