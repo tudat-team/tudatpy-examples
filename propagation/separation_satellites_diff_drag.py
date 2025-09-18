@@ -28,11 +28,11 @@ from scipy import interpolate
 
 # Load tudatpy modules
 from tudatpy import constants
-from tudatpy import numerical_simulation
+from tudatpy import dynamics
 from tudatpy.astro import element_conversion
 from tudatpy.interface import spice
-from tudatpy.numerical_simulation import environment_setup, propagation_setup, propagation
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.dynamics import environment_setup, propagation_setup, propagation, simulator
+from tudatpy.astro.time_representation import DateTime
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -227,7 +227,7 @@ where $\mathbf{r_1}$ and $\mathbf{r_2}$ are the position vectors of the first an
 """
 
 
-from tudatpy.numerical_simulation.environment import SystemOfBodies
+from tudatpy.dynamics.environment import SystemOfBodies
 
 class AngleSeparationTermination:
 
@@ -394,7 +394,7 @@ With these commands, we execute the simulation and retrieve the output.
 
 
 # Create simulation object and propagate dynamics.
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings)
 states = dynamics_simulator.propagation_results.state_history
 dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
@@ -516,7 +516,7 @@ for element_number in range(6):
     current_ax.grid()
     if element_number == 0:
         current_ax.legend()
-        
+
 plt.tight_layout()        
 
 

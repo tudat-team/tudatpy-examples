@@ -27,12 +27,12 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -42,7 +42,7 @@ NAIF's `SPICE` kernels are first loaded, so that the position of various bodies 
 Then, the start and end simulation epochs are setups. In this case, the start epoch is set to `0`, corresponding to the 1st of January 2000.
 The end epoch is defined as 1 day later.
 The times should be specified in seconds since J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
@@ -177,10 +177,9 @@ Then, the translational propagator settings are defined. These are used to simul
 termination_settings = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
 # Create numerical integrator settings
-fixed_step_size = 10.0
 integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
     time_step = 10.0,
-    coefficient_set = propagation_setup.integrator.rk_4 )
+    coefficient_set = propagation_setup.integrator.CoefficientSets.rk_4 )
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -198,7 +197,7 @@ propagator_settings = propagation_setup.propagator.translational(
 ## Propagate the orbit
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` submodule.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -211,10 +210,9 @@ This history, taking the form of a dictionary, is then converted to an array con
 
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings
 )
-
 # Extract the resulting state history and convert it to an ndarray
 states = dynamics_simulator.propagation_results.state_history
 states_array = result2array(states)

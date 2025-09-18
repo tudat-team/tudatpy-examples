@@ -36,7 +36,7 @@ import matplotlib.pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.trajectory_design import transfer_trajectory, shape_based_thrust
-from tudatpy.numerical_simulation import environment_setup
+from tudatpy.dynamics import environment_setup
 from tudatpy.util import result2array
 from tudatpy import constants
 
@@ -132,7 +132,7 @@ node_times.append( node_times[ 4 ] + 4552.30796805542 * julian_day )
 leg_free_parameters = list( )
 for i in transfer_leg_settings:
     leg_free_parameters.append( np.zeros(0))
-    
+
 # Define free parameters per node (for now: none)
 node_free_parameters = list( )
 for i in transfer_node_settings:
@@ -283,7 +283,7 @@ transfer_leg_settings = []
 for i in range(len(transfer_body_order) - 1):
     transfer_leg_settings.append( transfer_trajectory.dsm_velocity_based_leg() )
 
-    
+
 # Manually create the nodes settings
 
 # First create an empty list and then append to that the settings of each transfer node
@@ -295,7 +295,7 @@ transfer_node_settings.append( transfer_trajectory.departure_node(departure_semi
 # Intermediate nodes: swingby_node
 for i in range(len(transfer_body_order) - 2):
     transfer_node_settings.append( transfer_trajectory.swingby_node() )
-    
+
 # Final node: capture_node
 transfer_node_settings.append( transfer_trajectory.capture_node(arrival_semi_major_axis, arrival_eccentricity) )
 
@@ -537,7 +537,7 @@ for i in range(len(transfer_body_order)-1):
         exponent = exponent,
         frequency = (number_of_revolutions[i] + 0.5)*frequency,
         scale_factor = scale_factor ** exponent))
-    
+
     # Save lists with the shaping functions of the current leg
     radial_velocity_function_components_per_leg.append(radial_velocity_functions)
     normal_velocity_function_components_per_leg.append(normal_velocity_functions)

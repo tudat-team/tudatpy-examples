@@ -48,9 +48,9 @@ from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics import propagation_setup
+from tudatpy.dynamics import simulator
 import tudatpy.util as util
 
 # Load pygmo library
@@ -77,7 +77,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     # Define initial Itokawa orientation in inertial frame (equatorial plane)
     initial_orientation_j2000 = frame_conversion.inertial_to_body_fixed_rotation_matrix(
         pole_declination, pole_right_ascension, meridian_at_epoch)
-    
+
     # Get initial Itokawa orientation in inertial frame but in the Ecliptic plane
     initial_orientation_eclipj2000 = np.matmul(spice.compute_rotation_matrix_between_frames(
         "J2000", "ECLIPJ2000", 0.0), initial_orientation_j2000)
@@ -87,7 +87,7 @@ def get_itokawa_rotation_settings(itokawa_body_frame_name):
     if check_results:
         np.set_printoptions(precision=100)
         print(initial_orientation_j2000)
-    
+
         print(initial_orientation_eclipj2000)
 
     # Compute rotation rate
@@ -112,19 +112,19 @@ def get_itokawa_ephemeris_settings(sun_gravitational_parameter):
         np.deg2rad(162.8147699851312),
         np.deg2rad(69.0803904880264),
         np.deg2rad(187.6327516838828)])
-    
+
     # Convert mean anomaly to true anomaly
     itokawa_kepler_elements[5] = element_conversion.mean_to_true_anomaly(
         eccentricity=itokawa_kepler_elements[1],
         mean_anomaly=itokawa_kepler_elements[5])
-    
+
     # Get epoch of initial Kepler elements (in Julian Days)
     kepler_elements_reference_julian_day = 2459000.5
-    
+
     # Sets new reference epoch for Itokawa ephemerides (different from J2000)
     kepler_elements_reference_epoch = (kepler_elements_reference_julian_day - constants.JULIAN_DAY_ON_J2000) \
                                       * constants.JULIAN_DAY
-    
+
     # Sets the ephemeris model
     return environment_setup.ephemeris.keplerian(
         itokawa_kepler_elements,
@@ -317,7 +317,7 @@ def get_dependent_variables_to_save():
 
 
 class AsteroidOrbitProblem:
-    
+
     def __init__(self,
                  bodies,
                  propagator_settings,
@@ -325,15 +325,15 @@ class AsteroidOrbitProblem:
                  mission_duration,
                  design_variable_lower_boundaries,
                  design_variable_upper_boundaries):
-        
+
         # Sets input arguments as lambda function attributes
         # NOTE: this is done so that the class is "pickable", i.e., can be serialized by pygmo
         self.bodies_function = lambda: bodies
         self.propagator_settings_function = lambda: propagator_settings
-        
+
         # Initialize empty dynamics simulator
         self.dynamics_simulator_function = lambda: None
-        
+
         # Set other input arguments as regular attributes
         self.mission_initial_time = mission_initial_time
         self.mission_duration = mission_duration
@@ -351,10 +351,10 @@ class AsteroidOrbitProblem:
                 orbit_parameters):
         # Retrieves system of bodies
         current_bodies = self.bodies_function()
-        
+
         # Retrieves Itokawa gravitational parameter
         itokawa_gravitational_parameter = current_bodies.get("Itokawa").gravitational_parameter
-        
+
         # Reset the initial state from the design variable vector
         new_initial_state = element_conversion.keplerian_to_cartesian_elementwise(
             gravitational_parameter=itokawa_gravitational_parameter,
@@ -364,29 +364,29 @@ class AsteroidOrbitProblem:
             argument_of_periapsis=np.deg2rad(235.7),
             longitude_of_ascending_node=np.deg2rad(orbit_parameters[3]),
             true_anomaly=np.deg2rad(139.87))
-        
+
         # Retrieves propagator settings object
         propagator_settings = self.propagator_settings_function()
-        
+
         # Reset the initial state
         propagator_settings.initial_states = new_initial_state
 
         # Propagate orbit
-        dynamics_simulator = numerical_simulation.create_dynamics_simulator(current_bodies,
+        dynamics_simulator = simulator.create_dynamics_simulator(current_bodies,
                                                                         propagator_settings)
-        
+
         # Update dynamics simulator function
         self.dynamics_simulator_function = lambda: dynamics_simulator
 
         # Retrieve dependent variable history
         dependent_variables = dynamics_simulator.propagation_results.dependent_variable_history
         dependent_variables_list = np.vstack(list(dependent_variables.values()))
-        
+
         # Retrieve distance
         distance = dependent_variables_list[:, 0]
         # Retrieve latitude
         latitudes = dependent_variables_list[:, 1]
-        
+
         # Compute mean latitude
         mean_latitude = np.mean(np.absolute(latitudes))
         # Computes fitness as mean latitude
@@ -551,15 +551,15 @@ population_list = []
 # Evolve the population recursively
 for gen in range(number_of_evolutions):
     print("Evolving population; at generation %i/%i" % (gen, number_of_evolutions-1))
-    
+
     # Evolve the population
     pop = algo.evolve(pop)
-    
+
     # Store the fitness values and design variables for all individuals
     fitness_list.append(pop.get_f())
     population_list.append(pop.get_x())
 
-    
+
 print("Evolving population is finished!")
 
 
@@ -581,29 +581,29 @@ simulation_output = dict()
 
 # Loop over first and last generations
 for population_index, population_name in pops_to_analyze.items():
-    
+
     # Get population individuals from the given generation
     current_population = population_list[population_index]
-    
+
     # Current generation's dictionary
     generation_output = dict()
-    
+
     # Loop over all individuals of the populations
     for individual in range(population_size):
 
         # Retrieve orbital parameters
         current_orbit_parameters = current_population[individual]
-        
+
         # Propagate orbit and compute fitness
         orbitProblem.fitness(current_orbit_parameters)
-        
+
         # Retrieve state and dependent variable history
         current_states = orbitProblem.get_last_run_dynamics_simulator().propagation_results.state_history
         current_dependent_variables = orbitProblem.get_last_run_dynamics_simulator().propagation_results.dependent_variable_history
-        
+
         # Save results to dict
         generation_output[individual] = [current_states, current_dependent_variables]
-        
+
     # Append to global dictionary
     simulation_output[population_index] = [generation_output,
                                            fitness_list[population_index],
@@ -645,10 +645,10 @@ design_variable_units = {0: r' m',
 
 # Loop over populations
 for population_index in simulation_output.keys():
-    
+
     # Retrieve current population
     current_generation = simulation_output[population_index]
-    
+
     # Plot Pareto fronts for all design variables
     fig, axs = plt.subplots(2, 2, figsize=(9, 5))
     fig.suptitle('Generation ' + str(population_index), fontweight='bold', y=0.95)
@@ -663,18 +663,18 @@ for population_index in simulation_output.keys():
                         marker='.',
                         cmap="plasma",
                         alpha=0.65)
-        
+
         # Plot the design variable using a colormap
         cbar = fig.colorbar(cs, ax=ax)
         cbar.ax.set_ylabel(design_variable_names[ax_index])
-        
+
         # Add a label only on the left-most and bottom-most axes
         ax.grid('major')
         if ax_index > 1:
             ax.set_xlabel(r'Objective 1: coverage [$deg^{-1}$]')
         if ax_index == 0 or ax_index == 2:
             ax.set_ylabel(r'Objective 2: proximity [$m$]')
-            
+
         # Add the Pareto front itself in green
         optimum_mask = util.pareto_optimums(np.array([np.deg2rad(current_fitness[:, 0]), current_fitness[:, 1]]).T)
         ax.step(
@@ -683,7 +683,7 @@ for population_index in simulation_output.keys():
             color="#418F3E",
             linewidth=2,
             alpha=0.75)
-        
+
 # Show the figure
 plt.tight_layout()
 plt.show()
@@ -702,12 +702,12 @@ last_pop = simulation_output[number_of_evolutions - 1][2]
 
 for ax_index, ax in enumerate(axs.flatten()):
     ax.hist(last_pop[:, ax_index], bins=30)
-    
+
     # Prettify
     ax.set_xlabel(design_variable_names[ax_index])
     if ax_index % 2 == 0:
         ax.set_ylabel('Occurrences in the population')
-        
+
 # Show the figure
 plt.tight_layout()
 plt.show()
@@ -730,14 +730,14 @@ title = {0: 'Initial orbit bundle',
 # Loop over populations
 for ax_index, population_index in enumerate(simulation_output.keys()):
     current_ax = fig.add_subplot(1, 2, 1 + ax_index, projection='3d')
-    
+
     # Retrieve current population
     current_generation = simulation_output[population_index]
     current_population = current_generation[2]
-    
+
     # Loop over individuals
     for ind_index, individual in enumerate(current_population):
-        
+
         # Plot orbit
         state_history = list(current_generation[0][ind_index][0].values())
         state_history = np.vstack(state_history)
@@ -745,7 +745,7 @@ for ax_index, population_index in enumerate(simulation_output.keys()):
                         state_history[:, 1],
                         state_history[:, 2],
                         linewidth=0.5)
-        
+
     # Prettify
     current_ax.set_xlabel('X [m]')
     current_ax.set_ylabel('Y [m]')
@@ -777,13 +777,13 @@ current_population = current_generation[2]
 
 # Loop over design variables
 for var in range(4):
-    
+
     # Create axis
     current_ax = fig.add_subplot(2, 2, 1 + var, projection='3d')
-    
+
     # Loop over individuals
     for ind_index, individual in enumerate(current_population):
-        
+
         # Set plot color according to boundaries
         if individual[var] < design_variable_range[var][0]:
             plt_color = 'r'
@@ -808,7 +808,7 @@ for var in range(4):
                         color=plt_color,
                         linewidth=0.5,
                         label=label)
-        
+
     # Prettify
     current_ax.set_xlabel('X [m]')
     current_ax.set_ylabel('Y [m]')
@@ -818,7 +818,7 @@ for var in range(4):
     design_variable_legend, ids = np.unique(design_variable_legend, return_index=True)
     handles = [handles[i] for i in ids]
     current_ax.legend(handles, design_variable_legend, loc='lower right', bbox_to_anchor=(0.3, 0.6))
-    
+
 # Show the figure
 plt.tight_layout()
 plt.show()

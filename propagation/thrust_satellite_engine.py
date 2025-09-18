@@ -39,13 +39,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from tudatpy.util import result2array
-from tudatpy.kernel import constants
-from tudatpy.kernel.interface import spice
-from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.numerical_simulation import environment
-from tudatpy.kernel.numerical_simulation import environment_setup
-from tudatpy.kernel.numerical_simulation import propagation_setup
-from tudatpy.kernel.astro import element_conversion, time_conversion
+from tudatpy import constants
+from tudatpy.interface import spice
+from tudatpy import dynamics
+from tudatpy.dynamics import environment, environment_setup, propagation_setup, simulator
+from tudatpy.astro import element_conversion, time_representation
 
 # Load spice kernels.
 spice.load_standard_kernels()
@@ -285,7 +283,7 @@ In this example, the initial state is retrieved from the JUICE spice kernel for 
 """
 
 
-simulation_start_date = time_conversion.DateTime(2035,7,28,14,24)
+simulation_start_date = time_representation.DateTime(2035,7,28,14,24)
 simulation_start_epoch = simulation_start_date.epoch()
 simulation_end_epoch = simulation_start_epoch + 344.0 * constants.JULIAN_DAY / 24.0
 
@@ -343,8 +341,8 @@ In this case, an RK4 fixed step size integrator is used, with a given step size 
 
 # Create numerical integrator settings.
 fixed_step_size = 10.0
-integrator_settings = propagation_setup.integrator.runge_kutta_4(
-    fixed_step_size
+integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+    fixed_step_size, coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4
 )
 
 
@@ -362,7 +360,7 @@ Finally, a multitype propagator is defined, encompassing both the translational 
 ## Coupled dynamics
 If you have used Tudat before, you are most probably familiar with what _translational propagators_ are. Possibly, you are also familiar with combined translational-mass propagations. These are just an example of a **multi-type propagation**. The way Tudat deals with these multi-type propagations is by creating the appropriate "single-type" propagation settings for each type of dynamics, and then putting them all together at then end in the _multi-type propagator settings_. Thus, we will follow the same process here. For more details, see [multi-type propagation documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/multi_type.html).
 
-As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.translational), [mass](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.mass) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.numerical_simulation.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
+As you will see in the code below - and can be deduced comparing the APIs for the [translational](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.translational), [mass](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.mass) and [multi-type](https://py.api.tudat.space/en/latest/propagator.html#tudatpy.dynamics.propagation_setup.propagator.multitype) propagators - some of the inputs (namely the integrator settings, the initial time, the termination settings and the output variables) are identical between all three propagators - the two single-type and the one multi-type. In these overlaps, tudat will only read the "top level" arguments, i.e. those passed to the multi-type propagator and will ignore the rest. This means that these inputs can be left empty (`0`, `NaN` or `None`) for the single-type propagators. However, it is good practice to be self-consistent and pass the same inputs to all propagators. This facilitates the use of the single-type propagators for the simulation of only one type of dynamics while being consistent with the inputs of the multi-type simulation.
 
 Below, we will begin by creating these common inputs and will then move on to the propagator-specific inputs.
 """
@@ -414,7 +412,7 @@ propagator_settings.print_settings.print_initial_and_final_conditions = True
 
 The orbit of JUICE around Ganymede is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation module`.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics, simulator module`.
 This function requires the `system_of_bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -429,7 +427,7 @@ Do pay attention that converting to an `ndarray` using the `result2array()` util
 
 
 # Create simulation object and propagate dynamics.
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings)
 
 # Retrieve all data produced by simulation

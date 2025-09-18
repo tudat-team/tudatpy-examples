@@ -34,8 +34,8 @@ import pickle
 # Tudat imports
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy.astro.time_conversion import DateTime
-from tudatpy.numerical_simulation import environment_setup
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.dynamics import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
 
@@ -64,7 +64,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 """
 ## Porkchop Plots
-The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_representation.DateTime` objects.
 """
 
 

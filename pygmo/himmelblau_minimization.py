@@ -61,7 +61,7 @@ class HimmelblauOptimization:
                  x_max: float,
                  y_min: float,
                  y_max: float):
-        
+
         # Set input arguments as attributes, representing the problem bounds for both design variables
         self.x_min = x_min
         self.x_max = x_max
@@ -74,7 +74,7 @@ class HimmelblauOptimization:
     def fitness(self, x):
         # Compute Himmelblau function value
         function_value = math.pow(x[0] * x[0] + x[1] - 11.0, 2.0) + math.pow(x[0] + x[1] * x[1] - 7.0, 2.0)
-        
+
         # Return list
         return [function_value]
 
@@ -230,7 +230,7 @@ z_grid = np.zeros((grid_points, grid_points))
 for i in range(x_grid.shape[1]):
     for j in range(x_grid.shape[0]):
         z_grid[i, j] = udp.fitness([x_grid[i, j], y_grid[i, j]])[0]
-        
+
 # Create figure
 fig, ax = plt.subplots(figsize=(9,5))
 cs = ax.contour(x_grid, y_grid, z_grid, 50)
@@ -350,7 +350,7 @@ z_grid = np.zeros((number_of_points, number_of_points))
 for i in range(x_grid.shape[1]):
     for j in range(x_grid.shape[0]):
         z_grid[i, j] = udp.fitness([x_grid[i, j], y_grid[i, j]])[0]
-        
+
 # Get the best individual
 best_f = np.min(z_grid)
 best_ind = np.argmin(z_grid)

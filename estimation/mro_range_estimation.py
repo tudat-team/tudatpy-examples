@@ -52,9 +52,10 @@ import matplotlib.pyplot as plt
 from tudatpy import data
 from tudatpy import constants
 from tudatpy.interface import spice
-from tudatpy.numerical_simulation import environment_setup, environment
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
 
 
 """
@@ -109,10 +110,10 @@ An `ObservationCollection` is the useful type for Tudat to perform all its estim
 
 
 # Create ancillary settings
-ancillary_settings = observation.n_way_range_ancilliary_settings(frequency_bands=[observation.FrequencyBands.x_band])
+ancillary_settings = observations_setup.ancillary_settings.n_way_range_ancilliary_settings(frequency_bands=[observations_setup.ancillary_settings.FrequencyBands.x_band])
 
 # Create the observation collection
-observations = observation.create_tracking_txtfile_observation_collection(
+observations = observations_setup.observations_wrapper.create_tracking_txtfile_observation_collection(
     raw_datafile, "Mars", ancillary_settings=ancillary_settings
 )
 
@@ -201,22 +202,22 @@ The system of bodies was already defined above, and all the other required infor
 
 # Extract the relevant information from the real observations to mimic
 linkdef_ids = observations.concatenated_link_definition_ids
-distinct_linkdefs = observations.get_link_definitions_for_observables(observation.n_way_range_type)
+distinct_linkdefs = observations.get_link_definitions_for_observables(observable_models_setup.model_settings.n_way_range_type)
 
 # Create the observation model settings to match those of the real observations
 observation_model_settings = [
-    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id]) for linkdef_id in linkdef_ids
+    observable_models_setup.model_settings.n_way_range(distinct_linkdefs[linkdef_id]) for linkdef_id in linkdef_ids
 ]
 
 def create_observations(observation_model_settings, bodies):
     # Create the observation simulators
-    observation_simulators = estimation_setup.create_observation_simulators(observation_model_settings, bodies)
+    observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(observation_model_settings, bodies)
 
     # Get the simulator settings directly from the real observations
-    observation_simulation_settings = estimation_setup.observation.observation_settings_from_collection(observations)
+    observation_simulation_settings = observations_setup.observations_simulation_settings.observation_settings_from_collection(observations, bodies)
 
     # Simulate the observations
-    simulated_observations = estimation.simulate_observations(observation_simulation_settings, observation_simulators, bodies)
+    simulated_observations = observations_setup.observations_wrapper.simulate_observations(observation_simulation_settings, observation_simulators, bodies)
 
     return simulated_observations
 
@@ -275,11 +276,11 @@ Doing this and once more plotting the residuals shows that **the error signal re
 
 #  Create light time corrections
 light_time_correction_list =[
-        estimation_setup.observation.first_order_relativistic_light_time_correction(["Sun"])
+        observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
 ]
 
 observation_model_settings_lighttime = [
-    estimation_setup.observation.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in linkdef_ids
+    observable_models_setup.model_settings.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in linkdef_ids
 ]
 
 simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)
