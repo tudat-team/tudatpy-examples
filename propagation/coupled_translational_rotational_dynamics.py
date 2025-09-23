@@ -72,7 +72,7 @@ from tudatpy.util import result2array
 from tudatpy.interface import spice
 from tudatpy import constants, dynamics
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.dynamics import environment_setup, propagation_setup, simulator
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator, propagation
 from tudatpy.astro.element_conversion import rotation_matrix_to_quaternion_entries
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from matplotlib import pyplot as plt
@@ -821,7 +821,7 @@ In practice, the normal mode will be excited much less than initially, but some 
 phobos_mean_rotational_rate = 0.000228035245  # In rad/s
 # As dissipation times, we will start with 4h and keep duplicating the damping time in each iteration. In the final iteration, a damping time of 4096h means a propagation time of 40960h, which is a bit over 4.5 years.
 dissipation_times = list(np.array([4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0])*3600.0)  # In seconds. Here, we
-damping_results = dynamics.propagation.get_damped_proper_mode_initial_rotational_state(bodies,
+damping_results = propagation.get_damped_proper_mode_initial_rotational_state(bodies,
                                                                                          combined_propagator_settings,
                                                                                          phobos_mean_rotational_rate,
                                                                                          dissipation_times)
