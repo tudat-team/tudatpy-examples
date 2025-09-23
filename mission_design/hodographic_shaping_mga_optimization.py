@@ -49,7 +49,7 @@ import multiprocessing as mp
 import tudatpy
 from tudatpy.util import result2array
 from tudatpy import constants
-from tudatpy.numerical_simulation import environment_setup
+from tudatpy.dynamics import environment_setup
 from tudatpy.trajectory_design import shape_based_thrust, transfer_trajectory
 
 
@@ -72,7 +72,7 @@ def create_low_thrust_transfer_object(transfer_body_order: list,
                                       departure_eccentricity: float,
                                       arrival_semi_major_axis: float,
                                       arrival_eccentricity: float,
-                                      bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+                                      bodies: tudatpy.dynamics.environment.SystemOfBodies,
                                       central_body: str,
                                       numbers_of_revolutions: List[int]) -> \
         tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory:

@@ -24,9 +24,11 @@ In this example we do not perform an estimation, as such we only need the `Batch
 
 
 from tudatpy.data.mpc import BatchMPC
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
 from tudatpy.interface import spice
+from tudatpy.dynamics import environment, environment_setup
+from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
+from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+
 
 from tudatpy.data.horizons import HorizonsQuery
 
@@ -157,14 +159,14 @@ observation_settings_list = list()
 
 link_list = list(
     observation_collection.get_link_definitions_for_observables(
-        observable_type=observation.angular_position_type
+        observable_type=observable_models_setup.model_settings.angular_position_type
     )
 )
 
 for link in link_list:
     # add optional bias settings
     observation_settings_list.append(
-        observation.angular_position(link, bias_settings=None)
+        observable_models_setup.model_settings.angular_position(link, bias_settings=None)
     )
 
 

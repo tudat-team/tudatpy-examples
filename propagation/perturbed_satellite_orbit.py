@@ -3,7 +3,7 @@
 ## Objectives
 This example demonstrates the propagation of a (quasi-massless) body dominated by a central point-mass attractor, but also including multiple perturbing accelerations exerted by the central body as well as third bodies.
 
-The example showcases the ease with which a simulation environment can be extended to a multi-body system. It also demonstrates the wide variety of acceleration types that can be modelled using the `propagation_setup.acceleration` module, including accelerations from non-conservative forces such as drag and radiation pressure. Note that the modelling of these acceleration types requires special environment interfaces (implemented via [AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html#tudatpy.numerical_simulation.environment_setup.aerodynamic_coefficients.AerodynamicCoefficientSettings) and [RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.numerical_simulation.environment_setup.radiation_pressure.RadiationPressureTargetModelSettings)) of the body undergoing the accelerations.
+The example showcases the ease with which a simulation environment can be extended to a multi-body system. It also demonstrates the wide variety of acceleration types that can be modelled using the `propagation_setup.acceleration` module, including accelerations from non-conservative forces such as drag and radiation pressure. Note that the modelling of these acceleration types requires special environment interfaces (implemented via [AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html#tudatpy.dynamics.environment_setup.aerodynamic_coefficients.AerodynamicCoefficientSettings) and [RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.dynamics.environment_setup.radiation_pressure.RadiationPressureTargetModelSettings)) of the body undergoing the accelerations.
 
 It also demonstrates and motivates the usage of dependent variables. By keeping track of such variables throughout the propagation, valuable insight, such as contributions of individual acceleration types, ground tracks or the evolution of Kepler elements, can be derived in the post-propagation analysis.
 """
@@ -26,13 +26,13 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -207,7 +207,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 Next, the start and end simulation epochs are specified.
 In Tudat, all epochs are defined as seconds since J2000.
 For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
@@ -311,7 +311,7 @@ propagator_settings = propagation_setup.propagator.translational(
 ## Propagate the orbit
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `numerical_simulation` module.
+This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module.
 This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
 
 After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
@@ -327,7 +327,7 @@ Do mind that converting to an ndarray using the `result2array()` utility will sh
 
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings
 )
 

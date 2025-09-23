@@ -3,7 +3,7 @@
 Copyright (c) 2010-2024, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please visit: http://tudat.tudelft.nl/LICENSE.
 
 ## Objectives
-This example extends the previous [Initial state estimation with Minor Planet Center Observations](estimation_with_mpc.ipynb). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation. 
+This example extends the previous [Initial state estimation with Minor Planet Center Observations](estimation_with_mpc.ipynb). In an attempt to improve the results from the previous example, we introduce and compare the effects of including satellite data, star catalog corrections, observation weighting and more expansive acceleration models. It essential to be familiar with the previous example as many concepts will be reused here without explanation.
 
 As in the previous example we will estimate the initial state of [433 Eros](https://en.wikipedia.org/wiki/433_Eros). In addition to observation data from MPC and metadata from SBDB, we now also use ephemeris data from JPL Horizons to retrieve position data for observing space telescopes, additional perturbing bodies and as a method of comparison. This is accomplished using Tudat's HorizonsQuery Interface.
 """
@@ -15,13 +15,13 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
-from tudatpy.numerical_simulation import estimation, estimation_setup
-from tudatpy.numerical_simulation.estimation_setup import observation
+from tudatpy.dynamics import environment_setup, parameters_setup, parameters, propagation, propagation_setup
+from tudatpy import estimation
+from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
+from tudatpy.astro.time_representation import DateTime
+from tudatpy.astro import element_conversion
 
 # import MPC, SBDB and Horizons interface
 from tudatpy.data.mpc import BatchMPC
@@ -35,8 +35,10 @@ import datetime
 import pandas as pd
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import matplotlib.cm as cm
+from tudatpy.astro import time_representation
+from tudatpy.astro.time_representation import DateTime
+from astropy.table import Table
 
 # SPICE KERNELS
 spice.load_standard_kernels()
@@ -71,10 +73,10 @@ observations_end = datetime.datetime(2024, 1, 1)
 number_of_pod_iterations = 6
 
 # timestep of 24 hours for our estimation
-timestep_global = 24 * 3600
+timestep_global = 24 * 3600.0
 
 # 2 month time buffer used to avoid interpolation errors:
-time_buffer = 2 * 31 * 86400
+time_buffer = 2 * 31 * 86400.0
 
 # define the frame origin and orientation.
 global_frame_origin = "SSB"
@@ -103,9 +105,6 @@ At the moment, this is not directly supported through Tudat interfaces, but will
 In this case, the ephemeris uncertainty of Eros has been downloaded manually and is provided in the [data/Eros-Ephemeris-Uncertainty.ecsv](data/Eros-Ephemeris-Uncertainty.ecsv) file, using the code in the following `astroquery` PR: https://github.com/astropy/astroquery/pull/3273
 """
 
-
-from astropy.table import Table
-
 uncertainty_file_path = "data/Eros-Ephemeris-Uncertainty.ecsv"
 ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
 
@@ -116,16 +115,7 @@ print(", ".join(ephemeris_uncertainty_table.colnames))
 As the data provided by JPL is not in SI units, we will first convert it to units compatible with Tudat.
 """
 
-
-from tudatpy.astro.time_conversion import julian_day_to_seconds_since_epoch
-import astropy
-
-ephemeris_uncertainty_table["ephemeris_time"] = [
-    julian_day_to_seconds_since_epoch(
-        jd,
-    )
-    for jd in ephemeris_uncertainty_table["datetime_jd"]
-]
+ephemeris_uncertainty_table["ephemeris_time"] = [DateTime.from_julian_day(jd) for jd in ephemeris_uncertainty_table["datetime_jd"]]
 
 for col in ephemeris_uncertainty_table.colnames:
     if col in ["ephemeris_time", "datetime_jd", "datetime_str", "targetname", "H", "G"]:
@@ -161,11 +151,13 @@ use_catalog_cor = [False, False, False]
 use_weighting = [False, False, False]
 
 satellites_names = ["WISE"]
-satellites_MPC_codes = ["C51"] # C51 is the observatory code MPC uses for WISE
-satellites_Horizons_codes = ["-163"]  # -163 is the query ID for WISE in Horizons see explanation below.
+satellites_MPC_codes = ["C51"]  # C51 is the observatory code MPC uses for WISE
+satellites_Horizons_codes = [
+    "-163"
+]  # -163 is the query ID for WISE in Horizons see explanation below.
 
 
-# Consider trying out different combinations of satellites. 
+# Consider trying out different combinations of satellites.
 # Note that you must change the dates to use TESS as it launched in April 2018
 # satellites_names = ["WISE", "TESS"]
 # satellites_MPC_codes = ["C51", "C57"]
@@ -181,23 +173,27 @@ All NEAs from the archive are retrieved, as well as all MBA with a mass greater 
 """
 
 
-lvl3_extra_bodies = ["999", "Triton", "Titania"] # here 999 is Pluto in JPL Horizons
+lvl3_extra_bodies = ["999", "Triton", "Titania"]  # here 999 is Pluto in JPL Horizons
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
 
 
 
 file = "SiMDA_240512.csv"
 
-min_asteroid_mass = 1e20 # kg
+min_asteroid_mass = 1e20  # kg
 target_int = int(target_mpc_code)
 
 simda = (
     pd.read_csv(file)
-    .iloc[18:] # the first 18 rows contain comets, which are omitted
+    .iloc[18:]  # the first 18 rows contain comets, which are omitted
     .assign(NUM=lambda x: np.int32(x.NUM))
-    .query("DYN == 'NEA' | (DYN == 'MBA' & MASS > @min_asteroid_mass)") # filter relevant bodies
-    .query("NUM != @target_int") # remove 433 Eros, which is also a NEA
-    .query("NUM != [1, 4]") # remove Ceres and Vesta which are retrieved through spice kernels
+    .query(
+        "DYN == 'NEA' | (DYN == 'MBA' & MASS > @min_asteroid_mass)"
+    )  # filter relevant bodies
+    .query("NUM != @target_int")  # remove 433 Eros, which is also a NEA
+    .query(
+        "NUM != [1, 4]"
+    )  # remove Ceres and Vesta which are retrieved through spice kernels
     .loc[:, ["NUM", "DESIGNATION", "DIAM", "DYN", "MASS"]]
 )
 
@@ -226,14 +222,20 @@ batch.filter(
 )
 
 # Retrieve the first and final observation epochs and add the buffer
-epoch_start_nobuffer = batch.epoch_start
-epoch_end_nobuffer = batch.epoch_end
+epoch_start_nobuffer = DateTime.from_epoch(batch.epoch_start)
+epoch_end_nobuffer =  DateTime.from_epoch(batch.epoch_end)
+
+print(f"Epoch Start (no buffer): {epoch_start_nobuffer.to_epoch()}")
+print(f"Epoch End (no buffer): {epoch_end_nobuffer.to_epoch()}")
 
 # This samples the cartesian state at 500 points over the observation time:
-times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
+times_get_eph = np.linspace(epoch_start_nobuffer.to_epoch(), epoch_end_nobuffer.to_epoch(), 500)
 
-epoch_start_buffer = epoch_start_nobuffer - time_buffer
-epoch_end_buffer = epoch_end_nobuffer + time_buffer
+epoch_start_buffer = epoch_start_nobuffer.to_epoch() - time_buffer
+epoch_end_buffer = epoch_end_nobuffer.to_epoch() + time_buffer
+
+print(f"Epoch Start (buffer): {epoch_start_buffer}")
+print(f"Epoch End (buffer): {epoch_end_buffer}")
 
 initial_guess = spice.get_body_cartesian_state_at_epoch(
     target_spkid,
@@ -245,7 +247,6 @@ initial_guess = spice.get_body_cartesian_state_at_epoch(
 
 print("Summary of space telescopes in batch:")
 print(batch.observatories_table(only_space_telescopes=True))
-
 
 """
 ### Retrieving satellite and astroid ephemerides from JPL Horizons
@@ -265,8 +266,8 @@ for code, name in zip(satellites_Horizons_codes, satellites_names):
         location=f"@{global_frame_origin}",
         epoch_start=epoch_start_buffer,
         epoch_end=epoch_end_buffer,
-        epoch_step=f"{int(timestep_global/60)}m", # Horizons does not permit a stepsize in seconds
-        extended_query=True, # extended query allows for more data to be retrieved.
+        epoch_step=f"{int(timestep_global/60)}m",  # Horizons does not permit a stepsize in seconds
+        extended_query=True,  # extended query allows for more data to be retrieved.
     )
 
     sat_ephemeris[name] = query.create_ephemeris_tabulated(
@@ -361,7 +362,9 @@ for name in satellites_names:
 # Add asteroids, their ephemerides and gravity field to body settings
 for asteroid_code, asteroid_mass in zip(lvl3_asteroids, lvl3_asteroids_masses):
     body_settings.add_empty_settings(str(asteroid_code))
-    body_settings.get(str(asteroid_code)).ephemeris_settings = ast_ephemeris[asteroid_code]
+    body_settings.get(str(asteroid_code)).ephemeris_settings = ast_ephemeris[
+        asteroid_code
+    ]
     body_settings.get(str(asteroid_code)).gravity_field_settings = (
         environment_setup.gravity_field.central(asteroid_mass * GRAVITATIONAL_CONSTANT)
     )
@@ -418,26 +421,21 @@ accelerations_2 = {
     ],
     "Mercury": [propagation_setup.acceleration.point_mass_gravity()],
     "Venus": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Earth": [propagation_setup.acceleration.point_mass_gravity()],
     "Moon": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Mars": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Jupiter": [propagation_setup.acceleration.point_mass_gravity()],
     "Io": [propagation_setup.acceleration.point_mass_gravity()],
     "Europa": [propagation_setup.acceleration.point_mass_gravity()],
     "Ganymede": [propagation_setup.acceleration.point_mass_gravity()],
     "Callisto": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Saturn": [propagation_setup.acceleration.point_mass_gravity()],
     "Titan": [propagation_setup.acceleration.point_mass_gravity()],
     "Rhea": [propagation_setup.acceleration.point_mass_gravity()],
     "Iapetus": [propagation_setup.acceleration.point_mass_gravity()],
     "Dione": [propagation_setup.acceleration.point_mass_gravity()],
-    
-    "Uranus": [propagation_setup.acceleration.point_mass_gravity()],
 
+    "Uranus": [propagation_setup.acceleration.point_mass_gravity()],
     "Neptune": [propagation_setup.acceleration.point_mass_gravity()],
 }
 
@@ -453,21 +451,19 @@ accelerations_3 = {
         propagation_setup.acceleration.spherical_harmonic_gravity(2, 2),
     ],
     "Moon": [propagation_setup.acceleration.point_mass_gravity()],
-    
+
     "Mars": [propagation_setup.acceleration.point_mass_gravity()],
     "Phobos": [propagation_setup.acceleration.point_mass_gravity()],
     "Deimos": [propagation_setup.acceleration.point_mass_gravity()],
-    
+
     "Ceres": [propagation_setup.acceleration.point_mass_gravity()],
     "Vesta": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Jupiter": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Io": [propagation_setup.acceleration.point_mass_gravity()],
     "Europa": [propagation_setup.acceleration.point_mass_gravity()],
     "Ganymede": [propagation_setup.acceleration.point_mass_gravity()],
     "Callisto": [propagation_setup.acceleration.point_mass_gravity()],
-    
+
     "Saturn": [propagation_setup.acceleration.point_mass_gravity()],
     "Titan": [propagation_setup.acceleration.point_mass_gravity()],
     "Rhea": [propagation_setup.acceleration.point_mass_gravity()],
@@ -476,20 +472,25 @@ accelerations_3 = {
     "Tethys": [propagation_setup.acceleration.point_mass_gravity()],
     "Enceladus": [propagation_setup.acceleration.point_mass_gravity()],
     "Mimas": [propagation_setup.acceleration.point_mass_gravity()],
-
     "Uranus": [propagation_setup.acceleration.point_mass_gravity()],
     "Neptune": [propagation_setup.acceleration.point_mass_gravity()],
 }
 
 # For each asteroid + Pluto, Titania and Triton we create a point mass gravity.
-asteroid_accelerations = {str(num):[propagation_setup.acceleration.point_mass_gravity()] for num in lvl3_asteroids}
-other_accelerations = {str(num):[propagation_setup.acceleration.point_mass_gravity()] for num in lvl3_extra_bodies}
+asteroid_accelerations = {
+    str(num): [propagation_setup.acceleration.point_mass_gravity()]
+    for num in lvl3_asteroids
+}
+other_accelerations = {
+    str(num): [propagation_setup.acceleration.point_mass_gravity()]
+    for num in lvl3_extra_bodies
+}
 
 # we combine the accelerations to achieve the final LVL 3 set
 accelerations_3 = (accelerations_3 | asteroid_accelerations) | other_accelerations
 
 # Dictionary with the three acceleration setting options
-acceleration_sets = {1: accelerations_1, 2: accelerations_2, 3:accelerations_3}
+acceleration_sets = {1: accelerations_1, 2: accelerations_2, 3: accelerations_3}
 
 
 """
@@ -500,18 +501,17 @@ We use the same fixed timestep RKF-7(8) integrator as before, with the buffered 
 
 # Create numerical integrator settings
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    epoch_start_buffer,
-    timestep_global,
+    time_representation.Time(epoch_start_buffer),
+    time_representation.Time(timestep_global),
     propagation_setup.integrator.CoefficientSets.rkf_78,
-    timestep_global,
-    timestep_global,
-    1.0,
-    1.0,
+    time_representation.Time(timestep_global),
+    time_representation.Time(timestep_global),
+    time_representation.Time(1.0),
+    time_representation.Time(1.0),
 )
 
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.time_termination(epoch_end_buffer)
-
 
 """
 ## Estimation and plotting functions
@@ -531,13 +531,13 @@ To enable standardised comparison of the different setups, we create estimation 
 
 
 def perform_estimation(
-    bodies,
-    acceleration_level:int,
-    use_satellite_data: bool,
-    apply_star_catalog_debias: bool,
-    apply_weighting_scheme: bool,
+        bodies,
+        acceleration_level:int,
+        use_satellite_data: bool,
+        apply_star_catalog_debias: bool,
+        apply_weighting_scheme: bool,
 ):
-    # The satellites are present in the integration of all setups, 
+    # The satellites are present in the integration of all setups,
     # the included satellitess parameter in to_tudat() dictates whether a satellite's observations are used.
     if use_satellite_data:
         included_satellites = {
@@ -572,12 +572,12 @@ def perform_estimation(
     observation_settings_list = list()
     link_list = list(
         observation_collection.get_link_definitions_for_observables(
-            observable_type=observation.angular_position_type
+            observable_type=observable_models_setup.model_settings.angular_position_type
         )
     )
     for link in link_list:
         observation_settings_list.append(
-            observation.angular_position(link, bias_settings=None)
+            observable_models_setup.model_settings.angular_position(link, bias_settings=None)
         )
 
     # Create propagation settings
@@ -592,17 +592,17 @@ def perform_estimation(
     )
 
     # Setup parameters settings to propagate the state transition matrix
-    parameter_settings = estimation_setup.parameter.initial_states(
+    parameter_settings = parameters_setup.initial_states(
         propagator_settings, bodies
     )
 
     # Create the parameters that will be estimated
-    parameters_to_estimate = estimation_setup.create_parameter_set(
+    parameters_to_estimate = parameters_setup.create_parameter_set(
         parameter_settings, bodies, propagator_settings
     )
 
     # Set up the estimator
-    estimator = numerical_simulation.Estimator(
+    estimator = estimation_analysis.Estimator(
         bodies=bodies,
         estimated_parameters=parameters_to_estimate,
         observation_settings=observation_settings_list,
@@ -611,9 +611,9 @@ def perform_estimation(
     )
 
     # provide the observation collection as input, and limit number of iterations for estimation.
-    pod_input = estimation.EstimationInput(
+    pod_input = estimation_analysis.EstimationInput(
         observations_and_times=observation_collection,
-        convergence_checker=estimation.estimation_convergence_checker(
+        convergence_checker=estimation_analysis.estimation_convergence_checker(
             maximum_iterations=number_of_pod_iterations,
         ),
     )
@@ -640,9 +640,9 @@ def perform_estimation(
 
 
 def plot_residuals(
-    setup_names: list,
-    pod_output_set: list,
-    observation_collection_set: list,
+        setup_names: list,
+        pod_output_set: list,
+        observation_collection_set: list,
 ):
     number_of_columns = len(pod_output_set)
 
@@ -661,7 +661,7 @@ def plot_residuals(
         axs = np.reshape(axs, (len(axs), 1))
 
     for setup_idx, (p_out, obs_col, setup_name) in enumerate(
-        zip(pod_output_set, observation_collection_set, setup_names)
+            zip(pod_output_set, observation_collection_set, setup_names)
     ):
         residual_history = p_out.residual_history
 
@@ -675,8 +675,8 @@ def plot_residuals(
             axs[i, setup_idx].scatter(
                 residual_times[::2],
                 residual_history[
-                    ::2,
-                    i,
+                ::2,
+                i,
                 ],
                 marker="+",
                 s=30,
@@ -685,8 +685,8 @@ def plot_residuals(
             axs[i, setup_idx].scatter(
                 residual_times[1::2],
                 residual_history[
-                    1::2,
-                    i,
+                1::2,
+                i,
                 ],
                 marker="+",
                 s=30,
@@ -732,11 +732,11 @@ def get_gap_ranges(observation_collection):
     # lets get ranges for all gaps in observations larger than 6 months:
     gap_in_months = 6
     residual_times = (
-        np.array(observation_collection.concatenated_times) / (86400 * 365.25) + 2000
+            np.array(observation_collection.concatenated_times) / (86400 * 365.25) + 2000
     )
     gaps = np.abs(np.diff(sorted(residual_times)))
     num_gaps = (
-        gaps > (gap_in_months / 12)
+            gaps > (gap_in_months / 12)
     ).sum()  # counts the number of gaps larger than 0.5 years
     indices_of_largest_gaps = np.argsort(gaps)[-num_gaps:]
     # (start, end) for each of the gaps
@@ -750,11 +750,11 @@ def get_gap_ranges(observation_collection):
 
 
 def plot_cartesian(
-    state_estimates_set: list,
-    setup_names: list,
-    observation_collection_set: list,
-    comparison_reference: str,
-    in_RSW: bool = False,
+        state_estimates_set: list,
+        setup_names: list,
+        observation_collection_set: list,
+        comparison_reference: str,
+        in_RSW: bool = False,
 ):
 
     comparison_reference = check_comparison_reference(comparison_reference)
@@ -805,8 +805,8 @@ def plot_cartesian(
                 [
                     inertial_to_rsw_rotation_matrix(reference_state) @ error[:3]
                     for reference_state, error in zip(
-                        reference_states, error_to_reference
-                    )
+                    reference_states, error_to_reference
+                )
                 ]
             )
 
@@ -842,7 +842,7 @@ def plot_cartesian(
 
 
 def add_uncertainty_table_to_cartesian_plot(
-    axs, ephemeris_uncertainty_table: Table, in_RSW: bool = False
+        axs, ephemeris_uncertainty_table: Table, in_RSW: bool = False
 ):
 
     if not in_RSW:
@@ -864,13 +864,15 @@ def add_uncertainty_table_to_cartesian_plot(
             ]
         ).T
 
+    uncertainty_history[:, 0] = [uncertainty_history[i, 0].to_epoch() for i in range(len(uncertainty_history[:, 0]))]
+
     time_filter = np.where(
         (uncertainty_history[:, 0] >= times_get_eph[0])
-        & (uncertainty_history[:, 0] <= times_get_eph[-1])
+        & (uncertainty_history[:, -1]<=  times_get_eph[-1])
     )
     uncertainty_history_time_filtered = uncertainty_history[time_filter]
     jpl_uncertainty_epochs_year = (
-        uncertainty_history_time_filtered[:, 0] / (86400 * 365.25) + 2000
+            uncertainty_history_time_filtered[:, 0] / (86400 * 365.25) + 2000
     )
     jpl_uncertainties_km = uncertainty_history_time_filtered[:, 1:4] / 1000
 
@@ -898,12 +900,12 @@ def add_uncertainty_table_to_cartesian_plot(
 
 
 def add_formal_error_to_cartesian_single_plot(
-    ax, formal_error_epochs, formal_errors, in_RSW, sigma_level=3
+        ax, formal_error_epochs, formal_errors, in_RSW, sigma_level=3
 ):
 
     labels = ["R", "S", "W"] if not in_RSW else ["X", "Y", "Z"]
     times_plot = (
-        formal_error_epochs / (86400 * 365.25) + 2000
+            formal_error_epochs / (86400 * 365.25) + 2000
     )  # approximate for plot ticks
 
     for i in range(3):
@@ -913,23 +915,23 @@ def add_formal_error_to_cartesian_single_plot(
             linestyle="--",
             color=cm.tab10(i),
             label=f"$\pm {sigma_level}\sigma$ Formal Error {labels[i]}",
-        )
+            )
         ax.plot(
             times_plot,
             -sigma_level * formal_errors[:, i] / 1e3,
             linestyle="--",
             color=cm.tab10(i),
-        )
+            )
 
 
 
 def plot_cartesian_single(
-    state_estimate,
-    setup_name,
-    observation_collection,
-    comparison_reference,
-    in_RSW=False,
-    plot_error_norm=False,
+        state_estimate,
+        setup_name,
+        observation_collection,
+        comparison_reference,
+        in_RSW=False,
+        plot_error_norm=False,
 ):
 
     comparison_reference = check_comparison_reference(comparison_reference)
@@ -1026,7 +1028,7 @@ from matplotlib.lines import Line2D
 
 
 def plot_star_catalog_corrections(
-    mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 6)
+        mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 6)
 ):
 
     if include_satellites:
@@ -1086,7 +1088,7 @@ def plot_star_catalog_corrections(
 
 
 def plot_observation_weights(
-    mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 4)
+        mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 4)
 ):
 
     sat_epochs = mpc_batch.table[mpc_batch.table["note2"] == "S"]["epochUTC"].values
@@ -1197,14 +1199,12 @@ state_estimates_set = []
 for idx, setup_name in enumerate(setup_names):
     print(f"\n### Running setup #{idx+1} | {setup_name} ###")
 
-    pod_output, batch, observation_collection, estimator = (
-        perform_estimation(
-            bodies,
-            acceleration_level=accel_levels[idx],
-            use_satellite_data=use_sat_data[idx],
-            apply_star_catalog_debias=use_catalog_cor[idx],
-            apply_weighting_scheme=use_weighting[idx],
-        )
+    pod_output, batch, observation_collection, estimator = perform_estimation(
+        bodies,
+        acceleration_level=accel_levels[idx],
+        use_satellite_data=use_sat_data[idx],
+        apply_star_catalog_debias=use_catalog_cor[idx],
+        apply_weighting_scheme=use_weighting[idx],
     )
     state_estimates = []
     for timee in times_get_eph:
@@ -1286,7 +1286,7 @@ estimator_set_2 = []
 state_estimates_set_2 = []
 
 # This samples the cartesian state at 500 points over the observation time:
-times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
+times_get_eph = np.linspace(epoch_start_nobuffer.to_epoch(), epoch_end_nobuffer.to_epoch(), 500)
 
 for idx, setup_name in enumerate(setup_names_2):
     print(f"\n### Running setup #{idx+1} | {setup_name} ###")
@@ -1399,11 +1399,7 @@ fig, ax = plot_cartesian_single(
 We can also add the formal errors of our solution to the previous plots.
 In order to do that, we propagate our covariance to the output epochs, transform it to the Eros-RSW frame and then compute the corresponding formal errors from the covariance.
 """
-
-
-from tudatpy.numerical_simulation import estimation
-
-_, covariance_history = estimation.propagate_covariance_split_output(
+_, covariance_history = estimation.estimation_analysis.propagate_covariance_split_output(
     final_pod_output.covariance,
     final_estimator.state_transition_interface,
     times_get_eph,
@@ -1454,7 +1450,7 @@ Below are the same comparison plots used in the original example. Consider compa
 
 
 # Corellation can be retrieved using the CovarianceAnalysisInput class:
-covariance_input = estimation.CovarianceAnalysisInput(final_observation_collection)
+covariance_input = estimation.estimation_analysis.CovarianceAnalysisInput(final_observation_collection)
 covariance_output = final_estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
@@ -1496,7 +1492,7 @@ consider_satellites = use_sat_data_2[chosen_setup_index]
 
 residual_history = final_pod_output.residual_history
 residual_times = (
-    np.array(final_observation_collection.concatenated_times) / (86400 * 365.25) + 2000
+        np.array(final_observation_collection.concatenated_times) / (86400 * 365.25) + 2000
 )
 
 prefitresiduals = np.array(residual_history[:, 0])
@@ -1511,6 +1507,7 @@ observatory_names = (
     .set_index("Code")
 )
 top_observatories = observatory_names.index.tolist()
+
 # This piece of code creates a `concatenated_receiving_observatories` map
 # to identify the observatories by their MPC code instead of an internally used id
 residuals_observatories = final_observation_collection.concatenated_link_definition_ids
@@ -1518,7 +1515,7 @@ unique_observatories = set(residuals_observatories)
 
 observatory_link_to_mpccode = {
     idx: final_observation_collection.link_definition_ids[idx][
-        observation.LinkEndType.receiver
+        observable_models_setup.links.receiver
     ].reference_point
     for idx in unique_observatories
 }
@@ -1590,14 +1587,15 @@ axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_ylabel("Residuals [rad]")
     ax.set_xlabel("Year")
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
-axs[0].set_title("Right Ascension")
-axs[1].set_title("Declination")
-
+overall_rms_ra_prefit = np.sqrt(np.mean(prefitresiduals[::2]**2))
+overall_rms_dec_prefit = np.sqrt(np.mean(prefitresiduals[1::2]**2))
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}")
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}")
 fig.suptitle(f"Pre-Fit Residuals for {target_name}")
 fig.set_tight_layout(True)
 
@@ -1652,17 +1650,18 @@ axs[1].legend(ncols=2, loc="upper center", bbox_to_anchor=(0.47, -0.15))
 
 for ax in fig.get_axes():
     ax.grid()
-    ax.set_ylabel("Observation Residual [rad]")
+    ax.set_ylabel("Residuals [rad]")
     ax.set_xlabel("Year")
     # this step hides a few outliers (~3 observations)
     ax.set_ylim(-1.5e-5, 1.5e-5)
 
-axs[0].set_title("Right Ascension")
-axs[1].set_title("Declination")
+overall_rms_ra_postfit = np.sqrt(np.mean(finalresiduals[::2]**2))
+overall_rms_dec_postfit = np.sqrt(np.mean(finalresiduals[1::2]**2))
 
-fig.suptitle(f"Final Iteration residuals for {target_name}")
+axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}")
+axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}")
+fig.suptitle(f"Post-fit residuals for {target_name}")
 fig.set_tight_layout(True)
-
 plt.show()
 ######## POSTFIT RESIDUALS PLOTTING ################
 

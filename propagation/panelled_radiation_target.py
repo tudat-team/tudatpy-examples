@@ -23,11 +23,11 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup, propagation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 # Load spice kernels
 spice.load_standard_kernels()
@@ -109,12 +109,12 @@ The definition of the panelled settings can be divided in six steps:
 
 1. Create **geometry settings** for all n panels using `*_panel_geometry()` functions of [vehicle_systems](https://py.api.tudat.space/en/latest/vehicle_systems.html) module
 2. Create **reflection law settings** for all panels using `*_body_panel_reflection()` functions of [radiation_pressure](https://py.api.tudat.space/en/latest/radiation_pressure.html) module
-3. **Merge geometry settings and reflection law settings** using [body_panel_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.body_panel_settings) function to create [BodyPanelSettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.BodyPanelSettings) for all n panels.
-4. **Merge all [BodyPanelSettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.BodyPanelSettings)** to create [FullPanelledBodySettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.FullPanelledBodySettings) using [full_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.full_panelled_body_settings) function.
-5. Add [FullPanelledBodySettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.FullPanelledBodySettings) to [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.BodySettings.vehicle_shape_settings) attribute of spacecraft body settings
-6. Create **panelled radiation pressure target settings** and define occulting bodies using [panelled_radiation_target()](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.numerical_simulation.environment_setup.radiation_pressure.panelled_radiation_target) function. Note: Since the panel settings are part of the [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.BodySettings.vehicle_shape_settings) attribute of the body settings, this function does not take the panel settings as user-input.
+3. **Merge geometry settings and reflection law settings** using [body_panel_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.body_panel_settings) function to create [BodyPanelSettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.BodyPanelSettings) for all n panels.
+4. **Merge all [BodyPanelSettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.BodyPanelSettings)** to create [FullPanelledBodySettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.FullPanelledBodySettings) using [full_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.full_panelled_body_settings) function.
+5. Add [FullPanelledBodySettings](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.FullPanelledBodySettings) to [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.dynamics.environment_setup.BodySettings.vehicle_shape_settings) attribute of spacecraft body settings
+6. Create **panelled radiation pressure target settings** and define occulting bodies using [panelled_radiation_target()](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.dynamics.environment_setup.radiation_pressure.panelled_radiation_target) function. Note: Since the panel settings are part of the [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.dynamics.environment_setup.BodySettings.vehicle_shape_settings) attribute of the body settings, this function does not take the panel settings as user-input.
 
-Note: If you would like to define a standard box-wing spacecraft model, take a look at the [box_wing_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.box_wing_panelled_body_settings) function, which takes care of steps 1-4.
+Note: If you would like to define a standard box-wing spacecraft model, take a look at the [box_wing_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.box_wing_panelled_body_settings) function, which takes care of steps 1-4.
 
 In addition to the steps outlined above, the spacecraft needs to have a rotation model defined. See the [rotation_model](https://py.api.tudat.space/en/latest/rotation_model.html) module for different options.
 """
@@ -125,7 +125,7 @@ In addition to the steps outlined above, the spacecraft needs to have a rotation
 Before defining all the panel geometries, the rotation model of the spacecraft is defined, which determines the orientation of the body-fixed spacecraft frame with respect to the inertial space.
 
 It is assumed that the body-fixed x-axis of the spacecraft is colinear to the velocity vector. Since the spacecraft is in a nearly circular orbit, this corresponds to an approximately nadir-pointing attitude.
-The selected rotation model is therefore defined based on the orbital state using the [orbital_state_direction_based()](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.numerical_simulation.environment_setup.rotation_model.orbital_state_direction_based) model.
+The selected rotation model is therefore defined based on the orbital state using the [orbital_state_direction_based()](https://py.api.tudat.space/en/latest/rotation_model.html#tudatpy.dynamics.environment_setup.rotation_model.orbital_state_direction_based) model.
 """
 
 
@@ -149,9 +149,9 @@ This includes the outward normal vector of the panel surface (either fixed in a 
 
 Three options are available to define panel geometries:
 
-- [frame_fixed_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.frame_fixed_panel_geometry)
-- [time_varying_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.time_varying_panel_geometry)
-- [body_tracking_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.body_tracking_panel_geometry)
+- [frame_fixed_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.frame_fixed_panel_geometry)
+- [time_varying_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.time_varying_panel_geometry)
+- [body_tracking_panel_geometry()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.body_tracking_panel_geometry)
 
 For our 3U cubesat with an additional solar panel, 7 panels need to be defined.
 As all cubesat sidewalls have constant orientation in the body-frame, the `frame_fixed_panel_geometry` will be used for these.
@@ -192,7 +192,7 @@ solar_panel_geometry = environment_setup.vehicle_systems.body_tracking_panel_geo
 To define the panel settings, the reflection law needs to be defined for all panels.
 In this simplified model, a Lambertian reflection law is assumed for the spacecraft body (no specular reflections), while the solar panels reflect incoming radiation in both specular and diffuse components.
 
-Having defined the reflection laws, the geometry settings of all n plates are then combined with the corresponding reflection law using the [body_panel_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.body_panel_settings) function and stored in a combined list.
+Having defined the reflection laws, the geometry settings of all n plates are then combined with the corresponding reflection law using the [body_panel_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.body_panel_settings) function and stored in a combined list.
 """
 
 
@@ -236,11 +236,11 @@ panel_settings.append(
 """
 ### 4. - 6. Merge body panel settings, assign to spacecraft and define target settings
 
-In the last steps, the spacecraft panel settings are defined using the [full_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.numerical_simulation.environment_setup.vehicle_systems.full_panelled_body_settings) function, which combines all separate panel settings.
+In the last steps, the spacecraft panel settings are defined using the [full_panelled_body_settings()](https://py.api.tudat.space/en/latest/vehicle_systems.html#tudatpy.dynamics.environment_setup.vehicle_systems.full_panelled_body_settings) function, which combines all separate panel settings.
 These settings can then be assigned to the spacecraft body settings.
 
 Finally, the radiation target model settings are defined.
-Note that these settings do not define the panel model itself (which is defined in the [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.BodySettings.vehicle_shape_settings)), but rather that the spacecraft should use a paneled target model, which is (internally) taken from the vehicle shape settings.
+Note that these settings do not define the panel model itself (which is defined in the [vehicle_shape_settings](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.dynamics.environment_setup.BodySettings.vehicle_shape_settings)), but rather that the spacecraft should use a paneled target model, which is (internally) taken from the vehicle shape settings.
 """
 
 
@@ -386,9 +386,7 @@ propagator_settings = propagation_setup.propagator.translational(
 
 
 # Create simulation object and propagate the dynamics
-dynamics_simulator = numerical_simulation.create_dynamics_simulator(
-    bodies, propagator_settings
-)
+dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 
 # Extract the resulting state and dependent variable history and convert it to an ndarray
 states = dynamics_simulator.propagation_results.state_history

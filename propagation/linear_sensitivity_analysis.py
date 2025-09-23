@@ -6,7 +6,7 @@ This example is an extension of the Perturbed Satellite Orbit Application. It ad
 
 The script demonstrates how the basic numerical simulation setup (aiming to propagate the state of the system) can swiftly be extended to enable a study of the system's sensitivity.
 
-Via the `estimation_setup.parameter` module, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the `numerical_simulation` module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
+Via the `dynamics.parameters_setup` module, the system parameters w.r.t. which the sensitivity is to be studied are defined and a `create_variational_equations_solver` function from the `dynamics.simulator` module is used in order to setup and integrate the system's variational equations. After obtaining the state transition matrices from the integrated variational equations, the system's response to small perturbations can be tested via simple matrix multiplication.
 
 The availability of variational equations in tudat enables many more, advanced functionalities, such as covariance analysis and precise orbit determination.
 """
@@ -27,13 +27,13 @@ from matplotlib import pyplot as plt
 
 # Load tudatpy modules
 from tudatpy.interface import spice
-from tudatpy import numerical_simulation
-from tudatpy.numerical_simulation import environment
-from tudatpy.numerical_simulation import environment_setup, propagation_setup, estimation_setup
+from tudatpy import dynamics
+from tudatpy.dynamics import environment
+from tudatpy.dynamics import parameters_setup, environment_setup, propagation_setup, simulator
 from tudatpy.astro import element_conversion
 from tudatpy import constants
 from tudatpy.util import result2array
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 
 
 """
@@ -187,7 +187,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 Next, the start and end simulation epochs are specified.
 In Tudat, all epochs are defined as seconds since J2000.
 For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 
@@ -258,14 +258,14 @@ The list of the available estimated parameters for the sensitivity matrix are al
 
 
 # Setup parameters settings to propagate the state transition matrix
-parameter_settings = estimation_setup.parameter.initial_states(propagator_settings, bodies)
+parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
 
 # Add estimated parameters to the sensitivity matrix that will be propagated
-parameter_settings.append(estimation_setup.parameter.gravitational_parameter("Earth"))
-parameter_settings.append(estimation_setup.parameter.constant_drag_coefficient("Delfi-C3"))
+parameter_settings.append(parameters_setup.gravitational_parameter("Earth"))
+parameter_settings.append(parameters_setup.constant_drag_coefficient("Delfi-C3"))
 
 # Create the parameters that will be estimated
-parameters_to_estimate = estimation_setup.create_parameter_set(parameter_settings, bodies)
+parameters_to_estimate = parameters_setup.create_parameter_set(parameter_settings, bodies)
 
 
 """
@@ -277,7 +277,7 @@ This function takes additional arguments: the parameters that have to be estimat
 
 
 # Create the variational equation solver and propagate the dynamics
-variational_equations_solver = numerical_simulation.create_variational_equations_solver(
+variational_equations_solver = simulator.create_variational_equations_solver(
     bodies, propagator_settings, parameters_to_estimate, simulate_dynamics_on_creation=True
 )
 

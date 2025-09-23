@@ -38,17 +38,17 @@ import matplotlib.pyplot as plt
 # Tudatpy imports
 import tudatpy
 from tudatpy import constants
-from tudatpy import numerical_simulation
+from tudatpy import dynamics
 from tudatpy.interface import spice
-from tudatpy.astro.time_conversion import DateTime
+from tudatpy.astro.time_representation import DateTime
 from tudatpy.trajectory_design import shape_based_thrust
 from tudatpy.trajectory_design import transfer_trajectory
-from tudatpy.numerical_simulation import environment_setup
-from tudatpy.numerical_simulation import propagation_setup
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics import propagation_setup, simulator
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop
 
 # Tudatpy data processing utilities
-from tudatpy.numerical_simulation.propagation import create_dependent_variable_dictionary
+from tudatpy.dynamics.propagation import create_dependent_variable_dictionary
 from tudatpy.util import result2array
 
 
@@ -285,7 +285,7 @@ Define a function to obtain the LTTO solution
 
 def create_hodographic_trajectory(
         trajectory_parameters: list,
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         departure_body: str,
         target_body: str,
         central_body: str) \
@@ -297,7 +297,7 @@ def create_hodographic_trajectory(
     ----------
     trajectory_parameters : list
         List of trajectory parameters to be optimized.
-    bodies : tudatpy.numerical_simulation.environment.SystemOfBodies
+    bodies : tudatpy.dynamics.environment.SystemOfBodies
         System of bodies present in the simulation.
 
     Returns
@@ -310,14 +310,14 @@ def create_hodographic_trajectory(
     initial_time = trajectory_parameters[0] * constants.JULIAN_DAY
     time_of_flight = trajectory_parameters[1] * constants.JULIAN_DAY
     final_time = initial_time + time_of_flight
-    
+
     # Number of revolutions
     number_of_revolutions = int(trajectory_parameters[2])
-    
+
     # Compute relevant frequency and scale factor for shaping functions
     frequency = 2.0 * np.pi / time_of_flight
     scale_factor = 1.0 / time_of_flight
-    
+
     # Retrieve shaping functions and free parameters
     radial_velocity_shaping_functions, radial_free_coefficients = get_radial_velocity_shaping_functions(
         trajectory_parameters,
@@ -376,7 +376,7 @@ Create function to obtain transfer $\Delta V$
 
 
 def hodographic_low_thrust_trajectory_delta_v(
-        bodies: tudatpy.numerical_simulation.environment.SystemOfBodies,
+        bodies: tudatpy.dynamics.environment.SystemOfBodies,
         departure_body: str,
         target_body: str,
         departure_epoch: float,
@@ -388,7 +388,7 @@ def hodographic_low_thrust_trajectory_delta_v(
 
     Parameters
     ----------
-    bodies : tudatpy.numerical_simulation.environment.SystemOfBodies
+    bodies : tudatpy.dynamics.environment.SystemOfBodies
         The system of bodies containing the celestial bodies involved in the transfer.
     departure_body : str
         The name of the departure celestial body.
@@ -406,7 +406,7 @@ def hodographic_low_thrust_trajectory_delta_v(
     [tudatpy.trajectory_design.transfer_trajectory.TransferTrajectory, float]
         A tuple containing the transfer trajectory object and the required ΔV.
     """
-    
+
     # The entries of the vector 'trajectory_parameters' contains the following:
     # * Entry 0: Departure time (from Earth's center-of-mass) in Julian days since J2000
     # * Entry 1: Time-of-flight from Earth's center-of-mass to Mars' center-of-mass, in Julian days
@@ -414,7 +414,7 @@ def hodographic_low_thrust_trajectory_delta_v(
     # * Entry 3,4: Free parameters for radial shaping functions
     # * Entry 5,6: Free parameters for normal shaping functions
     # * Entry 7,8: Free parameters for axial shaping functions
-    
+
     trajectory_parameters = [
         departure_epoch / constants.JULIAN_DAY,
         (arrival_epoch - departure_epoch) / constants.JULIAN_DAY,
@@ -440,7 +440,7 @@ def hodographic_low_thrust_trajectory_delta_v(
 """
 ## Porkchop Plots
 
-The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_representation.DateTime` objects.
 """
 
 
@@ -476,7 +476,7 @@ data_file = 'porkchop.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
 RECALCULATE_delta_v = input(
-    '\n    Recalculate ΔV for porkchop plot? [y/N] '
+    '\n    Recalculate Delta V for porkchop plot? [y/N] '
 ).strip().lower() == 'y'
 print()
 
@@ -655,7 +655,7 @@ def inspect_low_thrust_trajectory(
     # Create termination settings object
     termination_settings = propagation_setup.propagator.hybrid_termination(termination_settings_list,
                                                                            fulfill_single_condition=True)
-    
+
     # Retrieve dependent variables to save
     dependent_variables_to_save = [
         propagation_setup.dependent_variable.relative_distance('Vehicle', 'Earth'),
@@ -678,7 +678,7 @@ def inspect_low_thrust_trajectory(
 
     # Update vehicle rotation model and thrust magnitude model
     transfer_trajectory.set_low_thrust_acceleration( hodographic_shaping_object.legs[ 0 ], bodies, 'Vehicle', 'LowThrustEngine' )
-    
+
     # Define accelerations acting on capsule
     acceleration_settings_on_vehicle = {
         'Sun': [propagation_setup.acceleration.point_mass_gravity()],
@@ -731,7 +731,7 @@ def inspect_low_thrust_trajectory(
                                                                  initial_propagation_time,
                                                                  termination_settings,
                                                                  dependent_variables_to_save)
-    
+
     ###########################################################################
     # INTEGRATOR SETTINGS #####################################################
     ###########################################################################
@@ -756,7 +756,7 @@ def inspect_low_thrust_trajectory(
     ###########################################################################
     # PROPAGATE DYNAMICS ######################################################
     ###########################################################################
-    dynamics_simulator = numerical_simulation.create_dynamics_simulator(
+    dynamics_simulator = simulator.create_dynamics_simulator(
         bodies, propagator_settings )
 
     ###########################################################################
