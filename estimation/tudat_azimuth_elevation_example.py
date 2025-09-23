@@ -180,7 +180,7 @@ def plot_combined_elevation(
     # These include - but are not limited to: DSN and EStrack Antennas, EVN/VLBA Antennas. 
     # The function 'radio_telescope_stations()' of the 'environment_setup.ground_station' class 
     # allows to add all Tudat radio stations in the Tudat environment. 
-    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.numerical_simulation.environment_setup.ground_station.radio_telescope_stations)
+    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.dynamics.environment_setup.ground_station.radio_telescope_stations)
     all_tudat_radio_telescopes_settings =  environment_setup.ground_station.radio_telescope_stations()
     all_tudat_radio_telescopes_names = [telescope.station_name for telescope in all_tudat_radio_telescopes_settings]
 
@@ -192,7 +192,7 @@ def plot_combined_elevation(
     # as observation location. The previous ('radio_telescope_stations') function makes Tudat aware of all Tudat stations locations
     # (in cartesian coordinates, on Earth). If a user-requested Antenna is not found among the tudat list of radio telescope stations, 
     # it is considered as "new" and it is added to environemnt via the function 'environment_setup.ground_station.basic_station'.
-    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.numerical_simulation.environment_setup.ground_station.basic_station)
+    # See [Tudatpy API Reference](https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.dynamics.environment_setup.ground_station.basic_station)
     existing_stations = [station_name for station_name in station_names if station_name in all_tudat_radio_telescopes_names]
     new_stations = [station_name for station_name in station_names if station_name not in all_tudat_radio_telescopes_names]
 
@@ -211,7 +211,7 @@ def plot_combined_elevation(
     #    This is done via the 'convert_position_elements' function. 
     #    See: https://py.api.tudat.space/en/latest/element_conversion.html#tudatpy.astro.element_conversion.convert_position_elements
     # 3) The considered station is not in the Tudat list of stations. In this case, it is added via the 'environment_setup.ground_station.basic_station' function.
-    #    See: https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.numerical_simulation.environment_setup.ground_station.basic_station
+    #    See: https://py.api.tudat.space/en/latest/ground_station.html#tudatpy.dynamics.environment_setup.ground_station.basic_station
     # Please note the deg2rad and rad2deg conversions throughout this snippet, as well as the order for the station location coordinates. 
     # (Tudat order: elevation, latitude, longitude. Horizons order: longitude, latitude, elevation). 
     if len(existing_stations) > 0:
@@ -370,7 +370,7 @@ def plot_combined_elevation(
         # Notice how - so far - we have not run any simulation yet. 
         # As we approach doing that, it is time to create the link ends for the simulation. 
         # The given antenna is set as a receiver through the function: 'body_reference_point_link_end_id' of the observation module. 
-        # (See: https://py.api.tudat.space/en/latest/observation.html#tudatpy.numerical_simulation.estimation_setup.observation.body_reference_point_link_end_id)
+        # (See: https://py.api.tudat.space/en/latest/estimation/observable_models_setup/links.html#tudatpy.estimation.observable_models_setup.links.body_reference_point_link_end_id)
         link_ends = {
             observable_models_setup.links.receiver: observable_models_setup.links.body_reference_point_link_end_id('Earth', station_name),
         }

@@ -49,7 +49,7 @@ NAIF's `SPICE` kernels are first loaded so that the position of various bodies s
 Then, the start and end simulation epochs are setup. The start epoch is set arbitrarily to 25th April 2000, with the end epoch being set 30 days later.
 
 The times should always be specified in seconds since the epoch of J2000.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module for more information on this.
+Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
 """
 
 

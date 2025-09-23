@@ -388,7 +388,7 @@ def hodographic_low_thrust_trajectory_delta_v(
 
     Parameters
     ----------
-    bodies : tudatpy.numerical_simulation.environment.SystemOfBodies
+    bodies : tudatpy.dynamics.environment.SystemOfBodies
         The system of bodies containing the celestial bodies involved in the transfer.
     departure_body : str
         The name of the departure celestial body.
@@ -476,7 +476,7 @@ data_file = 'porkchop.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
 RECALCULATE_delta_v = input(
-    '\n    Recalculate ΔV for porkchop plot? [y/N] '
+    '\n    Recalculate Delta V for porkchop plot? [y/N] '
 ).strip().lower() == 'y'
 print()
 

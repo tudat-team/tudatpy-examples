@@ -64,7 +64,7 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 
 """
 ## Porkchop Plots
-The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_conversion.DateTime` objects.
+The departure and target bodies and the time window for the transfer are then defined using tudatpy `astro.time_representation.DateTime` objects.
 """
 
 
@@ -103,7 +103,7 @@ data_file = 'porkchop.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
 RECALCULATE_delta_v = input(
-    '\n    Recalculate ΔV for porkchop plot? [y/N] '
+    '\n    Recalculate Delta V for porkchop plot? [y/N] '
 ).strip().lower() == 'y'
 print()
 

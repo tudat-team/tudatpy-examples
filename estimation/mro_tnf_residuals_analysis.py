@@ -458,7 +458,6 @@ def perform_residuals_analysis(inputs):
             date_filter = observations.observations_processing.observation_filter(
                 observations.observations_processing.ObservationFilterType.time_bounds_filtering,
                 date.to_epoch() - 3600.0,
-                # time_conversion.add_days_to_datetime(date, numerical_simulation.Time(1))
                 time_representation.add_days_to_datetime(date, 1.0).to_epoch() + 0.0,
             )
             # Filter out observations from observation collection

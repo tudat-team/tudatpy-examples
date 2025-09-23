@@ -11,7 +11,7 @@ We will estimate the initial state of [Eros](https://en.wikipedia.org/wiki/433_E
 
 """
 ## Import statements
-Let's start with importing the required modules. Most - if not all - of them (spice, numerical_simulation, environment, propagation) are used quite extensively in pretty much all tudatpy examples.They will soon become your friends (if they haven't already!).
+Let's start with importing the required modules. Most - if not all - of them (spice, dynamics, environment, propagation) are used quite extensively in pretty much all tudatpy examples.They will soon become your friends (if they haven't already!).
 """
 
 

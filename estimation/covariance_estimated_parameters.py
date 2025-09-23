@@ -46,7 +46,7 @@ First, NAIF's `SPICE` kernels are loaded, to make the positions of various bodie
 
 Subsequently, the start and end epoch of the simulation and observations are defined.* Note that using `tudatpy`, the times are generally specified in seconds since J2000. Hence, setting the start epoch to `0` corresponds to the 1st of January 2000. The end epoch specifies a total duration of the simulation of four days.
 
-For more information on J2000 and the conversion between different temporal reference frames, please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_conversion.html) of the `time_conversion` module.
+For more information on J2000 and the conversion between different temporal reference frames, please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module.
 
 *Please note that it is always a good practice to separate the observation start and end epochs from the simulated ones. This way, we ensure that the times at which the observations are simulated all fall within the simulation timespan, especially given the geometry of the problem and the time difference at the two link ends (receiver and transmitter are separated by a certain distance). For this reason, we will set the first observation start epoch at one day after the simulation start epoch, and the observation end epoch at one day before the end of the simulation.
 """
@@ -234,7 +234,7 @@ Having set the underlying dynamical model of the simulated orbit, we can define 
 ### Add a ground station
 Trivially, the simulation of observations requires the extension of the current environment by at least one observer - a ground station. For this example, we will model a single ground station located in Delft, Netherlands, at an altitude of 0m, 52.00667°N, 4.35556°E.
 
-More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.numerical_simulation.environment_setup.add_ground_station).
+More information on how to use the `add_ground_station()` function can be found in the respective [API documentation](https://py.api.tudat.space/en/latest/environment_setup.html#tudatpy.dynamics.environment_setup.add_ground_station).
 """
 
 
@@ -350,7 +350,7 @@ estimator = estimation_analysis.Estimator(
 
 """
 ### Perform the observations simulation
-Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation.html#tudatpy.numerical_simulation.estimation.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
+Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation/observations_setup/observations_wrapper.html#tudatpy.estimation.observations_setup.observations_wrapper.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 """
 
 
