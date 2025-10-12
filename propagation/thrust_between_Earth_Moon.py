@@ -59,7 +59,7 @@ spice.load_standard_kernels()
 
 
 # # Set simulation start and end epochs (total simulation time of 30 days)
-simulation_start_epoch = DateTime(2000, 4, 25).epoch()
+simulation_start_epoch = DateTime(2000, 4, 25).to_epoch()
 simulation_end_epoch   = simulation_start_epoch + 30 * constants.JULIAN_DAY
 
 

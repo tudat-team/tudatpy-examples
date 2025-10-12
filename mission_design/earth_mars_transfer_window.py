@@ -88,8 +88,8 @@ To ensure the porkchop plot is rendered with good resolution, the time resolutio
 # Tune the time resolution to obtain results to your liking!
 time_window_percentage = 0.5
 time_resolution = time_resolution = min(
-        latest_departure_time.epoch() - earliest_departure_time.epoch(),
-        latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
+        latest_departure_time.to_epoch() - earliest_departure_time.to_epoch(),
+        latest_arrival_time.to_epoch()   - earliest_arrival_time.to_epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
 
 

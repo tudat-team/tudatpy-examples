@@ -326,8 +326,8 @@ As in previous examples, we will retrieve the initial state of Delfi-C3 using it
 
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2008, 4, 28).epoch()
-simulation_end_epoch = DateTime(2008, 4, 29).epoch()
+simulation_start_epoch = DateTime(2008, 4, 28).to_epoch()
+simulation_end_epoch = DateTime(2008, 4, 29).to_epoch()
 
 # Retrieve the initial state of Delfi-C3 using Two-Line-Elements (TLEs)
 delfi_tle = environment.Tle(
