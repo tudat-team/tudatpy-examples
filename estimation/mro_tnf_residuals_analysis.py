@@ -283,8 +283,8 @@ def perform_residuals_analysis(inputs):
     # to ensure that the simulation environment covers the full time span of the loaded TNF files. This is mostly needed because some TNF
     # files - while typically assigned to a certain date - actually spans over (slightly) longer than one day. Without this time buffer,
     # some observation epochs might thus lie outside the time boundaries within which the dynamical environment is defined.
-    start_time = time_representation.datetime_to_tudat(inputs[1]).to_epoch() - 86400.0
-    end_time = time_representation.datetime_to_tudat(inputs[2]).to_epoch() + 86400.0
+    start_time = time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch() - 86400.0
+    end_time = time_representation.DateTime.from_python_datetime(inputs[2]).to_epoch() + 86400.0
 
     # Retrieve lists of relevant kernels and input files to load (TNF files, clock and orientation kernels,
     # tropospheric and ionospheric corrections)

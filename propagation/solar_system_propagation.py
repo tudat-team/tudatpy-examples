@@ -54,7 +54,7 @@ Please refer to the [API documentation](https://py.api.tudat.space/en/latest/tim
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs (total simulation time of 5 years)
-simulation_start_epoch = DateTime(2000, 4, 25).epoch()
+simulation_start_epoch = DateTime(2000, 4, 25).to_epoch()
 simulation_end_epoch   = simulation_start_epoch + 5 * constants.JULIAN_YEAR
 
 

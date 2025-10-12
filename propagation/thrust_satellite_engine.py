@@ -284,7 +284,7 @@ In this example, the initial state is retrieved from the JUICE spice kernel for 
 
 
 simulation_start_date = time_representation.DateTime(2035,7,28,14,24)
-simulation_start_epoch = simulation_start_date.epoch()
+simulation_start_epoch = simulation_start_date.to_epoch()
 simulation_end_epoch = simulation_start_epoch + 344.0 * constants.JULIAN_DAY / 24.0
 
 # Define initial state (retrieve from SPICE).

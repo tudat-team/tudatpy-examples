@@ -60,8 +60,8 @@ Besides importing tudat's standard kernels - which handily already include a ver
 spice.load_standard_kernels()
 
 # Define temporal scope of the simulation - equal to the time JUICE will spend in orbit around Jupiter
-simulation_start_epoch = DateTime(2031, 7,  2).epoch()
-simulation_end_epoch   = DateTime(2035, 4, 20).epoch()
+simulation_start_epoch = DateTime(2031, 7,  2).to_epoch()
+simulation_end_epoch   = DateTime(2035, 4, 20).to_epoch()
 
 
 """

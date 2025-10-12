@@ -263,10 +263,10 @@ acceleration_models = propagation_setup.create_acceleration_models(
 #
 # Let's retrieve the initial state of the reentry kosmos_482 using Two-Line-Elements as let's set it as initial state for our propagation.
 
-kosmos_482_tle = environment.Tle(
+kosmos_482_tle = environment_setup.ephemeris.sgp4(
   tle_line1, tle_line2
 )
-kosmos_482_ephemeris = environment.TleEphemeris( "Earth", "J2000", kosmos_482_tle, False )
+kosmos_482_ephemeris = environment_setup.create_body_ephemeris(kosmos_482_tle, "Kosmos 482")
 initial_state = kosmos_482_ephemeris.cartesian_state(simulation_start_epoch_tdb)
 
 # ## **Define Dependent Variables to Save**
