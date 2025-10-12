@@ -56,11 +56,11 @@ For more information on J2000 and the conversion between different temporal refe
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
-simulation_end_epoch   = DateTime(2000, 1, 5).epoch()
+simulation_start_epoch = DateTime(2000, 1, 1).to_epoch()
+simulation_end_epoch   = DateTime(2000, 1, 5).to_epoch()
 
-observation_start_epoch = DateTime(2000, 1, 2).epoch()
-observation_end_epoch   = DateTime(2000, 1, 4).epoch()
+observation_start_epoch = DateTime(2000, 1, 2).to_epoch()
+observation_end_epoch   = DateTime(2000, 1, 4).to_epoch()
 
 
 """

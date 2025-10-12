@@ -52,8 +52,8 @@ spice.load_standard_kernels()
 spice.load_kernel(current_directory + "/ORMM_T19_031222180906_00052.BSP")
 
 # Set simulation start (January 1st, 2004 - 00:00) and end epochs (January 11th, 2004 - 00:00)
-simulation_start_epoch = DateTime(2004, 1,  1).epoch()
-simulation_end_epoch   = DateTime(2004, 1, 11).epoch()
+simulation_start_epoch = DateTime(2004, 1,  1).to_epoch()
+simulation_end_epoch   = DateTime(2004, 1, 11).to_epoch()
 
 ### CELESTIAL BODIES ###
 # Create default body settings for "Mars", "Phobos", "Deimos", "Sun", "Jupiter", "Earth"

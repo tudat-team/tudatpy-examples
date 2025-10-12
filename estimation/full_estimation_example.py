@@ -60,8 +60,8 @@ spice.load_standard_kernels()
 
 # Set simulation start and end epochs
 time_buffer = 10
-simulation_start_epoch = DateTime(2000, 1, 1).epoch() - time_buffer
-simulation_end_epoch   = DateTime(2000, 1, 4).epoch() + time_buffer
+simulation_start_epoch = DateTime(2000, 1, 1).to_epoch() - time_buffer
+simulation_end_epoch   = DateTime(2000, 1, 4).to_epoch() + time_buffer
 
 
 """
