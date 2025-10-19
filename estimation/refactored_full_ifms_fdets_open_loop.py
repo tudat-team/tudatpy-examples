@@ -49,19 +49,19 @@ from tudatpy.data.mission_data_downloader import *
 object = LoadPDS()
 spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
 input_mission = 'mex'
-custom_met_urls = ['https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
-                   'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
-                   'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/'
+custom_met_urls = ['https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
+                   'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
+                   'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/'
                    ]
 
-custom_ifms_urls = ['https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
-                    'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
-                    'https://archives.esac.esa.int/psa/repo/ftp-public/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2'
+custom_ifms_urls = ['https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
+                    'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
+                    'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2'
                     ]
 
-local_path = './mex_met_archive'
-start_date_mex = datetime(2013, 12, 27)
-end_date_mex = datetime(2013, 12, 31)
+local_path = './mex_archive'
+start_date_mex = datetime(2013, 12, 28)
+end_date_mex = datetime(2013, 12, 30)
 
 
 for custom_met_url in custom_met_urls:
@@ -105,7 +105,7 @@ def parse_and_filter_file(filename):
 
     return output_filename
 
-DOWNLOADED_IFMS_FOLDER = './mex_met_archive/ifms'
+DOWNLOADED_IFMS_FOLDER = './mex_archive/ifms'
 for file in os.listdir(DOWNLOADED_IFMS_FOLDER):
     filtered_file = parse_and_filter_file(os.path.join(DOWNLOADED_IFMS_FOLDER, file))
     print("Filtered file saved at:", filtered_file)
@@ -120,12 +120,12 @@ BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'
 # Subdirectories
 KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
 FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
-IFMS_FOLDER = './mex_met_archive/ifms_filtered'
+IFMS_FOLDER = './mex_archive/ifms_filtered'
 ODF_FOLDER = os.path.join(BASE_DIR, 'odf')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 
 # Weather and VMF data paths (update these)
-WEATHER_DATA_DIR = './mex_met_archive/met'
+WEATHER_DATA_DIR = './mex_archive/met'
 VMF_FILE = '/Users/lgisolfi/Desktop/mex_phobos_flyby/VMF/y2013.vmf3_r.txt'
 
 # Analysis parameters
@@ -424,6 +424,10 @@ stations_list = []
 
 for station_code in weather_dict.keys():
     weather_files = weather_dict[station_code]
+    print(weather_files)
+    ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
+    bodies.get( "Earth" ).get_ground_station( "NWNORCIA" ).transmitting_frequency_calculator = environment.ConstantTransmittingFrequencyCalculator( 7166445042.992178 )
+    ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
     data.set_estrack_weather_data_in_ground_stations(bodies, weather_files, code_to_site(station_code))
 
 for ifms_file in ifms_files:
