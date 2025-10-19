@@ -13,7 +13,14 @@
 # ---
 
 # %% [markdown]
-# # Open-Loop to Closed-Loop Data Simulation
+# # Objectives
+#
+# This notebook will showcase Tudatpy's capabilities to: 
+# 1) Download IFMS files, SPICE kernels and Ancillary Data;
+# 2) Simulate both Open and Closed Loop Doppler observables in a n-way configuration;
+# 3) Experimental: converting Open-Loop Observables into "Equivalent" Closed-Loop observables.
+#
+# We will choose **JUICE** as a test case. More specifically, we want to see what happened right before Earth's flyby in August 2024. 
 
 # %% [markdown]
 # ## 1. Import Modules
@@ -21,22 +28,20 @@
 # First, we import all the necessary Python and `tudatpy` modules.
 
 # %%
-import os
 from tudatpy.interface import spice
-from tudatpy.astro import time_conversion, element_conversion
-from tudatpy.math import interpolators
-from datetime import datetime
+from tudatpy.astro import time_representation, element_conversion
 from tudatpy.astro.time_representation import DateTime
-import matplotlib.pyplot as plt
+from datetime import datetime
+from tudatpy.dynamics import environment_setup, environment
+from tudatpy.estimation import observable_models_setup, observations_setup, observations
+from tudatpy import estimation
+
+import os
+from tudatpy.math import interpolators
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
-from tudatpy.dynamics import environment_setup, environment
-from tudatpy.estimation import observable_models_setup, observations_setup, observations
-from tudatpy.astro import time_representation
-from tudatpy import estimation
-# Set plots to display inline in the notebook
+import matplotlib.pyplot as plt
 # %matplotlib inline
 
 # %% [markdown]
@@ -69,7 +74,6 @@ def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
         normalized_result = result / (b - a)
         results.append(normalized_result)
         midpoints.append(midpoint)
-        # Always move forward
         a = b
 
     return results, midpoints
@@ -83,20 +87,21 @@ def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
 # We (down)load the standard SPICE kernels plus mission-specific kernels for JUICE
 
 # %%
-#from tudatpy.data.mission_data_downloader import *
-#object = LoadPDS()
-#spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
-#start_date_juice = datetime(2024, 8, 1)
-#end_date_juice = datetime(2024, 8, 30)
-#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
-#    input_mission = 'juice',
-#    start_date = start_date_juice,
-#    end_date = end_date_juice)
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+from tudatpy.data.mission_data_downloader import *
+object = LoadPDS()
+spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
+start_date_juice = datetime(2024, 8, 5)
+end_date_juice = datetime(2024, 8, 10)
+kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
+    input_mission = 'juice',
+    start_date = start_date_juice,
+    end_date = end_date_juice)
+print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 # Load Required Spice Kernels
 spice.load_standard_kernels()
 spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.bc")
+#spice.load_kernel("juice_archive/ck/juice_sc_meas_240801_240820_s240802_v04.bc")
 
 # %% [markdown]
 # ### Define Simulation Time and Parameters
@@ -108,7 +113,7 @@ spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.b
 start= datetime(2024, 8, 5)
 end = datetime(2024, 8, 10)
 integration_time = 60 # Integration time for closed-loop (IFMS) in seconds
-open_loop_cadence = 10 # Cadence for open-loop (FDETS) in seconds
+open_loop_cadence = 1 # Cadence for open-loop (FDETS) in seconds
 
 start_time = DateTime.from_python_datetime(start).to_epoch()
 end_time = DateTime.from_python_datetime(end).to_epoch()
@@ -156,12 +161,14 @@ body_settings.get(spacecraft_name).rotation_model_settings = environment_setup.r
 
 # Create System of Bodies using the above-defined body_settings
 new_ground_stations_settings = []
-geodetic_positions = {'YARRA12M': [250,-29.0464, 115.3456]}
 receiving_station_name ='YARRA12M'
+geodetic_positions = {receiving_station_name: [250,-29.0464, 115.3456]}
 
 all_tudat_radio_telescopes_settings =  environment_setup.ground_station.radio_telescope_stations()
 body_settings.get("Earth").ground_station_settings = all_tudat_radio_telescopes_settings
 all_tudat_radio_telescopes_names = [telescope.station_name for telescope in all_tudat_radio_telescopes_settings]
+
+print(f'List of all Tudat Radio Telescopes: {all_tudat_radio_telescopes_names}')
 if receiving_station_name  not in all_tudat_radio_telescopes_names:
     geodetic_position = geodetic_positions[receiving_station_name]
     new_ground_stations_settings.append(environment_setup.ground_station.basic_station(
@@ -184,13 +191,13 @@ body_fixed_station_position = bodies.get('Earth').get_ground_station(receiving_s
 
 # %%
 ################# First conversion: Convert UTC times to TDB. ########################################
-time_scale_converter = time_conversion.default_time_scale_converter()
+time_scale_converter = time_representation.default_time_scale_converter()
 tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
 fake_tudat_times_linspace_tdb = list() #prepare TDB, tudat::Time type
 for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TDB
     tudat_times_linspace_tdb.append( time_scale_converter.convert_time(
-        input_scale = time_conversion.utc_scale,
-        output_scale = time_conversion.tdb_scale,
+        input_scale = time_representation.utc_scale,
+        output_scale = time_representation.tdb_scale,
         input_value = time_utc,
         earth_fixed_position = body_fixed_station_position)) # if trying the geodetic altitude change, use fake_body_fixed_station_position
 times_linspace_tdb = [tudat_times_tdb for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
@@ -306,8 +313,8 @@ tudat_simulated_equivalent_closed_loop_times = [time_utc for time_utc in simulat
 closed_loop_tudat_times_linspace_tdb = list()
 for time_utc in tudat_simulated_equivalent_closed_loop_times: # for each UTC epoch, convert it to TDB
     closed_loop_tudat_times_linspace_tdb.append( time_scale_converter.convert_time(
-        input_scale = time_conversion.utc_scale,
-        output_scale = time_conversion.tdb_scale,
+        input_scale = time_representation.utc_scale,
+        output_scale = time_representation.tdb_scale,
         input_value = time_utc,
         earth_fixed_position = body_fixed_station_position))
 
@@ -443,8 +450,8 @@ print(f"{doppler_shift_at_second_target:.6f} Hz")
 fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 
 
-axs[0].scatter(shared_times, open_loop_values, label='Open Loop (FDETS)', color='orange', s=8)
-axs[0].scatter(shared_times, closed_loop_values, label='Closed Loop (IFMS)', color='blue', alpha = 0.4, marker = '+', s=15)
+axs[0].scatter(shared_times, open_loop_values, label='Open Loop (FDETS)', color='orange', s=8, alpha = 0.5)
+axs[0].scatter(shared_times, closed_loop_values, label='Closed Loop (IFMS)', color='blue', alpha = 0.1, marker = '+', s=15)
 axs[0].set_title('Interpolated (Simulated) Doppler Observations')
 axs[0].set_ylabel('Doppler Tone [Hz]')
 axs[0].grid(True)
@@ -469,6 +476,13 @@ axs[2].grid(True)
 plt.tight_layout()
 plt.show()
 
+"""
+Simulated FDETS Doppler shift at 2024-08-05T17:18:00:
+8436501362.975844 Hz
+Simulated FDETS Doppler shift at 2024-08-05T19:28:00:
+8436488287.565639 Hz
+"""
+
 # %% [markdown]
 # ### Validation Plot 2: Final Comparison
 #
@@ -482,16 +496,16 @@ plt.show()
 # %%
 ######################## Visualize data and residuals  ###########################
 fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
-axs[0].scatter(simulated_times_fdets_utc, simulated_open_loop_tone, marker='.', label='Simulated Open-Loop Tone (FDETS)', s=15, alpha=0.5)
-axs[0].scatter(simulated_equivalent_closed_loop_times_utc, simulated_equivalent_closed_loop_tone, marker='o', label='Simulated Equivalent Closed-Loop Tone', s=15, alpha=0.5)
+axs[0].scatter(simulated_times_fdets_utc, simulated_open_loop_tone, marker='+', label='Simulated Open-Loop Tone (FDETS)', s=15, alpha=0.5)
+axs[0].scatter(simulated_equivalent_closed_loop_times_utc, simulated_equivalent_closed_loop_tone, marker='o', label='Simulated Equivalent Closed-Loop Tone', s=15, alpha=0.01)
 axs[0].set_xlabel('Time (UTC)')
 axs[0].set_ylabel('$f_{tone} = f_{R} - f_{base}$ [Hz]')
 axs[0].legend()
 axs[0].grid(True)
 axs[0].set_title('Open-Loop vs. Equivalent Closed-Loop')
 
-axs[1].scatter(simulated_times_ifms_utc, simulated_closed_loop_tone, marker='.', label='Simulated "True" Closed-Loop Tone (IFMS)', s=15, alpha=0.5)
-axs[1].scatter(simulated_equivalent_closed_loop_times_utc, simulated_equivalent_closed_loop_tone, marker='o', label='Simulated Equivalent Closed-Loop Tone', s=15, alpha=0.5)
+axs[1].scatter(simulated_times_ifms_utc, simulated_closed_loop_tone, marker='+', label='Simulated "True" Closed-Loop Tone (IFMS)', s=15, alpha=0.5)
+axs[1].scatter(simulated_equivalent_closed_loop_times_utc, simulated_equivalent_closed_loop_tone, marker='o', label='Simulated Equivalent Closed-Loop Tone', s=15, alpha=0.01)
 axs[1].set_xlabel('Time (UTC)')
 axs[1].set_ylabel('$f_{tone} = f_{R} - f_{base}$ [Hz]')
 axs[1].legend()
