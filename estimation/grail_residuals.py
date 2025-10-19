@@ -80,8 +80,8 @@ def perform_residuals_analysis(inputs):
     input_index = inputs[0]
 
     # Convert start and end datetime objects to Tudat Time variables.
-    start_date = time_representation.datetime_to_tudat(inputs[1]).to_epoch()
-    end_date = time_representation.datetime_to_tudat(inputs[2]).to_epoch()
+    start_date = time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch()
+    end_date = time_representation.DateTime.from_python_datetime(inputs[2]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, antennas switch files, GRAIL trajectory files, GRAIL reference frames file,
@@ -603,7 +603,7 @@ if __name__ == "__main__":
         residuals_rms = np.loadtxt(output_folder + "residuals_rms_" + str(i) + ".dat")
         residuals_mean = np.loadtxt(output_folder + "residuals_mean_" + str(i) + ".dat")
 
-        start_date_float = time_representation.datetime_to_tudat(start_date).to_epoch()
+        start_date_float = time_representation.DateTime.from_python_datetime(start_date).to_epoch()
 
         # Plot full residuals wrt reference spice trajectory
         axs1[i].scatter(

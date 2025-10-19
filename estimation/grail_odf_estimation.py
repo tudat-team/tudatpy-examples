@@ -94,7 +94,7 @@ def run_odf_estimation(inputs):
     input_index = inputs[0]
 
     # Convert the datetime object defining the day of interest to a Tudat Time variable.
-    date = time_representation.datetime_to_tudat(inputs[1]).to_epoch()
+    date = time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, manoeuvres file, antennas switch files, GRAIL trajectory files, GRAIL
@@ -809,7 +809,7 @@ if __name__ == "__main__":
         all_prefit.append(prefit_residuals)
         all_postfit.append(postfit_residuals)
 
-        start_date = time_representation.datetime_to_tudat(dates[i]).to_epoch()
+        start_date = time_representation.DateTime.from_python_datetime(dates[i]).to_epoch()
 
         # Plot the results of the current estimation.
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))

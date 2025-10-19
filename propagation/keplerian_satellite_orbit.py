@@ -50,8 +50,8 @@ Please refer to the [API documentation](https://py.api.tudat.space/en/latest/tim
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
-simulation_end_epoch   = DateTime(2000, 1, 2).epoch()
+simulation_start_epoch = DateTime(2000, 1, 1).to_epoch()
+simulation_end_epoch   = DateTime(2000, 1, 2).to_epoch()
 
 
 """

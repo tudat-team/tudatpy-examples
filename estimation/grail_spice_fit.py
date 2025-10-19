@@ -66,7 +66,7 @@ def run_spice_fit(inputs):
     # A time buffer of 10 min is added to ensure that the GRAIL orientation kernel fully covers the time interval of interest,
     # without interpolation errors in case the current kernel starts exactly on the day under consideration.
     start_time = (
-        time_representation.datetime_to_tudat(inputs[1]).to_epoch_time_object() + 600.0
+        time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch_time_object() + 600.0
     )
     end_time = start_time + 86400.0
 
@@ -514,7 +514,7 @@ if __name__ == "__main__":
     for index_date in range(nb_dates):
 
         # Retrieve start of the current date in seconds
-        start_date = time_representation.datetime_to_tudat(dates[index_date]).to_epoch()
+        start_date = time_representation.DateTime.from_python_datetime(dates[index_date]).to_epoch()
 
         # Retrieve string corresponding to the current date
         date_string = dates[index_date].strftime("%m/%d/%Y").replace("/", "")

@@ -269,8 +269,8 @@ Before executing the optimization, it is necessary to select the bounds for the 
 
 
 # Lower and upper bound on departure date
-departure_date_lb = DateTime(1997, 4, 6).epoch()
-departure_date_ub = DateTime(1999, 12, 31).epoch()
+departure_date_lb = DateTime(1997, 4, 6).to_epoch()
+departure_date_ub = DateTime(1999, 12, 31).to_epoch()
 
 # List of lower and upper on time of flight for each leg
 legs_tof_lb = np.zeros(5)
