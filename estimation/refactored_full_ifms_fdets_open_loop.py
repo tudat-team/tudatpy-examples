@@ -425,9 +425,6 @@ stations_list = []
 for station_code in weather_dict.keys():
     weather_files = weather_dict[station_code]
     print(weather_files)
-    ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
-    bodies.get( "Earth" ).get_ground_station( "NWNORCIA" ).transmitting_frequency_calculator = environment.ConstantTransmittingFrequencyCalculator( 7166445042.992178 )
-    ######################################################## TEMPORARY LINE TO FIX FREQUENCY CALCULATOR ERROR ###########################################################
     data.set_estrack_weather_data_in_ground_stations(bodies, weather_files, code_to_site(station_code))
 
 for ifms_file in ifms_files:

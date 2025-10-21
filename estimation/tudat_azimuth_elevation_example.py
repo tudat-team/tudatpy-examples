@@ -47,7 +47,7 @@ def plot_combined_elevation(
         station_names, 
         start_epoch, 
         end_epoch, 
-        time_step = '10m',
+        time_step = '1m',
         time_format = '%Y-%m-%d %H:%M:%S',
         global_frame_origin = 'Earth', 
         global_frame_orientation = 'J2000', 
@@ -424,6 +424,9 @@ def plot_combined_elevation(
         # Convert to numpy arrays
         azimuth_array = np.array(tudat_azimuth_list)
         elevation_array = np.array(tudat_elevation_list)
+
+        print(horizons_azimuth - azimuth_array)
+        print(horizons_elevation - elevation_array)
 
         # The last bit of this Jupyter Notebook deals with visualization of the obtained data. 
         # Antennas observing at low elevation quickly lose performance. Moreover, if the elvation is negative, the target is not observable.

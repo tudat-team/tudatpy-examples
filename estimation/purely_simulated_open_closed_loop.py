@@ -12,12 +12,13 @@ from tudatpy.numerical_simulation import environment_setup, environment
 from tudatpy.numerical_simulation import estimation, estimation_setup
 from tudatpy.numerical_simulation.estimation_setup import observation
 from datetime import datetime
-from tudatpy.numerical_simulation import Time
+from tudatpy.astro.time_representation import DateTime
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
+from tudatpy.estimation import observable_models_setup, observations_setup, observations
 
 
 ########################################################
@@ -71,8 +72,8 @@ end = datetime(2013, 12, 28, 23, 59, 00)
 integration_time = 10
 open_loop_cadence = 10
 
-start_time = time_conversion.datetime_to_tudat(start).epoch().to_float() # in utc
-end_time = time_conversion.datetime_to_tudat(end).epoch().to_float()  # in utc
+start_time = DateTime.from_python_datetime(start).to_epoch()
+end_time = DateTime.from_python_datetime(end).to_epoch()
 
 # Create default body settings for celestial bodies
 bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
@@ -98,7 +99,7 @@ spacecraft_central_body = "Mars" # Set Central Body (Mars)
 body_settings.add_empty_settings(spacecraft_name) # Create empty settings for spacecraft
 
 times_linspace = np.arange(start_time, end_time, step = open_loop_cadence) # in utc, float type
-tudat_times_linspace_utc = [Time(time) for time in times_linspace] # in utc, tudat::Time type
+tudat_times_linspace_utc = [time for time in times_linspace] # in utc, tudat::Time type
 
 if straight_trajectory_flag:
 
@@ -161,7 +162,7 @@ for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TD
         input_value = time_utc,
         earth_fixed_position = body_fixed_station_position)) # if trying the geodetic altitude change, use fake_body_fixed_station_position
 
-times_linspace_tdb = [tudat_times_tdb.to_float() for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
+times_linspace_tdb = [tudat_times_tdb for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
 #################################### ANOTHER VALIDATION PLOT ######################################################
 tdb_utc_diff = [tdb - utc for tdb, utc in zip(times_linspace_tdb, times_linspace)] # Compute TDB - UTC difference
 utc_spacing = [times_linspace[i+1] - times_linspace[i] for i in range(len(times_linspace)-1)] # Compute UTC spacing
@@ -251,6 +252,7 @@ estimation.compute_residuals_and_dependent_variables(open_loop_collection, open_
 
 ############### Retrieve OPEN LOOP Simulated Observations ########################
 simulated_observations_fdets = open_loop_collection.get_observations()[0] # simulated open-loop (FDETS)
+print(f'simulated fdets observations: {simulated_observations_fdets}')
 ########## ANOTHER VALIDATION PLOT #################
 simulated_fdets = np.array(times_linspace) #utc
 original_tdb = np.array(times_linspace_tdb) #tdb
@@ -268,7 +270,7 @@ plt.tight_layout()
 plt.show()
 ##############################################################
 # These are the calendar date corresponding to the converted UTC times (in other words, these are the UTC timetags in the fdets files)
-simulated_times_fdets_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in times_linspace]
+simulated_times_fdets_utc = [DateTime.to_python_datetime(DateTime.from_epoch(time)) for time in times_linspace]
 ################ Interpolated, simulated open loop (FDETS) continous function ##############################
 # Interpolate the simulated open loop and closed loop, using the UTC times (these are basically the float versions of the fdets/ifms time tags)
 simulated_open_loop_continuous_function_utc = interp1d(times_linspace, simulated_observations_fdets, kind='cubic', fill_value='extrapolate')
@@ -278,7 +280,7 @@ simulated_equivalent_closed_loop_observables, simulated_equivalent_closed_loop_t
     times_linspace, # quadrature: times enter in UTC
     integration_time = integration_time)
 
-tudat_simulated_equivalent_closed_loop_times = [Time(time_utc) for time_utc in simulated_equivalent_closed_loop_times]
+tudat_simulated_equivalent_closed_loop_times = [time_utc for time_utc in simulated_equivalent_closed_loop_times]
 closed_loop_tudat_times_linspace_tdb = list()
 for time_utc in tudat_simulated_equivalent_closed_loop_times: # for each UTC epoch, convert it to TDB
     closed_loop_tudat_times_linspace_tdb.append( time_scale_converter.convert_time(
@@ -287,10 +289,10 @@ for time_utc in tudat_simulated_equivalent_closed_loop_times: # for each UTC epo
         input_value = time_utc,
         earth_fixed_position = body_fixed_station_position))
 
-closed_loop_times_linspace_tdb = [time_tudat_tdb.to_float() for time_tudat_tdb in closed_loop_tudat_times_linspace_tdb]
+closed_loop_times_linspace_tdb = [time_tudat_tdb for time_tudat_tdb in closed_loop_tudat_times_linspace_tdb]
 #######################################################################################################################
 ################# Format times to CALENDAR UTC ################
-simulated_equivalent_closed_loop_times_utc = [time_conversion.julian_day_to_calendar_date(time_conversion.seconds_since_epoch_to_julian_day(time)) for time in simulated_equivalent_closed_loop_times]
+simulated_equivalent_closed_loop_times_utc = [DateTime.to_python_datetime(DateTime.from_epoch(time)) for time in simulated_equivalent_closed_loop_times]
 #######################################################
 # Calculate spacing (differences between consecutive elements)
 spacing_open_loop_utc = np.diff(times_linspace)
@@ -354,7 +356,7 @@ closed_loop_ancillary_settings = observation.dsn_n_way_doppler_ancilliary_settin
 )
 
 closed_loop_observation_simulation_settings = [observation.tabulated_simulation_settings(
-    observable_type = estimation_setup.observation.dsn_n_way_averaged_doppler,
+    observable_type = observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type,
     link_ends = link_definition,
     simulation_times = closed_loop_tudat_times_linspace_tdb,
     ancilliary_settings = closed_loop_ancillary_settings
@@ -391,9 +393,16 @@ cond = (times_linspace >= np.min(simulated_equivalent_closed_loop_times)) & \
 
 valid_times = times_linspace[cond]
 
-shared_times = np.intersect1d(valid_times, simulated_equivalent_closed_loop_times)
+
+# These are the times (midpoints) at which your closed-loop data is defined
+shared_times = np.array(simulated_equivalent_closed_loop_times)
+
+# These are the corresponding closed-loop values
 closed_loop_values = simulated_closed_loop_tone
+
+# Evaluate the INTERPOLATED open-loop function at these same midpoint times
 open_loop_values = simulated_open_loop_continuous_function_utc(shared_times) - base_frequency
+
 residual = closed_loop_values - open_loop_values
 
 first_derivative = np.gradient(open_loop_values, shared_times)
