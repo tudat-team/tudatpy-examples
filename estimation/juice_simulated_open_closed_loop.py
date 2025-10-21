@@ -87,21 +87,22 @@ def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
 # We (down)load the standard SPICE kernels plus mission-specific kernels for JUICE
 
 # %%
-from tudatpy.data.mission_data_downloader import *
-object = LoadPDS()
-spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
-start_date_juice = datetime(2024, 8, 5)
-end_date_juice = datetime(2024, 8, 10)
-kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
-    input_mission = 'juice',
-    start_date = start_date_juice,
-    end_date = end_date_juice)
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+#from tudatpy.data.mission_data_downloader import *
+#object = LoadPDS()
+#spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
+#start_date_juice = datetime(2024, 8, 5)
+#end_date_juice = datetime(2024, 8, 10)
+#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
+#    input_mission = 'juice',
+#    start_date = start_date_juice,
+#    end_date = end_date_juice)
+#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 # Load Required Spice Kernels
 spice.load_standard_kernels()
-spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.bc")
-#spice.load_kernel("juice_archive/ck/juice_sc_meas_240801_240820_s240802_v04.bc")
+#spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.bc")
+#spice.load_kernel("juice_archive/ck/juice_sc_meas_240801_240831_s241112_v02.bc")
+spice.load_kernel("juice_archive/spk/juice_orbc_000093_230414_310721_v01.bsp")
 
 # %% [markdown]
 # ### Define Simulation Time and Parameters
@@ -110,16 +111,16 @@ spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.b
 
 # %%
 # Define Start and end Dates of Simulation
-start= datetime(2024, 8, 5)
-end = datetime(2024, 8, 10)
+start= datetime(2024, 8, 19)
+end = datetime(2024, 8, 21)
 integration_time = 60 # Integration time for closed-loop (IFMS) in seconds
-open_loop_cadence = 1 # Cadence for open-loop (FDETS) in seconds
+open_loop_cadence = 60 # Cadence for open-loop (FDETS) in seconds
 
 start_time = DateTime.from_python_datetime(start).to_epoch()
 end_time = DateTime.from_python_datetime(end).to_epoch()
 
-start_time_buffer = start_time - 3*86400
-end_time_buffer = end_time + 3*86400
+start_time_buffer = start_time - 86400
+end_time_buffer = end_time + 86400
 
 # %% [markdown]
 # ### Create Environment and Body Settings
@@ -216,7 +217,7 @@ times_linspace_tdb = [tudat_times_tdb for tudat_times_tdb in tudat_times_linspac
 vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body("JUICE").system_models = vehicleSys
-base_frequency = 8412e6 # JUICE Base frequency (ASSUMED)
+base_frequency = 8435.5e6 # JUICE Base frequency (ASSUMED)
 reception_band = observations_setup.ancillary_settings.FrequencyBands.x_band
 transmission_band =  observations_setup.ancillary_settings.FrequencyBands.x_band
 turnaround_ratio = observations_setup.ancillary_settings.dsn_default_turnaround_ratios(reception_band,transmission_band)
@@ -275,7 +276,7 @@ open_loop_observation_simulators = observations_setup.observations_simulation_se
 ############### Retrieve OPEN LOOP Collection ########################
 print("Running Open-Loop Simulation...")
 open_loop_collection = observations_setup.observations_wrapper.simulate_observations(open_loop_observation_simulation_settings, open_loop_observation_simulators, bodies)
-############### Compute OPEN LOOOP Residuals and Dependent Variables ########################
+############### Compute OPEN LOOP Residuals and Dependent Variables ########################
 estimation.observations.compute_residuals_and_dependent_variables(open_loop_collection, open_loop_observation_simulators, bodies) # fdets simulator
 print("Open-Loop Simulation Complete.")
 ##################################################################################
@@ -376,12 +377,12 @@ simulated_times_ifms_utc = [DateTime.to_python_datetime(DateTime.from_epoch(time
 ###############################################################################################################
 
 ######################## Retrieve Statistics (mean and rms) #######################
-rms_closed_loop_difference_simulated = np.std(difference_between_closed_loops_utc)
+rms_closed_loop_difference_simulated = np.sqrt(np.mean(difference_between_closed_loops_utc))
 mean_closed_loop_difference_simulated = np.mean(difference_between_closed_loops_utc)
 mean_pride_residuals = np.mean(open_loop_collection.get_concatenated_residuals())
-rms_pride_residuals = np.std(open_loop_collection.get_concatenated_residuals())
+rms_pride_residuals = np.sqrt(np.mean(open_loop_collection.get_concatenated_residuals()**2))
 mean_ifms_residuals = np.mean(closed_loop_collection.get_concatenated_residuals())
-rms_ifms_residuals = np.std(closed_loop_collection.get_concatenated_residuals())
+rms_ifms_residuals = np.sqrt(np.mean(closed_loop_collection.get_concatenated_residuals()**2))
 ###################################################################################
 
 print(f"Mean difference between (Equivalent CL) and (True CL): {mean_closed_loop_difference_simulated:.2e} Hz")
@@ -417,8 +418,8 @@ residual = closed_loop_values - open_loop_values
 first_derivative = np.gradient(open_loop_values, shared_times)
 second_derivative = np.gradient(first_derivative, shared_times)
 # Define the specific UTC time you want to query
-first_target_utc_string = "2024-08-05T17:18:00"
-second_target_utc_string = "2024-08-05T19:28:00"
+first_target_utc_string = "2024-08-20T17:29:52"
+second_target_utc_string = "2024-08-21T00:00:00"
 first_target_utc_datetime = datetime.strptime(first_target_utc_string, "%Y-%m-%dT%H:%M:%S")
 second_target_utc_datetime = datetime.strptime(second_target_utc_string, "%Y-%m-%dT%H:%M:%S")
 
@@ -438,14 +439,23 @@ first_simulated_value_at_target = simulated_open_loop_continuous_function_utc(fi
 second_simulated_value_at_target = simulated_open_loop_continuous_function_utc(second_target_epoch_tdb)
 
 # The interpolator gives the raw Doppler tone; subtract the base frequency
-# to get the Doppler shift, which is the standard value of interest.
-doppler_shift_at_first_target = first_simulated_value_at_target #- base_frequency
-doppler_shift_at_second_target = second_simulated_value_at_target #- base_frequency
+# to get the Doppler received frequency, which is the value of interest.
+doppler_shift_at_first_target = first_simulated_value_at_target 
+doppler_shift_at_second_target = second_simulated_value_at_target 
+
+doppler_shift_at_first_target_fdets = first_simulated_value_at_target - base_frequency
+doppler_shift_at_second_target_fdets  = second_simulated_value_at_target - base_frequency
+
+print(f"Simulated Doppler Received at {first_target_utc_string}:")
+print(f"{doppler_shift_at_first_target:.6f} Hz")
+print(f"Simulated FDETS Doppler Received at {second_target_utc_string}:")
+print(f"{doppler_shift_at_second_target:.6f} Hz")
 
 print(f"Simulated FDETS Doppler shift at {first_target_utc_string}:")
-print(f"{doppler_shift_at_first_target:.6f} Hz")
+print(f"{doppler_shift_at_first_target_fdets:.6f} Hz")
 print(f"Simulated FDETS Doppler shift at {second_target_utc_string}:")
-print(f"{doppler_shift_at_second_target:.6f} Hz")
+print(f"{doppler_shift_at_second_target_fdets:.6f} Hz")
+
 
 fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 
@@ -476,13 +486,6 @@ axs[2].grid(True)
 plt.tight_layout()
 plt.show()
 
-"""
-Simulated FDETS Doppler shift at 2024-08-05T17:18:00:
-8436501362.975844 Hz
-Simulated FDETS Doppler shift at 2024-08-05T19:28:00:
-8436488287.565639 Hz
-"""
-
 # %% [markdown]
 # ### Validation Plot 2: Final Comparison
 #
@@ -491,7 +494,7 @@ Simulated FDETS Doppler shift at 2024-08-05T19:28:00:
 # 2.  **Middle:** The *true* simulated closed-loop data vs. our *equivalent* closed-loop data.
 # 3.  **Bottom:** The final residuals between the *true* and *equivalent* closed-loop data. 
 #
-# If the conversion is successful, the residuals in the bottom plot should be very close to zero (on the order of machine precision or numerical noise).
+# If the conversion is successful, the residuals in the bottom plot should be flat.
 
 # %%
 ######################## Visualize data and residuals  ###########################
@@ -516,7 +519,7 @@ filtered_difference = np.array(difference_between_closed_loops_utc)[np.abs(diffe
 filtered_simulated_equivalent_closed_loop_times_utc = np.array(simulated_equivalent_closed_loop_times_utc)[np.abs(difference_between_closed_loops_utc) <= 0.1]
 
 mean_filtered_difference = np.mean(filtered_difference)
-rms_filtered_difference = np.std(filtered_difference)
+rms_filtered_difference = np.sqrt(np.mean(filtered_difference**2))
 
 axs[2].scatter(filtered_simulated_equivalent_closed_loop_times_utc, filtered_difference, marker='o', label = f'Residuals (True CL - Equiv. CL)\nmean:{mean_filtered_difference:.2g} Hz\nrms = {rms_filtered_difference:.2g} Hz',s=10, alpha=0.6)
 axs[2].set_xlabel('Time (UTC)')
@@ -529,3 +532,9 @@ fig.autofmt_xdate()
 plt.tight_layout()
 plt.show()
 ###################################################################################
+
+# %%
+
+# %%
+
+# %%
