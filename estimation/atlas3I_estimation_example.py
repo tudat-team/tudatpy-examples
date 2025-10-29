@@ -36,7 +36,7 @@ from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from tudatpy.data.mpc import BatchMPC, MPC80ColsParser
 from tudatpy.data.horizons import HorizonsQuery
 import numpy as np
-import os
+import datetime
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from tudatpy.astro import time_representation
@@ -63,7 +63,7 @@ batch_mpc.summary()
 
 additional_batch = BatchMPC()
 # Input file of observations
-input_file = os.path.dirname(__file__) + '/data/additional_observations_3I.txt'
+input_file = './data/additional_observations_3I.txt'
 try:
     astropy_table = MPC_parser.parse_80cols_file(input_file)
     if not astropy_table:
@@ -361,10 +361,7 @@ fig, axs = plt.subplots(
     sharey=False,
 )
 
-# We cheat a little to get an approximate year out of our times (which are in seconds since J2000)
-residual_times = (
-        np.array(observation_collection.concatenated_times) / (86400 * 365.25) + 2000
-)
+residual_times = np.array([DateTime.from_epoch(concatenated_time).to_python_datetime() for concatenated_time in observation_collection.concatenated_times])
 
 
 # plot the residuals, split between RA and DEC types
@@ -452,8 +449,6 @@ final_residuals = np.array(residual_history[:, -1])
 # if you would like to check the iteration 1 residuals, use:
 # final_residuals = np.array(residual_history[:, 0])
 
-
-
 # This piece of code collects the 10 largest observatories
 observatory_names = (
     batch.observatories_table(exclude_space_telescopes=True)
@@ -489,8 +484,6 @@ mask_not_top = [
 # get the number of observations by the other observatories
 # (divide by two because the observations are concatenated RA,DEC in this list)
 n_obs_not_top = int(sum(mask_not_top) / 2)
-
-
 
 fig, axs = plt.subplots(2, 1, figsize=(13, 9))
 
@@ -720,7 +713,7 @@ plt.show()
 
 # %%
 # Retrieve MPC observation times, RA and DEC from batch object
-batch_times_tdb = batch.table.epochJ2000secondsTDB.to_list()[:2000] # in tdb
+batch_times_tdb = batch.table.epochJ2000secondsTDB.to_list() # in tdb
 
 batch_times_utc = [time_scale_converter.convert_time(
     input_scale = time_representation.tdb_scale,
@@ -728,9 +721,9 @@ batch_times_utc = [time_scale_converter.convert_time(
     input_value = utc_second) for utc_second in batch_times_tdb
 ]
 
-batch_times_utc_date = batch.table.epochUTC.to_list()[:2000]
-batch_RA = batch.table.RA[:2000] #in radians
-batch_DEC = batch.table.DEC[:2000] #in radians
+batch_times_utc_date = batch.table.epochUTC.to_list()
+batch_RA = batch.table.RA #in radians
+batch_DEC = batch.table.DEC #in radians
 
 # Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
 fig = batch.plot_observations_sky()
@@ -767,8 +760,9 @@ print(f"...in Declination: {np.round(min_diff_DEC, 10)} rad")
 #Create plot to visualize ther observations and select outliers from Y05 and J95
 fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
 
-ax_ra.scatter(batch_times_utc, (jpl_RA - batch_RA), marker="+")
-ax_dec.scatter(batch_times_utc, (jpl_DEC - batch_DEC), marker="+")
+dates_utc = [DateTime.from_epoch(batch_time_utc).to_python_datetime() for batch_time_utc in batch_times_utc]
+ax_ra.scatter(dates_utc, (jpl_RA - batch_RA), marker="+")
+ax_dec.scatter(dates_utc, (jpl_DEC - batch_DEC), marker="+")
 
 ax_ra.set_ylabel("Error [rad]")
 ax_dec.set_ylabel("Error [rad]")
@@ -935,7 +929,7 @@ times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
 
 times_get_eph = [DateTime.from_epoch(time).to_julian_day() for time in times_get_eph]
 
-uncertainty_file_path = os.path.dirname(__file__) + '/data/3I-Ephemeris-Uncertainty.ecsv'
+uncertainty_file_path = "data/3I-Ephemeris-Uncertainty.ecsv"
 ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
 def add_uncertainty_table_to_cartesian_plot(
         axs,
