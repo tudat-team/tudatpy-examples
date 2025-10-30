@@ -31,7 +31,7 @@ from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, parameters_setup, propagation_setup
 from tudatpy import estimation
-from tudatpy.estimation import observable_models_setup, estimation_analysis
+from tudatpy.estimation import observable_models_setup, estimation_analysis, observations
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from tudatpy.data.mpc import BatchMPC, MPC80ColsParser
 from tudatpy.data.horizons import HorizonsQuery
@@ -52,17 +52,15 @@ import astropy.units as u
 # **Note:** This example requires a local data file named `additional_observations_3I.txt` in the same directory as this notebook. This file contains [MPC 80-column formatted observations](https://www.minorplanetcenter.net/iau/info/OpticalObs.html) for **Comet Atlas/3I**, as seen from Q54, Harlingten Telescope, Greenhill Observatory, Tasmania. We query `BatchMPC()` twice, one for the standard MPC query, and one to parse the additional observations from our `txt` file. Then we sum the two batches together and convert these into an observation collection. 
 
 # %%
-
 batch_mpc= BatchMPC()
 MPC_parser = MPC80ColsParser()
 time_scale_converter = time_representation.default_time_scale_converter( )
 # Define comet name
-mpc_codes = ["3I"] #or, alternatively, spkid: 104083, or also spkid: 2025 N1, or simply 3I
+mpc_codes = ["3I"]
 batch_mpc.get_observations(mpc_codes, id_types = ['comet_number'])
-batch_mpc.summary()
 
 additional_batch = BatchMPC()
-# Input file of observations
+# Input file of additional observations
 input_file = './data/additional_observations_3I.txt'
 try:
     astropy_table = MPC_parser.parse_80cols_file(input_file)
@@ -78,6 +76,10 @@ except FileNotFoundError:
 additional_batch.from_astropy(astropy_table, in_degrees = False)
 
 batch = batch_mpc + additional_batch
+
+batch.summary()
+
+batch.filter(observatories_exclude = ['C53', 'C57'])
 
 # %%
 # LOAD SPICE KERNELS
@@ -114,7 +116,8 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 number_of_pod_iterations = 6
 
 # 2 month time buffer used to avoid interpolation errors:
-time_buffer = 2 * 31 * 86400.0
+time_buffer_start = 0
+time_buffer_end = 2*31*86400.0
 
 batch.summary()
 print("Summary of space telescopes in batch:")
@@ -137,7 +140,17 @@ observation_collection = batch.to_tudat(
     apply_weights_VFCC17=True,
 )
 
-
+#may = DateTime.from_python_datetime(datetime(2025, 5, 1)).to_epoch()
+#june = DateTime.from_python_datetime(datetime(2025, 6, 1)).to_epoch()
+#day_filter = observations.observations_processing.observation_filter(
+#    observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+#    may,
+#    june,
+#    use_opposite_condition=True,
+#)
+#observation_collection.filter_observations(day_filter)
+#bservation_collection.remove_empty_observation_sets()
+#print(len(observation_collection.concatenated_observations))
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
 link_list = list(
@@ -156,8 +169,8 @@ for link in link_list:
 epoch_start_nobuffer = batch.epoch_start # this is in utc
 epoch_end_nobuffer = batch.epoch_end # this is in utc
 
-epoch_start_buffer = epoch_start_nobuffer - time_buffer
-epoch_end_buffer = epoch_end_nobuffer + time_buffer
+epoch_start_buffer = epoch_start_nobuffer - time_buffer_start
+epoch_end_buffer = epoch_end_nobuffer + time_buffer_end
 
 # %% [markdown]
 # ### Creating the acceleration settings
@@ -247,16 +260,19 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     absolute_error_tolerance=1.0e-12
 )
 
-# Terminate at the time of oldest observation (this was already correct)
-termination_condition = propagation_setup.propagator.time_termination(epoch_end_buffer)
-
-# Create propagation settings (this part was also correct)
+forward_termination_epoch = epoch_end_buffer
+backward_termination_epoch = epoch_end_nobuffer
+# Terminate at the time of oldest observation 
+termination_condition = propagation_setup.propagator.non_sequential_termination(
+    propagation_setup.propagator.time_termination(forward_termination_epoch),
+    propagation_setup.propagator.time_termination(backward_termination_epoch))
+# Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
     central_bodies=central_bodies,
     acceleration_models=acceleration_models,
     bodies_to_integrate=bodies_to_propagate,
     initial_states=initial_guess,
-    initial_time=time_representation.Time(epoch_start_nobuffer), # This is the correct place for the start time
+    initial_time=time_representation.Time(epoch_start_nobuffer),
     integrator_settings=integrator_settings,
     termination_settings=termination_condition,
 )
@@ -463,6 +479,7 @@ top_observatories = observatory_names.index.tolist()
 residuals_observatories = observation_collection.concatenated_link_definition_ids
 unique_observatories = set(residuals_observatories)
 
+print(len(residuals_observatories)/2)
 observatory_link_to_mpccode = {
     idx: observation_collection.link_definition_ids[idx][
         observable_models_setup.links.receiver
@@ -535,7 +552,6 @@ for ax in fig.get_axes():
     ax.set_ylabel("Observation Residual [rad]")
     ax.set_xlabel("Year")
     # this step hides a few outliers (~3 observations)
-    ax.set_ylim(-1.5e-5, 1.5e-5)
 
 axs[0].set_title("Right Ascension")
 axs[1].set_title("Declination")
@@ -646,7 +662,6 @@ number_of_columns = 2
 transparency = 0.6
 
 
-
 number_of_rows = (
     int(num_observatories / number_of_columns)
     if num_observatories % number_of_columns == 0
@@ -739,7 +754,7 @@ atlas_horizons_query = HorizonsQuery(
 
 # retrieve JPL observations
 jpl_observations = atlas_horizons_query.interpolated_observations()
-jpl_RA = jpl_observations[:, 1] % np.pi - np.pi #normalize RA to the interval [-pi,pi]
+jpl_RA = (jpl_observations[:, 1]  + np.pi) % (2 * np.pi) - np.pi
 jpl_DEC = jpl_observations[:,2]
 
 
