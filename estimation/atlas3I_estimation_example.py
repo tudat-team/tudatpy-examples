@@ -33,27 +33,25 @@ from tudatpy.dynamics import environment_setup, parameters_setup, propagation_se
 from tudatpy import estimation
 from tudatpy.estimation import observable_models_setup, estimation_analysis, observations
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
-from tudatpy.data.mpc import BatchMPC, MPC80ColsParser
+from tudatpy.data.mpc import BatchMPC
 from tudatpy.data.horizons import HorizonsQuery
 import numpy as np
-import datetime
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime
-from datetime import datetime
 import sys
 from astropy.table import Table
 import astropy.units as u
+from tudatpy.data.mpc.parser_80col import parse_80cols_file
 
 # %% [markdown]
 # ## Load Observation Data
 #
-# **Note:** This example requires a local data file named `additional_observations_3I.txt` in the same directory as this notebook. This file contains [MPC 80-column formatted observations](https://www.minorplanetcenter.net/iau/info/OpticalObs.html) for **Comet Atlas/3I**, as seen from Q54, Harlingten Telescope, Greenhill Observatory, Tasmania. We query `BatchMPC()` twice, one for the standard MPC query, and one to parse the additional observations from our `txt` file. Then we sum the two batches together and convert these into an observation collection. 
+# **Note:** This example requires a local data file named `additional_observations_3I.txt` in the same directory as this notebook. This file contains [MPC 80-column formatted observations](https://www.minorplanetcenter.net/iau/info/OpticalObs.html) for **Comet Atlas/3I**, as seen from Q54, Harlingten Telescope, Greenhill Observatory, Tasmania. We query `BatchMPC()` twice, one for the standard MPC query, and one to parse the additional observations from our `txt` file. Then we sum the two batches together and convert these into an observation collection.
 
 # %%
 batch_mpc= BatchMPC()
-MPC_parser = MPC80ColsParser()
 time_scale_converter = time_representation.default_time_scale_converter( )
 # Define comet name
 mpc_codes = ["3I"]
@@ -62,23 +60,9 @@ batch_mpc.get_observations(mpc_codes, id_types = ['comet_number'])
 additional_batch = BatchMPC()
 # Input file of additional observations
 input_file = './data/additional_observations_3I.txt'
-try:
-    astropy_table = MPC_parser.parse_80cols_file(input_file)
-    if not astropy_table:
-        print("No valid observation lines found in the file.")
-    else:
-        print("Successfully created Astropy Table.")
-
-except FileNotFoundError:
-    print(f"Error: File not found at {input_file}")
-    print("Please download the observation file and place it in the correct directory.")
-    sys.exit(1)
-additional_batch.from_astropy(astropy_table, in_degrees = False)
-
+additional_batch.from_file(input_file,in_degrees = False)
 batch = batch_mpc + additional_batch
-
 batch.summary()
-
 batch.filter(observatories_exclude = ['C53', 'C57'])
 
 # %%
@@ -116,8 +100,8 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 number_of_pod_iterations = 6
 
 # 2 month time buffer used to avoid interpolation errors:
-time_buffer_start = 0
-time_buffer_end = 2*31*86400.0
+time_buffer_start = 2*86400.0
+time_buffer_end = 30*86400.0
 
 batch.summary()
 print("Summary of space telescopes in batch:")
@@ -214,13 +198,11 @@ acceleration_models = propagation_setup.create_acceleration_models(
 # As we mentioned above, we need to propagate an initial state. We use `SPICE` (via a Horizons query) ephemeris to retrieve a 'benchmark' initial state for the comet at the propagation start epoch. We can also use this initial state to set our **initial guess for the estimation**. To define the initial guess, we add a **random uniform offset** of +/- 100,000 kilometers for the position and 1000 m/s for the velocity. Adding this random offset to the `SPICE` initial state should not have a strong influence on the final results, and it is added in order to keep the tutorial representative.
 
 # %%
-mid_arc_epoch = epoch_start_nobuffer + (epoch_end_nobuffer - epoch_start_nobuffer)/2
-print(f'Epoch, Start Arc: {epoch_start_nobuffer}, Mid Arc: {mid_arc_epoch}, End Arc: {epoch_end_nobuffer}')
 
 horizons_query = HorizonsQuery(
     query_id=f"{mpc_codes[0]};",
     location=f"@0", # since our ephemeris origin is the solar system barycenter
-    epoch_list=[epoch_start_nobuffer],
+    epoch_list=[epoch_start_buffer],
     extended_query=True,
 )
 
@@ -254,25 +236,26 @@ print(initial_guess - initial_state)
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
     initial_time_step=3600.0,  # Start with a 1-hour time step
     coefficient_set=propagation_setup.integrator.CoefficientSets.rkf_78,
-    minimum_step_size=10.0,      # Allow steps as small as 10 seconds
-    maximum_step_size=3 * 86400.0, # Allow steps as large as 3 days
+    minimum_step_size=10.0,
+    maximum_step_size=3600*2,
     relative_error_tolerance=1.0e-12,
     absolute_error_tolerance=1.0e-12
 )
 
 forward_termination_epoch = epoch_end_buffer
-backward_termination_epoch = epoch_end_nobuffer
-# Terminate at the time of oldest observation 
+backward_termination_epoch = epoch_start_buffer
+# Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.non_sequential_termination(
     propagation_setup.propagator.time_termination(forward_termination_epoch),
     propagation_setup.propagator.time_termination(backward_termination_epoch))
+
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
     central_bodies=central_bodies,
     acceleration_models=acceleration_models,
     bodies_to_integrate=bodies_to_propagate,
     initial_states=initial_guess,
-    initial_time=time_representation.Time(epoch_start_nobuffer),
+    initial_time=time_representation.Time(epoch_start_buffer),
     integrator_settings=integrator_settings,
     termination_settings=termination_condition,
 )
@@ -858,7 +841,7 @@ ax1.scatter(sc_pos_at_close_approach[0]/1000, sc_pos_at_close_approach[1]/1000, 
 ax1.scatter(0, 0, 0, label='Solar System Barycenter (Origin)', color='black', marker='+')
 
 # Plot the Sun's position at the time of closest approach
-ax1.scatter(sun_pos_at_close_approach[0]/1000, sun_pos_at_close_approach[1]/1000, sun_pos_at_close_approach[2]/1000, 
+ax1.scatter(sun_pos_at_close_approach[0]/1000, sun_pos_at_close_approach[1]/1000, sun_pos_at_close_approach[2]/1000,
             color='yellow', marker='*', s=100, label='Sun (at close approach)')
 ax1.set_title("Atlas/3I Trajectory (3D)")
 ax1.set_xlabel(r'$X$ [km]')
@@ -952,10 +935,10 @@ def add_uncertainty_table_to_cartesian_plot(
         simulation_start_time: float,  # Add simulation start time as an argument
         in_RSW: bool = False
 ):
-    """
-    Adds JPL ephemeris uncertainty data to an existing plot.
-    The time axis is made relative to the provided simulation_start_time.
-    """
+
+#Adds JPL ephemeris uncertainty data to an existing plot.
+#The time axis is made relative to the provided simulation_start_time.
+
     if not in_RSW:
         # This part remains for inertial frame plotting if needed
         uncertainty_history = np.array(
