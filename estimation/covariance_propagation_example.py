@@ -53,14 +53,14 @@ For more information on J2000 and the conversion between different temporal refe
 spice.load_standard_kernels()
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2024, 8, 28).epoch()
-simulation_end_epoch   = DateTime(2024, 9, 5).epoch()
-observation_start_epoch_1 = DateTime(2024, 8, 30).epoch()
-observation_end_epoch_1   = DateTime(2024, 9, 1).epoch()
-observation_start_epoch_2   = DateTime(2024, 9, 3).epoch()
-observation_end_epoch_2   = DateTime(2024, 9, 4).epoch()
+simulation_start_epoch = DateTime(2024, 8, 28).to_epoch()
+simulation_end_epoch   = DateTime(2024, 9, 5).to_epoch()
+observation_start_epoch_1 = DateTime(2024, 8, 30).to_epoch()
+observation_end_epoch_1   = DateTime(2024, 9, 1).to_epoch()
+observation_start_epoch_2   = DateTime(2024, 9, 3).to_epoch()
+observation_end_epoch_2   = DateTime(2024, 9, 4).to_epoch()
 
-observation_start_epoch_3   = DateTime(2024, 8, 29).epoch()
+observation_start_epoch_3   = DateTime(2024, 8, 29).to_epoch()
 observation_end_epoch_3 = simulation_end_epoch
 
 
@@ -190,11 +190,11 @@ Within this example, we will retrieve the initial state of `Starlink-32101` usin
 
 
 # Retrieve the initial state of `Starlink-32101` using Two-Line-Elements (TLEs)
-Starlink_tle = environment.Tle(
+Starlink_tle = environment_setup.ephemeris.sgp4(
     "1 60447U 24144Y   24239.91667824 -.00652022  00000-0 -25508-2 0  9990",
     "2 60447  53.1498 303.6008 0000548  88.4809  23.6264 15.87779028  3478",
 )
-Starlink_ephemeris = environment.TleEphemeris("Earth", "J2000", Starlink_tle, False)
+Starlink_ephemeris = environment_setup.create_body_ephemeris(Starlink_tle, "Starlink-32101")
 initial_state = Starlink_ephemeris.cartesian_state( simulation_start_epoch )
 
 

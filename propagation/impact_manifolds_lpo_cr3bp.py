@@ -344,7 +344,7 @@ initial_state_lpo_body_fixed = np.array(
      -4.813620400827587031e-05, -1.486990610364946619e-03, 3.598307742062465862e-04])
 period_lpo = 3.032280964384842736e+00
 
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
+simulation_start_epoch = DateTime(2000, 1, 1).to_epoch()
 
 manifolds_position_perturbation = 1e-6
 

@@ -3,7 +3,7 @@
 """
 
 """
-# Objectives
+## Objectives
 Whether you're looking to impress your friends by showing them when and where the **International Space Station** 🛰️ will pass overhead, or you need to verify if an **interplanetary probe** will be above a certain **elevation** for radio antenna communication 📡, this example has you covered. In this notebook, we'll demonstrate how to use **Tudatpy** to generate **visibility plots (azimuth and elevation)** for a specific target, from a selected location on Earth, across a given time period. In order to validate our results, we will compare them with results from the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). 
 """
 

@@ -591,7 +591,7 @@ integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step( time_
                                                                            propagation_setup.integrator.OrderToIntegrate.higher )
 
 # INITIAL TIME
-initial_epoch = DateTime(2000, 1, 1).epoch()
+initial_epoch = DateTime(2000, 1, 1).to_epoch()
 
 # TERMINATION CONDITION
 # We will run a simulation of 30 days.
