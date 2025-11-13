@@ -4,7 +4,7 @@
 #
 # Kosmos 482 is exemplary because it allows us to showcase:
 #
-# - **Retrieving TLE data** from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**  
+# - **Retrieving TLE data** from <https://www.space-track.org> via Tudatpy’s **SpaceTrack query**
 # - **Validation of Reentry Prediction**, since the actual reentry occurred on **10 May 2025**
 #
 
@@ -46,20 +46,19 @@ norad_id = str(6073)
 answer = input('Do you have a Space-Track.org account? (Y/N): ')
 if answer.upper() == 'Y':
     print("Great! You'll be able to download data directly. Please enter you SpaceTrack credentials.")
-        
+
     # Initialize SpaceTrackQuery
-    SpaceTrackQuery = SpaceTrackQuery()
-    
-    # OMM Dict
-    json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
-    
-    tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
+    spacetrack_request = SpaceTrackQuery()
+    omm_utils = spacetrack_request.OMMUtils
+    json_dict = spacetrack_request.get_tles_by_norad_ids([norad_id])
+    tle_dict = omm_utils.get_tles(json_dict)
     tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
-    
+    # Retrieve TLE Reference epoch, this will be start epoch of simulation
+    tle_reference_epoch = omm_utils.get_tle_reference_epoch(tle_line1)
+
     print(f'TLE: \n {tle_line1} \n {tle_line2}')
     print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
-    
+
     #---------------------------------------------------------------------------------------------------------------#
     # TLE (if you do not possess an account to Space-Track.org)
     # tle_line1 = "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"  # TLE line 1
@@ -80,7 +79,7 @@ else:
 # Load spice kernels
 spice.load_standard_kernels()
 
-# ## Here, we create a time scale converter object, as we will later need to convert utc times into tdb. 
+# ## Here, we create a time scale converter object, as we will later need to convert utc times into tdb.
 # Tudat's default spice kernels are loaded
 
 # ## Define Object Info and Initialize SpaceTrackQuery
@@ -92,13 +91,13 @@ spice.load_standard_kernels()
 
 # ## **Define Object Properties and Simulation Epochs**
 #
-# We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.  
+# We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.
 # We also specify a **drag coefficient** and a **cut-off altitude** for the simulation, assumed to be **50 km**.
 #
 # The **simulation start UTC epoch** is defined as the **TLE reference epoch retrieved above**, and the simulation is run for **one year**, although it will automatically terminate whenever the altitude falls below the specified cut-off.
 #
-# > **NOTES**  
-# > 1) Tudat’s propagator requires times to be provided as **floating-point Epochs**, hence we apply a conversion using the function: `{from\_python\_datetime}.  
+# > **NOTES**
+# > 1) Tudat’s propagator requires times to be provided as **floating-point Epochs**, hence we apply a conversion using the function: `{from\_python\_datetime}.
 # > 2) Since the propagation is performed in **TDB** time scale, we also apply Tudat’s `{default\_time\_scale\_converter} to convert from UTC to TDB.
 #
 
@@ -112,10 +111,10 @@ drag_coefficient = 2.2 # drag coefficient
 # CUT-OFF ALTITUDE FOR SIMULATION
 altitude_limit = 50.0e3  #meters  (standard 50 km = 50.0e3)
 # SET SIMULATION START EPOCH
-# THIS EQUALs THE TIME OF THE TLE EPOCH 
+# THIS EQUALs THE TIME OF THE TLE EPOCH
 simulation_start_utc = tle_reference_epoch
 # SET  SIMULATION END EPOCH (cuts off run if altitude criterion not met before)
-simulation_end_utc = tle_reference_epoch + timedelta(seconds = 86400*365) # one year after start 
+simulation_end_utc = tle_reference_epoch + timedelta(seconds = 86400*365) # one year after start
 
 float_observations_start_utc = time_representation.DateTime.from_python_datetime(simulation_start_utc).to_epoch()
 float_observations_end_utc = time_representation.DateTime.from_python_datetime(simulation_end_utc).to_epoch()
@@ -125,22 +124,22 @@ time_scale_converter = time_representation.default_time_scale_converter( )
 
 # start and end epoch of simulation conversion from UTC to tdb
 simulation_start_epoch_tdb = time_scale_converter.convert_time(
-  input_scale = time_representation.utc_scale,
-  output_scale = time_representation.tdb_scale,
-  input_value = float_observations_start_utc)
+    input_scale = time_representation.utc_scale,
+    output_scale = time_representation.tdb_scale,
+    input_value = float_observations_start_utc)
 simulation_end_epoch_tdb = time_scale_converter.convert_time(
-  input_scale = time_representation.utc_scale,
-  output_scale = time_representation.tdb_scale,
-  input_value = float_observations_end_utc)
+    input_scale = time_representation.utc_scale,
+    output_scale = time_representation.tdb_scale,
+    input_value = float_observations_end_utc)
 # -
 
 # ## **Output Options**
 #
 # To give users more control over the level of output detail, we define several **output modes**:
 #
-# - **`{full}** – selected data, `{J2K} states, and final results  
-# - **`{selected}** – only the selected data and final results  
-# - **`{J2K}** – only the propagated `{J2K} states and final results  
+# - **`{full}** – selected data, `{J2K} states, and final results
+# - **`{selected}** – only the selected data and final results
+# - **`{J2K}** – only the propagated `{J2K} states and final results
 # - **`{endonly}** – only the final results
 #
 # Additionally, if you would like to **save states at intermediate intervals**, you can set the flag `{interval\_set} to `'yes'`.
@@ -164,10 +163,10 @@ altitude_limit_string = str(altitude_limit)
 
 # ## **Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)**
 #
-# We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.  
+# We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.
 # All bodies are set to rotate and translate using `get_default_body_settings`, which relies on the previously loaded **SPICE standard kernels**.
 #
-# To improve accuracy, we overwrite Earth’s default rotation model using `gcrs_to_itrs`, with the **IAU 2006** convention as reference.  
+# To improve accuracy, we overwrite Earth’s default rotation model using `gcrs_to_itrs`, with the **IAU 2006** convention as reference.
 # We also choose a more appropriate shape for Earth by modelling it as an **oblate spheroid** with mean radius of $\sim 6378$ km and flattening of $\sim 1/298.25$.
 #
 # Finally, we add **Kosmos 482** to the system of bodies and define:
@@ -188,8 +187,8 @@ body_settings = environment_setup.get_default_body_settings(
     global_frame_orientation)
 # Create Earth rotation model
 body_settings.get("Earth").rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
-                environment_setup.rotation_model.iau_2006,
-                global_frame_orientation )
+    environment_setup.rotation_model.iau_2006,
+    global_frame_orientation )
 body_settings.get("Earth").gravity_field_settings.associated_reference_frame = "ITRS"
 # create atmosphere settings and add to body settings of body "Earth"
 body_settings.get( "Earth" ).atmosphere_settings = environment_setup.atmosphere.nrlmsise00()
@@ -259,19 +258,19 @@ acceleration_models = propagation_setup.create_acceleration_models(
 )
 # -
 
-# ## Starting the Propagation 
+# ## Starting the Propagation
 #
 # Let's retrieve the initial state of the reentry kosmos_482 using Two-Line-Elements as let's set it as initial state for our propagation.
 
 kosmos_482_tle = environment_setup.ephemeris.sgp4(
-  tle_line1, tle_line2
+    tle_line1, tle_line2
 )
 kosmos_482_ephemeris = environment_setup.create_body_ephemeris(kosmos_482_tle, "Kosmos 482")
 initial_state = kosmos_482_ephemeris.cartesian_state(simulation_start_epoch_tdb)
 
 # ## **Define Dependent Variables to Save**
 #
-# As is customary in Tudat, we specify the **dependent variables** we wish to save during propagation.  
+# As is customary in Tudat, we specify the **dependent variables** we wish to save during propagation.
 # For re-entry analysis, it is useful to monitor quantities such as:
 #
 # - **Altitude**
@@ -294,7 +293,7 @@ dependent_variables_to_save = [
 
 # ## **Ending the Propagation (at Cut-off Altitude)**
 #
-# Tudat allows the definition of **termination conditions** to stop a simulation once a specified criterion is met.  
+# Tudat allows the definition of **termination conditions** to stop a simulation once a specified criterion is met.
 # In this example, we terminate the propagation as soon as **Kosmos 482’s altitude drops below the prescribed cut-off altitude**.
 #
 # To ensure robustness, we additionally define a **secondary termination condition** at the **simulation end epoch** — in case, for any reason, the altitude threshold is not reached (even though we expect it to be).
@@ -346,7 +345,7 @@ if interval_set == 'yes':
 
 # ## **Create Dynamics Simulator and Run the Propagation**
 #
-# We now create the **dynamics simulator object** and perform the propagation.  
+# We now create the **dynamics simulator object** and perform the propagation.
 # After propagation, we extract the results from the simulator’s `state_history` and `dependent_variable_history` attributes.
 #
 
@@ -364,7 +363,7 @@ dependent_variables_array = result2array(dependent_variables)
 
 # ## **Write Results to Screen and to Text Files**
 #
-# We are now ready to **write out and save the results** of our propagation.  
+# We are now ready to **write out and save the results** of our propagation.
 #
 # Tudat estimates the **Reentry Window** for Kosmos 482 at approximately:
 #
@@ -502,11 +501,11 @@ print(" ")
 
 # ## **Plot Kosmos 482 Ground Track**
 #
-# Using the **dependent variables** saved during propagation, we can plot the ground track of Kosmos 482.  
+# Using the **dependent variables** saved during propagation, we can plot the ground track of Kosmos 482.
 #
-# To make the visualization more informative and visually appealing, we will use the **Cartopy** and **GeoPandas** libraries.  
+# To make the visualization more informative and visually appealing, we will use the **Cartopy** and **GeoPandas** libraries.
 #
-# Additionally, we will read shapefiles (such as `ne_10m_populated_places.shp`, `ne_10m_populated_places.dbf`, and `ne_10m_populated_places.shx`) — which should be included in your repository — to display cities with populations exceeding one million on the map.  
+# Additionally, we will read shapefiles (such as `ne_10m_populated_places.shp`, `ne_10m_populated_places.dbf`, and `ne_10m_populated_places.shx`) — which should be included in your repository — to display cities with populations exceeding one million on the map.
 #
 # Fortunately, our predictions indicate that Kosmos 482 will reenter over the ocean.
 #
@@ -574,7 +573,7 @@ altitude = dependent_variables_array[:, 1]
 
 # Plot altitude vs. UTC
 plt.figure(figsize=(10, 5))
-plt.plot(utc_times, altitude/1000, label="Altitude") 
+plt.plot(utc_times, altitude/1000, label="Altitude")
 plt.xlabel("UTC Time", fontsize=12)
 plt.ylabel("Altitude [km]", fontsize=12)
 plt.title("Satellite Altitude over Time", fontsize=14)
