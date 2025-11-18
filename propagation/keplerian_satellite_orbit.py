@@ -262,6 +262,7 @@ ax.legend()
 ax.set_xlabel('x [m]')
 ax.set_ylabel('y [m]')
 ax.set_zlabel('z [m]')
+ax.set_aspect('equal')
 plt.show()
 
 
