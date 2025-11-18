@@ -124,17 +124,6 @@ observation_collection = batch.to_tudat(
     apply_weights_VFCC17=True,
 )
 
-#may = DateTime.from_python_datetime(datetime(2025, 5, 1)).to_epoch()
-#june = DateTime.from_python_datetime(datetime(2025, 6, 1)).to_epoch()
-#day_filter = observations.observations_processing.observation_filter(
-#    observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-#    may,
-#    june,
-#    use_opposite_condition=True,
-#)
-#observation_collection.filter_observations(day_filter)
-#bservation_collection.remove_empty_observation_sets()
-#print(len(observation_collection.concatenated_observations))
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
 link_list = list(
@@ -223,9 +212,6 @@ initial_guess = initial_state.copy()
 
 initial_guess[0:3] += (2 * rng.random(3) - 1) * initial_position_offset
 initial_guess[3:6] += (2 * rng.random(3) - 1) * initial_velocity_offset
-
-print("Error between the real initial state and our initial guess:")
-print(initial_guess - initial_state)
 
 # %% [markdown]
 # ### Finalising the propagation setup
@@ -462,7 +448,6 @@ top_observatories = observatory_names.index.tolist()
 residuals_observatories = observation_collection.concatenated_link_definition_ids
 unique_observatories = set(residuals_observatories)
 
-print(len(residuals_observatories)/2)
 observatory_link_to_mpccode = {
     idx: observation_collection.link_definition_ids[idx][
         observable_models_setup.links.receiver
@@ -831,7 +816,7 @@ for i in range(len(trajectory) - 1):
 closest_approach_au = (closest_approach_m * u.m).to(u.au)
 
 print(f"Closest Approach to Sun: {closest_approach_utc_date}")
-print(f"Closest Approach Distance: {closest_approach_au} AU")
+print(f"Closest Approach Distance: {closest_approach_au}")
 
 # Plot the spacecraft's position at closest approach
 ax1.scatter(sc_pos_at_close_approach[0]/1000, sc_pos_at_close_approach[1]/1000, sc_pos_at_close_approach[2]/1000, # type: ignore
