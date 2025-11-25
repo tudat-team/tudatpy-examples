@@ -102,7 +102,7 @@ def compute_scipy_quadrature(interpolated_function, times, integration_time=10):
 spice.load_standard_kernels()
 #spice.load_kernel("juice_archive/ck/juice_sc_crema_5_1_150lb_23_1_baseline_v03.bc")
 #spice.load_kernel("juice_archive/ck/juice_sc_meas_240801_240831_s241112_v02.bc")
-spice.load_kernel("juice_archive/spk/juice_orbc_000093_230414_310721_v01.bsp")
+spice.load_kernel("juice_archive/spk/juice_orbc_000097_230414_310721_v01.bsp")
 
 # %% [markdown]
 # ### Define Simulation Time and Parameters
@@ -114,7 +114,7 @@ spice.load_kernel("juice_archive/spk/juice_orbc_000093_230414_310721_v01.bsp")
 start= datetime(2024, 8, 19)
 end = datetime(2024, 8, 21)
 integration_time = 60 # Integration time for closed-loop (IFMS) in seconds
-open_loop_cadence = 60 # Cadence for open-loop (FDETS) in seconds
+open_loop_cadence = 10 # Cadence for open-loop (FDETS) in seconds
 
 start_time = DateTime.from_python_datetime(start).to_epoch()
 end_time = DateTime.from_python_datetime(end).to_epoch()
@@ -217,13 +217,39 @@ times_linspace_tdb = [tudat_times_tdb for tudat_times_tdb in tudat_times_linspac
 vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body("JUICE").system_models = vehicleSys
-base_frequency = 8435.5e6 # JUICE Base frequency (ASSUMED)
+base_frequency = 8422.49e6 # JUICE Base frequency (ASSUMED)
 reception_band = observations_setup.ancillary_settings.FrequencyBands.x_band
 transmission_band =  observations_setup.ancillary_settings.FrequencyBands.x_band
 turnaround_ratio = observations_setup.ancillary_settings.dsn_default_turnaround_ratios(reception_band,transmission_band)
 
+start_time_first_session = DateTime(24,8,19, 10,58,36).epoch()
+start_time_second_session = DateTime(24,8,20, 11,32,17).epoch() # This line was duplicated, but it's fine.
+
+end_time_first_session = DateTime(24,8,19, 22,10,22).epoch()
+end_time_second_session = DateTime(24,8,20, 19,28,9).epoch()
+
+ramp_dictionary= dict()
+ramp_dictionary['NWNORCIA'] = {'start_times': [start_time_first_session, start_time_second_session]}
+ramp_dictionary['NWNORCIA']['end_times'] = [end_time_first_session, end_time_second_session]
+ramp_dictionary['NWNORCIA']['ramp_rates'] = [0, 0]
+ramp_dictionary['NWNORCIA']['start_frequencies'] = [7180.142419e6,7180.127320e6]
+
 # Set Transmitting Frequency
-bodies.get( "Earth" ).get_ground_station( "NWNORCIA" ).transmitting_frequency_calculator = environment.ConstantTransmittingFrequencyCalculator( 7180127320 )
+for key in ramp_dictionary.keys():
+    station_start_ramp_times = ramp_dictionary[key]['start_times']
+    station_end_ramp_times = ramp_dictionary[key]['end_times']
+    station_ramp_rates = ramp_dictionary[key]['ramp_rates']
+    station_start_frequencies= ramp_dictionary[key]['start_frequencies']
+
+    station_ramp = environment.PiecewiseLinearFrequencyInterpolator(
+        station_start_ramp_times ,
+        station_end_ramp_times,
+        station_ramp_rates,
+        station_start_frequencies
+    )
+
+    # Set the ramp
+    bodies.get('Earth').get_ground_station(key).transmitting_frequency_calculator = station_ramp
 
 # %% [markdown]
 # ## 4. Part 1: Simulate Open-Loop (FDETS) Data
@@ -418,11 +444,11 @@ residual = closed_loop_values - open_loop_values
 first_derivative = np.gradient(open_loop_values, shared_times)
 second_derivative = np.gradient(first_derivative, shared_times)
 # Define the specific UTC time you want to query
-first_target_utc_string = "2024-08-20T17:29:52"
-second_target_utc_string = "2024-08-21T00:00:00"
-first_target_utc_datetime = datetime.strptime(first_target_utc_string, "%Y-%m-%dT%H:%M:%S")
-second_target_utc_datetime = datetime.strptime(second_target_utc_string, "%Y-%m-%dT%H:%M:%S")
-
+first_target_utc_string = "2024-08-20T17:29:52.500"
+second_target_utc_string = "2024-08-20T19:21:00.500"
+first_target_utc_datetime = datetime.strptime(first_target_utc_string, "%Y-%m-%dT%H:%M:%S.%f")
+second_target_utc_datetime = datetime.strptime(second_target_utc_string, "%Y-%m-%dT%H:%M:%S.%f") # This one doesn't have milliseconds
+#
 # Convert the Python datetime object to seconds since J2000 epoch (in TDB)
 # This is the time scale used by the simulation and the interpolator
 first_target_epoch_tdb = time_representation.DateTime.to_epoch(
@@ -468,7 +494,7 @@ axs[0].grid(True)
 axs[0].legend()
 
 # Second subplot: Residual
-axs[1].plot(shared_times, second_derivative*integration_time**2/24, label="Quadratic Term ($T^2/24 \cdot h_o''$)", color='r')
+axs[1].plot(shared_times, second_derivative*integration_time**2/(24), label="Quadratic Term ($T^2/24 \cdot h_o''$)", color='r')
 axs[1].scatter(shared_times[np.abs(residual)<1000], residual[np.abs(residual)<1000], label='Closed - Open Loop ($h_c - h_o$)', color='green', s = 8)
 axs[1].set_title('Difference Between Closed and Open Loop Doppler')
 axs[1].set_xlabel('Time [s since J2000]')
