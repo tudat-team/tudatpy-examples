@@ -33,7 +33,7 @@ from tudatpy.astro import time_representation, element_conversion
 from tudatpy.astro.time_representation import DateTime
 from datetime import datetime
 from tudatpy.dynamics import environment_setup, environment
-from tudatpy.estimation import observable_models_setup, observations_setup, observations
+from tudatpy.estimation import observable_models_setup, observations_setup, observations, estimation_analysis
 from tudatpy import estimation
 
 import os
@@ -42,6 +42,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.integrate import quad
 import matplotlib.pyplot as plt
+import tudatpy.data as data
 # %matplotlib inline
 
 # %% [markdown]
@@ -203,16 +204,6 @@ for time_utc in tudat_times_linspace_utc: # for each UTC epoch, convert it to TD
         earth_fixed_position = body_fixed_station_position)) # if trying the geodetic altitude change, use fake_body_fixed_station_position
 times_linspace_tdb = [tudat_times_tdb for tudat_times_tdb in tudat_times_linspace_tdb] # tdb, float type
 
-######## OPTIONALLY APPLY TROPOSPHERIC CORRECTION FOR UPLINK AND DOWNLINK ########################################################################################################
-#observation.set_vmf_troposphere_data(
-#    [ "/Users/lgisolfi/Desktop/mex_phobos_flyby/VMF/y2013.vmf3_r" ], True, False, bodies, False, True
-#)
-# Load meteorological uplink and downlink corrections
-#weather_files = ([os.path.join('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met', met_file) for met_file in os.listdir('/Users/lgisolfi/Desktop/data_archiving-1.0/dataset/mex/gr035/downloaded/met')])
-#body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'NWNORCIA'))
-#body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'YARRA12M'))
-#####################################################################################################################################################################
-
 ########## Set the transponder turnaround ratio function ###################################
 vehicleSys = environment.VehicleSystems()
 vehicleSys.set_default_transponder_turnaround_ratio_function()
@@ -265,13 +256,35 @@ link_ends = {
     observable_models_setup.links.retransmitter: observable_models_setup.links.body_origin_link_end_id('JUICE'),
     observable_models_setup.links.transmitter: observable_models_setup.links.body_reference_point_link_end_id('Earth', 'NWNORCIA'),
 }
-
 # Create a single link definition from the link ends
 link_definition = observable_models_setup.links.LinkDefinition(link_ends)
+
 light_time_correction_list = list()
+############ OPTIONALLY APPLY TROPOSPEHRIC CORRECTIONS (ONLY WORKS WITH AVAILABLE MET (TROPO) FILES ##################################
+# Load site-specific tropospheric data
+observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
+    ["juice_archive/vmf/2024231.vmf3_g",
+     "juice_archive/vmf/2024232.vmf3_g",
+     "juice_archive/vmf/2024233.vmf3_g",
+     "juice_archive/vmf/2024234.vmf3_g"],
+    file_has_meteo = True,
+    file_has_gradient = False,
+    bodies = bodies,
+    set_troposphere_data = True,
+    set_meteo_data = True
+)
+
+# Load meteorological uplink and downlink corrections
+#weather_files = # ADD HERE YOUR WEATHER FILES, IF AVAILABLE ON ESA PSA.
+#body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'NWNORCIA'))
+#body_settings.get("Earth").ground_station_settings.append(data.set_estrack_weather_data_in_ground_stations(bodies,weather_files, 'YARRA12M'))
+
+#light_time_correction_list.append(observable_models_setup.light_time_corrections.vmf3_tropospheric_light_time_correction())
+########################################################################################################
+
+# Append first order relativistic light time corrections
 light_time_correction_list.append(
     observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"]))
-######################################################################################
 
 ################### Define Open Loop Observation and Ancillary settings ###################
 open_loop_observation_model_settings = [
