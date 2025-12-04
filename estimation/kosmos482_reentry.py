@@ -11,7 +11,7 @@
 # # Import Statements
 # At the beginning of our example, we import all necessary modules.
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import math
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
@@ -20,13 +20,11 @@ import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
 from tudatpy.interface import spice
-from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
+from tudatpy.dynamics import environment_setup, environment, propagation_setup, simulator
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
-from tudatpy.astro.time_representation import DateTime
 from tudatpy.data.spacetrack import SpaceTrackQuery
 import datetime
-from numpy import savetxt
 
 # # How to run this script:
 #  1. With the latest version of Tudat installed, which includes the spacetrack and DISCOS libraries.
@@ -46,25 +44,37 @@ norad_id = str(6073)
 answer = input('Do you have a Space-Track.org account? (Y/N): ')
 if answer.upper() == 'Y':
     print("Great! You'll be able to download data directly. Please enter you SpaceTrack credentials.")
-        
+
     # Initialize SpaceTrackQuery
-    SpaceTrackQuery = SpaceTrackQuery()
+    # This will prompt for username/password if not provided and handle login
+    space_track_query = SpaceTrackQuery()
+
+    # Download TLE Data
+    # Use get_tles_by_norad_ids for a specific object
+    json_dict = space_track_query.get_tles_by_norad_ids(norad_id)
+
+    if json_dict:
+        # Extract TLE lines using OMMUtils
+        # get_tles returns a dict: {norad_id: (line1, line2)}
+        tle_dict = space_track_query.OMMUtils.get_tles(json_dict)
+
+        if norad_id in tle_dict:
+            tle_line1, tle_line2 = tle_dict[norad_id]
+
+            # Get Reference Epoch using OMMUtils
+            tle_reference_epoch = space_track_query.OMMUtils.get_tle_reference_epoch(tle_line1)
+
+            print(f'TLE: \n {tle_line1} \n {tle_line2}')
+            print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
+        else:
+            print(f"No TLE found for NORAD ID {norad_id}")
+
     
-    # OMM Dict
-    json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
-    
-    tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
-    tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
-    
-    print(f'TLE: \n {tle_line1} \n {tle_line2}')
-    print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
-    
-    #---------------------------------------------------------------------------------------------------------------#
-    # TLE (if you do not possess an account to Space-Track.org)
-    # tle_line1 = "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"  # TLE line 1
-    # tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"  # TLE line 2
-    #---------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------#
+# TLE (if you do not possess an account to Space-Track.org)
+# tle_line1 = "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"  # TLE line 1
+# tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"  # TLE line 2
+#---------------------------------------------------------------------------------------------------------------#
 else:
     print("""No worries, we will use the following hardcoded TLEs:
             tle_line1: 1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993
@@ -72,7 +82,6 @@ else:
     tle_line1 =  "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"
     tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"
     tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
-# -
 
 # ## Load Spice Kernels
 # Tudat's default spice kernels are loaded
@@ -380,125 +389,91 @@ dependent_variables_array = result2array(dependent_variables)
 
 # +
 
-data = dependent_variables_array
-length = len(data)
-lastline= (data[length-1])
+# --- Extracting Results ---
+# Retrieve the dependent variables (reentry/termination conditions)
+dependent_variable_data = dependent_variables_array
+data_length = len(dependent_variable_data)
+last_line = dependent_variable_data[data_length - 1]
+
+# --- Displaying Configuration Parameters ---
 print(' ')
-print('mass: ' + mass_string + ' kg')
-print('drag area: ' + area_string +' m^2')
-print('altitude limit: ' + altitude_limit_string  +' meter')
+print('Mass: ' + mass_string + ' kg')
+print('Drag Area: ' + area_string + ' m^2')
+print('Altitude Limit: ' + altitude_limit_string + ' meters')
 print(' ')
-# parse reentry date and position in human-readable format
-# time and position
-eindtijd = lastline[0]
-altid = (lastline[1])/1000.0
-lat = math.degrees(lastline[2])
-lon = math.degrees(lastline[3])
-latstring =  "{:.2f}".format(lat)
-lonstring = "{:.2f}".format(lon)
-altstring = "{:.3f}".format(altid)
-# integration window duration to reentry
-duur = eindtijd - simulation_start_epoch_tdb
-uren = (duur/3600.0)
-urenstring = "{:.3f}".format(uren)
-dagen = uren/24.0
-dagenstring = "{:.3f}".format(dagen)
-# reentry time
-date_1 = datetime.datetime(2000,1,1,12,0,0)
-eindtijd = eindtijd - 64.184  # tdb to UTC
-eindtijd_uren = (eindtijd/3600.0)
-eindtijd_dagen = eindtijd_uren/24.0
-end_date = date_1 + datetime.timedelta(days=eindtijd_dagen)
-reentrydatestring = str(end_date)
-propstart = date_1 + datetime.timedelta(days=((float_observations_start_utc/3600.0)/24.0))
-propstartstring = str(propstart)
-propstartstring = propstartstring + " UTC"
-propendstring = str(end_date)
-propendstring = propendstring + " UTC"
-# get uncertainty estimate (25% of integration window duration)
-sigm = 0.25 * uren    # sigma defined as 25% of time between TLE epoch and reentry
-if sigm < 26.0:
-    formatted_number = "%.2f" % sigm
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' hr'
-if sigm < 1.0:
-    sigm_mins = 0.25 *(duur/60.0)
-    formatted_number = "%.2f" % sigm_mins
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' min'
-if sigm >= 26.0:
-    sigm_days = 0.25 * dagen
-    formatted_number = "%.2f" % sigm_days
-    sigm_string = str(formatted_number)
-    sigm_string = sigm_string + ' days'
-# print data to screen
+
+# --- Parsing Reentry Date and Position ---
+# Extract time and position from the last data point
+reentry_epoch_tdb = last_line[0]
+reentry_altitude_km = (last_line[1]) / 1000.0
+reentry_latitude_deg = math.degrees(last_line[2])
+reentry_longitude_deg = math.degrees(last_line[3])
+
+# Format position strings
+latitude_string = "{:.2f}".format(reentry_latitude_deg)
+longitude_string = "{:.2f}".format(reentry_longitude_deg)
+altitude_string = "{:.3f}".format(reentry_altitude_km)
+
+# --- Calculating Duration ---
+# Calculate duration from simulation start to reentry
+duration_seconds = reentry_epoch_tdb - simulation_start_epoch_tdb
+duration_hours = (duration_seconds / 3600.0)
+duration_days = duration_hours / 24.0
+
+# Format duration strings
+hours_string = "{:.3f}".format(duration_hours)
+days_string = "{:.3f}".format(duration_days)
+
+# --- Calculating Reentry Time (UTC) ---
+reference_epoch = datetime.datetime(2000, 1, 1, 12, 0, 0)
+reentry_epoch_utc = reentry_epoch_tdb - 64.184  # Convert TDB to UTC (approximate offset)
+reentry_epoch_utc_hours = (reentry_epoch_utc / 3600.0)
+reentry_epoch_utc_days = reentry_epoch_utc_hours / 24.0
+reentry_datetime_utc = reference_epoch + datetime.timedelta(days=reentry_epoch_utc_days)
+reentry_date_string = str(reentry_datetime_utc)
+
+# --- Calculating Propagation Start/End Times (UTC) ---
+propagation_start_datetime = reference_epoch + datetime.timedelta(days=((float_observations_start_utc / 3600.0) / 24.0))
+propagation_start_string = str(propagation_start_datetime) + " UTC"
+propagation_end_string = str(reentry_datetime_utc) + " UTC"
+
+# --- Estimating Uncertainty (Sigma) ---
+# Sigma is defined as 25% of the integration window duration
+sigma_hours = 0.25 * duration_hours
+
+if sigma_hours < 26.0:
+    formatted_sigma = "%.2f" % sigma_hours
+    sigma_string = str(formatted_sigma) + ' hr'
+elif sigma_hours < 1.0: # Logic check: this condition is unreachable if sigma_hours >= 1.0, maybe intended for very short durations?
+    sigma_minutes = 0.25 * (duration_seconds / 60.0)
+    formatted_sigma = "%.2f" % sigma_minutes
+    sigma_string = str(formatted_sigma) + ' min'
+if sigma_hours >= 26.0:
+    sigma_days = 0.25 * duration_days
+    formatted_sigma = "%.2f" % sigma_days
+    sigma_string = str(formatted_sigma) + ' days'
+
+# --- Printing Results to Screen ---
 print(' ')
-print('propagation start:  ' + propstartstring)
-print('propagation end:    ' + propendstring)
+print('Propagation Start:  ' + propagation_start_string)
+print('Propagation End:    ' + propagation_end_string)
 print(" ")
-if (altid * 1e3) > altitude_limit:
+
+if (reentry_altitude_km * 1e3) > altitude_limit:
     print("OBJECT DID NOT REENTER WITHIN DEFINED TIMESPAN...")
 else:
-    print('final altitude ' + altstring + ' km')
+    print('Final Altitude: ' + altitude_string + ' km')
     print(" ")
-    print('reentry after ' + urenstring + ' hours  = ' + dagenstring + ' days')
+    print('Reentry after ' + hours_string + ' hours  = ' + days_string + ' days')
     print(" ")
-    print ('REENTRY AT:')
-    print(reentrydatestring + ' UTC  +-  ' + sigm_string)
-    print('lat: ' + latstring + '   lon: ' + lonstring)
+    print('REENTRY AT:')
+    print(reentry_date_string + ' UTC  +-  ' + sigma_string)
+    print('Latitude: ' + latitude_string + '   Longitude: ' + longitude_string)
+
 print(" ")
 print(" ")
 # -
 
-# Save intermediate data to a comma-delimited txt file if option was chosen earlier
-if outopt == 'selected':
-    savetxt('variables_out' + filenamesuf + '.txt', dependent_variables_array, delimiter=',')
-    savetxt('J2Kstate_out' + filenamesuf + '.txt', states_array, delimiter=',')
-
-if outopt == 'selected':
-    savetxt('variables_out' + filenamesuf + '.txt', dependent_variables_array, delimiter=',')
-
-if outopt == 'J2K':
-    savetxt('J2Kstate_out' + filenamesuf + '.txt', states_array, delimiter=',')
-
-# Save final data (reentry date and position) to a text file
-savetxt('reentrytime_out' + filenamesuf + '.txt', lastline, delimiter=',')
-
-# Re-open the file in append mode and append
-file = open('reentrytime_out' + filenamesuf + '.txt', 'a')
-
-# +
-#Append reentry info to the file
-file.write('\n')
-file.write('\n' + 'OBJECT: ' + objname + '\n')
-file.write('NORAD ID:  ' + norad_id + '\n')
-file.write('COSPAR: ' + cospar + '\n')
-file.write('\n')
-file.write(tle_line1 + '\n')
-file.write(tle_line2 + '\n')
-file.write('\n')
-file.write('mass: ' + mass_string + ' kg\n')
-file.write('drag area: ' + area_string +' m^2\n')
-file.write('altitude limit: ' + altitude_limit_string  +' meter\n' + '\n')
-file.write('propagation start: ' + propstartstring + '\n')
-file.write('propagation end:   ' + propendstring + '\n')
-file.write('final altitude:    ' + altstring + '\n')
-file.write('\n')
-if (altid * 1e3) > altitude_limit:
-    file.write('OBJECT DID NOT REENTER IN THIS TIMESPAN\n')
-else:
-    file.write('reentry after ' + dagenstring + ' days\n')
-    file.write('\n')
-    file.write('REENTRY AT:\n')
-    file.write( reentrydatestring + ' UTC  +-  ' + sigm_string+'\n')
-    file.write('lat: ' + latstring + '\n')
-    file.write('lon: ' + lonstring + '\n')
-
-# Close the file
-file.close()
-print("output data have been written to files in home directory")
-print(" ")
-# -
 
 # ## **Plot Kosmos 482 Ground Track**
 #
@@ -540,7 +515,7 @@ cbar = plt.colorbar(lc, ax=ax, orientation='horizontal', pad=0.03)
 cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')}", fontsize=12)
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
-ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
+ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentry_date_string[:16]} UTC +- {sigma_string})")
 # Add cities > 1M population
 ax.scatter(
     big_cities.geometry.x,
