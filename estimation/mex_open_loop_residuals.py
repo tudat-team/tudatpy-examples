@@ -1,61 +1,17 @@
 # %% [markdown]
-# # Objectives
-# This notebook provides a comprehensive workflow for analyzing **Mars Express tracking data residuals** using:
+# # Mars Express Tracking Data Residuals Analysis
 #
-# - **Closed-loop IFMS** (Intermediate Frequency and Modem System)
-# - **Open-loop FDETS** (Frequency and Doppler Extraction and Tracking System)
+# This notebook analyzes tracking data residuals from Mars Express during the December 2013 Phobos flyby. We'll compare two tracking systems:
 #
-# ## Overview
-# The analysis focuses on the period around the December 2013 **Phobos flyby**.
+# - **IFMS (Closed-loop)**: Traditional ground station tracking from New Norcia
+# - **FDETS (Open-loop)**: Advanced Doppler observations from HARTRAO and URUMQI
 #
-# It includes:
-#
-# - **IFMS Analysis**  
-#   Closed-loop Doppler tracking from `NEW NORCIA` (`NWNORCIA`) 
-#
-# - **FDETS Analysis**  
-#   Open-loop Doppler observations from multiple `HARTRAO` (`HART15M`) and `URUMQI` (`UM`) 
-#
-# - **Combined Visualization**  
-#   Comparative residual plots with statistical analysis
-#
-# - **Combined Visualization (Subset)**  
-#   Comparative residual plots with statistical analysis over a shorter timespan
-#
-# - **Data Export**  
-#   To save the residuals into csv files.
-#
-#   
-#
-# ---
-#
-# ## Table of Contents
-#
-# ### 1. [Configuration and Setup](##1-configuration-and-setup)
-# - 1.1 Import Libraries  
-# - 1.2 Download Mission Data  
-# - 1.3 User Configuration  
-# - 1.4 Utility Functions  
-#
-# ### 2. [Environment and Body Setup](##2-environment-and-body-setup)
-# - 2.1 Load SPICE Kernels  
-# - 2.2 Define Time Window  
-# - 2.3 Create Body Settings and System  
-#
-# ### 3. [Data Processing](##3-data-processing)
-# - 3.1 IFMS Data Processing  
-# - 3.2 FDETS Data Processing  
-#
-# ### 4. [Results Visualization](##4-results-visualization)
-# - 4.1 Combined Residuals Plot  
-# - 4.2 Subset Analysis with Distribution  
-#
-# ### 5. [Data Export](##5-data-export)
+# By the end, you'll have computed residuals, visualized the results, and exported the data for further analysis.
 
 # %% [markdown]
-# ## 1. Configuration and Setup
+# ## Part 1: Setting Up the Environment
 #
-# ### 1.1 Import Required Libraries and Tudatpy Modules
+# Let's start by importing the tools we need and downloading the mission data from ESA's archives.
 
 # %%
 import csv
@@ -69,7 +25,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 
-# TudatPy imports
+# TudatPy imports for astrodynamics computations
 from tudatpy.astro import time_representation
 from tudatpy.math import interpolators
 from tudatpy.dynamics import environment_setup, environment
@@ -80,15 +36,21 @@ import tudatpy.data as data
 from tudatpy.data.mission_data_downloader import *
 from tudatpy.interface import spice
 
+print("✓ Libraries imported successfully")
+
 # %% [markdown]
-# ### 1.2 Download Mission Data
+# ### Downloading Mars Express Data
+#
+# We'll download tracking data from ESA's Planetary Science Archive for the period around the Phobos flyby (December 27-31, 2013). This includes:
+# - **Meteorological data** for atmospheric corrections
+# - **IFMS tracking files** with closed-loop Doppler measurements
 
 # %%
-print("Downloading Mars Express mission data...")
+print("Downloading Mars Express mission data from ESA archives...")
 
 # Initialize data loader
 object = LoadPDS()
-spice.clear_kernels()  # Clear kernels to avoid duplicates
+spice.clear_kernels()
 
 # Mission configuration
 input_mission = 'mex'
@@ -96,14 +58,13 @@ local_path = './mex_archive'
 start_date_mex = datetime(2013, 12, 27)
 end_date_mex = datetime(2013, 12, 31)
 
-# Define custom URLs for meteorological data
+# Define URLs for meteorological and IFMS data
 custom_met_urls = [
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/',
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/CALIB/CLOSED_LOOP/IFMS/MET/'
 ]
 
-# Define custom URLs for IFMS data
 custom_ifms_urls = [
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3619-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3624-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2',
@@ -124,211 +85,185 @@ for custom_ifms_url in custom_ifms_urls:
     object.add_custom_mission_kernel_pattern(input_mission, 'ifms', custom_ifms_pattern)
     object.dynamic_download_url_files_single_time(input_mission, local_path, start_date_mex, end_date_mex, custom_ifms_url)
 
-print("Data download complete!")
-
-# %%
-def parse_and_filter_file(filename):
-    """
-    Reads a space-delimited file, removes rows where column 10 == -999999999,
-    and saves the cleaned file into ../ifms_filtered/.
-    """
-    # Convert to Path for easier manipulation
-    file_path = Path(filename)
-
-    # Create output folder one level up
-    output_folder = file_path.parent.parent / "ifms_filtered"
-    output_folder.mkdir(parents=True, exist_ok=True)
-
-    # Read file
-    df = pd.read_csv(file_path, sep='\s+', header=None)
-
-    # Filter rows (column 10 is index 9)
-    df = df[~df[8].astype(float).between(-1.000000001e9, -999999998.999)]
-
-    # Construct output filename
-    output_filename = output_folder / file_path.name
-
-    # Save filtered file
-    df.to_csv(output_filename, sep=" ", index=False, header=False)
-
-    return output_filename
-
-DOWNLOADED_IFMS_FOLDER = './mex_archive/ifms'
-for file in os.listdir(DOWNLOADED_IFMS_FOLDER):
-    filtered_file = parse_and_filter_file(os.path.join(DOWNLOADED_IFMS_FOLDER, file))
-    print("Filtered file saved at:", filtered_file)
+print("✓ Data download complete!")
 
 # %% [markdown]
-# ### 1.3 User Configuration
+# ### Data Cleaning
+#
+# IFMS files sometimes contain invalid data points (marked with -999999999). Let's filter these out before processing.
+
+# %%
+#def parse_and_filter_file(filename):
+#    """Remove invalid data points from IFMS files"""
+#    file_path = Path(filename)
+#    output_folder = file_path.parent.parent / "ifms_filtered"
+#    output_folder.mkdir(parents=True, exist_ok=True)
+#
+#    df = pd.read_csv(file_path, sep='\s+', header=None)
+#    df = df[~df[8].astype(float).between(-1.000000001e9, -999999998.999)]
+#
+#    output_filename = output_folder / file_path.name
+#    df.to_csv(output_filename, sep=" ", index=False, header=False)
+#    return output_filename
+#
+#DOWNLOADED_IFMS_FOLDER = './mex_archive/ifms'
+#filtered_count = 0
+#for file in os.listdir(DOWNLOADED_IFMS_FOLDER):
+#    filtered_file = parse_and_filter_file(os.path.join(DOWNLOADED_IFMS_FOLDER, file))
+#    filtered_count += 1
+#
+#print(f"✓ Filtered {filtered_count} IFMS files")
+
+# %% [markdown]
+# ### Configure Your Analysis
+#
+# **Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
 
 # %%
 # =============================================================================
-# USER CONFIGURATION
+# USER CONFIGURATION - UPDATE THESE PATHS
 # =============================================================================
 
-# Main data directory (update this to your base path)
-BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'
+BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'  # ← Change this to your base directory
 
 # Subdirectories
 KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
 FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
 IFMS_FOLDER = './mex_archive/ifms_filtered'
-ODF_FOLDER = os.path.join(BASE_DIR, 'odf')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 
-# Weather and VMF data paths
+# Reference data
 WEATHER_DATA_DIR = './mex_archive/met'
-VMF_FILE = '/Users/lgisolfi/Desktop/mex_phobos_flyby/VMF/y2013.vmf3_r.txt'
+VMF_FILE = os.path.join(BASE_DIR, 'VMF/y2013.vmf3_r.txt')
 
-# Analysis parameters
+# Analysis time window
 ANALYSIS_START = datetime(2013, 12, 28, 0, 0, 0)
 ANALYSIS_END = datetime(2013, 12, 31, 0, 0, 0)
 
-# Spacecraft configuration
+# Mission configuration
 SPACECRAFT_NAME = "MEX"
 SPACECRAFT_CENTRAL_BODY = "Mars"
 
-# FDETS files to process
+# FDETS files to process (these should be in your FDETS_FOLDER)
 FDETS_FILES_TO_PROCESS = [
-    'Fdets.mex2013.12.28.Ur.complete.r2i.txt', 
-    'Fdets.mex2013.12.28.Ht.complete.r2i.txt'
+    'Fdets.mex2013.12.28.Ur.complete.r2i.txt',  # Urumqi
+    'Fdets.mex2013.12.28.Ht.complete.r2i.txt'   # HARTRAO
 ]
 
-print(f"Analysis period: {ANALYSIS_START.date()} to {ANALYSIS_END.date()}")
-
+print(f"✓ Configuration complete")
+print(f"  Analysis period: {ANALYSIS_START.date()} to {ANALYSIS_END.date()}")
 
 # %% [markdown]
-# ### 1.4 Utility Functions
+# ### Helper Functions
+#
+# These utility functions help us organize data by ground station and map station codes to readable names.
 
 # %%
 def get_weather_files_by_station(weather_data_dir):
-    """
-    Retrieve weather files grouped by station codes.
-    
-    Parameters
-    ----------
-    weather_data_dir : str
-        Path to the directory containing weather data files.
-    
-    Returns
-    -------
-    dict
-        Dictionary where keys are station codes and values are lists of weather files.
-    """
+    """Group weather files by station code"""
     if not os.path.exists(weather_data_dir):
         print(f"Warning: Weather data directory not found at {weather_data_dir}")
         return {}
-    
+
     station_files = defaultdict(list)
-    
     for f in os.listdir(weather_data_dir):
-        if f.startswith('.'):  # skip hidden/system files
+        if f.startswith('.'):
             continue
-        
+
         filename = os.path.basename(f)
         if len(filename) <= 3:
             continue
-        
-        station_code = filename[1:3]  # extract station code
+
+        station_code = filename[1:3]
         full_path = os.path.join(weather_data_dir, f)
-        
-        # Map station codes
+
+        # Map station codes (60→63, 10→14, etc.)
         if station_code == '60':
             station_files['63'].append(full_path)
         elif station_code == '10':
             station_files['14'].append(full_path)
         elif station_code == '32':
             station_files['32'].append(full_path)
-    
+
     return dict(station_files)
 
 def get_ifms_files_by_station(ifms_data_dir):
-    """
-    Retrieve IFMS files grouped by station codes.
-    """
+    """Group IFMS files by station code"""
     if not os.path.exists(ifms_data_dir):
-        print(f"Warning: IFMS data directory not found at {ifms_data_dir}")
         return {}
-    
+
     station_files = defaultdict(list)
-    
     for f in os.listdir(ifms_data_dir):
         if f.startswith('.'):
             continue
-        
+
         filename = os.path.basename(f)
-        if len(filename) <= 3:
-            continue
-        
-        station_code = filename[1:3]
-        full_path = os.path.join(ifms_data_dir, f)
-        
-        if station_code in ['63', '14', '32']:
-            station_files[station_code].append(full_path)
-    
+        if len(filename) > 3:
+            station_code = filename[1:3]
+            if station_code in ['63', '14', '32']:
+                station_files[station_code].append(os.path.join(ifms_data_dir, f))
+
     return dict(station_files)
 
+def code_to_site(site_ID):
+    """Convert station code to name"""
+    mapping = {'32': 'NWNORCIA', '63': 'DSS64', '14': 'DSS14'}
+    return mapping.get(site_ID, None)
+
+def ID_to_site(site_ID):
+    """Convert FDETS site ID to full station name"""
+    mapping = {
+        'Ur': 'URUMQI', 'Ht': 'HART15M', 'Hh': 'HARTRAO',
+        'Wz': 'WETTZELL', 'On': 'ONSALA60', 'Ys': 'YEBES40M'
+        # Add more as needed
+    }
+    return mapping.get(site_ID, None)
+
+def get_fdets_receiving_station_name(fdets_file):
+    """Extract station name from FDETS filename"""
+    site_id = os.path.basename(fdets_file).split('.')[4]
+    return ID_to_site(site_id)
+
 def generate_random_color():
-    """Generate a random color in hexadecimal format."""
+    """Generate random color for plotting"""
     return "#{:02x}{:02x}{:02x}".format(
         random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
     )
 
-def ID_to_site(site_ID):
-    """Maps a site ID to its corresponding ground station name."""
-    id_mapping = {
-        'Cd': 'CEDUNA', 'Hb': 'HOBART12', 'Yg': 'YARRA12M', 'Ke': 'KATH12M',
-        'Ww': 'WARK', 'Ym': 'YAMAGU32', 'T6': 'TIANMA65', 'Km': 'KUNMING',
-        'Ku': 'KVNUS', 'Bd': 'BADARY', 'Ur': 'URUMQI', 'Zc': 'ZELENCHK',
-        'Hh': 'HARTRAO', 'Ht': 'HART15M', 'Mh': 'METSAHOV', 'Wz': 'WETTZELL',
-        'Sv': 'SVETLOE', 'Mc': 'MEDICINA', 'Wb': 'WSTRBORK', 'On': 'ONSALA60',
-        'Ys': 'YEBES40M', 'Sc': 'SC-VLBA', 'Hn': 'HN-VLBA', 'Nl': 'NL-VLBA',
-        'Fd': 'FD-VLBA', 'La': 'LA-VLBA', 'Kp': 'KP-VLBA', 'Br': 'BR-VLBA',
-        'Ov': 'OV-VLBA', 'Mk': 'MK-VLBA', 'Pt': 'PIETOWN',
-    }
-    return id_mapping.get(site_ID, None)
-
-def code_to_site(site_ID):
-    """Maps a station code to its corresponding ground station name."""
-    code_mapping = {
-        '32': 'NWNORCIA',
-        '63': 'DSS64',
-        '14': 'DSS14'
-    }
-    return code_mapping.get(site_ID, None)
-
-def get_fdets_receiving_station_name(fdets_file):
-    """Extract receiving station name from FDETS filename."""
-    site_id = os.path.basename(fdets_file).split('.')[4]
-    return ID_to_site(site_id)
-
+print("✓ Helper functions defined")
 
 # %% [markdown]
-# ## 2. Environment and Body Setup
+# ## Part 2: Creating the Solar System Environment
 #
-# ### 2.1 Load SPICE Kernels
+# Now we'll set up the physical environment needed for our analysis. This includes loading SPICE kernels (which contain precise ephemerides) and configuring the celestial bodies.
+
+# %% [markdown]
+# ### Loading SPICE Kernels
+#
+# SPICE kernels provide precise position and orientation data for spacecraft and celestial bodies. We'll load both standard kernels and Mars Express mission-specific kernels.
 
 # %%
 print("Loading SPICE kernels...")
 
-# Load standard kernels
+# Load standard planetary ephemerides
 spice.load_standard_kernels()
 
-# Load mission-specific kernels
+# Load Mars Express mission kernels
 kernel_count = 0
 for kernel in os.listdir(KERNELS_FOLDER):
-    if not kernel.startswith('.'):  # Skip hidden files
+    if not kernel.startswith('.'):
         kernel_path = os.path.join(KERNELS_FOLDER, kernel)
         spice.load_kernel(kernel_path)
         kernel_count += 1
 
-print(f"Loaded {kernel_count} mission-specific kernels")
+print(f"✓ Loaded {kernel_count} mission-specific kernels")
 
 # %% [markdown]
-# ### 2.2 Define Time Window
+# ### Defining the Time Window
+#
+# We'll convert our analysis dates into TudatPy's time format (seconds since J2000 epoch).
 
 # %%
-# Convert datetime to TudatPy time format
 start_time = time_representation.Time(
     time_representation.DateTime.to_epoch(
         time_representation.DateTime.from_python_datetime(ANALYSIS_START)
@@ -347,26 +282,29 @@ end_time_seconds = time_representation.DateTime.to_epoch(
     time_representation.DateTime.from_python_datetime(ANALYSIS_END)
 )
 
-print(f"Simulation time window:")
-print(f"Start: {start_time_seconds} seconds since J2000")
-print(f"End: {end_time_seconds} seconds since J2000")
+print(f"✓ Time window established:")
+print(f"  Start: {start_time_seconds:.1f} seconds since J2000")
+print(f"  End: {end_time_seconds:.1f} seconds since J2000")
 
 # %% [markdown]
-# ### 2.3 Create Body Settings and System
-# %%
-print("Setting up celestial body environment...")
+# ### Building the Celestial Bodies System
+#
+# We'll create a system of bodies including the planets needed for accurate gravitational modeling and light-time corrections. We'll also configure Mars Express and the ground stations.
 
-# Define celestial bodies to include
+# %%
+print("Building solar system environment...")
+
+# Define which celestial bodies to include
 bodies_to_create = ["Earth", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Moon"]
-global_frame_origin = "SSB"
+global_frame_origin = "SSB"  # Solar System Barycenter
 global_frame_orientation = "J2000"
 
-# Get default body settings
+# Create default settings for these bodies
 body_settings = environment_setup.get_default_body_settings_time_limited(
     bodies_to_create, start_time, end_time, global_frame_origin, global_frame_orientation
 )
 
-# Configure Earth with detailed rotation model
+# Configure Earth with high-precision rotation model
 body_settings.get('Earth').shape_settings = environment_setup.shape.oblate_spherical_spice()
 body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
     environment_setup.rotation_model.iau_2006, global_frame_orientation,
@@ -379,7 +317,15 @@ body_settings.get('Earth').rotation_model_settings = environment_setup.rotation_
 )
 body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "ITRS"
 
-# Configure spacecraft
+print("✓ Earth configured with IAU 2006 rotation model")
+
+# %% [markdown]
+# ### Adding Mars Express Spacecraft
+#
+# We'll add Mars Express to our system with its ephemeris interpolated from SPICE data.
+
+# %%
+# Add spacecraft with interpolated ephemeris
 body_settings.add_empty_settings(SPACECRAFT_NAME)
 body_settings.get(SPACECRAFT_NAME).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
     start_time, end_time, 10.0, SPACECRAFT_CENTRAL_BODY, global_frame_orientation
@@ -391,46 +337,49 @@ body_settings.get(SPACECRAFT_NAME).rotation_model_settings = environment_setup.r
 # Add ground stations
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 
-# Create system of bodies
+# Create the complete system
 bodies = environment_setup.create_system_of_bodies(body_settings)
-
-# Load weather data for meteorological corrections
-weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
-ifms_dict = get_ifms_files_by_station(IFMS_FOLDER)
 
 # Configure spacecraft transponder
 vehicle_sys = environment.VehicleSystems()
 vehicle_sys.set_default_transponder_turnaround_ratio_function()
 bodies.get_body(SPACECRAFT_NAME).system_models = vehicle_sys
 
-print("Configuration complete!")
+print("✓ Mars Express spacecraft configured")
+print("✓ Ground stations added to Earth")
+
 # %% [markdown]
-# ## 3. Data Processing
+# ## Part 3: Processing Tracking Data
 #
-# ### 3.1 IFMS Data Processing
+# Now comes the core analysis. We'll process both IFMS (closed-loop) and FDETS (open-loop) observations, computing residuals between observed and predicted Doppler measurements.
+
+# %% [markdown]
+# ### Setting Up for IFMS Processing
+#
+# Before processing, we need to configure the antenna position on Mars Express and load weather data for tropospheric corrections.
 
 # %%
-print("Processing IFMS data...")
+print("Preparing for IFMS data processing...")
 
-# Initialize storage for results
+# Initialize results storage
 ifms_station_residuals = {}
 processed_ifms_count = 0
 
-# Configuration parameters
+# Frequency bands used
 reception_band = FrequencyBands.x_band
 transmission_band = FrequencyBands.x_band
 
-# Get list of IFMS files
+# Get IFMS files
 ifms_files = []
 if os.path.exists(IFMS_FOLDER):
     for file in os.listdir(IFMS_FOLDER):
         if not file.startswith('.'):
             ifms_files.append(os.path.join(IFMS_FOLDER, file))
 
-print(f"Found {len(ifms_files)} IFMS files.")
+print(f"✓ Found {len(ifms_files)} IFMS files to process")
 
-# Set up antenna ephemeris
-com_position = [-1.3, 0.0, 0.0]  # MEX center of mass offset
+# Configure MEX antenna position (offset from center of mass)
+com_position = [-1.3, 0.0, 0.0]
 antenna_state = np.zeros((6, 1))
 antenna_state[:3, 0] = spice.get_body_cartesian_position_at_epoch(
     "-41020", "-41000", "MEX_SPACECRAFT", "none", start_time
@@ -446,89 +395,104 @@ antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(
 
 time_scale_converter = time_representation.default_time_scale_converter()
 
-# Set weather data for all stations
-print('Setting weather data in ground stations...')
+# Load weather data into ground stations
+weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
 for station_code in weather_dict.keys():
     weather_files = weather_dict[station_code]
     data.set_estrack_weather_data_in_ground_stations(bodies, weather_files, code_to_site(station_code))
-print('Done.')
+
+print("✓ Antenna ephemeris configured")
+print("✓ Weather data loaded into ground stations")
 
 # %% [markdown]
-# ### 3.2 FDETS Data Processing
+# ### Processing IFMS and FDETS Files
+#
+# This is where the heavy lifting happens. For each IFMS file:
+# 1. Load the observations
+# 2. Create observation models with tropospheric corrections
+# 3. Simulate expected observations
+# 4. Compute residuals (observed - simulated)
+# 5. Process corresponding FDETS files if available
+#
+# This may take a few minutes depending on data volume.
 
 # %%
-# Initialize FDETS processing variables
+print("Processing IFMS and FDETS data...")
+print("This may take several minutes...\n")
+
+# Storage for FDETS results
 fdets_station_residuals = {}
 processed_fdets_count = 0
+
+# FDETS configuration
 base_frequency = 8412e6
 column_types = [
     "utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max",
     "doppler_measured_frequency_hz", "doppler_noise_hz"
 ]
 
+# Station name mapping
+station_mapping = {
+    '14': 'DSS14',
+    '63': 'DSS63',
+    '32': 'NWNORCIA'
+}
+
 # Process each IFMS file
-for ifms_file in ifms_files:
+for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     filename = os.path.basename(ifms_file)
-    
-    # Extract station code from filename
-    if len(filename) > 3:
-        station_code = filename[1:3]
-    else:
+
+    # Extract station code
+    if len(filename) <= 3:
         continue
-    
-    # Map station codes to names
-    station_mapping = {
-        '14': 'DSS14',
-        '63': 'DSS63',
-        '32': 'NWNORCIA'
-    }
-    
+    station_code = filename[1:3]
+
     if station_code not in station_mapping:
         continue
-        
+
     transmitting_station_name = station_mapping[station_code]
-    print(f"Processing {filename} -> {transmitting_station_name}")
-    
+    print(f"[{ifms_idx}/{len(ifms_files)}] Processing {transmitting_station_name}...")
+
     # Load IFMS observations
     ifms_collection = observations_setup.observations_wrapper.observations_from_ifms_files(
         [ifms_file], bodies, SPACECRAFT_NAME, transmitting_station_name,
         reception_band, transmission_band
     )
-    
-    # Apply time filtering
+
+    # Filter by time window
     time_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering, 
+        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
         start_time, end_time, use_opposite_condition=True
     )
-    
-    len_unfiltered_collection = len(ifms_collection.get_concatenated_observations())
+
     ifms_collection.filter_observations(time_filter)
     ifms_collection.remove_empty_observation_sets()
-    
-    len_filtered_collection = len(ifms_collection.get_concatenated_observations())
-    if len_filtered_collection == 0:
+
+    if len(ifms_collection.get_concatenated_observations()) == 0:
+        print(f"  No observations in time window, skipping")
         continue
-    
-    # Set reference point
+
+    # Set reference point to antenna
     ifms_collection.set_reference_point(
         bodies, antenna_ephemeris, "Antenna", "MEX", links.retransmitter
     )
-    
+
     # Configure troposphere corrections
     observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
         [VMF_FILE], True, False, bodies, False, True
     )
-    
-    # Configure observation models
+
+    # Define light-time corrections
     light_time_corrections = [
         observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"]),
         observable_models_setup.light_time_corrections.saastamoinen_tropospheric_light_time_correction()
     ]
-    
+
+    # Create observation models
     doppler_link_ends = ifms_collection.link_definitions_per_observable[
         observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
     ]
-    
+
     observation_model_settings = []
     for link_definition in doppler_link_ends:
         observation_model_settings.append(
@@ -536,191 +500,178 @@ for ifms_file in ifms_files:
                 link_definition, light_time_corrections, subtract_doppler_signature=False
             )
         )
-    
-    # Create simulators and compute residuals
+
+    # Create simulators
     observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
         observation_model_settings, bodies
     )
-    
+
     # Compute residuals
     observations.compute_residuals_and_dependent_variables(
         ifms_collection, observation_simulators, bodies
     )
-    
-    # Apply residual filtering
+
+    # Filter outliers
     residual_filter = observations.observations_processing.observation_filter(
         observations.observations_processing.ObservationFilterType.residual_filtering, 0.1
     )
     ifms_collection.filter_observations(residual_filter)
     ifms_collection.remove_empty_observation_sets()
-    
-    len_filtered_collection = len(ifms_collection.get_concatenated_observations())
-    if len_filtered_collection == 0:
+
+    if len(ifms_collection.get_concatenated_observations()) == 0:
+        print(f"  All observations filtered out, skipping")
         continue
-    
-    # Extract timing and residual data
-    times = ifms_collection.get_concatenated_observation_times()  # in TDB
+
+    # Extract results
+    times = ifms_collection.get_concatenated_observation_times()
     times_utc = [time_scale_converter.convert_time(
         input_scale=time_representation.tdb_scale,
         output_scale=time_representation.utc_scale,
         input_value=t) for t in times]
     utc_times = [time_representation.DateTime.to_python_datetime(
         time_representation.DateTime.from_epoch(t)) for t in times_utc]
-    
-    start_time_ifms = time_representation.Time(times[0])
-    end_time_ifms = time_representation.Time(times[-1])
-    
-    time_filter_based_on_ifms = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering, 
-        start_time_ifms, end_time_ifms, use_opposite_condition=True
-    )
-    
-    # Extract results
+
     residuals = ifms_collection.get_concatenated_residuals()
     mean_residuals = ifms_collection.get_mean_residuals()
     rms_residuals = ifms_collection.get_rms_residuals()
-    
-    # Store results
+
+    # Store IFMS results
     if transmitting_station_name not in ifms_station_residuals:
         ifms_station_residuals[transmitting_station_name] = {
-            'times': [],
-            'utc_times': [],
-            'residuals': [],
-            'mean': [],
-            'rms': []
+            'times': [], 'utc_times': [], 'residuals': [], 'mean': [], 'rms': []
         }
-    
+
     ifms_station_residuals[transmitting_station_name]['times'].extend(times)
     ifms_station_residuals[transmitting_station_name]['utc_times'].extend(utc_times)
     ifms_station_residuals[transmitting_station_name]['residuals'].extend(residuals)
     ifms_station_residuals[transmitting_station_name]['mean'].append(mean_residuals)
     ifms_station_residuals[transmitting_station_name]['rms'].append(rms_residuals)
-    
+
     processed_ifms_count += 1
-    
+
+    # Define time filter based on IFMS coverage
+    start_time_ifms = time_representation.Time(times[0])
+    end_time_ifms = time_representation.Time(times[-1])
+    time_filter_based_on_ifms = observations.observations_processing.observation_filter(
+        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+        start_time_ifms, end_time_ifms, use_opposite_condition=True
+    )
+
     # Process corresponding FDETS files
     for fdets_filename in FDETS_FILES_TO_PROCESS:
         fdets_file = os.path.join(FDETS_FOLDER, fdets_filename)
-        
+
         if not os.path.exists(fdets_file):
-            print(f"Warning: FDETS file not found: {fdets_file}")
             continue
-        
-        # Get receiving station name
+
         site_name = get_fdets_receiving_station_name(fdets_file)
         if site_name is None:
-            print(f"Could not determine station name for {fdets_filename}")
             continue
-        
+
         # Check if station is available
         available_stations = [station[1] for station in environment_setup.get_ground_station_list(bodies.get_body("Earth"))]
         if site_name not in available_stations:
-            print(f"Station {site_name} not available in ground station list")
             continue
-        
-        print(f"Processing FDETS file: {fdets_filename} -> {site_name}")
-        
+
+        print(f"  Processing FDETS: {site_name}...")
+
         # Load FDETS observations
         fdets_collection = observations_setup.observations_wrapper.observations_from_fdets_files(
             fdets_file, base_frequency, column_types, SPACECRAFT_NAME,
             transmitting_station_name, site_name, reception_band, transmission_band
         )
-        
+
         fdets_collection.filter_observations(time_filter_based_on_ifms)
         fdets_collection.remove_empty_observation_sets()
-        len_filtered_collection = len(fdets_collection.get_concatenated_observations())
-        if len_filtered_collection == 0:
+
+        if len(fdets_collection.get_concatenated_observations()) == 0:
             continue
-        
-        # Define link ends
+
+        # Define link
         link_ends_fdets = {
             links.receiver: links.body_reference_point_link_end_id('Earth', site_name),
             links.retransmitter: links.body_reference_point_link_end_id('MEX', 'Antenna'),
             links.transmitter: links.body_reference_point_link_end_id('Earth', transmitting_station_name),
         }
         link_definition_fdets = links.LinkDefinition(link_ends_fdets)
-        
+
         fdets_collection.set_reference_point(
             bodies, antenna_ephemeris, "Antenna", "MEX", links.retransmitter
         )
-        
-        # Define observation model
+
+        # Create observation model
         observation_model_settings_fdets = [
             observable_models_setup.model_settings.doppler_measured_frequency(
                 link_definition_fdets, light_time_corrections
             )
         ]
-        
-        # Create simulators
+
         observation_simulators_fdets = observations_setup.observations_simulation_settings.create_observation_simulators(
             observation_model_settings_fdets, bodies
         )
-        
+
         # Compute residuals
         observations.compute_residuals_and_dependent_variables(
             fdets_collection, observation_simulators_fdets, bodies
         )
-        
+
         fdets_collection.filter_observations(residual_filter)
         fdets_collection.remove_empty_observation_sets()
-        len_filtered_collection = len(fdets_collection.get_concatenated_observations())
-        if len_filtered_collection == 0:
+
+        if len(fdets_collection.get_concatenated_observations()) == 0:
             continue
-        
-        # Extract FDETS timing and residual data
-        times_fdets = fdets_collection.get_concatenated_observation_times()  # in TDB
+
+        # Extract FDETS results
+        times_fdets = fdets_collection.get_concatenated_observation_times()
         times_utc_fdets = [time_scale_converter.convert_time(
             input_scale=time_representation.tdb_scale,
             output_scale=time_representation.utc_scale,
             input_value=t) for t in times_fdets]
         utc_times_fdets = [time_representation.DateTime.to_python_datetime(
             time_representation.DateTime.from_epoch(t)) for t in times_utc_fdets]
-        
-        # Extract results
+
         residuals_fdets = fdets_collection.get_concatenated_residuals()
         mean_residuals_fdets = fdets_collection.get_mean_residuals()
         rms_residuals_fdets = fdets_collection.get_rms_residuals()
-        
-        print(f"    Mean residuals (Hz): {mean_residuals_fdets}")
-        print(f"    RMS residuals (Hz): {rms_residuals_fdets}")
-        
+
         # Store FDETS results
         if site_name not in fdets_station_residuals:
             fdets_station_residuals[site_name] = {
-                'times': [],
-                'utc_times': [],
-                'residuals': [],
-                'mean': [],
-                'rms': [],
-                'start_time': [],
-                'end_time': [],
-                'transmitting_station': []
+                'times': [], 'utc_times': [], 'residuals': [], 'mean': [], 'rms': [],
+                'start_time': [], 'end_time': [], 'transmitting_station': []
             }
-        
+
         fdets_station_residuals[site_name]['times'].extend(times_fdets)
         fdets_station_residuals[site_name]['utc_times'].extend(utc_times_fdets)
         fdets_station_residuals[site_name]['residuals'].extend(residuals_fdets)
         fdets_station_residuals[site_name]['mean'].append(mean_residuals_fdets)
         fdets_station_residuals[site_name]['rms'].append(rms_residuals_fdets)
-        fdets_station_residuals[site_name]['start_time'].append(start_time)
-        fdets_station_residuals[site_name]['end_time'].append(end_time)
         fdets_station_residuals[site_name]['transmitting_station'].append(transmitting_station_name)
-        
+
         processed_fdets_count += 1
 
-print(f"Successfully processed {processed_ifms_count} IFMS files")
-print(f"Successfully processed {processed_fdets_count} FDETS files")
+print(f"\n✓ Processing complete!")
+print(f"  IFMS files processed: {processed_ifms_count}")
+print(f"  FDETS files processed: {processed_fdets_count}")
 
 # %% [markdown]
-# ## 4. Results Visualization
-# ### 4.1 Combined Residuals Plot
+# ## Part 4: Visualizing the Results
+#
+# Now let's see what the residuals look like! We'll create two visualizations:
+# 1. **Full timeline view** - All residuals across the entire analysis period
+# 2. **Detailed subset** - A closer look at a specific time window with distribution plots
+
+# %% [markdown]
+# ### Combined Residuals Plot
+#
+# This plot shows all IFMS and FDETS observations together. Different stations are color-coded, and you can see the RMS (root-mean-square) value for each station in the legend.
 
 # %%
 print("Creating combined residuals visualization...")
 
 plt.figure(figsize=(14, 8))
 
-# Color scheme for consistency
+# Color scheme for different stations
 station_colors = {
     'NWNORCIA': 'lightgray',
     'HART15M': 'orchid',
@@ -733,14 +684,14 @@ station_colors = {
 added_labels = set()
 all_residuals = []
 
-# Plot IFMS residuals
+# Plot IFMS residuals (circles)
 for station_name, ifms_data in ifms_station_residuals.items():
     color = station_colors.get(station_name, generate_random_color())
-    
+
     utc_times = np.array(ifms_data['utc_times'])
     residuals = np.array(ifms_data['residuals'])
     station_rms = np.sqrt(np.mean(residuals**2))
-    
+
     plt.scatter(
         utc_times, residuals,
         color=color, marker='o', s=15, alpha=0.7,
@@ -750,14 +701,14 @@ for station_name, ifms_data in ifms_station_residuals.items():
     added_labels.add(f"{station_name}_IFMS")
     all_residuals.append(residuals)
 
-# Plot FDETS residuals
+# Plot FDETS residuals (plus signs)
 for station_name, fdets_data in fdets_station_residuals.items():
     color = station_colors.get(station_name, generate_random_color())
-    
+
     utc_times = np.array(fdets_data['utc_times'])
     residuals = np.array(fdets_data['residuals'])
     station_rms = np.sqrt(np.mean(residuals**2))
-    
+
     plt.scatter(
         utc_times, residuals,
         color=color, marker='+', s=20, alpha=0.8,
@@ -767,62 +718,65 @@ for station_name, fdets_data in fdets_station_residuals.items():
     added_labels.add(f"{station_name}_FDETS")
     all_residuals.append(residuals)
 
-# Calculate overall statistics
+# Calculate and display overall statistics
 if all_residuals:
     all_residuals_array = np.concatenate([np.array(r) for r in all_residuals])
     overall_rms = np.sqrt(np.mean(all_residuals_array**2))
-    
-    # Format plot
+
     plt.xlabel("UTC Time", fontsize=14)
     plt.ylabel("Residuals (Hz)", fontsize=14)
     plt.title(f"Mars Express Residual Analysis - Overall RMS: {overall_rms*1000:.2f} mHz", fontsize=16)
     plt.grid(True, linestyle="--", alpha=0.3)
-    
-    # Format time axis
+
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
     plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=6))
     plt.gcf().autofmt_xdate()
-    
-    # Add legend
+
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.show()
+
+    print(f"✓ Overall RMS across all stations: {overall_rms*1000:.2f} mHz")
 else:
-    print("No residual data available for plotting")
+    print("⚠ No residual data available for plotting")
 
 # %% [markdown]
-# ### 4.2 Subset Analysis with Residuals Distribution
+# ### Focused Analysis: Subset with Distribution
+#
+# Let's zoom in on a specific time window to see the residuals in more detail. The left panel shows the time series, while the right panel shows the distribution of residuals for each station.
 
 # %%
-# Define subset time window for detailed analysis
+# Define a focused time window (adjust these as needed)
 ANALYSIS_TO_AVOID_START_SCAN = datetime(2013, 12, 28, 19, 0, 0)
 ANALYSIS_TO_AVOID_END_SCAN = datetime(2013, 12, 29, 0, 0)
 
-print(f"Creating subset analysis for epoch interval:\n {ANALYSIS_TO_AVOID_START_SCAN} to {ANALYSIS_TO_AVOID_END_SCAN}")
+print(f"Creating subset analysis for:")
+print(f"  {ANALYSIS_TO_AVOID_START_SCAN} to {ANALYSIS_TO_AVOID_END_SCAN}")
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [4, 1]})
 ax_main, ax_hist = axes
 
-# Initialize
 added_labels = set()
 subset_all_residuals = []
 
-# Plot IFMS residuals
+# Plot IFMS residuals for subset
 for station_name, ifms_data in ifms_station_residuals.items():
     color = station_colors.get(station_name, generate_random_color())
-    
+
     utc_times = np.array(ifms_data['utc_times'])
     residuals = np.array(ifms_data['residuals'])
-    
+
+    # Filter to subset time window
     mask = (utc_times >= ANALYSIS_TO_AVOID_START_SCAN) & (utc_times <= ANALYSIS_TO_AVOID_END_SCAN)
     subset_times = utc_times[mask]
     subset_residuals = residuals[mask]
-    
+
     if len(subset_residuals) == 0:
         continue
-    
+
     station_rms = np.sqrt(np.mean(subset_residuals**2))
-    
+
+    # Time series plot
     ax_main.scatter(
         subset_times, subset_residuals,
         color=color, marker='o', s=20, alpha=0.8,
@@ -830,33 +784,33 @@ for station_name, ifms_data in ifms_station_residuals.items():
         if f"{station_name}_IFMS" not in added_labels else None
     )
     added_labels.add(f"{station_name}_IFMS")
-    
     subset_all_residuals.append(subset_residuals)
-    
+
+    # Distribution histogram
     ax_hist.hist(
-        np.array(subset_residuals),
+        subset_residuals,
         bins=30,
         orientation='horizontal',
         alpha=0.6,
         color=color
     )
 
-# Plot FDETS residuals
+# Plot FDETS residuals for subset
 for station_name, fdets_data in fdets_station_residuals.items():
     color = station_colors.get(station_name, generate_random_color())
-    
+
     utc_times = np.array(fdets_data['utc_times'])
     residuals = np.array(fdets_data['residuals'])
-    
+
     mask = (utc_times >= ANALYSIS_TO_AVOID_START_SCAN) & (utc_times <= ANALYSIS_TO_AVOID_END_SCAN)
     subset_times = utc_times[mask]
     subset_residuals = residuals[mask]
-    
+
     if len(subset_residuals) == 0:
         continue
-    
+
     station_rms = np.sqrt(np.mean(subset_residuals**2))
-    
+
     ax_main.scatter(
         subset_times, subset_residuals,
         color=color, marker='o', s=20, alpha=0.8,
@@ -865,21 +819,20 @@ for station_name, fdets_data in fdets_station_residuals.items():
     )
     added_labels.add(f"{station_name}_FDETS")
     subset_all_residuals.append(subset_residuals)
-    
+
     ax_hist.hist(
-        np.array(subset_residuals),
+        subset_residuals,
         bins=30,
         orientation='horizontal',
         alpha=0.6,
         color=color
     )
 
-# Compute overall RMS
+# Format plots
 if subset_all_residuals:
     all_subset_residuals_array = np.concatenate([np.array(r) for r in subset_all_residuals])
     overall_subset_rms = np.sqrt(np.mean(all_subset_residuals_array**2))
-    
-    # Format main plot
+
     ax_main.set_xlabel("UTC Time", fontsize=15)
     ax_main.set_ylabel("Residuals (Hz)", fontsize=15)
     ax_main.set_title(f"Overall Subset RMS: {overall_subset_rms*1000:.2f} mHz", fontsize=15)
@@ -889,22 +842,23 @@ if subset_all_residuals:
     ax_main.tick_params(axis='x', labelsize=11)
     ax_main.tick_params(axis='y', labelsize=11)
     ax_main.legend(fontsize=12)
-    
-    # Format histogram
+
     ax_hist.set_xlabel("Count", fontsize=15)
     ax_hist.set_ylabel("Residuals (Hz)", fontsize=15)
     ax_hist.grid(True, linestyle='--', alpha=0.3)
-    
+
     fig.autofmt_xdate()
     plt.tight_layout()
     plt.show()
-else:
-    print("No subset data available for plotting")
 
+    print(f"✓ Subset RMS: {overall_subset_rms*1000:.2f} mHz")
+else:
+    print("⚠ No subset data available for plotting")
 
 # %% [markdown]
-# ## 5. Data Export
-# ### 5.1 Export Residuals to CSV Files
+# ## Part 5: Exporting Results
+#
+# Finally, let's save all our computed residuals to CSV files for further analysis or sharing with colleagues.
 
 # %%
 print("Exporting results to CSV files...")
@@ -921,65 +875,66 @@ ifms_files_created = 0
 for station_name, data in ifms_station_residuals.items():
     filename = f"{station_name}_residuals_ifms.csv"
     file_path = os.path.join(ifms_output_dir, filename)
-    
+
     with open(file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
-        
-        # Write header
+
+        # Write header with metadata
         writer.writerow([f'# Station: {station_name}'])
         writer.writerow(['# Data Type: IFMS (Closed-Loop)'])
         writer.writerow(['# Time (seconds since J2000)', 'UTC Time', 'Residuals (Hz)'])
-        
-        # Write data
+
+        # Write data rows
         times = data['times']
         utc_times = data['utc_times']
         residuals = data['residuals']
-        
+
         for time, utc_time, residual in zip(times, utc_times, residuals):
             writer.writerow([
                 f"{time:.6f}",
-                utc_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],  # millisecond precision
+                utc_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
                 f"{residual:.8e}"
             ])
-    
-    print(f"Created IFMS file: {file_path}")
+
     ifms_files_created += 1
+
+print(f"✓ Created {ifms_files_created} IFMS CSV files in {ifms_output_dir}")
 
 # Export FDETS residuals
 fdets_files_created = 0
 for station_name, data in fdets_station_residuals.items():
     filename = f"{station_name}_residuals_fdets.csv"
     file_path = os.path.join(fdets_output_dir, filename)
-    
+
     with open(file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
-        
-        # Write header
+
+        # Write header with metadata
         writer.writerow([f'# Station: {station_name}'])
         writer.writerow(['# Data Type: FDETS (Open-Loop)'])
         writer.writerow(['# Time (seconds since J2000)', 'UTC Time', 'Residuals (Hz)', 'Transmitting Station'])
-        
-        # Write data
+
+        # Write data rows
         times = data['times']
         utc_times = data['utc_times']
         residuals = data['residuals']
         transmitting_stations = data.get('transmitting_station', ['Unknown'] * len(times))
-        
+
         for i, (time, utc_time, residual) in enumerate(zip(times, utc_times, residuals)):
-            # Handle case where transmitting_station list might be shorter
             tx_station = transmitting_stations[min(i, len(transmitting_stations)-1)] if transmitting_stations else 'Unknown'
-            
+
             writer.writerow([
                 f"{time:.6f}",
                 utc_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
                 f"{residual:.8e}",
                 tx_station
             ])
-    
-    print(f"Created FDETS file: {file_path}")
+
     fdets_files_created += 1
 
-print(f"\nExport complete!")
-print(f"IFMS files created: {ifms_files_created}")
-print(f"FDETS files created: {fdets_files_created}")
-print(f"Output directory: {OUTPUT_DIR}")
+print(f"✓ Created {fdets_files_created} FDETS CSV files in {fdets_output_dir}")
+print(f"\n{'='*60}")
+print(f"Analysis Complete!")
+print(f"{'='*60}")
+print(f"Total output directory: {OUTPUT_DIR}")
+print(f"You can now use these CSV files for further analysis.")
