@@ -124,6 +124,7 @@ observation_collection = batch.to_tudat(
     apply_weights_VFCC17=True,
 )
 
+print(batch.table)
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
 link_list = list(
