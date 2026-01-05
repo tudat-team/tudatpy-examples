@@ -1,79 +1,59 @@
-# GRAIL - Comparing Doppler measurements from ODF files to simulated observables
-"""
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
+# %% [markdown]
+# # Objectives
+# Within this example, we perform a Doppler residual analysis for the GRAIL spacecraft. Unlike the estimation script (see **`grail_odf_estimation.ipynb`**), which fits an orbit to the data, this script assesses the accuracy of the physical observation models by comparing real ODF Doppler measurements against synthetic observables simulated using the reference SPICE trajectory. The script follows this methodology:
+#
+# 1) **Data Loading**: Loading raw ODF files containing Doppler measurements and filtering them for the specific time intervals of interest.
+#
+# 2) **Reference Trajectory**: Utilizing the high-precision reference SPICE trajectory for GRAIL (instead of propagating a dynamic orbit) to serve as the "ground truth" geometry for simulation.
+#
+# 3) **Sensitivity Analysis**: Running four parallel setups to evaluate the impact of specific model components on the residuals:
+#
+# - **Default**: Full fidelity model.
+#
+# - **Antenna Offset**: Neglecting the offset between the Center of Mass (CoM) and the antenna phase center.
+#
+# - **Troposphere**: Neglecting corrections for the Earth's troposphere.
+#
+# - **Ionosphere**: Neglecting corrections for the Earth's ionosphere.
+#
+# 4) **Residual Computation**: Calculating the difference between the simulated Doppler observables (derived from the SPICE trajectory and physical models) and the actual ODF observations.
+#
+# 5) **Analysis**: Computing RMS and mean residuals to quantify the error introduced by ignoring specific physical corrections.
+#
+# ## Important Remarks
+# - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
+# - **Data Download**: Running the example automatically triggers the download of all required kernels and data files if they are not found locally (trajectory/orientation kernels, ODF files, atmospheric corrections). This initial download may take significant time (~1h).
+# - **Parallel Execution**: The script utilizes the multiprocessing module to run the four different model setups in parallel, producing output files (of type: *grail_residuals_output_x.dat*) and comparative plots for validation.
 
-## Context
-"""
-"""
-
+# %%
 # Load required standard modules
 import multiprocessing as mp
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-
 # Load required tudatpy modules
+from datetime import datetime
 from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
-
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup import radiation_pressure
 from tudatpy import estimation
 from tudatpy.estimation import estimation_analysis
 from tudatpy.estimation import observable_models_setup
 from tudatpy.estimation import observations, observations_setup
-
-from datetime import datetime
-
 # Import GRAIL examples functions
 from grail_examples_functions import get_grail_files, get_grail_panel_geometry
 
 
-### ------------------------------------------------------------------------------------------
-### IMPORTANT PRELIMINARY REMARKS
-### ------------------------------------------------------------------------------------------
+# %% [markdown]
+# # The Main Function
 #
-# The following example can only be run with manually compiled Tudat kernels (see https://github.com/tudat-team/tudat-bundle
-# for how to perform to the installation and compilation). Before proceeding to the compilation and testing (i.e., before step
-# 6 of the readme), the file tudat-bundle/tudatpy/tudatpy/kernel/scalarTypes.h must be modified to specify how the time type
-# should be converted in tudatpy. Within this scalarTypes.h file, both TIME_TYPE and INTERPOLATOR_TIME_TYPE should be set to
-# tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
-#
-# Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
-# measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
-# (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
-# each relevant file is already present locally and only proceeds to the download if it is not.
-#
-### ------------------------------------------------------------------------------------------
+# We pack the main residual analysis functionality into the `**perform_residuals_analysis**` function. 
 
-
-# This function performs Doppler residual analysis for the GRAIL spacecraft by adopting the following approach:
-# 1) GRAIL Doppler measurements are loaded from the relevant ODF files
-# 2) Synthetic Doppler observables are simulated for all "real" observation times, using the reference spice trajectory for GRAIL
-# 3) Residuals are computed as the difference between simulated and real Doppler observations.
-
-# The "inputs" variable used as input argument is a list with 14 entries:
-#   1- the index of the current run (the perform_residuals_analysis function is run in parallel for different setups)
-#   2- the start date of the time interval under consideration
-#   3- the end date of the time interval under consideration
-#   4- the list of ODF files to be loaded to cover the above-mentioned time interval
-#   5- the clock file to be loaded
-#   6- the list of orientation kernels to be loaded
-#   7- the list of tropospheric correction files to be loaded
-#   8- the list of ionospheric correction files to be loaded
-#   9- the antennas switch files to be loaded
-#   10- the list of GRAIL trajectory files to be loaded
-#   11- the GRAIL reference frames file to be loaded
-#   12- the lunar orientation kernel to be loaded
-#   13- the lunar reference frame kernel to be loaded
-#   14- output files directory
-
-
+# %%
 def perform_residuals_analysis(inputs):
 
     # Unpack various input arguments
@@ -507,6 +487,7 @@ def perform_residuals_analysis(inputs):
         )
 
 
+# %%
 if __name__ == "__main__":
     print("Start")
     inputs = []
