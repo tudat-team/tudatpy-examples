@@ -88,33 +88,6 @@ for custom_ifms_url in custom_ifms_urls:
 print("✓ Data download complete!")
 
 # %% [markdown]
-# ### Data Cleaning
-#
-# IFMS files sometimes contain invalid data points (marked with -999999999). Let's filter these out before processing.
-
-# %%
-#def parse_and_filter_file(filename):
-#    """Remove invalid data points from IFMS files"""
-#    file_path = Path(filename)
-#    output_folder = file_path.parent.parent / "ifms_filtered"
-#    output_folder.mkdir(parents=True, exist_ok=True)
-#
-#    df = pd.read_csv(file_path, sep='\s+', header=None)
-#    df = df[~df[8].astype(float).between(-1.000000001e9, -999999998.999)]
-#
-#    output_filename = output_folder / file_path.name
-#    df.to_csv(output_filename, sep=" ", index=False, header=False)
-#    return output_filename
-#
-#DOWNLOADED_IFMS_FOLDER = './mex_archive/ifms'
-#filtered_count = 0
-#for file in os.listdir(DOWNLOADED_IFMS_FOLDER):
-#    filtered_file = parse_and_filter_file(os.path.join(DOWNLOADED_IFMS_FOLDER, file))
-#    filtered_count += 1
-#
-#print(f"✓ Filtered {filtered_count} IFMS files")
-
-# %% [markdown]
 # ### Configure Your Analysis
 #
 # **Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
