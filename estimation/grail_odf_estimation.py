@@ -1,11 +1,20 @@
-# GRAIL - Estimating the spacecraft trajectory from ODF Doppler measurements
-"""
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
-"""
-
-## Context
-"""
-"""
+# %% [markdown]
+# # Objectives
+#
+# Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
+# 1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
+# 2.  **Environment Setup:** Constructing a precise lunar environment, incorporating the `gggrx1200` gravity field (truncated to order 500) and solid body tides from the Earth and Sun.
+# 3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
+# 4.  **Estimation:** Performing a least-squares fit to estimate the spacecraft initial state, radiation pressure coefficients, and maneuvers.
+# 5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
+#
+# ## Important Remarks
+# - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
+# - Running the example automatically triggers the download of all required kernels and data files if they are not found locally
+# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+# measurements, etc.). Note that this step needs only be performed once, since the script checks whether
+# each relevant file is already present locally and only proceeds to the download if it is not.
+# - This example performs 7 parallel orbit estimations (over 7 different days), which can slow down your machine and take quite some time (~ 20-30 minutes)
 
 # %%
 # Load required standard modules
@@ -41,53 +50,26 @@ from grail_examples_functions import (
     get_rsw_state_difference,
 )
 
-# %%
 
-### ------------------------------------------------------------------------------------------
-### IMPORTANT PRELIMINARY REMARKS
-### ------------------------------------------------------------------------------------------
-#
-# The following example can only be run with manually compiled Tudat kernels (see https://github.com/tudat-team/tudat-bundle
-# for how to perform to the installation and compilation). Before proceeding to the compilation and testing (i.e., before step
-# 6 of the readme), the file tudat-bundle/tudatpy/tudatpy/kernel/scalarTypes.h must be modified to specify how the time type
-# should be converted in tudatpy. Within this scalarTypes.h file, both TIME_TYPE and INTERPOLATOR_TIME_TYPE should be set to
-# tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
-#
-# Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
-# measurements, etc.). Note that this step needs only be performed once, since the script checks whether
-# each relevant file is already present locally and only proceeds to the download if it is not.
-#
-# This example performs 5 parallel orbit estimations (over 5 different days), which can slow down your machine and take quite
-# some time (~ 20-30 minutes)
-#
-### ------------------------------------------------------------------------------------------
-
-
-# This function performs the estimation of the GRAIL spacecraft's dynamics from ODF Doppler measurements by adopting the following approach:
-# 1) GRAIL Doppler measurements are loaded from the relevant ODF files
-# 2) The acceleration models to propagate GRAIL's dynamics are defined, as well as the list of parameters to estimate
-# 3) The equations of motion and variational equations are propagated, and the estimation is then performed (i.e., fitting the
-#    estimated parameters to minimise the residuals between computed and ODF observations)
-# 4) The pre- & post-fit residuals are retrieved, along with the difference between GRAIL's post-fit propagated state and the SPICE reference trajectory.
-
+# %% [markdown]
+# We pack the main estimation run functionality into the run_odf_estimation function. 
 # The "inputs" variable used as input argument is a list with 14 entries:
-#   1- the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
-#   2- the date for the day-long arc under consideration
-#   3- the list of ODF files to be loaded to cover the above-mentioned time interval
-#   4- the clock file to be loaded
-#   5- the list of orientation kernels to be loaded
-#   6- the list of tropospheric correction files to be loaded
-#   7- the list of ionospheric correction files to be loaded
-#   8- the GRAIL manoeuvres file to be loaded
-#   9- the antennas switch files to be loaded
-#   10- the list of GRAIL trajectory files to be loaded
-#   11- the GRAIL reference frames file to be loaded
-#   12- the lunar orientation kernel to be loaded
-#   13- the lunar reference frame kernel to be loaded
-#   14- output files directory
+# 1) the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
+# 2) the date for the day-long arc under consideration
+# 3) the list of ODF files to be loaded to cover the above-mentioned time interval
+# 4) the clock file to be loaded
+# 5) the list of orientation kernels to be loaded
+# 6) the list of tropospheric correction files to be loaded
+# 7) the list of ionospheric correction files to be loaded
+# 8) the GRAIL manoeuvres file to be loaded
+# 9) the antennas switch files to be loaded
+# 10) the list of GRAIL trajectory files to be loaded
+# 11) the GRAIL reference frames file to be loaded
+# 12) the lunar orientation kernel to be loaded
+# 13) the lunar reference frame kernel to be loaded
+# 14) output files directory
 
-
+# %%
 def run_odf_estimation(inputs):
 
     # Unpack various input arguments
