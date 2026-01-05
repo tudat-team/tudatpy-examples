@@ -52,7 +52,8 @@ from grail_examples_functions import (
 
 
 # %% [markdown]
-# We pack the main estimation run functionality into the run_odf_estimation function. 
+# # The Main Function
+# We pack the main estimation run functionality into the `run_odf_estimation` function. 
 # The "inputs" variable used as input argument is a list with 14 entries:
 # 1) the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
 # 2) the date for the day-long arc under consideration
