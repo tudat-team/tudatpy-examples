@@ -240,37 +240,47 @@ initial_state = delfi_ephemeris.cartesian_state( simulation_start_epoch )
 In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
 
 [This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
+
+For later post-processing, we first define all single acceleration norm settings in the `acceleration_dependent_variables_to_save` variable (which we will reuse later) and then combine it with all other dependent variables saved in the `dependent_variables_to_save` variable.
 """
 
 
+from tudatpy.dynamics.propagation_setup import dependent_variable
+
 # Define list of dependent variables to save
 dependent_variables_to_save = [
-    propagation_setup.dependent_variable.total_acceleration("Delfi-C3"),
-    propagation_setup.dependent_variable.keplerian_state("Delfi-C3", "Earth"),
-    propagation_setup.dependent_variable.latitude("Delfi-C3", "Earth"),
-    propagation_setup.dependent_variable.longitude("Delfi-C3", "Earth"),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.total_acceleration("Delfi-C3"),
+    dependent_variable.keplerian_state("Delfi-C3", "Earth"),
+    dependent_variable.latitude("Delfi-C3", "Earth"),
+    dependent_variable.longitude("Delfi-C3", "Earth"),
+]
+acceleration_dependent_variables_to_save = [
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.point_mass_gravity_type, "Delfi-C3", "Sun"
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.point_mass_gravity_type, "Delfi-C3", "Moon"
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.point_mass_gravity_type, "Delfi-C3", "Mars"
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.point_mass_gravity_type, "Delfi-C3", "Venus"
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.spherical_harmonic_gravity_type, "Delfi-C3", "Earth"
+    dependent_variable.single_acceleration_norm(
+        propagation_setup.acceleration.spherical_harmonic_gravity_type,
+        "Delfi-C3",
+        "Earth",
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.aerodynamic_type, "Delfi-C3", "Earth"
     ),
-    propagation_setup.dependent_variable.single_acceleration_norm(
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.radiation_pressure_type, "Delfi-C3", "Sun"
-    )
+    ),
 ]
+
+dependent_variables_to_save += acceleration_dependent_variables_to_save
 
 
 """
@@ -311,18 +321,11 @@ propagator_settings = propagation_setup.propagator.translational(
 ## Propagate the orbit
 The orbit is now ready to be propagated.
 
-This is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module.
-This function requires the `bodies` and `propagator_settings` that have all been defined earlier.
+The propagation is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module, which requires the `bodies` and `propagator_settings` that have all been defined earlier.
+After the successful propagation, the results are stored in the `propagation_results` attribute of the `dynamics_simulator` variable.
 
-After this, the history of the propagated state over time, containing both the position and velocity history, is extracted.
-This history, taking the form of a dictionary, is then converted to an array containing 7 columns:
+The results will be analyzed in the following post-processing section.
 
-- Column 0: Time history, in seconds since J2000.
-- Columns 1 to 3: Position history, in meters, in the frame that was specified in the `body_settings`.
-- Columns 4 to 6: Velocity history, in meters per second, in the frame that was specified in the `body_settings`.
-
-The same is done with the dependent variable history. The column indexes corresponding to a given dependent variable in the `dep_vars` variable are printed when the simulation is run, when `create_dynamics_simulator()` is called.
-Do mind that converting to an ndarray using the `result2array()` utility will shift these indexes, since the first column (index 0) will then be the times.
 """
 
 
@@ -331,31 +334,70 @@ dynamics_simulator = simulator.create_dynamics_simulator(
     bodies, propagator_settings
 )
 
-# Extract the resulting state and dependent variable history and convert it to an ndarray
-states = dynamics_simulator.propagation_results.state_history
-states_array = result2array(states)
-dep_vars = dynamics_simulator.propagation_results.dependent_variable_history
-dep_vars_array = result2array(dep_vars)
-
 
 """
 ## Post-process the propagation results
-The results of the propagation are then processed to a more user-friendly form.
+The results of the propagation will now be extracted from the `dynamics_simulator` variable.
 
+As shown in the [Keplerian satellite orbit example](keplerian_satellite_orbit.ipynb), the cartesian states of the propagated spacecraft are stored in the `propagation_results.state_history` attribute of the `dynamics_simulator` variable.
+In this example, we will focus on retrieving the dependent variables from the propagation results.
+
+In principle, the dependent variable history are stored and retrieved in a similar format as the state history.
+The dependent variable history is a dictionary, which stores the epochs of the integration in the keys, and the dependent variables in the corresponding values.
+Using the `result2array()` utility we could convert the dictionary to an array, which has the time history in the first column (indexed 0), and all dependent variables in the subsequent columns, ordered by their definition in the `dependent_variables_to_save` list.
+However, this requires careful book-keeping to retrieve the dependent variables correctly.
+
+Alternatively, the dependent variables can be retrieved from a `DependentVariableDictionary`, which allows to retrieve a specific dependent variable by the corresponding `SingleDependentVariableSaveSettings` object.
+While slightly more verbose, this avoids indexing errors and will therefore be used in the following example.
+
+"""
+
+
+from tudatpy.dynamics.propagation import create_dependent_variable_dictionary
+
+# Extract the resulting state and dependent variable history and convert it to an ndarray
+states_history = dynamics_simulator.propagation_results.state_history
+states_array = result2array(states_history)
+# ! Retrieving dependent variables from the dep_vars_array requires careful indexing
+dep_vars_history = dynamics_simulator.propagation_results.dependent_variable_history
+dep_vars_array = result2array(dep_vars_history)
+
+# Create dependent variable dictionary
+dep_var_dict = create_dependent_variable_dictionary(dynamics_simulator)
+
+
+"""
+### Retrieve information from the dependent variable dictionary
+
+For an in-depth documentation of how to retrieve information from the `DependentVariableDictionary`, see the corresponding API reference [here](https://py.api.tudat.space/en/latest/dynamics/propagation.html#tudatpy.dynamics.propagation.dependent_variable_dictionary.DependentVariableDictionary).
+In short, by passing a `SingleDependentVariableSaveSettings` object to the `asarray()` method, the dependent variables will be retrieved and returned as an array, where each row stores the dependent variables of an integration step (with the corresponding epochs stored in the `time_history` attribute).
+"""
+
+
+relative_time_hours = (dep_var_dict.time_history - dep_var_dict.time_history[0])/3600
+
+# numpy array of shape (len(relative_time_hours), 3)
+delfi_total_acceleration = dep_var_dict.asarray(dependent_variable.total_acceleration("Delfi-C3"))
+
+# the dependent variable settings could also be reused from the dependent_variables_to_save list, be careful with the indexing though!
+# delfi_total_acceleration = dep_var_dict.asarray(dependent_variables_to_save[0])
+
+
+"""
 ### Total acceleration over time
-Let's first plot the total acceleration on the satellite over time. This can be done by taking the norm of the first three columns of the dependent variable list.
+Let's first plot the total acceleration on the satellite over time. This can be done by taking the norm of the total acceleration acting on Delfi-C3.
 """
 
 
 # Plot total acceleration as function of time
-time_hours = (dep_vars_array[:,0] - dep_vars_array[0,0])/3600
-total_acceleration_norm = np.linalg.norm(dep_vars_array[:,1:4], axis=1)
+total_acceleration_norm = np.linalg.norm(delfi_total_acceleration, axis=1)
+
 plt.figure(figsize=(9, 5))
 plt.title("Total acceleration norm on Delfi-C3 over the course of propagation.")
-plt.plot(time_hours, total_acceleration_norm)
+plt.plot(relative_time_hours, total_acceleration_norm)
 plt.xlabel('Time [hr]')
 plt.ylabel('Total Acceleration [m/s$^2$]')
-plt.xlim([min(time_hours), max(time_hours)])
+plt.xlim([min(relative_time_hours), max(relative_time_hours)])
 plt.grid()
 plt.tight_layout()
 
@@ -367,12 +409,13 @@ Let's then plot the ground track of the satellite in its first 3 hours. This mak
 
 
 # Plot ground track for a period of 3 hours
-latitude = dep_vars_array[:,10]
-longitude = dep_vars_array[:,11]
+latitude = dep_var_dict.asarray(dependent_variable.latitude("Delfi-C3", "Earth"))
+longitude = dep_var_dict.asarray(dependent_variable.longitude("Delfi-C3", "Earth"))
 hours = 3
-subset = int(len(time_hours) / 24 * hours)
+subset = int(len(relative_time_hours) / 24 * hours)
 latitude = np.rad2deg(latitude[0: subset])
 longitude = np.rad2deg(longitude[0: subset])
+
 plt.figure(figsize=(9, 5))
 plt.title("3 hour ground track of Delfi-C3")
 plt.scatter(longitude, latitude, s=1)
@@ -391,91 +434,83 @@ Let's now plot each of the 6 Kepler element as a function of time, also as saved
 
 
 # Plot Kepler elements as a function of time
-kepler_elements = dep_vars_array[:,4:10]
+kepler_elements = dep_var_dict.asarray(dependent_variable.keplerian_state("Delfi-C3", "Earth"))
 fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(9, 12))
 fig.suptitle('Evolution of Kepler elements over the course of the propagation.')
 
 # Semi-major Axis
 semi_major_axis = kepler_elements[:,0] / 1e3
-ax1.plot(time_hours, semi_major_axis)
+ax1.plot(relative_time_hours, semi_major_axis)
 ax1.set_ylabel('Semi-major axis [km]')
 
 # Eccentricity
 eccentricity = kepler_elements[:,1]
-ax2.plot(time_hours, eccentricity)
+ax2.plot(relative_time_hours, eccentricity)
 ax2.set_ylabel('Eccentricity [-]')
 
 # Inclination
 inclination = np.rad2deg(kepler_elements[:,2])
-ax3.plot(time_hours, inclination)
+ax3.plot(relative_time_hours, inclination)
 ax3.set_ylabel('Inclination [deg]')
 
 # Argument of Periapsis
 argument_of_periapsis = np.rad2deg(kepler_elements[:,3])
-ax4.plot(time_hours, argument_of_periapsis)
+ax4.plot(relative_time_hours, argument_of_periapsis)
 ax4.set_ylabel('Argument of Periapsis [deg]')
 
 # Right Ascension of the Ascending Node
 raan = np.rad2deg(kepler_elements[:,4])
-ax5.plot(time_hours, raan)
+ax5.plot(relative_time_hours, raan)
 ax5.set_ylabel('RAAN [deg]')
 
 # True Anomaly
 true_anomaly = np.rad2deg(kepler_elements[:,5])
-ax6.scatter(time_hours, true_anomaly, s=1)
+ax6.scatter(relative_time_hours, true_anomaly, s=1)
 ax6.set_ylabel('True Anomaly [deg]')
 ax6.set_yticks(np.arange(0, 361, step=60))
 
 for ax in fig.get_axes():
     ax.set_xlabel('Time [hr]')
-    ax.set_xlim([min(time_hours), max(time_hours)])
+    ax.set_xlim([min(relative_time_hours), max(relative_time_hours)])
     ax.grid()
 plt.tight_layout()
 
 
 """
 ### Accelerations over time
-Finally, let's plot and compare each of the included accelerations.
+Lastly, let's plot and compare each of the included accelerations.
+We will use the previously created dependent variable acceleration settings, stored in the `acceleration_dependent_variables_to_save` list, to retrieve the corresponding acceleration values.
+By using the attributes of the variable save settings objects, we can automatically assign the correct plotting labels to each acceleration.
 """
 
 
+from tudatpy.dynamics.propagation_setup import acceleration
+
+# map acceleration types to human-readable strings for labeling
+acceleration_type_to_string = {
+    acceleration.AvailableAcceleration.point_mass_gravity_type: "PM",
+    acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SH",
+    acceleration.AvailableAcceleration.aerodynamic_type: "Aerodynamic",
+    acceleration.AvailableAcceleration.radiation_pressure_type: "Radiation Pressure",
+}
+
 plt.figure(figsize=(9, 5))
 
-# Point Mass Gravity Acceleration Sun
-acceleration_norm_pm_sun = dep_vars_array[:,12]
-plt.plot(time_hours, acceleration_norm_pm_sun, label='PM Sun')
+for acceleration_dep_var_setting in acceleration_dependent_variables_to_save:
+    acceleration_norm = dep_var_dict.asarray(acceleration_dep_var_setting)
+    label = f"{acceleration_type_to_string[acceleration_dep_var_setting.acceleration_model_type]} {acceleration_dep_var_setting.secondary_body}"
 
-# Point Mass Gravity Acceleration Moon
-acceleration_norm_pm_moon = dep_vars_array[:,13]
-plt.plot(time_hours, acceleration_norm_pm_moon, label='PM Moon')
+    plt.plot(relative_time_hours, acceleration_norm, label=label)
 
-# Point Mass Gravity Acceleration Mars
-acceleration_norm_pm_mars = dep_vars_array[:,14]
-plt.plot(time_hours, acceleration_norm_pm_mars, label='PM Mars')
-
-# Point Mass Gravity Acceleration Venus
-acceleration_norm_pm_venus = dep_vars_array[:,15]
-plt.plot(time_hours, acceleration_norm_pm_venus, label='PM Venus')
-
-# Spherical Harmonic Gravity Acceleration Earth
-acceleration_norm_sh_earth = dep_vars_array[:,16]
-plt.plot(time_hours, acceleration_norm_sh_earth, label='SH Earth')
-
-# Aerodynamic Acceleration Earth
-acceleration_norm_aero_earth = dep_vars_array[:,17]
-plt.plot(time_hours, acceleration_norm_aero_earth, label='Aerodynamic Earth')
-
-# Cannonball Radiation Pressure Acceleration Sun
-acceleration_norm_rp_sun = dep_vars_array[:,18]
-plt.plot(time_hours, acceleration_norm_rp_sun, label='Radiation Pressure Sun')
-
-plt.xlim([min(time_hours), max(time_hours)])
-plt.xlabel('Time [hr]')
-plt.ylabel('Acceleration Norm [m/s$^2$]')
+plt.xlim([min(relative_time_hours), max(relative_time_hours)])
+plt.xlabel("Time [hr]")
+plt.ylabel("Acceleration Norm [m/s$^2$]")
 
 plt.legend(bbox_to_anchor=(1.005, 1))
-plt.suptitle("Accelerations norms on Delfi-C3, distinguished by type and origin, over the course of propagation.")
-plt.yscale('log')
+plt.suptitle(
+    "Accelerations norms on Delfi-C3, distinguished by type and origin, over the course of propagation."
+)
+plt.yscale("log")
 plt.grid()
 plt.tight_layout()
 
