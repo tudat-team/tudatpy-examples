@@ -70,8 +70,8 @@ We can also directly have a look at the the observations themselves. For example
 """
 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
-obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epochUTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
 
 print("Initial and Final Observations by TESS")
 print(obs_by_TESS)
@@ -194,8 +194,8 @@ batch_eros.filter(
 )
 
 # Retrieve MPC observation times, RA and DEC
-batch_times = batch_eros.table.epochJ2000secondsTDB.to_list()
-batch_times_utc = batch_eros.table.epochUTC.to_list()
+batch_times = batch_eros.table.epoch_seconds_TDB.to_list()
+batch_times_utc = batch_eros.table.epoch_seconds_UTC.to_list()
 batch_RA = batch_eros.table.RA
 batch_DEC = batch_eros.table.DEC
 
