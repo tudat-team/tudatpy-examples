@@ -1,4 +1,4 @@
-# # **Objectives**
+# # **Kosmos 482 Re-entry**
 #
 # This example demonstrates a complete **reentry analysis workflow** using Tudat’s propagation framework. It uses **Kosmos 482** reentry as a test case. Kosmos 482 was an attempted Soviet Venus probe launched on **31 March 1972** that became one of the most significant space-debris reentry cases in recent history. A problem with its rocket stranded the spacecraft in an elliptical orbit around Earth instead of allowing it to continue to Venus. It **reentered Earth’s atmosphere on 10 May 2025**.
 #
