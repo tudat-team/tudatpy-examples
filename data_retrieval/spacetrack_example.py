@@ -20,7 +20,7 @@
 
 # %%
 from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
-from tudatpy.dynamics import environment_setup, propagation_setup, simulator
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator, environment
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
 import os
@@ -154,7 +154,7 @@ scatter_labels = []
 tles = OMMUtils.get_tles(data_list)
 
 for norad_id, sat_data in unique_sats.items():
-    tle_line_1, tle_line_2 = tles[norad_id] 
+    tle_line_1, tle_line_2 = tles[norad_id]
     name = sat_data.get('OBJECT_NAME', f"ID-{norad_id}")
     # Initial State from TLE
     inclination = sat_data['INCLINATION']
@@ -169,18 +169,11 @@ for norad_id, sat_data in unique_sats.items():
     print(f'ECCENTRICITY: {eccentricity}')
     print('----------------------------')
 
-    tle_epoch = OMMUtils.get_tle_reference_epoch(tle_line_1)
-
-    # Convert Epoch to TDB
-    time_converter = time_representation.default_time_scale_converter()
-    initial_time = time_converter.convert_time(
-        time_representation.utc_scale, time_representation.tdb_scale,
-        time_representation.DateTime.from_python_datetime(tle_epoch).to_epoch()
-    )
-
     # Setup Ephemeris for Initial State
-    tle_obj = environment_setup.ephemeris.sgp4(tle_line_1, tle_line_2)
-    initial_state = environment_setup.create_body_ephemeris(tle_obj, "Earth").cartesian_state(initial_time)
+    tle_obj = environment.Tle(tle_line_1, tle_line_2)
+    reference_epoch = tle_obj.reference_epoch
+    sat_ephemeris = environment.TleEphemeris("Earth", "J2000", tle_obj, False)
+    initial_state = sat_ephemeris.cartesian_state(reference_epoch)
 
     # Accelerations (Simplified Point Mass)
     accel_settings = {'satellite': {"Earth": [propagation_setup.acceleration.point_mass_gravity()]}}
@@ -194,9 +187,9 @@ for norad_id, sat_data in unique_sats.items():
 
     # Termination and Integrator
     if altitude > 30e3:
-        termination = propagation_setup.propagator.time_termination(initial_time + 86400*3)
+        termination = propagation_setup.propagator.time_termination(reference_epoch + 86400*3)
     else:
-        termination = propagation_setup.propagator.time_termination(initial_time + 86400)
+        termination = propagation_setup.propagator.time_termination(reference_epoch + 86400)
 
     integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step_size(
         initial_time_step=60.0,
@@ -205,7 +198,7 @@ for norad_id, sat_data in unique_sats.items():
 
     # Propagate
     prop_settings = propagation_setup.propagator.translational(
-        ["Earth"], accel_models, ['satellite'], initial_state, initial_time,
+        ["Earth"], accel_models, ['satellite'], initial_state, reference_epoch,
         integrator_settings, termination, output_variables=dep_vars
     )
 
