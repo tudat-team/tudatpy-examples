@@ -27,16 +27,22 @@ filepath = os.path.join(spacetrack_query.tle_data_folder, custom_catalog_file)
 
 # --- Conditional Fetching ---
 # Logic: Only hit the API if the file doesn't exist locally
-if not os.path.exists(filepath):
-    print(f"File {custom_catalog_file} not found. Querying API...")
-    spacetrack_query.filtered_by_oe_dict(
-        filter_oe_dict={'INCLINATION': (97.0, 99.0)},
-        limit=5,
-        output_file=custom_catalog_file,
-        update_existing=False # Set to True if you want to merge later
-    )
-else:
-    print(f"File already in tle folder. Using local version: {filepath}")
+
+# --- STEP 1 & 2: Fetch Data for Polar Satellites ---
+spacetrack_query.filtered_by_oe_dict(
+    filter_oe_dict={'INCLINATION': (97.0, 99.0)},
+    limit=5,
+    output_file=custom_catalog_file,
+    update_existing=False
+)
+
+# --- STEP 1 & 2: Fetch Data for Equatorial Satellites, Use update_existing = True ---
+spacetrack_query.filtered_by_oe_dict(
+    filter_oe_dict={'INCLINATION': (-10,10)},
+    limit=10,
+    output_file=custom_catalog_file,
+    update_existing=True
+)
 
 # --- Load Data ---
 filepath = os.path.join(spacetrack_query.tle_data_folder, custom_catalog_file)
@@ -97,13 +103,15 @@ for norad_id, sat_data in unique_sats.items():
     ]
 
     # Termination and Integrator
-    termination = propagation_setup.propagator.time_termination(initial_time + 7200) # 2 hours
-    integrator = propagation_setup.integrator.runge_kutta_4(60.0)
+    termination = propagation_setup.propagator.time_termination(initial_time + 72000) # 20 hours
+    integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step_size(initial_time_step=60.0,
+                                    coefficient_set=propagation_setup.integrator.CoefficientSets.rkdp_87)
+
 
     # Propagate
     prop_settings = propagation_setup.propagator.translational(
         ["Earth"], accel_models, ["sat"], initial_state, initial_time,
-        integrator, termination, output_variables=dep_vars
+        integrator_settings, termination, output_variables=dep_vars
     )
 
     results = simulator.create_dynamics_simulator(system_of_bodies, prop_settings)
