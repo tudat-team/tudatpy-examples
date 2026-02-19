@@ -129,8 +129,7 @@ system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 # 1) retrieves the corresponding TLEs and the corresponding `TLE Reference Epoch`. This is the epoch at which the TLE refers to, and it generally differs from the `TLE Creation Epoch`. To achieve this, we can use the Orbit Mean Messages Util (OMMUtils) class, and its `get_tles` and `'get_tle_reference_epoch` methods.
 #    
 #    - `OMMUtils.get_tles(data_list)` accepts the data_list (list of dictionaries) we defined above and returns a dictionary of norad_ids and corresponding TLEs as a tuple value.
-#    - `OMMUtils.get_tle_reference_epoch(tle_line_1)` reads `tle_line_1` and spits out the **UTC reference epoch** as a `datetime` object;
-#
+#    - `OMMUtils.tle_to_Tle_object(tle_line_1, tle_line_2)` reads TLEs and spits out a Tudatpy TLE object, from which we can retrieve the reference epoch via Tle.reference_epoch method
 #
 # 2) prints relevant orbital elements;
 #
@@ -170,7 +169,7 @@ for norad_id, sat_data in unique_sats.items():
     print('----------------------------')
 
     # Setup Ephemeris for Initial State
-    tle_obj = environment.Tle(tle_line_1, tle_line_2)
+    tle_obj = OMMUtils.tle_to_Tle_object(tle_line_1, tle_line_2)
     reference_epoch = tle_obj.reference_epoch
     sat_ephemeris = environment.TleEphemeris("Earth", "J2000", tle_obj, False)
     initial_state = sat_ephemeris.cartesian_state(reference_epoch)
