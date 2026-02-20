@@ -1,4 +1,13 @@
 # %% [markdown]
+# # Create a Custom TLE Catalog with Tudatpy's Space-Track Downloader
+
+# %% [markdown]
+# > **DISCLAIMER(IMPORTANT!)**:
+# > 
+# > In order to run this example, **you must first activate an account on [Space-Track.org](https://www.space-track.org/auth/login)**.
+# > 
+# > Avoid running this scirpt multiple times in a row, or your Space-Track account could be suspended. **Tudatpy Users are expected to read and comply with the [API Use Guidelines](https://www.space-track.org/documentation#:~:text=the%20production%20server.-,API%20Use%20Guidelines,-API%20Throttling%3A).**
+# > 
 # # Objectives
 # This example showcases how to use Tudatpy's `SpacetrackQuery` and `OMMUTils` classes to:
 #
@@ -8,11 +17,7 @@
 # 4) propagating TLE's initial state;
 # 5) produce corresponding ground plot for all satellites in your catalog;
 #
-# More specifically, we will request a download of the **first 5 high-inclination satellites**, ordered by descending reference epoch, as they are given in the Space-Track's `gp current` catalog. We will then update the catalog to add the **first 5 low-inclination satellites**, and print their orbital elements and their object names. Finally, we will propagate their orbits **starting from a TLE-retrieved initial state**, also showing their corresponding **ground plots**. 
-#
-# > **NOTE**:
-# > 
-# > In order to run this example, you must first activate an account on [Space-Track.org](https://www.space-track.org/auth/login). 
+# More specifically, we will request a download of the **first 5 high-inclination satellites**, ordered by descending reference epoch, as they are given in the Space-Track's `gp current` catalog. We will then update the catalog to add the **first 5 low-inclination satellites**, and print their orbital elements and their object names. Finally, we will propagate their orbits **starting from a TLE-retrieved initial state**, also showing their corresponding **ground plots**.
 
 # %% [markdown]
 # ## Imports and Load SPICE Kernels
@@ -53,7 +58,6 @@ password = os.getenv("SPACETRACK_PASS")
 spacetrack_query = SpaceTrackQuery(
     username=username,
     password=password,
-    spacetrack_url='https://for-testing-only.space-track.org'
 )
 
 # %% [markdown]
@@ -129,7 +133,7 @@ system_of_bodies = environment_setup.create_system_of_bodies(body_settings)
 # 1) retrieves the corresponding TLEs and the corresponding `TLE Reference Epoch`. This is the epoch at which the TLE refers to, and it generally differs from the `TLE Creation Epoch`. To achieve this, we can use the Orbit Mean Messages Util (OMMUtils) class, and its `get_tles` and `'get_tle_reference_epoch` methods.
 #    
 #    - `OMMUtils.get_tles(data_list)` accepts the data_list (list of dictionaries) we defined above and returns a dictionary of norad_ids and corresponding TLEs as a tuple value.
-#    - `OMMUtils.tle_to_Tle_object(tle_line_1, tle_line_2)` reads TLEs and spits out a Tudatpy TLE object, from which we can retrieve the reference epoch via Tle.reference_epoch method
+#    - `OMMUtils.tle_to_Tle_object(tle_line_1, tle_line_2)` reads TLEs and spits out a Tudatpy TLE object, from which we can retrieve the reference epoch via the `Tle.reference_epoch` method
 #
 # 2) prints relevant orbital elements;
 #
