@@ -17,7 +17,7 @@
 # 4) propagating TLE's initial state;
 # 5) produce corresponding ground plot for all satellites in your catalog;
 #
-# More specifically, we will request a download of the **first 5 high-inclination satellites**, ordered by descending reference epoch, as they are given in the Space-Track's `gp current` catalog. We will then update the catalog to add the **first 5 low-inclination satellites**, and print their orbital elements and their object names. Finally, we will propagate their orbits **starting from a TLE-retrieved initial state**, also showing their corresponding **ground plots**.
+# More specifically, we will request a download of the **first 5 high-inclination satellites**, ordered by descending reference epoch, as they are given in the Space-Track's `gp current` catalog. Two queries will also be performed to showcase how the `query_from_query_builder_url` function works, and to download TLEs from a given epoch, that do not change with time (this is for the sake of reproducibility of the example itself, as you will see in the final plot). We will then update the catalog to add the **first 10 low-inclination satellites**, and print their orbital elements and their object names. Finally, we will propagate their orbits **starting from a TLE-retrieved initial state**, also showing their corresponding **ground plots**.
 
 # %% [markdown]
 # ## Imports and Load SPICE Kernels
@@ -58,6 +58,7 @@ password = os.getenv("SPACETRACK_PASS")
 spacetrack_query = SpaceTrackQuery(
     username=username,
     password=password,
+    spacetrack_url = 'https://for-testing-only.space-track.org/'
 )
 
 # %% [markdown]
@@ -79,6 +80,28 @@ high_inclination_satellites = spacetrack_query.filtered_by_oe_dict(
     limit=5,
     output_file=custom_catalog_file,
     update_existing=False
+)
+
+# %% [markdown]
+# ## Download Specific Satellites
+#
+# If you are familiar with Space-Track.org, you'll know that they provide a **Query Builder**. With Space-Track.org's Query Builder, users can select the objects they want to download, and be provided with the correct endpoint (url). 
+#
+# The SpaceTrackQuery's function `query_from_query_builder_url` allow you to copy such a created url from Space-Track directly into your Tudatpy script. For the sake of this example, we used Space-Track Query Builder to retrieve TLEs for satellites **TJS-15** and **LUCH 5V**, adding an EPOCH filter allowing us to only get the single existing TLE between Feb 18 and Feb 19, 2026. This is because TLEs will in general be updated over time, and the only way to keep this example semi-reproducible is to always query the same TLE for these two objects. This will in turn provide the same plot at all times (see cells below). 
+#
+# We want to add the downloaded satellites to the already existing custom catalog. In Tudatpy's SpaceTrackQuery, his can be achieved by selecting the corresponding `update_existing` flag to `True`.
+
+# %%
+custom_satellite_tjs_15 = spacetrack_query.query_from_query_builder_url(
+    'https://for-testing-only.space-track.org/basicspacedata/query/class/gp/OBJECT_NAME/TJS-15/EPOCH/%3E2025-02-18%3C2025-02-19/orderby/EPOCH%20asc/format/json',
+    output_file=custom_catalog_file,
+    update_existing=True,
+)
+
+custom_satellite_luch_5v = spacetrack_query.query_from_query_builder_url(
+    'https://for-testing-only.space-track.org/basicspacedata/query/class/gp/OBJECT_NAME/LUCH 5V/EPOCH/%3E2025-02-18%3C2025-02-19/orderby/EPOCH%20asc/format/json',
+    output_file=custom_catalog_file,
+    update_existing=True,
 )
 
 # %% [markdown]
@@ -212,7 +235,12 @@ for norad_id, sat_data in unique_sats.items():
     lats = np.degrees(dep_var_array[:, 1])
     lons = (np.degrees(dep_var_array[:, 2]) + 180) % 360 - 180
 
-    sc = ax.scatter(lons, lats, s=3, label=name, transform=ccrs.Geodetic(), alpha=0.5)
+    if name == 'LUCH 5V':
+        sc = ax.scatter(lons, lats, s=3, label=name, transform=ccrs.Geodetic(), alpha=0.5, color = 'red')
+    elif name == 'TJS-15':
+        sc = ax.scatter(lons, lats, s=3, label=name, transform=ccrs.Geodetic(), alpha=0.5, color = 'green')
+    else:
+        sc = ax.scatter(lons, lats, s=3, label=name, transform=ccrs.Geodetic(), alpha=0.5)
     scatter_handles.append(sc)
     scatter_labels.append(name)
 
@@ -321,7 +349,7 @@ plt.show()
 # ## Making Sense of the Ground Tracks 
 # > **NOTE**
 # >
-# > **This plot might change over time, as TLEs are dynamical elements. The following discusson is based on the following reference date: 19/02/2026.**
+# > **This plot might change over time, as TLEs are dynamical elements. However, since we constrained TJS-15 and LUCH 5V TLEs to a given epoch, the inset should always remain the same.**
 #
 # This ground track visualization is insightful. We can clearly see a distinction between the high- and low- inclination satellites: the highly inclined ones span the full map in latitude, while the equatorial ones always stay within a given equatorial band, see for instance the pink band in the middle of the map. 
 #
