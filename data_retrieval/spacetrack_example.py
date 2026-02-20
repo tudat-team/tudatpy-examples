@@ -58,7 +58,6 @@ password = os.getenv("SPACETRACK_PASS")
 spacetrack_query = SpaceTrackQuery(
     username=username,
     password=password,
-    spacetrack_url = 'https://for-testing-only.space-track.org/'
 )
 
 # %% [markdown]
@@ -351,10 +350,12 @@ plt.show()
 # >
 # > **This plot might change over time, as TLEs are dynamical elements. However, since we constrained TJS-15 and LUCH 5V TLEs to a given epoch, the inset should always remain the same.**
 #
-# This ground track visualization is insightful. We can clearly see a distinction between the high- and low- inclination satellites: the highly inclined ones span the full map in latitude, while the equatorial ones always stay within a given equatorial band, see for instance the pink band in the middle of the map. 
+# This ground track visualization is insightful. We can clearly see a distinction between the high- and low- inclination satellites: the highly inclined ones span the full map in latitude, while the equatorial ones always stay within a given equatorial band.
 #
 # The insets highlight two notable ground tracks: the green one for **TJS‑15** and the red one for **LUCH 5V**. One appears **almost circular**, while the other traces a **figure‑eight pattern**. This matches what we expect from their respective orbits: **TJS‑15 is geostationary**, whereas **LUCH 5V is geosynchronous**. 
 #
 # A geostationary satellite’s ground track ideally **collapses to a single point on the equator**; in practice, **small perturbations produce a tiny circular motion**, which is exactly what we see for TJS‑15. By contrast, a geosynchronous orbit with non‑zero inclination or eccentricity produces a characteristic figure‑eight pattern that repeats **every sidereal day**, consistent with the track shown for LUCH 5V.
 #
 # **Can you spot some other geostationary satellites?**
+
+# %%
