@@ -437,7 +437,7 @@ final_residuals = np.array(residual_history[:, -1])
 
 # This piece of code collects the 10 largest observatories
 observatory_names = (
-    batch.observatories_table(exclude_space_telescopes=True)
+    batch.observatories_table(exclude_space_telescopes=False)
     .sort_values("count", ascending=False)
     .iloc[0:num_observatories]
     .set_index("Code")
@@ -697,7 +697,7 @@ plt.show()
 
 # %%
 # Retrieve MPC observation times, RA and DEC from batch object
-batch_times_tdb = batch.table.epochJ2000secondsTDB.to_list() # in tdb
+batch_times_tdb = batch.table.epoch_seconds_TDB.to_list() # in tdb
 
 batch_times_utc = [time_scale_converter.convert_time(
     input_scale = time_representation.tdb_scale,
@@ -705,7 +705,7 @@ batch_times_utc = [time_scale_converter.convert_time(
     input_value = utc_second) for utc_second in batch_times_tdb
 ]
 
-batch_times_utc_date = batch.table.epochUTC.to_list()
+batch_times_utc_date = batch.table.epoch_seconds_UTC.to_list()
 batch_RA = batch.table.RA #in radians
 batch_DEC = batch.table.DEC #in radians
 
@@ -1188,9 +1188,6 @@ ax.set_title('Normalized Position Residuals: (Tudat - Horizons) / Tudat Uncertai
              fontsize=15, fontweight='bold')
 ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
 ax.legend(fontsize=11, loc='upper left', ncol=2)
-
-# Set y-axis limits to focus on ±4σ range (adjust if needed)
-ax.set_ylim(-9, 9)
 
 plt.tight_layout()
 plt.show()
