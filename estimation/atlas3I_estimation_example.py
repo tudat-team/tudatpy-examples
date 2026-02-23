@@ -27,11 +27,16 @@
 # %%
 from matplotlib.lines import Line2D
 from tudatpy import constants
+
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, parameters_setup, propagation_setup
 from tudatpy import estimation
-from tudatpy.estimation import observable_models_setup, estimation_analysis, observations
+from tudatpy.estimation import (
+    observable_models_setup,
+    estimation_analysis,
+    observations,
+)
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 from tudatpy.data.mpc import BatchMPC
 from tudatpy.data.horizons import HorizonsQuery
@@ -51,19 +56,19 @@ from tudatpy.data.mpc.parser_80col import parse_80cols_file
 # **Note:** This example requires a local data file named `additional_observations_3I.txt` in the same directory as this notebook. This file contains [MPC 80-column formatted observations](https://www.minorplanetcenter.net/iau/info/OpticalObs.html) for **Comet Atlas/3I**, as seen from Q54, Harlingten Telescope, Greenhill Observatory, Tasmania. We query `BatchMPC()` twice, one for the standard MPC query, and one to parse the additional observations from our `txt` file. Then we sum the two batches together and convert these into an observation collection.
 
 # %%
-batch_mpc= BatchMPC()
-time_scale_converter = time_representation.default_time_scale_converter( )
+batch_mpc = BatchMPC()
+time_scale_converter = time_representation.default_time_scale_converter()
 # Define comet name
 mpc_codes = ["3I"]
-batch_mpc.get_observations(mpc_codes, id_types = ['comet_number'])
+batch_mpc.get_observations(mpc_codes, id_types=["comet_number"])
 
 additional_batch = BatchMPC()
 # Input file of additional observations
-input_file = './data/additional_observations_3I.txt'
-additional_batch.from_file(input_file,in_degrees = False)
+input_file = "./data/additional_observations_3I.txt"
+additional_batch.from_file(input_file, in_degrees=False)
 batch = batch_mpc + additional_batch
 batch.summary()
-batch.filter(observatories_exclude = ['C53', 'C57'])
+batch.filter(observatories_exclude=["C53", "C57"])
 
 # %%
 # LOAD SPICE KERNELS
@@ -100,8 +105,8 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 number_of_pod_iterations = 6
 
 # 2 month time buffer used to avoid interpolation errors:
-time_buffer_start = 2*86400.0
-time_buffer_end = 30*86400.0
+time_buffer_start = 2 * 86400.0
+time_buffer_end = 30 * 86400.0
 
 batch.summary()
 print("Summary of space telescopes in batch:")
@@ -136,12 +141,14 @@ link_list = list(
 for link in link_list:
     # add optional bias settings here
     observation_settings_list.append(
-        observable_models_setup.model_settings.angular_position(link, bias_settings=None)
+        observable_models_setup.model_settings.angular_position(
+            link, bias_settings=None
+        )
     )
 
 # Retrieve the first and final observation epochs and add the buffer
-epoch_start_nobuffer = batch.epoch_start # this is in utc
-epoch_end_nobuffer = batch.epoch_end # this is in utc
+epoch_start_nobuffer = batch.epoch_start  # this is in utc
+epoch_end_nobuffer = batch.epoch_end  # this is in utc
 
 epoch_start_buffer = epoch_start_nobuffer - time_buffer_start
 epoch_end_buffer = epoch_end_nobuffer + time_buffer_end
@@ -191,7 +198,7 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 horizons_query = HorizonsQuery(
     query_id=f"{mpc_codes[0]};",
-    location=f"@0", # since our ephemeris origin is the solar system barycenter
+    location=f"@0",  # since our ephemeris origin is the solar system barycenter
     epoch_list=[epoch_start_buffer],
     extended_query=True,
 )
@@ -200,14 +207,14 @@ horizons_ephemeris = horizons_query.cartesian(
     frame_orientation=global_frame_orientation
 )
 
-initial_state = horizons_ephemeris[:,1:][0]
-print(f'JPL Horizons Initial State: {initial_state}')
+initial_state = horizons_ephemeris[:, 1:][0]
+print(f"JPL Horizons Initial State: {initial_state}")
 
 # Add random offset for initial guess
 rng = np.random.default_rng(seed=1)
 
 initial_position_offset = 1e5 * 1000
-initial_velocity_offset =  1000
+initial_velocity_offset = 1000
 
 initial_guess = initial_state.copy()
 
@@ -224,9 +231,9 @@ integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_siz
     initial_time_step=3600.0,  # Start with a 1-hour time step
     coefficient_set=propagation_setup.integrator.CoefficientSets.rkf_78,
     minimum_step_size=10.0,
-    maximum_step_size=3600*2,
+    maximum_step_size=3600 * 2,
     relative_error_tolerance=1.0e-12,
-    absolute_error_tolerance=1.0e-12
+    absolute_error_tolerance=1.0e-12,
 )
 
 forward_termination_epoch = epoch_end_buffer
@@ -234,7 +241,8 @@ backward_termination_epoch = epoch_start_buffer
 # Terminate at the time of oldest observation
 termination_condition = propagation_setup.propagator.non_sequential_termination(
     propagation_setup.propagator.time_termination(forward_termination_epoch),
-    propagation_setup.propagator.time_termination(backward_termination_epoch))
+    propagation_setup.propagator.time_termination(backward_termination_epoch),
+)
 
 # Create propagation settings
 propagator_settings = propagation_setup.propagator.translational(
@@ -254,9 +262,7 @@ propagator_settings = propagation_setup.propagator.translational(
 
 # %%
 # Setup parameters settings to propagate the state transition matrix
-parameter_settings = parameters_setup.initial_states(
-    propagator_settings, bodies
-)
+parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
 
 # Create the parameters that will be estimated
 parameters_to_estimate = parameters_setup.create_parameter_set(
@@ -291,7 +297,9 @@ pod_input.define_estimation_settings(
     save_state_history_per_iteration=True,
 )
 
-observation_collection.set_tabulated_weights(observation_collection.concatenated_weights)
+observation_collection.set_tabulated_weights(
+    observation_collection.concatenated_weights
+)
 # %% [markdown]
 # ## Performing the estimation
 #
@@ -307,7 +315,7 @@ pod_output = estimator.perform_estimation(pod_input)
 # %%
 # retrieve the estimated initial state.
 parameter_history = pod_output.parameter_history
-tudat_initial_state = parameter_history[:,-1]
+tudat_initial_state = parameter_history[:, -1]
 vector_error_initial = (np.array(initial_guess) - initial_state)[0:3]
 error_magnitude_initial = np.sqrt(np.square(vector_error_initial).sum()) / 1000
 
@@ -347,7 +355,12 @@ fig, axs = plt.subplots(
     sharey=False,
 )
 
-residual_times = np.array([DateTime.from_epoch(concatenated_time).to_python_datetime() for concatenated_time in observation_collection.concatenated_times])
+residual_times = np.array(
+    [
+        DateTime.from_epoch(concatenated_time).to_python_datetime()
+        for concatenated_time in observation_collection.concatenated_times
+    ]
+)
 
 
 # plot the residuals, split between RA and DEC types
@@ -357,8 +370,8 @@ for idx, ax in enumerate(fig.get_axes()):
     ax.scatter(
         residual_times[::2],
         residual_history[
-        ::2,
-        idx,
+            ::2,
+            idx,
         ],
         marker="+",
         s=60,
@@ -367,8 +380,8 @@ for idx, ax in enumerate(fig.get_axes()):
     ax.scatter(
         residual_times[1::2],
         residual_history[
-        1::2,
-        idx,
+            1::2,
+            idx,
         ],
         marker="+",
         s=60,
@@ -697,17 +710,20 @@ plt.show()
 
 # %%
 # Retrieve MPC observation times, RA and DEC from batch object
-batch_times_tdb = batch.table.epoch_seconds_TDB.to_list() # in tdb
+batch_times_tdb = batch.table.epoch_seconds_TDB.to_list()  # in tdb
 
-batch_times_utc = [time_scale_converter.convert_time(
-    input_scale = time_representation.tdb_scale,
-    output_scale = time_representation.utc_scale,
-    input_value = utc_second) for utc_second in batch_times_tdb
+batch_times_utc = [
+    time_scale_converter.convert_time(
+        input_scale=time_representation.tdb_scale,
+        output_scale=time_representation.utc_scale,
+        input_value=utc_second,
+    )
+    for utc_second in batch_times_tdb
 ]
 
 batch_times_utc_date = batch.table.epoch_seconds_UTC.to_list()
-batch_RA = batch.table.RA #in radians
-batch_DEC = batch.table.DEC #in radians
+batch_RA = batch.table.RA  # in radians
+batch_DEC = batch.table.DEC  # in radians
 
 # Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
 fig = batch.plot_observations_sky()
@@ -716,18 +732,18 @@ plt.show()
 # Create Horizons query, see Horizons Documentation for more info.
 atlas_horizons_query = HorizonsQuery(
     query_id=mpc_codes[0],
-    location="@399", # since our observers are located on earth
+    location="@399",  # since our observers are located on earth
     epoch_list=batch_times_tdb,
     extended_query=True,
 )
 
 # retrieve JPL observations
 jpl_observations = atlas_horizons_query.interpolated_observations()
-jpl_RA = (jpl_observations[:, 1]  + np.pi) % (2 * np.pi) - np.pi
-jpl_DEC = jpl_observations[:,2]
+jpl_RA = (jpl_observations[:, 1] + np.pi) % (2 * np.pi) - np.pi
+jpl_DEC = jpl_observations[:, 2]
 
 
-#take the difference
+# take the difference
 max_diff_RA = np.abs(jpl_RA - batch_RA).max()
 max_diff_DEC = np.abs(jpl_DEC - batch_DEC).max()
 min_diff_RA = np.abs(jpl_RA - batch_RA).min()
@@ -741,10 +757,13 @@ print("Minimum difference between Interpolated Horizons data and MPC observation
 print(f"...in Right Ascension: {np.round(min_diff_RA, 10)} rad")
 print(f"...in Declination: {np.round(min_diff_DEC, 10)} rad")
 
-#Create plot to visualize ther observations and select outliers from Y05 and J95
+# Create plot to visualize ther observations and select outliers from Y05 and J95
 fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
 
-dates_utc = [DateTime.from_epoch(batch_time_utc).to_python_datetime() for batch_time_utc in batch_times_utc]
+dates_utc = [
+    DateTime.from_epoch(batch_time_utc).to_python_datetime()
+    for batch_time_utc in batch_times_utc
+]
 ax_ra.scatter(dates_utc, (jpl_RA - batch_RA), marker="+")
 ax_dec.scatter(dates_utc, (jpl_DEC - batch_DEC), marker="+")
 
@@ -770,18 +789,20 @@ estimated_state_history = pod_output.simulation_results_per_iteration[
 ].dynamics_results.state_history
 
 time2plt = np.array(list(estimated_state_history.keys()))
-time2plt_normalized = (time2plt - time2plt[0]) / (3600*24)
+time2plt_normalized = (time2plt - time2plt[0]) / (3600 * 24)
 
 # Spacecraft trajectory relative to SSB
 trajectory = np.vstack(list(estimated_state_history.values()))
 sc_positions_ssb = trajectory[:, :3]
 
 # Get Sun ephemeris object
-sun_ephemeris = bodies.get('Sun').ephemeris
+sun_ephemeris = bodies.get("Sun").ephemeris
 
 # Get Sun's position relative to SSB at all time steps
 # Use a list comprehension to get Sun's position (index [0:3]) at each time
-sun_positions_ssb = np.array([sun_ephemeris.cartesian_state(t)[0:3] for t in time2plt.flatten()])
+sun_positions_ssb = np.array(
+    [sun_ephemeris.cartesian_state(t)[0:3] for t in time2plt.flatten()]
+)
 
 # Calculate the relative position vector (spacecraft relative to Sun)
 relative_positions_sc_to_sun = sc_positions_ssb - sun_positions_ssb
@@ -794,7 +815,9 @@ min_norm_index = np.argmin(distances_to_sun)
 
 # Get the time, distance, and positions at the true close approach
 closest_approach_time_epoch = time2plt[min_norm_index]
-closest_approach_utc_date = DateTime.to_python_datetime(DateTime.from_epoch(closest_approach_time_epoch))
+closest_approach_utc_date = DateTime.to_python_datetime(
+    DateTime.from_epoch(closest_approach_time_epoch)
+)
 closest_approach_m = distances_to_sun[min_norm_index]
 
 # Get the SC and Sun positions (relative to SSB) at the time of close approach
@@ -803,15 +826,21 @@ sun_pos_at_close_approach = sun_positions_ssb[min_norm_index, :]
 
 # --- Plotting ---
 fig = plt.figure(figsize=(10, 8))
-ax1 = fig.add_subplot(111, projection='3d')
+ax1 = fig.add_subplot(111, projection="3d")
 
 # Create a colormap based on time
-cmap = plt.get_cmap('viridis')
+cmap = plt.get_cmap("viridis")
 colors = cmap(time2plt_normalized / time2plt_normalized.max())
 
 # Plot the trajectory with color varying by time
 for i in range(len(trajectory) - 1):
-    ax1.plot(trajectory[i:i+2, 0]/1000, trajectory[i:i+2, 1]/1000, trajectory[i:i+2, 2]/1000, color=colors[i], linewidth=2)
+    ax1.plot(
+        trajectory[i : i + 2, 0] / 1000,
+        trajectory[i : i + 2, 1] / 1000,
+        trajectory[i : i + 2, 2] / 1000,
+        color=colors[i],
+        linewidth=2,
+    )
 
 # Convert closest approach distance to AU for the label
 closest_approach_au = (closest_approach_m * u.m).to(u.au)
@@ -820,26 +849,42 @@ print(f"Closest Approach to Sun: {closest_approach_utc_date}")
 print(f"Closest Approach Distance: {closest_approach_au}")
 
 # Plot the spacecraft's position at closest approach
-ax1.scatter(sc_pos_at_close_approach[0]/1000, sc_pos_at_close_approach[1]/1000, sc_pos_at_close_approach[2]/1000, # type: ignore
-            color='red', marker='o', s=20, label=f'Closest Approach to Sun ({closest_approach_au.value:.5f} AU)')
+ax1.scatter(
+    sc_pos_at_close_approach[0] / 1000,
+    sc_pos_at_close_approach[1] / 1000,
+    sc_pos_at_close_approach[2] / 1000,  # type: ignore
+    color="red",
+    marker="o",
+    s=20,
+    label=f"Closest Approach to Sun ({closest_approach_au.value:.5f} AU)",
+)
 
 # Plot the SSB (origin)
-ax1.scatter(0, 0, 0, label='Solar System Barycenter (Origin)', color='black', marker='+')
+ax1.scatter(
+    0, 0, 0, label="Solar System Barycenter (Origin)", color="black", marker="+"
+)
 
 # Plot the Sun's position at the time of closest approach
-ax1.scatter(sun_pos_at_close_approach[0]/1000, sun_pos_at_close_approach[1]/1000, sun_pos_at_close_approach[2]/1000,
-            color='yellow', marker='*', s=100, label='Sun (at close approach)')
+ax1.scatter(
+    sun_pos_at_close_approach[0] / 1000,
+    sun_pos_at_close_approach[1] / 1000,
+    sun_pos_at_close_approach[2] / 1000,
+    color="yellow",
+    marker="*",
+    s=100,
+    label="Sun (at close approach)",
+)
 ax1.set_title("Atlas/3I Trajectory (3D)")
-ax1.set_xlabel(r'$X$ [km]')
-ax1.set_ylabel(r'$Y$ [km]')
-ax1.set_zlabel(r'$Z$ [km]')
+ax1.set_xlabel(r"$X$ [km]")
+ax1.set_ylabel(r"$Y$ [km]")
+ax1.set_zlabel(r"$Z$ [km]")
 ax1.legend()
 
 # Add a colorbar
 sm = plt.cm.ScalarMappable(cmap=cmap)
 sm.set_array(time2plt_normalized)
 cbar = fig.colorbar(sm, ax=ax1, pad=0.1)
-cbar.set_label('Time from start [days]')
+cbar.set_label("Time from start [days]")
 plt.tight_layout()
 plt.show()
 
@@ -850,10 +895,12 @@ plt.show()
 
 # %%
 # Covariace propagation
-_, covariance_history = estimation.estimation_analysis.propagate_covariance_split_output(
-    pod_output.covariance,
-    estimator.state_transition_interface,
-    estimated_state_history.keys(),
+_, covariance_history = (
+    estimation.estimation_analysis.propagate_covariance_split_output(
+        pod_output.covariance,
+        estimator.state_transition_interface,
+        estimated_state_history.keys(),
+    )
 )
 
 inertial_to_rsw_state_rotation_matrices = []
@@ -875,9 +922,7 @@ formal_error_history_rsw = np.array(
 )
 
 labels = ["R", "S", "W"]
-times_plot = (
-    estimated_state_history.keys()
-)  # approximate for plot ticks
+times_plot = estimated_state_history.keys()  # approximate for plot ticks
 
 sigma_level = 3
 fig, ax = plt.subplots(1, 1, figsize=(12, 7))
@@ -896,18 +941,23 @@ for i in range(3):
         sigma_level * formal_error_history_rsw[:, i] / 1e3,  # Convert from m to km
         linestyle="-",
         color=cm.tab10(i),
-        )
+    )
     # Plot the negative 3-sigma bound
     ax.plot(
         times_plot_days,
         -sigma_level * formal_error_history_rsw[:, i] / 1e3,  # Convert from m to km
         linestyle="-",
         color=cm.tab10(i),
-        )
+    )
 
 # Add a vertical line at the closest approach date
-closest_approach_time_days = (DateTime.to_epoch(DateTime.from_python_datetime(closest_approach_utc_date)) - simulation_times[0]) / 86400.0
-ax.axvline(x=closest_approach_time_days, color='red', linestyle=':', label='Closest Approach')
+closest_approach_time_days = (
+    DateTime.to_epoch(DateTime.from_python_datetime(closest_approach_utc_date))
+    - simulation_times[0]
+) / 86400.0
+ax.axvline(
+    x=closest_approach_time_days, color="red", linestyle=":", label="Closest Approach"
+)
 
 times_get_eph = np.linspace(epoch_start_nobuffer, epoch_end_nobuffer, 500)
 
@@ -915,15 +965,17 @@ times_get_eph = [DateTime.from_epoch(time).to_julian_day() for time in times_get
 
 uncertainty_file_path = "data/3I-Ephemeris-Uncertainty.ecsv"
 ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
+
+
 def add_uncertainty_table_to_cartesian_plot(
-        axs,
-        ephemeris_uncertainty_table: Table,
-        simulation_start_time: float,  # Add simulation start time as an argument
-        in_RSW: bool = False
+    axs,
+    ephemeris_uncertainty_table: Table,
+    simulation_start_time: float,  # Add simulation start time as an argument
+    in_RSW: bool = False,
 ):
 
-#Adds JPL ephemeris uncertainty data to an existing plot.
-#The time axis is made relative to the provided simulation_start_time.
+    # Adds JPL ephemeris uncertainty data to an existing plot.
+    # The time axis is made relative to the provided simulation_start_time.
 
     if not in_RSW:
         # This part remains for inertial frame plotting if needed
@@ -940,15 +992,17 @@ def add_uncertainty_table_to_cartesian_plot(
         uncertainty_history = np.array(
             [
                 ephemeris_uncertainty_table["datetime_jd"],
-                ephemeris_uncertainty_table["r_s_1"]*3,
-                ephemeris_uncertainty_table["t_s"]*3,
-                ephemeris_uncertainty_table["n_s_1"]*3,
+                ephemeris_uncertainty_table["r_s_1"] * 3,
+                ephemeris_uncertainty_table["t_s"] * 3,
+                ephemeris_uncertainty_table["n_s_1"] * 3,
             ]
         ).T
 
     # Convert JPL Julian Day times to TDB seconds since J2000
     jpl_jd_times = uncertainty_history[:, 0]
-    jpl_tdb_seconds = [time_representation.julian_day_to_seconds_since_epoch(jd) for jd in jpl_jd_times]
+    jpl_tdb_seconds = [
+        time_representation.julian_day_to_seconds_since_epoch(jd) for jd in jpl_jd_times
+    ]
 
     # Calculate the time axis relative to the simulation start, in days
     jpl_relative_days = (np.array(jpl_tdb_seconds) - simulation_start_time) / 86400.0
@@ -983,25 +1037,40 @@ def add_uncertainty_table_to_cartesian_plot(
         label="JPL $\pm 3\sigma$ Cross-Track",
     )
 
+
 add_uncertainty_table_to_cartesian_plot(
     ax,
     ephemeris_uncertainty_table=ephemeris_uncertainty_table,
     simulation_start_time=simulation_times[0],  # Pass the simulation start time
-    in_RSW=True
+    in_RSW=True,
 )
 
 # Add vertical lines for the start and end dates of observations
 observation_start_time_days = (epoch_start_nobuffer - simulation_times[0]) / 86400.0
-observation_end_time_days = (epoch_end_nobuffer  - simulation_times[0])/ 86400.0
+observation_end_time_days = (epoch_end_nobuffer - simulation_times[0]) / 86400.0
 # Add shaded region for observation arc
-ax.axvspan(observation_start_time_days, observation_end_time_days,
-           alpha=0.1, color='royalblue', label='Observation Arc')
-ax.axvline(x=observation_start_time_days, color='green', linestyle='--', label='Observation Start')
-ax.axvline(x=observation_end_time_days, color='purple', linestyle='--', label='Observation End')
-ax.set_title(f"Estimated Position Uncertainty ({sigma_level}-Sigma Bounds)", fontsize=16)
+ax.axvspan(
+    observation_start_time_days,
+    observation_end_time_days,
+    alpha=0.1,
+    color="royalblue",
+    label="Observation Arc",
+)
+ax.axvline(
+    x=observation_start_time_days,
+    color="green",
+    linestyle="--",
+    label="Observation Start",
+)
+ax.axvline(
+    x=observation_end_time_days, color="purple", linestyle="--", label="Observation End"
+)
+ax.set_title(
+    f"Estimated Position Uncertainty ({sigma_level}-Sigma Bounds)", fontsize=16
+)
 ax.set_xlabel("Time from Start of Simulation [days]", fontsize=12)
 ax.set_ylabel("Formal Error [km]", fontsize=12)
-ax.grid(True, linestyle='--', alpha=0.6)
+ax.grid(True, linestyle="--", alpha=0.6)
 handles, labels = ax.get_legend_handles_labels()
 by_label = dict(zip(labels, handles))
 ax.legend(by_label.values(), by_label.keys(), fontsize=10)
@@ -1057,74 +1126,164 @@ times_plot_days = (trajectory_times - trajectory_times[0]) / 86400.0
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
 
 # Position differences
-ax1.plot(times_plot_days, position_diff_rsw[:, 0] / 1e3, label='Radial (R)', color='tab:red')
-ax1.plot(times_plot_days, position_diff_rsw[:, 1] / 1e3, label='Along-Track (S)', color='tab:blue')
-ax1.plot(times_plot_days, position_diff_rsw[:, 2] / 1e3, label='Cross-Track (W)', color='tab:green')
+ax1.plot(
+    times_plot_days, position_diff_rsw[:, 0] / 1e3, label="Radial (R)", color="tab:red"
+)
+ax1.plot(
+    times_plot_days,
+    position_diff_rsw[:, 1] / 1e3,
+    label="Along-Track (S)",
+    color="tab:blue",
+)
+ax1.plot(
+    times_plot_days,
+    position_diff_rsw[:, 2] / 1e3,
+    label="Cross-Track (W)",
+    color="tab:green",
+)
 
 # Add vertical line at closest approach
-closest_approach_time_days = (DateTime.to_epoch(DateTime.from_python_datetime(closest_approach_utc_date)) - trajectory_times[0]) / 86400.0
-ax1.axvline(x=closest_approach_time_days, color='red', linestyle=':', linewidth=2, label='Closest Approach')
+closest_approach_time_days = (
+    DateTime.to_epoch(DateTime.from_python_datetime(closest_approach_utc_date))
+    - trajectory_times[0]
+) / 86400.0
+ax1.axvline(
+    x=closest_approach_time_days,
+    color="red",
+    linestyle=":",
+    linewidth=2,
+    label="Closest Approach",
+)
 
 # Add vertical lines for observation start/end
 observation_start_time_days = (epoch_start_nobuffer - trajectory_times[0]) / 86400.0
 observation_end_time_days = (epoch_end_nobuffer - trajectory_times[0]) / 86400.0
-ax1.axvline(x=observation_start_time_days, color='green', linestyle='--', alpha=0.7, label='Observation Start')
-ax1.axvline(x=observation_end_time_days, color='purple', linestyle='--', alpha=0.7, label='Observation End')
+ax1.axvline(
+    x=observation_start_time_days,
+    color="green",
+    linestyle="--",
+    alpha=0.7,
+    label="Observation Start",
+)
+ax1.axvline(
+    x=observation_end_time_days,
+    color="purple",
+    linestyle="--",
+    alpha=0.7,
+    label="Observation End",
+)
 
-ax1.set_ylabel('Position Difference [km]', fontsize=12)
-ax1.set_title('Tudat - Horizons Position Difference (RSW Frame)', fontsize=14)
+ax1.set_ylabel("Position Difference [km]", fontsize=12)
+ax1.set_title("Tudat - Horizons Position Difference (RSW Frame)", fontsize=14)
 ax1.grid(True, alpha=0.3)
 ax1.legend(fontsize=10)
 
 # Velocity differences
-ax2.plot(times_plot_days, velocity_diff_rsw[:, 0], label='Radial Velocity (Vr)', color='tab:red')
-ax2.plot(times_plot_days, velocity_diff_rsw[:, 1], label='Along-Track Velocity (Vs)', color='tab:blue')
-ax2.plot(times_plot_days, velocity_diff_rsw[:, 2], label='Cross-Track Velocity (Vw)', color='tab:green')
+ax2.plot(
+    times_plot_days,
+    velocity_diff_rsw[:, 0],
+    label="Radial Velocity (Vr)",
+    color="tab:red",
+)
+ax2.plot(
+    times_plot_days,
+    velocity_diff_rsw[:, 1],
+    label="Along-Track Velocity (Vs)",
+    color="tab:blue",
+)
+ax2.plot(
+    times_plot_days,
+    velocity_diff_rsw[:, 2],
+    label="Cross-Track Velocity (Vw)",
+    color="tab:green",
+)
 
-ax2.axvline(x=closest_approach_time_days, color='red', linestyle=':', linewidth=2, label='Closest Approach')
-ax2.axvline(x=observation_start_time_days, color='green', linestyle='--', alpha=0.7, label='Observation Start')
-ax2.axvline(x=observation_end_time_days, color='purple', linestyle='--', alpha=0.7, label='Observation End')
+ax2.axvline(
+    x=closest_approach_time_days,
+    color="red",
+    linestyle=":",
+    linewidth=2,
+    label="Closest Approach",
+)
+ax2.axvline(
+    x=observation_start_time_days,
+    color="green",
+    linestyle="--",
+    alpha=0.7,
+    label="Observation Start",
+)
+ax2.axvline(
+    x=observation_end_time_days,
+    color="purple",
+    linestyle="--",
+    alpha=0.7,
+    label="Observation End",
+)
 
-ax2.set_xlabel('Time from Start of Simulation [days]', fontsize=12)
-ax2.set_ylabel('Velocity Difference [m/s]', fontsize=12)
-ax2.set_title('Tudat - Horizons Velocity Difference (RSW Frame)', fontsize=14)
+ax2.set_xlabel("Time from Start of Simulation [days]", fontsize=12)
+ax2.set_ylabel("Velocity Difference [m/s]", fontsize=12)
+ax2.set_title("Tudat - Horizons Velocity Difference (RSW Frame)", fontsize=14)
 ax2.grid(True, alpha=0.3)
 ax2.legend(fontsize=10)
 # Add shaded region for observation arc
-ax2.axvspan(observation_start_time_days, observation_end_time_days,
-           alpha=0.1, color='royalblue', label='Observation Arc')
-ax1.axvspan(observation_start_time_days, observation_end_time_days,
-           alpha=0.1, color='royalblue', label='Observation Arc')
+ax2.axvspan(
+    observation_start_time_days,
+    observation_end_time_days,
+    alpha=0.1,
+    color="royalblue",
+    label="Observation Arc",
+)
+ax1.axvspan(
+    observation_start_time_days,
+    observation_end_time_days,
+    alpha=0.1,
+    color="royalblue",
+    label="Observation Arc",
+)
 plt.tight_layout()
 plt.show()
 
 # %%
 # Print summary statistics
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("SUMMARY: Tudat vs Horizons Differences (RSW Frame)")
-print("="*60)
+print("=" * 60)
 print("\nPosition Differences:")
-print(f"  Radial (R):      max = {np.max(np.abs(position_diff_rsw[:, 0]))/1e3:.3f} km, "
-      f"mean = {np.mean(np.abs(position_diff_rsw[:, 0]))/1e3:.3f} km")
-print(f"  Along-Track (S): max = {np.max(np.abs(position_diff_rsw[:, 1]))/1e3:.3f} km, "
-      f"mean = {np.mean(np.abs(position_diff_rsw[:, 1]))/1e3:.3f} km")
-print(f"  Cross-Track (W): max = {np.max(np.abs(position_diff_rsw[:, 2]))/1e3:.3f} km, "
-      f"mean = {np.mean(np.abs(position_diff_rsw[:, 2]))/1e3:.3f} km")
+print(
+    f"  Radial (R):      max = {np.max(np.abs(position_diff_rsw[:, 0]))/1e3:.3f} km, "
+    f"mean = {np.mean(np.abs(position_diff_rsw[:, 0]))/1e3:.3f} km"
+)
+print(
+    f"  Along-Track (S): max = {np.max(np.abs(position_diff_rsw[:, 1]))/1e3:.3f} km, "
+    f"mean = {np.mean(np.abs(position_diff_rsw[:, 1]))/1e3:.3f} km"
+)
+print(
+    f"  Cross-Track (W): max = {np.max(np.abs(position_diff_rsw[:, 2]))/1e3:.3f} km, "
+    f"mean = {np.mean(np.abs(position_diff_rsw[:, 2]))/1e3:.3f} km"
+)
 
 print("\nVelocity Differences:")
-print(f"  Radial (Vr):      max = {np.max(np.abs(velocity_diff_rsw[:, 0])):.6f} m/s, "
-      f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 0])):.6f} m/s")
-print(f"  Along-Track (Vs): max = {np.max(np.abs(velocity_diff_rsw[:, 1])):.6f} m/s, "
-      f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 1])):.6f} m/s")
-print(f"  Cross-Track (Vw): max = {np.max(np.abs(velocity_diff_rsw[:, 2])):.6f} m/s, "
-      f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 2])):.6f} m/s")
+print(
+    f"  Radial (Vr):      max = {np.max(np.abs(velocity_diff_rsw[:, 0])):.6f} m/s, "
+    f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 0])):.6f} m/s"
+)
+print(
+    f"  Along-Track (Vs): max = {np.max(np.abs(velocity_diff_rsw[:, 1])):.6f} m/s, "
+    f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 1])):.6f} m/s"
+)
+print(
+    f"  Cross-Track (Vw): max = {np.max(np.abs(velocity_diff_rsw[:, 2])):.6f} m/s, "
+    f"mean = {np.mean(np.abs(velocity_diff_rsw[:, 2])):.6f} m/s"
+)
 
 # 3D position difference magnitude
 position_diff_magnitude = np.linalg.norm(position_diff_rsw, axis=1)
 print(f"\n3D Position Difference Magnitude:")
-print(f"  max = {np.max(position_diff_magnitude)/1e3:.3f} km, "
-      f"mean = {np.mean(position_diff_magnitude)/1e3:.3f} km")
-print("="*60)
+print(
+    f"  max = {np.max(position_diff_magnitude)/1e3:.3f} km, "
+    f"mean = {np.mean(position_diff_magnitude)/1e3:.3f} km"
+)
+print("=" * 60)
 
 # %%
 # Compute normalized residuals: (Tudat - Horizons) / Uncertainty
@@ -1150,60 +1309,103 @@ times_plot_days = (trajectory_times - trajectory_times[0]) / 86400.0
 fig, ax = plt.subplots(1, 1, figsize=(14, 7))
 
 # Plot normalized residuals
-ax.plot(times_plot_days, normalized_residuals_rsw[:, 0],
-        label='Radial (R)', color='tab:red', linewidth=2)
-ax.plot(times_plot_days, normalized_residuals_rsw[:, 1],
-        label='Along-Track (S)', color='tab:blue', linewidth=2)
-ax.plot(times_plot_days, normalized_residuals_rsw[:, 2],
-        label='Cross-Track (W)', color='tab:green', linewidth=2)
+ax.plot(
+    times_plot_days,
+    normalized_residuals_rsw[:, 0],
+    label="Radial (R)",
+    color="tab:red",
+    linewidth=2,
+)
+ax.plot(
+    times_plot_days,
+    normalized_residuals_rsw[:, 1],
+    label="Along-Track (S)",
+    color="tab:blue",
+    linewidth=2,
+)
+ax.plot(
+    times_plot_days,
+    normalized_residuals_rsw[:, 2],
+    label="Cross-Track (W)",
+    color="tab:green",
+    linewidth=2,
+)
 
 # Add horizontal reference lines at ±1σ, ±2σ, ±3σ
 for sigma_level in [1, 2, 3]:
-    ax.axhline(y=sigma_level, color='gray', linestyle='--',
-               alpha=0.4, linewidth=1)
-    ax.axhline(y=-sigma_level, color='gray', linestyle='--',
-               alpha=0.4, linewidth=1)
+    ax.axhline(y=sigma_level, color="gray", linestyle="--", alpha=0.4, linewidth=1)
+    ax.axhline(y=-sigma_level, color="gray", linestyle="--", alpha=0.4, linewidth=1)
 
 # Add vertical lines for key events
-closest_approach_time_days = (DateTime.to_epoch(
-    DateTime.from_python_datetime(closest_approach_utc_date)) - trajectory_times[0]) / 86400.0
+closest_approach_time_days = (
+    DateTime.to_epoch(DateTime.from_python_datetime(closest_approach_utc_date))
+    - trajectory_times[0]
+) / 86400.0
 observation_start_time_days = (epoch_start_nobuffer - trajectory_times[0]) / 86400.0
 observation_end_time_days = (epoch_end_nobuffer - trajectory_times[0]) / 86400.0
 
-ax.axvline(x=closest_approach_time_days, color='red', linestyle=':',
-           linewidth=2, label='Closest Approach', alpha=0.7)
-ax.axvline(x=observation_start_time_days, color='green', linestyle='--',
-           alpha=0.7, linewidth=2, label='Observation Start')
-ax.axvline(x=observation_end_time_days, color='purple', linestyle='--',
-           alpha=0.7, linewidth=2, label='Observation End')
+ax.axvline(
+    x=closest_approach_time_days,
+    color="red",
+    linestyle=":",
+    linewidth=2,
+    label="Closest Approach",
+    alpha=0.7,
+)
+ax.axvline(
+    x=observation_start_time_days,
+    color="green",
+    linestyle="--",
+    alpha=0.7,
+    linewidth=2,
+    label="Observation Start",
+)
+ax.axvline(
+    x=observation_end_time_days,
+    color="purple",
+    linestyle="--",
+    alpha=0.7,
+    linewidth=2,
+    label="Observation End",
+)
 
 # Add shaded region for observation arc
-ax.axvspan(observation_start_time_days, observation_end_time_days,
-           alpha=0.1, color='royalblue', label='Observation Arc')
+ax.axvspan(
+    observation_start_time_days,
+    observation_end_time_days,
+    alpha=0.1,
+    color="royalblue",
+    label="Observation Arc",
+)
 
 # Formatting
-ax.set_xlabel('Time from Start of Simulation [days]', fontsize=13)
-ax.set_ylabel('Normalized Residual [σ]', fontsize=13)
-ax.set_title('Normalized Position Residuals: (Tudat - Horizons) / Tudat Uncertainty',
-             fontsize=15, fontweight='bold')
-ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-ax.legend(fontsize=11, loc='upper left', ncol=2)
+ax.set_xlabel("Time from Start of Simulation [days]", fontsize=13)
+ax.set_ylabel("Normalized Residual [σ]", fontsize=13)
+ax.set_title(
+    "Normalized Position Residuals: (Tudat - Horizons) / Tudat Uncertainty",
+    fontsize=15,
+    fontweight="bold",
+)
+ax.grid(True, alpha=0.3, linestyle="-", linewidth=0.5)
+ax.legend(fontsize=11, loc="upper left", ncol=2)
 
 plt.tight_layout()
 plt.show()
 
 # %%
 # Print detailed statistics
-print("\n" + "="*70)
+print("\n" + "=" * 70)
 print("NORMALIZED RESIDUALS STATISTICS (in units of σ)")
-print("="*70)
+print("=" * 70)
 
 # Statistics during observation arc
-obs_mask = (trajectory_times >= epoch_start_nobuffer) & (trajectory_times <= epoch_end_nobuffer)
+obs_mask = (trajectory_times >= epoch_start_nobuffer) & (
+    trajectory_times <= epoch_end_nobuffer
+)
 
 print("\nDuring Observation Arc (Day 0 to ~150):")
 print("-" * 70)
-for i, comp in enumerate(['Radial (R)', 'Along-Track (S)', 'Cross-Track (W)']):
+for i, comp in enumerate(["Radial (R)", "Along-Track (S)", "Cross-Track (W)"]):
     obs_data = normalized_residuals_rsw[obs_mask, i]
     print(f"\n{comp}:")
     print(f"  Mean:   {np.mean(obs_data):+.3f}σ")
@@ -1225,7 +1427,7 @@ for i, comp in enumerate(['Radial (R)', 'Along-Track (S)', 'Cross-Track (W)']):
 # Statistics for full trajectory
 print("\n\nFull Trajectory (Day 0 to ~230):")
 print("-" * 70)
-for i, comp in enumerate(['Radial (R)', 'Along-Track (S)', 'Cross-Track (W)']):
+for i, comp in enumerate(["Radial (R)", "Along-Track (S)", "Cross-Track (W)"]):
     full_data = normalized_residuals_rsw[:, i]
     print(f"\n{comp}:")
     print(f"  Mean:   {np.mean(full_data):+.3f}σ")
