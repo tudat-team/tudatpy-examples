@@ -2,7 +2,7 @@
 from tudatpy.interface import spice
 from tudatpy.astro import time_representation, element_conversion
 from tudatpy.astro.time_representation import DateTime
-from datetime import datetime, timedelta # Added timedelta for the shift
+from datetime import datetime, timedelta
 from tudatpy.dynamics import environment_setup, environment
 from tudatpy.estimation import observable_models_setup, observations_setup
 from tudatpy import estimation
@@ -10,15 +10,11 @@ from tudatpy import estimation
 import os
 from tudatpy.math import interpolators
 import numpy as np
-from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import tudatpy.data as data
 
 # %% [markdown]
 # ## 2. Helper Functions
-# Modified to include a 0.4-second shift to the FDETS UTC timestamps.
-
 # %%
 def strip_and_shift_first_column(input_file, output_folder, time_shift_seconds=0.4):
     """Removes the scan index and shifts the UTC time tag by the specified seconds."""
@@ -32,13 +28,11 @@ def strip_and_shift_first_column(input_file, output_folder, time_shift_seconds=0
             else:
                 parts = line.split()
                 if len(parts) >= 6:
-                    # parts[1] is the UTC string (e.g., 2024-08-20T17:29:51.500)
                     utc_str = parts[1]
                     try:
-                        # Parse, shift, and reformat the timestamp
                         dt = datetime.strptime(utc_str, "%Y-%m-%dT%H:%M:%S.%f")
                         dt_shifted = dt + timedelta(seconds=time_shift_seconds)
-                        parts[1] = dt_shifted.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] # Maintain 3 decimal precision
+                        parts[1] = dt_shifted.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
                     except ValueError:
                         dt = datetime.strptime(utc_str, "%Y-%m-%dT%H:%M:%S")
                         dt_shifted = dt + timedelta(seconds=time_shift_seconds)
@@ -54,7 +48,7 @@ def strip_and_shift_first_column(input_file, output_folder, time_shift_seconds=0
 spice.load_standard_kernels()
 spice.load_kernel("juice_archive/spk/juice_orbc_000097_230414_310721_v02.bsp")
 
-# Define dates (Original JUICE Flyby window)
+# Define dates
 start = datetime(2024, 8, 19); end = datetime(2024, 8, 21)
 start_time = DateTime.from_python_datetime(start).to_epoch()
 end_time = DateTime.from_python_datetime(end).to_epoch()
@@ -107,7 +101,7 @@ station_ramp = environment.PiecewiseLinearFrequencyInterpolator(
 bodies.get('Earth').get_ground_station('NWNORCIA').transmitting_frequency_calculator = station_ramp
 
 # %% [markdown]
-# ## 4. Load Shshifted FDETS Data and Compute Residuals
+# ## 4. Load (possibly Shifted by setting time_shift = x) FDETS Data and Compute Residuals
 
 # %%
 link_definition = observable_models_setup.links.LinkDefinition({
@@ -116,7 +110,6 @@ link_definition = observable_models_setup.links.LinkDefinition({
     observable_models_setup.links.transmitter: observable_models_setup.links.body_reference_point_link_end_id('Earth', 'NWNORCIA'),
 })
 
-# Re-applying your original Troposphere Logic from the JUICE notebook
 light_time_correction_list = list()
 observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
     ["juice_archive/vmf/2024231.vmf3_g", "juice_archive/vmf/2024232.vmf3_g",
@@ -125,7 +118,7 @@ observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
 )
 light_time_correction_list.append(observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"]))
 
-# Load Shshifted Observations
+# Load Shifted Observations
 fdets_original = "/Users/lgisolfi/Desktop/PRIDE_DATA_NEW/LEGA/Fdets.jui2024.08.20.Yg.r2i.txt"
 
 time_shift = 0.84
@@ -152,7 +145,11 @@ estimation.observations.compute_residuals_and_dependent_variables(fdets_collecti
 times_tdb = fdets_collection.get_concatenated_observation_times()
 observed_val = fdets_collection.get_concatenated_observations()
 residuals = fdets_collection.get_concatenated_residuals()
-simulated_val = observed_val - residuals
+
+from scipy import signal
+residuals_detrended = signal.detrend(residuals)
+
+simulated_val = observed_val - residuals_detrended
 
 converter = time_representation.default_time_scale_converter()
 times_datetime = [DateTime.to_python_datetime(DateTime.from_epoch(converter.convert_time(time_representation.tdb_scale, time_representation.utc_scale, t))) for t in times_tdb]
@@ -162,9 +159,11 @@ ax1.plot(times_datetime, observed_val, label=f'Actual ({time_shift}s Shift Appli
 ax1.plot(times_datetime, simulated_val, label='Simulated (Tudat)', color='red', linestyle='--')
 ax1.set_ylabel('Frequency [Hz]'); ax1.set_title('JUICE Doppler Comparison (with 0.4s Data Shift)'); ax1.legend(); ax1.grid(True, alpha=0.3)
 
-ax2.scatter(times_datetime, residuals, color='green', s=2, label='Residuals (O-C)')
+ax2.scatter(times_datetime, residuals, color='gray', s=1, alpha=0.3, label='Original Residuals')
+ax2.scatter(times_datetime, residuals_detrended, color='green', s=2, label='Detrended Residuals')
 ax2.axhline(y=0, color='black', linewidth=1)
 ax2.set_ylabel('Residual [Hz]'); ax2.set_xlabel('Time (UTC)')
-ax2.legend(title=f'Shifted RMS: {np.sqrt(np.mean(residuals**2)):.6f} Hz'); ax2.grid(True, alpha=0.3)
+ax2.legend(title=f'Detrended RMS: {np.sqrt(np.mean(residuals_detrended**2)):.6f} Hz' + f'Original RMS: {np.sqrt(np.mean(residuals**2)):.6f} Hz'), ax2.grid(True, alpha=0.3)
+ax2.legend(title=f'Original RMS: {np.sqrt(np.mean(residuals**2)):.6f} Hz'); ax2.grid(True, alpha=0.3)
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
 fig.autofmt_xdate(); plt.tight_layout(); plt.show()
