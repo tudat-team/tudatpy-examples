@@ -179,7 +179,7 @@ scatter_labels = []
 tles = OMMUtils.get_tles(data_list)
 
 for norad_id, sat_data in unique_sats.items():
-    tle_line_1, tle_line_2 = tles[norad_id]
+    tle_line_1, tle_line_2 = tles[norad_id][0]
     name = sat_data.get('OBJECT_NAME', f"ID-{norad_id}")
     # Initial State from TLE
     inclination = sat_data['INCLINATION']
