@@ -19,12 +19,13 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
+from narwhals.stable.v1 import Datetime
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.data.spacetrack import SpaceTrackQuery
+from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
 from numpy import savetxt
 
@@ -51,14 +52,12 @@ if answer.upper() == 'Y':
     SpaceTrackQuery = SpaceTrackQuery()
     
     # OMM Dict
-    json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
-    
-    tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
+    json_dict = SpaceTrackQuery.get_tles_by_norad_ids(int(norad_id))
+
+    tle_dict = OMMUtils.get_tles(json_dict)
     tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
-    
+
     print(f'TLE: \n {tle_line1} \n {tle_line2}')
-    print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
     
     #---------------------------------------------------------------------------------------------------------------#
     # TLE (if you do not possess an account to Space-Track.org)
@@ -71,9 +70,9 @@ else:
             tle_line2: 2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319""")
     tle_line1 =  "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"
     tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
-# -
 
+tle_reference_epoch = environment.Tle(tle_line1, tle_line2).epoch()
+# -
 # ## Load Spice Kernels
 # Tudat's default spice kernels are loaded
 
@@ -104,18 +103,18 @@ spice.load_standard_kernels()
 
 # +
 # object mass
-mass = 480 # kg
+mass = 4200# kg from https://planet4589.org/space/gcat/data/cat/satcat.html
 # DRAG AND SRP AREA, DRAG COEFFICIENT
-reference_area_drag = 0.7854 # Average projection area of the spacecraft in m^2
-reference_area_radiation = 0.7854  # Average projection area of object for SRP. keep 0.0 to ignore SRP
-drag_coefficient = 2.2 # drag coefficient
+reference_area_drag =9.62# Average projection area of the spacecraft in m^2 from Cylyndrical assumption from  https://planet4589.org/space/gcat/data/cat/satcat.htm
+reference_area_radiation = 9.62
+drag_coefficient = 2.0 # drag coefficient that closely matches apulian sightings
 # CUT-OFF ALTITUDE FOR SIMULATION
 altitude_limit = 50.0e3  #meters  (standard 50 km = 50.0e3)
 # SET SIMULATION START EPOCH
 # THIS EQUALs THE TIME OF THE TLE EPOCH 
-simulation_start_utc = tle_reference_epoch
+simulation_start_utc = DateTime.from_epoch(tle_reference_epoch).to_python_datetime()
 # SET  SIMULATION END EPOCH (cuts off run if altitude criterion not met before)
-simulation_end_utc = tle_reference_epoch + timedelta(seconds = 86400*365) # one year after start 
+simulation_end_utc = DateTime.from_epoch(tle_reference_epoch).to_python_datetime()+ timedelta(seconds = 86400*3) # one day after start
 
 float_observations_start_utc = time_representation.DateTime.from_python_datetime(simulation_start_utc).to_epoch()
 float_observations_end_utc = time_representation.DateTime.from_python_datetime(simulation_end_utc).to_epoch()
@@ -436,6 +435,7 @@ print(' ')
 print('propagation start:  ' + propstartstring)
 print('propagation end:    ' + propendstring)
 print(" ")
+print(altid)
 if (altid * 1e3) > altitude_limit:
     print("OBJECT DID NOT REENTER WITHIN DEFINED TIMESPAN...")
 else:
@@ -530,9 +530,8 @@ lc.set_array(times_since)
 
 # Satellite imagery tiler
 tiler = cimgt.QuadtreeTiles()  # Good for testing
-fig = plt.figure(figsize=(12, 5))
+fig = plt.figure(figsize=(12, 10))
 ax = plt.axes(projection=tiler.crs)
-#ax.set_extent([-180, 180, -90, 90], crs=ccrs.PlateCarree())
 ax.add_image(tiler, 4)
 # Add colored ground track
 ax.add_collection(lc)
@@ -541,15 +540,6 @@ cbar.set_label(f"Elapsed Hours Since {utc_times[0].strftime('%Y-%m-%d %H:%M:%S')
 # Start/End markers
 ax.plot(longitudes[0], latitudes[0], 'yo', markersize=6, transform=ccrs.PlateCarree(), label='Start')
 ax.plot(longitudes[-1], latitudes[-1], 'ro', markersize=6, transform=ccrs.PlateCarree(), label=f"Reentry ({reentrydatestring[:16]} UTC +- {sigm_string})")
-# Add cities > 1M population
-ax.scatter(
-    big_cities.geometry.x,
-    big_cities.geometry.y,
-    color='red',
-    s=2,
-    transform=ccrs.PlateCarree(),
-    label='Cities > 1M'
-)
 # Add cities > 1M population
 ax.scatter(
     big_cities.geometry.x,
@@ -574,11 +564,10 @@ altitude = dependent_variables_array[:, 1]
 
 # Plot altitude vs. UTC
 plt.figure(figsize=(10, 5))
-plt.plot(utc_times, altitude/1000, label="Altitude") 
+plt.plot(utc_times, altitude/1000, label="Altitude")
 plt.xlabel("UTC Time", fontsize=12)
 plt.ylabel("Altitude [km]", fontsize=12)
 plt.title("Satellite Altitude over Time", fontsize=14)
 plt.grid(True)
 plt.legend()
-plt.tight_layout()
 plt.show()
