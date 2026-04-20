@@ -20,11 +20,11 @@ import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
 from tudatpy.interface import spice
-from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 from tudatpy.astro import time_representation
-from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.data.spacetrack import SpaceTrackQuery
+from tudatpy.util import result2array
+from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
 from numpy import savetxt
 
@@ -41,21 +41,21 @@ from numpy import savetxt
 # Object ID
 objname = "KOSMOS 482 DESCENT CRAFT"
 cospar = "1972-023E"
-norad_id = str(6073)
+norad_id = 6073
 
 answer = input('Do you have a Space-Track.org account? (Y/N): ')
 if answer.upper() == 'Y':
     print("Great! You'll be able to download data directly. Please enter you SpaceTrack credentials.")
         
     # Initialize SpaceTrackQuery
-    SpaceTrackQuery = SpaceTrackQuery()
+    spacetrack_query = SpaceTrackQuery()
     
     # OMM Dict
-    json_dict = SpaceTrackQuery.DownloadTle.single_norad_id(SpaceTrackQuery, norad_id)
+    json_dict = spacetrack_query.get_tles_by_norad_ids(norad_id)
     
-    tle_dict = SpaceTrackQuery.OMMUtils.get_tles(SpaceTrackQuery,json_dict)
-    tle_line1, tle_line2 = tle_dict[norad_id][0], tle_dict[norad_id][1]
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
+    tle_dict = OMMUtils.get_tles(json_dict)
+    tle_line1, tle_line2 = tle_dict[str(norad_id)][0], tle_dict[str(norad_id)][1]
+    tle_reference_epoch = OMMUtils.get_tle_reference_epoch(tle_line1)
     
     print(f'TLE: \n {tle_line1} \n {tle_line2}')
     print(f'TLE Reference Epoch: \n {tle_reference_epoch}')
@@ -71,7 +71,7 @@ else:
             tle_line2: 2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319""")
     tle_line1 =  "1  6073U 72023E   25130.02495443  .08088373  12542-4  65849-4 0  9993"
     tle_line2 = "2  6073  51.9455 241.9030 0035390 103.6551  63.6433 16.48653575751319"
-    tle_reference_epoch = SpaceTrackQuery.OMMUtils.get_tle_reference_epoch(SpaceTrackQuery,tle_line1)
+    tle_reference_epoch = OMMUtils.get_tle_reference_epoch(tle_line1)
 # -
 
 # ## Load Spice Kernels
@@ -117,8 +117,8 @@ simulation_start_utc = tle_reference_epoch
 # SET  SIMULATION END EPOCH (cuts off run if altitude criterion not met before)
 simulation_end_utc = tle_reference_epoch + timedelta(seconds = 86400*365) # one year after start 
 
-float_observations_start_utc = time_representation.DateTime.from_python_datetime(simulation_start_utc).to_epoch()
-float_observations_end_utc = time_representation.DateTime.from_python_datetime(simulation_end_utc).to_epoch()
+float_observations_start_utc = DateTime.from_python_datetime(simulation_start_utc).to_epoch()
+float_observations_end_utc = DateTime.from_python_datetime(simulation_end_utc).to_epoch()
 
 # Create time scale converter object
 time_scale_converter = time_representation.default_time_scale_converter( )
@@ -471,7 +471,7 @@ file = open('reentrytime_out' + filenamesuf + '.txt', 'a')
 #Append reentry info to the file
 file.write('\n')
 file.write('\n' + 'OBJECT: ' + objname + '\n')
-file.write('NORAD ID:  ' + norad_id + '\n')
+file.write('NORAD ID:  ' + str(norad_id) + '\n')
 file.write('COSPAR: ' + cospar + '\n')
 file.write('\n')
 file.write(tle_line1 + '\n')
@@ -520,7 +520,7 @@ latitudes = np.degrees(dependent_variables_array[:, 2])
 longitudes = (np.degrees(dependent_variables_array[:, 3]) + 180) % 360 - 180
 times = dependent_variables_array[:, 0]
 times_since = (np.array(times) - times[0])/3600
-utc_times = [time_representation.DateTime.to_python_datetime(time_representation.DateTime.from_epoch(time)) for time in times]
+utc_times = [DateTime.to_python_datetime(DateTime.from_epoch(time)) for time in times]
 # Line segments for colored path
 points = np.array([longitudes, latitudes]).T.reshape(-1, 1, 2)
 segments = np.concatenate([points[:-1], points[1:]], axis=1)
