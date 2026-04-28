@@ -2,11 +2,12 @@
 name: tudat-examples
 channels:
   - conda-forge
+  - tudat-team/label/dev
   - tudat-team
 dependencies:
-  - tudatpy=0.9
+  - tudatpy
   - numpy<2.0
-  # - pygmo # incompatible boost for tudatpy v0.9.0
+  - pygmo
   - ipython
   - ipykernel
   - nbconvert # for create_script.py utility
