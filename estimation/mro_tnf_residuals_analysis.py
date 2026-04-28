@@ -805,7 +805,7 @@ def perform_residuals_analysis(inputs):
                 rangeConversionFactors = []
 
                 for obs_set in single_obs_sets:
-                    rangeConversionFactor = obs_set.ancilliary_settings.get_float_settings(
+                    rangeConversionFactor = obs_set.ancillary_settings.get_float_settings(
                         observations_setup.ancillary_settings.range_conversion_factor,
                     )
                     rangeConversionFactors.append(rangeConversionFactor)
@@ -878,7 +878,7 @@ def perform_residuals_analysis(inputs):
                     first_day_range_conversion_factors = []
 
                     for obs_set in single_obs_sets:
-                        rangeConversionFactor = obs_set.ancilliary_settings.get_float_settings(
+                        rangeConversionFactor = obs_set.ancillary_settings.get_float_settings(
                             observations_setup.ancillary_settings.range_conversion_factor,
                         )
                         first_day_range_conversion_factors.append(rangeConversionFactor)
