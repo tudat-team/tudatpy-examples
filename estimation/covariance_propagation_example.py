@@ -482,9 +482,6 @@ In order to do this, we need to retrieve the estimated cartesian states for `Sta
 estimation_states = []
 rot_matrix_list = []
 
-
-# Assuming estimation_states, rot_matrix_list, output_times, and converted_formal_errors_matrix_list are defined as provided
-
 # Initialize the converted formal errors matrix list
 converted_formal_errors_matrix_list = np.zeros([3, len(output_times), 6, 6])
 
@@ -502,9 +499,9 @@ for j in [0, 1, 2]:
 fig3, axs3 = plt.subplots(1, 3, figsize=(15, 5))
 
 for j in range(3):
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 1, 1]), label=f"Along-Track", alpha=0.5)
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 2, 2]), label=f"Cross-Track", alpha=0.6)
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 0, 0]), label=f"Radial", alpha=0.8)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 1, 1]), label=f"Along-Track", alpha=0.5)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 2, 2]), label=f"Cross-Track", alpha=0.6)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 0, 0]), label=f"Radial", alpha=0.8)
     axs3[j].set_xlabel('Time (years)')
     axs3[j].set_ylabel('Formal Errors in RSW')
     axs3[j].legend()
