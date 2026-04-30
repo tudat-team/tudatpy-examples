@@ -1,7 +1,19 @@
 """
-MRO - Comparing Doppler and range measurements from TNF files to simulated observables
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+# MRO - Comparing Doppler and Range Measurements from TNF Files to Simulated Observables
+
+Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license.
+
+## Important Preliminary Remarks
+
+Running this example automatically downloads required files if not found locally:
+- Trajectory and orientation kernels for MRO
+- Atmospheric correction files
+- TNF files with Doppler measurements
+- etc.
+
+**First run may take ~1 hour** depending on internet connection. Files are cached locally for subsequent runs.
 """
+
 
 # Load required standard modules
 import multiprocessing as mp
@@ -9,6 +21,10 @@ import os
 import shutil
 import numpy as np
 from matplotlib import pyplot as plt
+from datetime import datetime
+from urllib.request import urlretrieve
+
+
 
 # Load required tudatpy modules
 from tudatpy.interface import spice
@@ -19,40 +35,28 @@ from tudatpy.data.processTrk234 import Trk234Processor
 
 from tudatpy.dynamics import environment_setup
 from tudatpy import estimation
-from tudatpy.estimation import estimation_analysis
 from tudatpy.estimation import observable_models_setup
 from tudatpy.estimation import observations, observations_setup
 
 from load_pds_files import download_url_files_time, download_url_files_time_interval
-from datetime import datetime
-from urllib.request import urlretrieve
 
 
-### ------------------------------------------------------------------------------------------
-### IMPORTANT PRELIMINARY REMARKS
-### ------------------------------------------------------------------------------------------
-#
-# The following example can only be run with manually compiled Tudat kernels (see https://github.com/tudat-team/tudat-bundle
-# for how to perform to the installation and compilation). Before proceeding to the compilation and testing (i.e., before step
-# 6 of the readme), the file tudat-bundle/tudatpy/tudatpy/kernel/scalarTypes.h must be modified to specify how the time type
-# should be converted in tudatpy. Within this scalarTypes.h file, both TIME_TYPE and INTERPOLATOR_TIME_TYPE should be set to
-# tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
-#
-# Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, TNF files containing the Doppler
-# measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
-# (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
-# each relevant file is already present locally and only proceeds to the download if it is not. This also means that running this
-# example implies downloading quite a few files to your machine or server.
-#
-### ------------------------------------------------------------------------------------------
+"""
+## Helper Functions
+
+### 1. File Retrieval Function
+
+This function retrieves all relevant files necessary to run the example over the time interval of interest (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of relevant clock files, orientation kernels, tropospheric correction files, ionospheric correction files, odf files, trajectory files, MRO reference frames file, and MRO structure file that should be loaded.
+"""
 
 
-# This function retrieves all relevant files necessary to run the example over the time interval of interest
-# (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
-# relevant clock files, orientation kernels, tropospheric correction files, ionospheric correction files, odf files,
-# trajectory files, MRO reference frames file, and MRO structure file that should be loaded.
 def get_mro_files(local_path, start_date, end_date):
+    """
+    Retrieve and download all necessary MRO files for the specified time interval.
+
+    Returns: tuple of (clock_files, orientation_files, tro_files, ion_files, 
+                       tnf_files, trajectory_files, frames_def_file, structure_file)
+    """
 
     # Check if local_path designates an existing directory and creates the directory is not
     if not os.path.isdir(local_path):
@@ -139,8 +143,7 @@ def get_mro_files(local_path, start_date, end_date):
     print("Download MRO ionospheric corrections files")
     # Define url where ionospheric correction files can be downloaded for MRO
     url_ion_files = "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/ancillary/ion/"
-    # Retrieve the names of all ionospheric correction files required to cover the time interval of interest, and download them if they
-    # do not exist locally yet
+    # Retrieve the names of all ionospheric correction files required to cover the time interval of interest, and download them if they do not exist locally yet
     ion_files = download_url_files_time_interval(
         local_path=local_path,
         filename_format="mromagr*.ion",
@@ -255,26 +258,79 @@ def get_mro_files(local_path, start_date, end_date):
     )
 
 
-# This function performs Doppler and range residual analysis for the MRO spacecraft by adopting the following approach:
-# 1) MRO Doppler and range measurements are loaded from the relevant TNF files
-# 2) Synthetic Doppler and range observables are simulated for all "real" observation times, using the spice kernels as reference for the MRO trajectory
-# 3) Residuals are computed as the difference between simulated and real observations.
-#
-# The "inputs" variable used as input argument is a list with eight entries:
-#   1- the index of the current run (the perform_residuals_analysis function being run in parallel on several cores in this example)
-#   2- the start date of the time interval under consideration
-#   3- the end date of the time interval under consideration
-#   4- the list of TNF files to be loaded to cover the above-mentioned time interval
-#   5- the list of clock files to be loaded
-#   6- the list of orientation kernels to be loaded
-#   7- the list of tropospheric correction files to be loaded
-#   8- the list of ionospheric correction files to be loaded
-#   9- the list of MRO trajectory files to be loaded
-#   10- the MRO reference frames definition file to be loaded
-#   11- the MRO structure file to be loaded
+"""
+### 2. Residuals Analysis Function
+
+This function performs Doppler and range residual analysis for the MRO spacecraft by adopting the following approach:
+
+**Step 1: Load SPICE kernels and data files**
+- Standard SPICE kernels (planetary ephemerides, leap seconds, etc.)
+- MRO-specific orientation kernels (spacecraft and antenna attitude)
+- Clock correlation files
+- Trajectory files (spacecraft ephemeris)
+- Reference frames and structure files
+
+**Step 2: Create the dynamical environment**
+- Set up celestial bodies (Earth, Sun, Mars, etc.) with appropriate models
+- Configure Earth with oblate spherical shape, high-precision rotation model (IAU 2006), and DSN ground stations
+- Create MRO spacecraft with translational and rotational ephemerides from SPICE
+
+**Step 3: Load and pre-process TNF observations**
+- Load Doppler and range measurements from TNF files
+- Filter out observations on dates with incomplete orientation kernel coverage
+- Split observation sets at discontinuities in kernel coverage
+- Compress Doppler observations from 1-second to 60-second integration time
+- Set transponder delay for MRO
+
+**Step 4: Set antenna as reference point**
+- Account for offset between MRO center-of-mass and spacecraft-fixed frame origin
+- Create tabulated ephemeris for the antenna position relative to center-of-mass
+- Set antenna as the reference point for all link ends (crucial for accurate Doppler modeling)
+
+**Step 5: Define observation model settings**
+- Configure light-time corrections:
+  - Second-order relativistic effects (Sun)
+  - Tropospheric corrections (from tabulated files)
+  - Ionospheric corrections (from tabulated files)
+  - Solar corona corrections (for range only, based on MEX 2011 data)
+- Create observation simulators for both Doppler and range observables
+- Add dependent variables: elevation angle and Sun-Earth-Probe (SEP) angle
+
+**Step 6: Compute residuals and save results**
+- Simulate synthetic observables using the observation models
+- Compute residuals as the difference between real (TNF) and simulated observations
+- Filter outliers (residuals > 0.1 Hz for Doppler, > 40 RU for range)
+- Save various outputs: residuals, RMS/mean statistics, time bounds, elevation/SEP angles, range conversion factors
+- For the first run (index 0), save detailed first-day results for visualization
+
+---
+
+**Input arguments:**
+
+The `inputs` variable is a list with eleven entries:
+1. Index of the current run (for parallel execution)
+2. Start date of the time interval
+3. End date of the time interval
+4. List of TNF files to load
+5. List of clock files to load
+6. List of orientation kernels to load
+7. List of tropospheric correction files to load
+8. List of ionospheric correction files to load
+9. List of MRO trajectory files to load
+10. MRO reference frames definition file to load
+11. MRO structure file to load
+"""
 
 
 def perform_residuals_analysis(inputs):
+    """
+    Perform residuals analysis for MRO Doppler and range observations.
+
+    Args:
+        inputs: list containing [index, start_date, end_date, tnf_files, clock_files,
+                orientation_files, tro_files, ion_files, trajectory_files, 
+                frames_def_file, structure_file]
+    """
 
     # Unpack various input arguments
     input_index = inputs[0]
@@ -624,7 +680,7 @@ def perform_residuals_analysis(inputs):
             observable_models_setup.links.LinkEndType.receiver
         )
         elevation_angle_parser = compressed_observations.add_dependent_variable(
-            elevation_angle_settings, bodies
+            elevation_angle_settings
         )
         sep_angle_settings = observations_setup.observations_dependent_variables.avoidance_angle_dependent_variable(
             "Sun",
@@ -632,7 +688,7 @@ def perform_residuals_analysis(inputs):
             observable_models_setup.links.LinkEndType.receiver,
         )
         sep_angle_parser = compressed_observations.add_dependent_variable(
-            sep_angle_settings, bodies
+            sep_angle_settings
         )
 
         # Compute and set residuals in the compressed observation collection
@@ -890,8 +946,15 @@ def perform_residuals_analysis(inputs):
                     )
 
 
-# Function to create the outputs directory if it doesn't exist and clear its contents if it does
+"""
+### 3. Output Folder Setup Function
+
+Function to create the outputs directory if it doesn't exist and clear its contents if it does.
+"""
+
+
 def setup_outputs_folder(folder_path):
+    """Create outputs folder or clear it if it already exists."""
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     else:
@@ -909,363 +972,444 @@ def setup_outputs_folder(folder_path):
                     print(f"Failed to delete {file_path}. Reason: {e}")
 
 
-if __name__ == "__main__":
-    print("Start")
-    inputs = []
+"""
+## Main Analysis
 
-    # Setup the outputs folder
-    setup_outputs_folder("outputs")
+### Setup
+"""
 
-    # Specify the number of cores over which this example is to run
-    nb_cores = 1
 
-    # Define start and end dates for the six time intervals to be analysed in parallel computations.
-    # Each parallel run covers two months of data for the example to parse a total timespan of one year.
-    start_dates = [
-        datetime(2012, 1, 1),
-        datetime(2012, 3, 1),
-        datetime(2012, 5, 1),
-        datetime(2012, 7, 1),
-        datetime(2012, 9, 1),
-        datetime(2012, 11, 1),
-    ]
+inputs = []
 
-    end_dates = [
-        datetime(2012, 2, 29),
-        datetime(2012, 4, 30),
-        datetime(2012, 6, 30),
-        datetime(2012, 8, 31),
-        datetime(2012, 10, 31),
-        datetime(2012, 12, 31),
-    ]
+# Setup the outputs folder
+setup_outputs_folder("outputs")
 
-    # For each parallel run
-    for i in range(nb_cores):
+# Specify the number of cores over which this example is to run
+nb_cores = 6
 
-        # First retrieve the names of all the relevant kernels and data files necessary to cover the specified time interval
-        (
+# Define start and end dates for the six time intervals to be analysed in parallel computations.
+# Each parallel run covers two months of data for the example to parse a total timespan of one year.
+start_dates = [
+    datetime(2012, 1, 1),
+    datetime(2012, 3, 1),
+    datetime(2012, 5, 1),
+    datetime(2012, 7, 1),
+    datetime(2012, 9, 1),
+    datetime(2012, 11, 1),
+]
+
+end_dates = [
+    datetime(2012, 2, 29),
+    datetime(2012, 4, 30),
+    datetime(2012, 6, 30),
+    datetime(2012, 8, 31),
+    datetime(2012, 10, 31),
+    datetime(2012, 12, 31),
+]
+
+# For each parallel run
+for i in range(nb_cores):
+    # First retrieve the names of all the relevant kernels and data files necessary to cover the specified time interval
+    (
+        clock_files,
+        orientation_files,
+        tro_files,
+        ion_files,
+        odf_files,
+        trajectory_files,
+        frames_def_file,
+        structure_file,
+    ) = get_mro_files("mro_kernels/", start_dates[i], end_dates[i])
+
+    # Construct a list of input arguments containing the arguments needed this specific parallel run.
+    # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
+    inputs.append(
+        [
+            i,
+            start_dates[i],
+            end_dates[i],
+            odf_files,
             clock_files,
             orientation_files,
             tro_files,
             ion_files,
-            odf_files,
             trajectory_files,
             frames_def_file,
             structure_file,
-        ) = get_mro_files("mro_kernels/", start_dates[i], end_dates[i])
-
-        # Construct a list of input arguments containing the arguments needed this specific parallel run.
-        # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
-        inputs.append(
-            [
-                i,
-                start_dates[i],
-                end_dates[i],
-                odf_files,
-                clock_files,
-                orientation_files,
-                tro_files,
-                ion_files,
-                trajectory_files,
-                frames_def_file,
-                structure_file,
-            ]
-        )
-
-    # Run parallel residuals analyses over several cores
-    print("---------------------------------------------")
-    print(
-        "The output of each parallel run is saved in a separate file named mro_estimation_output_x.dat, with x the index of the run "
-        "(these files are saved in the ./output directory)"
+        ]
     )
-    with mp.get_context("fork").Pool(nb_cores) as pool:
-        pool.map(perform_residuals_analysis, inputs)
 
-    for obsName in ["range", "doppler"]:
-        # Initialize lists to store results from all parallel analyses
-        filtered_residuals_list = []
-        filtered_times_list = []
-        elevation_angles_list = []
-        sep_angles_list = []
-        rms_residuals_list = []
-        mean_residuals_list = []
-        rms_filtered_residuals_list = []
-        mean_filtered_residuals_list = []
-        time_bounds_list = []
-        time_bounds_filtered_list = []
-        range_conversion_factors_list = []
 
-        # Load and add results from all parallel analyses
-        for i in range(nb_cores):
-            filtered_times_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_filtered_time_".format(obsName) + str(i) + ".dat",
-                    delimiter=",",
-                )
-            )
-            filtered_residuals_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_filtered_residuals_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            elevation_angles_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_elevation_angles_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            sep_angles_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_sep_angles_".format(obsName) + str(i) + ".dat",
-                    delimiter=",",
-                )
-            )
-            rms_residuals_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_unfiltered_residuals_rms_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            mean_residuals_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_unfiltered_residuals_mean_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            rms_filtered_residuals_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_filtered_residuals_rms_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            mean_filtered_residuals_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_filtered_residuals_mean_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            time_bounds_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_unfiltered_time_bounds_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            time_bounds_filtered_list.append(
-                np.loadtxt(
-                    "outputs/mro_{}_filtered_time_bounds_".format(obsName)
-                    + str(i)
-                    + ".dat",
-                    delimiter=",",
-                )
-            )
-            if obsName == "range":
-                range_conversion_factors_list.append(
-                    np.loadtxt(
-                        "outputs/mro_range_conversion_factors_" + str(i) + ".dat",
-                        delimiter=",",
-                    )
-                )
+"""
+### Run Parallel Analysis
+"""
 
-        # Concatenate the above results into single output variables
-        filtered_times = np.concatenate(filtered_times_list, axis=0)
-        filtered_residuals = np.concatenate(filtered_residuals_list, axis=0)
-        rms_residuals = np.concatenate(rms_residuals_list, axis=0)
-        mean_residuals = np.concatenate(mean_residuals_list, axis=0)
-        rms_filtered_residuals = np.concatenate(rms_filtered_residuals_list, axis=0)
-        mean_filtered_residuals = np.concatenate(mean_filtered_residuals_list, axis=0)
-        time_bounds = np.concatenate(time_bounds_list, axis=0)
-        time_bounds_filtered = np.concatenate(time_bounds_filtered_list, axis=0)
-        elevation_angles = np.concatenate(elevation_angles_list, axis=0)
-        sep_angles = np.concatenate(sep_angles_list, axis=0)
+
+# Run parallel residuals analyses over several cores
+print("---------------------------------------------")
+print(
+    "The output of each parallel run is saved in a separate file named mro_estimation_output_x.dat, with x the index of the run "
+    "(these files are saved in the ./output directory)"
+)
+with mp.get_context("fork").Pool(nb_cores) as pool:
+    pool.map(perform_residuals_analysis, inputs)
+
+
+"""
+## Results Processing and Visualization
+
+The following cell loads all results from the parallel analyses and generates visualization plots. For each observable type (Doppler and Range), three figures are automatically created:
+
+### Plot 1: Residuals Over Time
+
+**Doppler Residuals:**
+- Displays filtered Doppler residuals over the entire year (2012)
+- Each point represents the difference between observed Doppler measurement (from TNF files) and simulated Doppler observable (computed using SPICE kernels)
+- Residuals expressed in Hertz (Hz)
+- Outliers with residuals exceeding 0.1 Hz have been filtered out
+- Y-axis limited to [-0.1, 0.1] Hz for better visualization
+
+**Range Residuals:**
+- Shows filtered range residuals over the entire year (2012)
+- Each point represents the difference between observed range measurement (from TNF files) and simulated range observable (computed using SPICE kernels)
+- Left y-axis: residuals in Range Units (RU)
+- Right y-axis (red): same residuals converted to meters using range conversion factors
+- Outliers with residuals exceeding 40 RU have been filtered out
+
+### Plot 2: Statistics and Angles (6-panel figure)
+
+This figure provides comprehensive statistical analysis and geometric information:
+
+**Top row (RMS and Mean residuals - unfiltered):**
+- Shows root-mean-square (RMS) and mean of residuals per observation set before outlier filtering
+- Useful to identify observation sets with consistently high residuals
+- Residuals expressed in Hz for Doppler, RU for Range
+
+**Middle row (RMS and Mean residuals - post-filtering):**
+- Shows RMS and mean of residuals per observation set after outliers have been removed (> 0.1 Hz for Doppler, > 40 RU for Range)
+- Demonstrates the improvement in data quality after filtering
+- Allows assessment of overall measurement quality
+
+**Bottom row (Elevation and SEP angles):**
+- **Elevation angle**: The angle between the ground station's horizon and the line-of-sight to the spacecraft
+  - Low elevation angles often correlate with higher residuals due to increased atmospheric effects
+  - Longer signal paths through atmosphere at low elevations increase tropospheric delays
+  - Range: 0-90 degrees
+  
+- **SEP angle** (Sun-Earth-Probe angle): The angle between the Sun and the spacecraft as seen from the receiving ground station
+  - Small SEP angles indicate times when the spacecraft is near solar conjunction
+  - Solar plasma can affect signal quality during solar conjunctions
+  - Particularly important for range measurements due to solar corona effects
+
+### Plot 3: First Day Analysis
+
+**Doppler - First Day:**
+- Detailed view of Doppler residuals over the first 24-hour period of the dataset
+- Color-coded scatter points represent residuals from different link ends (different ground station tracking configurations)
+- Red line shows elevation angle at the receiving ground station throughout the day
+- Useful for:
+  - Identifying patterns in residuals related to spacecraft orbital geometry
+  - Observing how residuals vary with elevation angle
+  - Detecting systematic effects that repeat with the spacecraft's orbital period
+  - Comparing residual behavior across different ground station configurations
+
+**Range - First Day:**
+- Detailed view of range residuals over the first 24-hour period
+- Color-coded scatter points represent residuals from different link ends
+- Red line shows elevation angle at the receiving ground station throughout the day
+- Helps to:
+  - Identify daily patterns in range residuals
+  - Correlate residual magnitudes with elevation angles
+  - Detect systematic effects related to the orbital period
+  - Compare performance across different tracking configurations
+- Range residuals shown in Range Units (RU), where conversion to meters varies depending on ranging system configuration
+
+---
+
+**Note:** All plots for both Doppler and Range are generated automatically in the following cell and displayed together.
+"""
+
+
+for obsName in ["range", "doppler"]:
+    # Initialize lists to store results from all parallel analyses
+    filtered_residuals_list = []
+    filtered_times_list = []
+    elevation_angles_list = []
+    sep_angles_list = []
+    rms_residuals_list = []
+    mean_residuals_list = []
+    rms_filtered_residuals_list = []
+    mean_filtered_residuals_list = []
+    time_bounds_list = []
+    time_bounds_filtered_list = []
+    range_conversion_factors_list = []
+
+    # Load and add results from all parallel analyses
+    for i in range(nb_cores):
+        filtered_times_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_filtered_time_".format(obsName) + str(i) + ".dat",
+                delimiter=",",
+            )
+        )
+        filtered_residuals_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_filtered_residuals_".format(obsName) + str(i) + ".dat",
+                delimiter=",",
+            )
+        )
+        elevation_angles_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_elevation_angles_".format(obsName) + str(i) + ".dat",
+                delimiter=",",
+            )
+        )
+        sep_angles_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_sep_angles_".format(obsName) + str(i) + ".dat",
+                delimiter=",",
+            )
+        )
+        rms_residuals_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_unfiltered_residuals_rms_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
+        mean_residuals_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_unfiltered_residuals_mean_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
+        rms_filtered_residuals_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_filtered_residuals_rms_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
+        mean_filtered_residuals_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_filtered_residuals_mean_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
+        time_bounds_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_unfiltered_time_bounds_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
+        time_bounds_filtered_list.append(
+            np.loadtxt(
+                "outputs/mro_{}_filtered_time_bounds_".format(obsName)
+                + str(i)
+                + ".dat",
+                delimiter=",",
+            )
+        )
         if obsName == "range":
-            range_conversion_factors = np.concatenate(
-                range_conversion_factors_list, axis=0
+            range_conversion_factors_list.append(
+                np.loadtxt(
+                    "outputs/mro_range_conversion_factors_" + str(i) + ".dat",
+                    delimiter=",",
+                )
             )
 
-        # Load first day detailed results
-        first_day_residuals = np.loadtxt(
-            "outputs/mro_{}_first_day_residuals.dat".format(obsName)
+    # Concatenate the above results into single output variables
+    filtered_times = np.concatenate(filtered_times_list, axis=0)
+    filtered_residuals = np.concatenate(filtered_residuals_list, axis=0)
+    rms_residuals = np.concatenate(rms_residuals_list, axis=0)
+    mean_residuals = np.concatenate(mean_residuals_list, axis=0)
+    rms_filtered_residuals = np.concatenate(rms_filtered_residuals_list, axis=0)
+    mean_filtered_residuals = np.concatenate(mean_filtered_residuals_list, axis=0)
+    time_bounds = np.concatenate(time_bounds_list, axis=0)
+    time_bounds_filtered = np.concatenate(time_bounds_filtered_list, axis=0)
+    elevation_angles = np.concatenate(elevation_angles_list, axis=0)
+    sep_angles = np.concatenate(sep_angles_list, axis=0)
+    if obsName == "range":
+        range_conversion_factors = np.concatenate(range_conversion_factors_list, axis=0)
+
+    # Load first day detailed results
+    first_day_residuals = np.loadtxt(
+        "outputs/mro_{}_first_day_residuals.dat".format(obsName)
+    )
+    first_day_times = np.loadtxt("outputs/mro_{}_first_day_times.dat".format(obsName))
+    first_day_elevation_angles = np.loadtxt(
+        "outputs/mro_{}_first_day_elevation_angles.dat".format(obsName)
+    )
+    first_day_link_ends_ids = np.loadtxt(
+        "outputs/mro_{}_first_day_link_end_ids.dat".format(obsName)
+    )
+    if obsName == "range":
+        first_day_range_conversion_factors = np.loadtxt(
+            "outputs/mro_range_conversion_factors_first_day.dat"
         )
-        first_day_times = np.loadtxt(
-            "outputs/mro_{}_first_day_times.dat".format(obsName)
-        )
-        first_day_elevation_angles = np.loadtxt(
-            "outputs/mro_{}_first_day_elevation_angles.dat".format(obsName)
-        )
-        first_day_link_ends_ids = np.loadtxt(
-            "outputs/mro_{}_first_day_link_end_ids.dat".format(obsName)
-        )
-        if obsName == "range":
-            first_day_range_conversion_factors = np.loadtxt(
-                "outputs/mro_range_conversion_factors_first_day.dat"
-            )
 
-        if obsName == "doppler":
-            supTitle = "Averaged Doppler"
-            unit = "Hz"
-        elif obsName == "range":
-            unit = "RU"
-            supTitle = "Sequential Range"
+    if obsName == "doppler":
+        supTitle = "Averaged Doppler"
+        unit = "Hz"
+    elif obsName == "range":
+        unit = "RU"
+        supTitle = "Sequential Range"
 
-        # Plot residuals over time
-        fig, ax1 = plt.subplots()
-        plt.suptitle(supTitle)
-        ax1.scatter(
-            (filtered_times - np.min(filtered_times)) / 86400.0, filtered_residuals, s=2
-        )
-        ax1.grid()
-        if obsName == "doppler":
-            ax1.set_ylim([-0.1, 0.1])
-        ax1.set_xlim([0, 365])
-        ax1.set_xlabel("Time [days]")
-        ax1.set_ylabel("Residuals [{}]".format(unit))
+    # Plot residuals over time
+    fig, ax1 = plt.subplots()
+    plt.suptitle(supTitle)
+    ax1.scatter(
+        (filtered_times - np.min(filtered_times)) / 86400.0, filtered_residuals, s=2
+    )
+    ax1.grid()
+    if obsName == "doppler":
+        ax1.set_ylim([-0.1, 0.1])
+    ax1.set_xlim([0, 365])
+    ax1.set_xlabel("Time [days]")
+    ax1.set_ylabel("Residuals [{}]".format(unit))
 
-        if obsName == "range":
-            ax2 = ax1.twinx()
-            color = "tab:red"
-            ax2.scatter(
-                (filtered_times - np.min(filtered_times)) / 86400.0,
-                filtered_residuals * range_conversion_factors,
-                s=2,
-            )
-
-            ax2.set_ylabel("Residuals [m]", color=color)
-            ax2.tick_params(axis="y", labelcolor=color)
-
-        fig.tight_layout()
-
-        # Plot RMS and mean residuals, both pre- and post-filtering of the outliers (residuals > 0.1)
-        # The elevation and SEP angles are also plotted.
-        fig2, axs = plt.subplots(3, 2, figsize=(10, 8))
-        plt.suptitle(supTitle)
-
-        axs[0, 0].plot(
-            (time_bounds[:, 0] - np.min(time_bounds)) / 86400,
-            rms_residuals,
-            ".",
-            markersize=1,
-        )
-        axs[0, 0].grid()
-        if obsName == "doppler":
-            axs[0, 0].set_ylim([-0.01, 0.1])
-        axs[0, 0].set_xlim([0, 365])
-        axs[0, 0].set_xlabel("Time [days]")
-        axs[0, 0].set_ylabel("RMS residuals [{}]".format(unit))
-        axs[0, 0].set_title("RMS residuals")
-
-        axs[0, 1].plot(
-            (time_bounds[:, 0] - np.min(time_bounds)) / 86400,
-            mean_residuals,
-            ".",
-            markersize=1,
-        )
-        axs[0, 1].grid()
-        if obsName == "doppler":
-            axs[0, 1].set_ylim([-0.02, 0.02])
-        axs[0, 1].set_xlim([0, 365])
-        axs[0, 1].set_xlabel("Time [days]")
-        axs[0, 1].set_ylabel("Mean residuals [{}]".format(unit))
-        axs[0, 1].set_title("Mean residuals")
-
-        axs[1, 0].plot(
-            (time_bounds_filtered[:, 0] - np.min(time_bounds_filtered)) / 86400,
-            rms_filtered_residuals,
-            ".",
-            markersize=1,
-        )
-        axs[1, 0].grid()
-        if obsName == "doppler":
-            axs[1, 0].set_ylim([-0.01, 0.1])
-        axs[1, 0].set_xlim([0, 365])
-        axs[1, 0].set_xlabel("Time [days]")
-        axs[1, 0].set_ylabel("RMS residuals [{}]".format(unit))
-        axs[1, 0].set_title("RMS residuals (post-filtering)")
-
-        axs[1, 1].plot(
-            (time_bounds_filtered[:, 0] - np.min(time_bounds_filtered)) / 86400,
-            mean_filtered_residuals,
-            ".",
-            markersize=1,
-        )
-        axs[1, 1].grid()
-        if obsName == "doppler":
-            axs[1, 1].set_ylim([-0.02, 0.02])
-        axs[1, 1].set_xlim([0, 365])
-        axs[1, 1].set_xlabel("Time [days]")
-        axs[1, 1].set_ylabel("Mean residuals [{}]".format(unit))
-        axs[1, 1].set_title("Mean residuals (post-filtering)")
-
-        axs[2, 0].plot(
-            (filtered_times - np.min(filtered_times)) / 86400,
-            elevation_angles * 180 / np.pi,
-            ".",
-            markersize=1,
-        )
-        axs[2, 0].grid()
-        axs[2, 0].set_ylim([0, 90])
-        axs[2, 0].set_xlim([0, 365])
-        axs[2, 0].set_xlabel("Time [days]")
-        axs[2, 0].set_ylabel("Elevation angle [deg]")
-        axs[2, 0].set_title("Elevation angle")
-
-        axs[2, 1].plot(
-            (filtered_times - np.min(filtered_times)) / 86400,
-            sep_angles * 180 / np.pi,
-            ".",
-            markersize=1,
-        )
-        axs[2, 1].grid()
-        axs[2, 1].set_xlim([0, 365])
-        axs[2, 1].set_xlabel("Time [days]")
-        axs[2, 1].set_ylabel("SEP angle [deg]")
-        axs[2, 1].set_title("SEP angle")
-
-        fig2.tight_layout()
-
-        # Plot residuals and elevation angles over one day
-        fig3, ax1 = plt.subplots()
-        plt.suptitle(supTitle)
-        ax1.scatter(
-            (first_day_times - np.min(first_day_times)) / 3600.0,
-            first_day_residuals,
-            c=first_day_link_ends_ids,
-            s=10,
-        )
-        if obsName == "doppler":
-            ax1.set_ylim([-0.02, 0.02])
-        ax1.set_ylabel("Residuals [{}]".format(unit))
-
+    if obsName == "range":
         ax2 = ax1.twinx()
         color = "tab:red"
-        ax2.set_ylabel("Elevation angle [deg]", color=color)
-        ax2.plot(
-            (first_day_times - np.min(first_day_times)) / 3600.0,
-            first_day_elevation_angles * 180 / np.pi,
-            ".",
-            markersize=1,
-            color=color,
+        ax2.scatter(
+            (filtered_times - np.min(filtered_times)) / 86400.0,
+            filtered_residuals * range_conversion_factors,
+            s=2,
         )
+
+        ax2.set_ylabel("Residuals [m]", color=color)
         ax2.tick_params(axis="y", labelcolor=color)
 
-        plt.grid()
-        ax1.set_xlim([0, 24])
-        ax1.set_xlabel("Time [hours]")
-        fig3.tight_layout()
-        ax1.set_title("Residuals over one day")
+    fig.tight_layout()
 
-    plt.show()
+    # Plot RMS and mean residuals, both pre- and post-filtering of the outliers
+    # The elevation and SEP angles are also plotted.
+    fig2, axs = plt.subplots(3, 2, figsize=(10, 8))
+    plt.suptitle(supTitle)
+
+    axs[0, 0].plot(
+        (time_bounds[:, 0] - np.min(time_bounds)) / 86400,
+        rms_residuals,
+        ".",
+        markersize=1,
+    )
+    axs[0, 0].grid()
+    if obsName == "doppler":
+        axs[0, 0].set_ylim([-0.01, 0.1])
+    axs[0, 0].set_xlim([0, 365])
+    axs[0, 0].set_xlabel("Time [days]")
+    axs[0, 0].set_ylabel("RMS residuals [{}]".format(unit))
+    axs[0, 0].set_title("RMS residuals")
+
+    axs[0, 1].plot(
+        (time_bounds[:, 0] - np.min(time_bounds)) / 86400,
+        mean_residuals,
+        ".",
+        markersize=1,
+    )
+    axs[0, 1].grid()
+    if obsName == "doppler":
+        axs[0, 1].set_ylim([-0.02, 0.02])
+    axs[0, 1].set_xlim([0, 365])
+    axs[0, 1].set_xlabel("Time [days]")
+    axs[0, 1].set_ylabel("Mean residuals [{}]".format(unit))
+    axs[0, 1].set_title("Mean residuals")
+
+    axs[1, 0].plot(
+        (time_bounds_filtered[:, 0] - np.min(time_bounds_filtered)) / 86400,
+        rms_filtered_residuals,
+        ".",
+        markersize=1,
+    )
+    axs[1, 0].grid()
+    if obsName == "doppler":
+        axs[1, 0].set_ylim([-0.01, 0.1])
+    axs[1, 0].set_xlim([0, 365])
+    axs[1, 0].set_xlabel("Time [days]")
+    axs[1, 0].set_ylabel("RMS residuals [{}]".format(unit))
+    axs[1, 0].set_title("RMS residuals (post-filtering)")
+
+    axs[1, 1].plot(
+        (time_bounds_filtered[:, 0] - np.min(time_bounds_filtered)) / 86400,
+        mean_filtered_residuals,
+        ".",
+        markersize=1,
+    )
+    axs[1, 1].grid()
+    if obsName == "doppler":
+        axs[1, 1].set_ylim([-0.02, 0.02])
+    axs[1, 1].set_xlim([0, 365])
+    axs[1, 1].set_xlabel("Time [days]")
+    axs[1, 1].set_ylabel("Mean residuals [{}]".format(unit))
+    axs[1, 1].set_title("Mean residuals (post-filtering)")
+
+    axs[2, 0].plot(
+        (filtered_times - np.min(filtered_times)) / 86400,
+        elevation_angles * 180 / np.pi,
+        ".",
+        markersize=1,
+    )
+    axs[2, 0].grid()
+    axs[2, 0].set_ylim([0, 90])
+    axs[2, 0].set_xlim([0, 365])
+    axs[2, 0].set_xlabel("Time [days]")
+    axs[2, 0].set_ylabel("Elevation angle [deg]")
+    axs[2, 0].set_title("Elevation angle")
+
+    axs[2, 1].plot(
+        (filtered_times - np.min(filtered_times)) / 86400,
+        sep_angles * 180 / np.pi,
+        ".",
+        markersize=1,
+    )
+    axs[2, 1].grid()
+    axs[2, 1].set_xlim([0, 365])
+    axs[2, 1].set_xlabel("Time [days]")
+    axs[2, 1].set_ylabel("SEP angle [deg]")
+    axs[2, 1].set_title("SEP angle")
+
+    fig2.tight_layout()
+
+    # Plot residuals and elevation angles over one day
+    fig3, ax1 = plt.subplots()
+    plt.suptitle(supTitle)
+    ax1.scatter(
+        (first_day_times - np.min(first_day_times)) / 3600.0,
+        first_day_residuals,
+        c=first_day_link_ends_ids,
+        s=10,
+    )
+    if obsName == "doppler":
+        ax1.set_ylim([-0.02, 0.02])
+    ax1.set_ylabel("Residuals [{}]".format(unit))
+
+    ax2 = ax1.twinx()
+    color = "tab:red"
+    ax2.set_ylabel("Elevation angle [deg]", color=color)
+    ax2.plot(
+        (first_day_times - np.min(first_day_times)) / 3600.0,
+        first_day_elevation_angles * 180 / np.pi,
+        ".",
+        markersize=1,
+        color=color,
+    )
+    ax2.tick_params(axis="y", labelcolor=color)
+
+    plt.grid()
+    ax1.set_xlim([0, 24])
+    ax1.set_xlabel("Time [hours]")
+    fig3.tight_layout()
+    ax1.set_title("Residuals over one day")
+
+plt.show()
+
+
+plt.show()
