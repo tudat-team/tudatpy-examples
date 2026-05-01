@@ -1,57 +1,62 @@
-# %% [markdown]
-# # Objectives
-#
-# Within this example, we fit various dynamical models of the GRAIL spacecraft to its reference SPICE trajectory. Unlike the ODF estimation example which uses real Doppler data, this script generates "ideal" position observables by sampling the SPICE ephemeris and fits a propagated orbit to these samples. The goal is to assess how well different dynamical models can replicate the "ground truth" trajectory provided by NASA's navigation team. The script follows this methodology:
-#
-# 1) **Ephemeris Sampling**: Instead of loading real measurements, the script samples the reference SPICE ephemeris to generate ideal position observables over day-long arcs.
-#
-# 2) **Dynamical Modelling (Setups)**: Four distinct setups are defined to test model fidelity:
-#
-# - **Setup 0 (Simple)**: Uses a truncated lunar gravity field (10x10), cannonball radiation pressure for Sun/Moon, and Earth as the sole third-body perturber. Estimates initial state only.
-#
-# - **Setup 1 (Complex)**: Uses a high-fidelity lunar gravity field (256x256), panelled radiation pressure models, and perturbations from Earth, Sun, Venus, Mars, Jupiter, and Saturn. Estimates initial state only.
-#
-# - **Setup 2 (Complex + Coefficients)**: Same as Setup 1, but additionally estimates radiation pressure scale factors.
-#
-# - **Setup 3 (Complex + Manoeuvres)**: Same as Setup 2, but additionally estimates manoeuvres if they are detected within the arc.
-#
-# 3) **Estimation**: Performing a least-squares fit to minimize the difference between the propagated state and the sampled SPICE ephemeris.
-#
-# 4) **Validation**: Computing the difference between the post-fit estimated trajectory and the reference SPICE trajectory in the RSW (Radial, Along-Track, Cross-Track) frame to quantify the accuracy of the dynamical model.
-#
-# ## Important Remarks
-# - **Tudatpy Version**: Please ensure you are using Tudatpy v1.0 or above.
-#
-# - **Data Download**: Running the example automatically triggers the download of all required kernels and data files if they are not found locally (trajectory kernels, orientation kernels, etc.).
-#
-# - **Parallel Execution**: This example performs a high number of parallel operations (nb_setups * nb_dates), running 4 different setups over 5 different days (20 total runs). This is computationally intensive and may take significant time.
+"""
+# GRAIL - Fitting various models of the GRAIL spacecraft's dynamics to the reference spice trajectory
+
+## Objectives
+
+Within this example, we fit various dynamical models of the GRAIL spacecraft to its reference SPICE trajectory. Unlike the ODF estimation example which uses real Doppler data, this script generates "ideal" position observables by sampling the SPICE ephemeris and fits a propagated orbit to these samples. The goal is to assess how well different dynamical models can replicate the "ground truth" trajectory provided by NASA's navigation team. The script follows this methodology:
+
+1) **Ephemeris Sampling**: Instead of loading real measurements, the script samples the reference SPICE ephemeris to generate ideal position observables over day-long arcs.
+
+2) **Dynamical Modelling (Setups)**: Four distinct setups are defined to test model fidelity:
+
+- **Setup 0 (Simple)**: Uses a truncated lunar gravity field (10x10), cannonball radiation pressure for Sun/Moon, and Earth as the sole third-body perturber. Estimates initial state only.
+
+- **Setup 1 (Complex)**: Uses a high-fidelity lunar gravity field (256x256), panelled radiation pressure models, and perturbations from Earth, Sun, Venus, Mars, Jupiter, and Saturn. Estimates initial state only.
+
+- **Setup 2 (Complex + Coefficients)**: Same as Setup 1, but additionally estimates radiation pressure scale factors.
+
+- **Setup 3 (Complex + Manoeuvres)**: Same as Setup 2, but additionally estimates manoeuvres if they are detected within the arc.
+
+3) **Estimation**: Performing a least-squares fit to minimize the difference between the propagated state and the sampled SPICE ephemeris.
+
+4) **Validation**: Computing the difference between the post-fit estimated trajectory and the reference SPICE trajectory in the RSW (Radial, Along-Track, Cross-Track) frame to quantify the accuracy of the dynamical model.
+
+## Important Remarks
+- **Tudatpy Version**: Please ensure you are using Tudatpy v1.0 or above.
+
+- **Data Download**: Running the example automatically triggers the download of all required kernels and data files if they are not found locally (trajectory kernels, orientation kernels, etc.).
+
+- **Parallel Execution**: This example performs a high number of parallel operations (nb_setups * nb_dates), running 4 different setups over 5 different days (20 total runs). This is computationally intensive and may take significant time.
+"""
 
 
-# %%
 # Load required standard modules
 import multiprocessing as mp
 import os
 import numpy as np
 from matplotlib import pyplot as plt
 
-# %%
+
+
 # Load required tudatpy modules
 from tudatpy.data import grail_mass_level_0_file_reader
 from tudatpy.interface import spice
 from tudatpy.astro import time_representation
 from tudatpy import util
 
-# %%
+
+
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup import radiation_pressure
 from tudatpy.dynamics import propagation_setup, parameters_setup
-from tudatpy import estimation
 from tudatpy.estimation import estimation_analysis
 
-# %%
+
+
 from datetime import datetime
 
-# %%
+
+
 # Import GRAIL examples functions
 from grail_examples_functions import (
     get_grail_files,
@@ -60,31 +65,31 @@ from grail_examples_functions import (
 )
 
 
-# %% [markdown]
-# # The Main Function
-#
-# We pack the main residual analysis functionality into the `run_spice_fit` function. 
-#
-# This function tests various setups (both in terms of dynamical model and set of parameters to estimate) to fit GRAIL's orbit to
-# its reference spice trajectory, over arcs of one day. This is done by sampling the spice ephemeris and generating ideal "position"
-# observables. We then fit GRAIL's dynamical model to such observables, using different set of estimated parameters.
-#
-# The "inputs" variable used as input argument is a list with eleven entries:
-#
-#   1) the index of the current run (the run_spice_fit function being run in parallel on several cores in this example)
-#   2) the date for the day-long arc under consideration
-#   3) the index of the setup to consider for the current run (defines both GRAIL's dynamical model and the list of estimated parameters)
-#   4) the clock file to be loaded
-#   5) the list of orientation kernels to be loaded
-#   6) the GRAIL manoeuvres file to be loaded
-#   7) the list of GRAIL trajectory files to be loaded
-#   8) the GRAIL reference frames file to be loaded
-#   9) the lunar orientation kernel to be loaded
-#   10) the lunar reference frame kernel to be loaded
-#   11) the output files directory
+"""
+## The Main Function
+
+We pack the main residual analysis functionality into the `run_spice_fit` function. 
+
+This function tests various setups (both in terms of dynamical model and set of parameters to estimate) to fit GRAIL's orbit to
+its reference spice trajectory, over arcs of one day. This is done by sampling the spice ephemeris and generating ideal "position"
+observables. We then fit GRAIL's dynamical model to such observables, using different set of estimated parameters.
+
+The "inputs" variable used as input argument is a list with eleven entries:
+
+  1) the index of the current run (the run_spice_fit function being run in parallel on several cores in this example)
+  2) the date for the day-long arc under consideration
+  3) the index of the setup to consider for the current run (defines both GRAIL's dynamical model and the list of estimated parameters)
+  4) the clock file to be loaded
+  5) the list of orientation kernels to be loaded
+  6) the GRAIL manoeuvres file to be loaded
+  7) the list of GRAIL trajectory files to be loaded
+  8) the GRAIL reference frames file to be loaded
+  9) the lunar orientation kernel to be loaded
+  10) the lunar reference frame kernel to be loaded
+  11) the output files directory
+"""
 
 
-# %%
 def run_spice_fit(inputs):
 
     # Unpack various input arguments
@@ -97,7 +102,10 @@ def run_spice_fit(inputs):
     # A time buffer of 10 min is added to ensure that the GRAIL orientation kernel fully covers the time interval of interest,
     # without interpolation errors in case the current kernel starts exactly on the day under consideration.
     start_time = (
-        time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch_time_object() + 600.0
+        time_representation.DateTime.from_python_datetime(
+            inputs[1]
+        ).to_epoch_time_object()
+        + 600.0
     )
     end_time = start_time + 86400.0
 
@@ -130,7 +138,6 @@ def run_spice_fit(inputs):
         True,
         True,
     ):
-
         print("index_setup", index_setup)
         print("date_string", date_string)
 
@@ -187,19 +194,21 @@ def run_spice_fit(inputs):
         )
 
         # Modify default rotation and gravity field settings for the Moon
-        body_settings.get("Moon").rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
-            )
+        body_settings.get(
+            "Moon"
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
         )
-        body_settings.get("Moon").gravity_field_settings = (
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings = (
             environment_setup.gravity_field.predefined_spherical_harmonic(
                 environment_setup.gravity_field.gggrx1200, 500
             )
         )
-        body_settings.get("Moon").gravity_field_settings.associated_reference_frame = (
-            "MOON_PA_DE440"
-        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings.associated_reference_frame = "MOON_PA_DE440"
 
         # Define gravity field variations for the tides on the Moon
         moon_gravity_field_variations = list()
@@ -211,9 +220,9 @@ def run_spice_fit(inputs):
         moon_gravity_field_variations.append(
             environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.02405, 2)
         )
-        body_settings.get("Moon").gravity_field_variation_settings = (
-            moon_gravity_field_variations
-        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_variation_settings = moon_gravity_field_variations
         body_settings.get("Moon").ephemeris_settings.frame_origin = "Earth"
 
         # Add Moon radiation properties
@@ -228,7 +237,9 @@ def run_spice_fit(inputs):
                 "Sun",
             ),
         ]
-        body_settings.get("Moon").radiation_source_settings = (
+        body_settings.get(
+            "Moon"
+        ).radiation_source_settings = (
             radiation_pressure.panelled_extended_radiation_source(
                 moon_surface_radiosity_models, [6, 12]
             )
@@ -241,27 +252,27 @@ def run_spice_fit(inputs):
         body_settings.get(spacecraft_name).constant_mass = 150
 
         # Define translational ephemeris from SPICE
-        body_settings.get(spacecraft_name).ephemeris_settings = (
-            environment_setup.ephemeris.interpolated_spice(
-                start_time.to_float(),
-                end_time.to_float(),
-                10.0,
-                spacecraft_central_body,
-                global_frame_orientation,
-            )
+        body_settings.get(
+            spacecraft_name
+        ).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+            start_time.to_float(),
+            end_time.to_float(),
+            10.0,
+            spacecraft_central_body,
+            global_frame_orientation,
         )
 
         # Define rotational ephemeris from SPICE
-        body_settings.get(spacecraft_name).rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
-            )
+        body_settings.get(
+            spacecraft_name
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
         )
 
         # Define GRAIL panel geometry, which will be used for the panel radiation pressure model
-        body_settings.get(spacecraft_name).vehicle_shape_settings = (
-            get_grail_panel_geometry()
-        )
+        body_settings.get(
+            spacecraft_name
+        ).vehicle_shape_settings = get_grail_panel_geometry()
 
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -454,7 +465,7 @@ def run_spice_fit(inputs):
         print("estimated parameters", estimation_output.parameter_history[:, -1])
 
 
-# %%
+
 if __name__ == "__main__":
     print("Start")
     inputs = []
@@ -492,7 +503,6 @@ if __name__ == "__main__":
 
     # For each parallel run
     for i in range(nb_parallel_runs):
-
         # Retrieve the indices of the current date and current setup (dynamical model + estimated parameters) for this run
         index_setup = i // nb_dates
         index_date = i % nb_dates
@@ -544,9 +554,10 @@ if __name__ == "__main__":
 
     # Load and plot the results of each fit to SPICE
     for index_date in range(nb_dates):
-
         # Retrieve start of the current date in seconds
-        start_date = time_representation.DateTime.from_python_datetime(dates[index_date]).to_epoch()
+        start_date = time_representation.DateTime.from_python_datetime(
+            dates[index_date]
+        ).to_epoch()
 
         # Retrieve string corresponding to the current date
         date_string = dates[index_date].strftime("%m/%d/%Y").replace("/", "")
@@ -557,7 +568,6 @@ if __name__ == "__main__":
 
         # Parse results for all setups
         for index_setup in range(nb_setups):
-
             # Retrieve post-fit difference wrt reference SPICE trajectory
             difference_rsw_wrt_spice = np.loadtxt(
                 output_folder
@@ -599,3 +609,6 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
+
+
+plt.show()
