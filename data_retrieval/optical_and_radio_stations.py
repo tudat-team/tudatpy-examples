@@ -15,7 +15,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from tudatpy.dynamics import environment_setup
 from tudatpy.astro import element_conversion
-
+from  tudatpy import constants
 
 """
 ## Helper Function
@@ -48,6 +48,18 @@ def get_station_geodetic_coordinates(station_settings_list):
     return np.array(lons), np.array(lats), np.array(codes)
 
 
+def get_single_geodetic_coordinate(cartesian_pos):
+    """Helper to convert a single cartesian coordinate to geodetic."""
+    equatorial_radius = 6378.137e3
+    flattening = 1.0 / 298.257223563
+    geodetic_pos = element_conversion.convert_cartesian_to_geodetic_coordinates(
+        cartesian_coordinates=cartesian_pos,
+        equatorial_radius=equatorial_radius,
+        flattening=flattening,
+        tolerance=1.0e-4
+    )
+    return np.rad2deg(geodetic_pos[2]), np.rad2deg(geodetic_pos[1])  # lon, lat
+
 """
 ## Load ground station settings
 
@@ -58,6 +70,44 @@ The next snippet shows how easy it is to load both radio and optical telescope s
 radio_stations_settings = environment_setup.ground_station.radio_telescope_stations()
 optical_stations_settings = environment_setup.ground_station.optical_telescope_stations()
 
+# Let's find "DWINGELO" in our list to manipulate it
+dwingelo_station = None
+for station in radio_stations_settings:
+    if station.station_name == "DWINGELO":
+        dwingelo_station = station
+        break
+
+## --- Define and Apply Linear Station Motion ---
+# 1. Define a reference epoch (e.g., J2000 = 0.0 seconds)
+ref_epoch = 0.0
+
+# 2. Define a linear velocity vector [Vx, Vy, Vz] in m/s.
+# Realistic tectonic drift is ~few cm/year. For visualization, let's exaggerate
+# the drift significantly, or simulate a long timespan.
+# Let's assign a velocity of ~0.1 meters per year (~3.17e-9 m/s) eastward/northward
+linear_velocity = np.array([0.05, 0.05, 0.02]) # m/s in Cartesian body-fixed frame
+
+# 3. Create the motion settings and append it to our station
+motion_settings = environment_setup.ground_station.linear_station_motion(
+    linear_velocity=linear_velocity,
+    reference_epoch=ref_epoch
+)
+
+# Assign the motion model to the station settings object
+dwingelo_station.station_motion_settings.append(motion_settings)
+
+# Calculate a future position manually to plot the shift
+# Let's look 50,000 Julian Years into the future
+years_future = 50000
+seconds_in_future = years_future * constants.JULIAN_YEAR
+
+# New Cartesian position = Reference Position + (Velocity * Delta_t)
+initial_cartesian = dwingelo_station.station_position
+future_cartesian = initial_cartesian + (linear_velocity * seconds_in_future)
+
+# Convert both to geodetic for plotting
+orig_lon, orig_lat = get_single_geodetic_coordinate(initial_cartesian)
+future_lon, future_lat = get_single_geodetic_coordinate(future_cartesian)
 
 """
 ## Explore Available Ground Stations
@@ -110,6 +160,8 @@ for i, ax in enumerate(axes):
             label=f'DWINGELOO', linewidth=1, zorder=3,
             transform=ccrs.PlateCarree()
         )
+        ax.scatter(future_lon, future_lat, c="red", edgecolors='black', s=80, marker="X", label=f'DWINGELOO (+{years_future} Years)', zorder=3)
+
     elif label == "Optical":
         vera_rubin_index = np.where(np.array(optical_names) == "X05")[0]
         ax.scatter(
@@ -117,7 +169,7 @@ for i, ax in enumerate(axes):
             c="red", edgecolors='yellow', s=100, marker="*",
             label=f'VERA RUBIN', linewidth=1, zorder=3,
             transform=ccrs.PlateCarree()
-        ) 
+        )
 
     ax.set_title(titles[i], fontsize=14, fontweight='bold')
     ax.set_global()
@@ -128,6 +180,7 @@ for i, ax in enumerate(axes):
     gl.right_labels = False
 
     ax.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9)
+
 fig.suptitle("Tudat-Available Ground Stations", fontsize=18, fontweight='bold', y=0.95)
 plt.figtext(
     0.5, 0.02,
