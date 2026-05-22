@@ -1,22 +1,25 @@
-# %% [markdown]
-# # Objectives
-#
-# Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
-# 1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
-# 2.  **Environment Setup:** Constructing a precise lunar environment, incorporating the `gggrx1200` gravity field (truncated to order 500) and solid body tides from the Earth and Sun.
-# 3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
-# 4.  **Estimation:** Performing a least-squares fit to estimate the spacecraft initial state, radiation pressure coefficients, and maneuvers.
-# 5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
-#
-# ## Important Remarks
-# - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
-# - Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
-# measurements, etc.). Note that this step needs only be performed once, since the script checks whether
-# each relevant file is already present locally and only proceeds to the download if it is not.
-# - This example performs 7 parallel orbit estimations (over 7 different days), which can slow down your machine and take quite some time (~ 20-30 minutes)
+"""
+# GRAIL - Estimating the spacecraft trajectory from ODF Doppler measurements
 
-# %%
+## Objectives
+
+Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
+1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
+2.  **Environment Setup:** Constructing a precise lunar environment, incorporating the `gggrx1200` gravity field (truncated to order 500) and solid body tides from the Earth and Sun.
+3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
+4.  **Estimation:** Performing a least-squares fit to estimate the spacecraft initial state, radiation pressure coefficients, and maneuvers.
+5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
+
+## Important Remarks
+- Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
+- Running the example automatically triggers the download of all required kernels and data files if they are not found locally
+(trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+measurements, etc.). Note that this step needs only be performed once, since the script checks whether
+each relevant file is already present locally and only proceeds to the download if it is not.
+- This example performs 7 parallel orbit estimations (over 7 different days), which can slow down your machine and take quite some time (~ 20-30 minutes)
+"""
+
+
 # Load required standard modules
 import multiprocessing as mp
 import numpy as np
@@ -51,26 +54,27 @@ from grail_examples_functions import (
 )
 
 
-# %% [markdown]
-# # The Main Function
-# We pack the main estimation run functionality into the `run_odf_estimation` function. 
-# The "inputs" variable used as input argument is a list with 14 entries:
-# 1) the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
-# 2) the date for the day-long arc under consideration
-# 3) the list of ODF files to be loaded to cover the above-mentioned time interval
-# 4) the clock file to be loaded
-# 5) the list of orientation kernels to be loaded
-# 6) the list of tropospheric correction files to be loaded
-# 7) the list of ionospheric correction files to be loaded
-# 8) the GRAIL manoeuvres file to be loaded
-# 9) the antennas switch files to be loaded
-# 10) the list of GRAIL trajectory files to be loaded
-# 11) the GRAIL reference frames file to be loaded
-# 12) the lunar orientation kernel to be loaded
-# 13) the lunar reference frame kernel to be loaded
-# 14) output files directory
+"""
+## The Main Function
+We pack the main estimation run functionality into the `run_odf_estimation` function. 
+The "inputs" variable used as input argument is a list with 14 entries:
+1) the index of the current run (the run_odf_estimation function being run in parallel on several cores in this example)
+2) the date for the day-long arc under consideration
+3) the list of ODF files to be loaded to cover the above-mentioned time interval
+4) the clock file to be loaded
+5) the list of orientation kernels to be loaded
+6) the list of tropospheric correction files to be loaded
+7) the list of ionospheric correction files to be loaded
+8) the GRAIL manoeuvres file to be loaded
+9) the antennas switch files to be loaded
+10) the list of GRAIL trajectory files to be loaded
+11) the GRAIL reference frames file to be loaded
+12) the lunar orientation kernel to be loaded
+13) the lunar reference frame kernel to be loaded
+14) output files directory
+"""
 
-# %%
+
 def run_odf_estimation(inputs):
 
     # Unpack various input arguments
@@ -862,3 +866,6 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
+
+
+plt.show()

@@ -174,7 +174,6 @@ lvl3_extra_bodies = ["999", "Triton", "Titania"]  # here 999 is Pluto in JPL Hor
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
 
 
-
 file = "SiMDA_240512.csv"
 
 min_asteroid_mass = 1e20  # kg
@@ -1027,7 +1026,7 @@ def plot_star_catalog_corrections(
     Parameters
     ----------
     mpc_batch : BatchMPC
-        Batch containing table with 'epochJ2000secondsTDB', 'corr_RA_EFCC18', 'corr_DEC_EFCC18', 'note2'.
+        Batch containing table with epoch [Julian Days] 'epoch_seconds_TDB', 'epoch_seconds_UTC','corr_RA_EFCC18', 'corr_DEC_EFCC18', 'note2'.
     include_satellites : bool, optional
         Whether to include satellite observations, by default True
     figsize : tuple, optional
@@ -1041,12 +1040,12 @@ def plot_star_catalog_corrections(
 
     # Extract data
     if include_satellites:
-        epochsUTC = mpc_batch.table["epochUTC"].values
+        epochsUTC = mpc_batch.table["epoch_seconds_UTC"].values
         ra_corrections = mpc_batch.table["corr_RA_EFCC18"].values
         dec_corrections = mpc_batch.table["corr_DEC_EFCC18"].values
     else:
         mask = mpc_batch.table["note2"] != "S"
-        epochsUTC = mpc_batch.table["epochUTC"][mask].values
+        epochsUTC = mpc_batch.table["epoch_seconds_UTC"][mask].values
         ra_corrections = mpc_batch.table["corr_RA_EFCC18"][mask].values
         dec_corrections = mpc_batch.table["corr_DEC_EFCC18"][mask].values
 
@@ -1105,7 +1104,7 @@ def plot_observation_weights(
     Parameters
     ----------
     mpc_batch : BatchMPC
-        Batch containing table with 'epochUTC', 'weight', and 'note2'.
+        Batch containing table with 'epoch_seconds_UTC', 'weight', and 'note2'.
     include_satellites : bool, optional
         Whether to include satellite observations, by default True
     figsize : tuple, optional
@@ -1121,12 +1120,12 @@ def plot_observation_weights(
     reg_mask = mpc_batch.table["note2"] != "S"
     sat_mask = mpc_batch.table["note2"] == "S"
 
-    reg_epochsUTC = mpc_batch.table["epochUTC"][reg_mask].values
+    reg_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][reg_mask].values
     reg_weights = mpc_batch.table["weight"][reg_mask].values
     reg_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in reg_epochsUTC]  # YYYY-MM-DD
 
     if include_satellites:
-        sat_epochsUTC = mpc_batch.table["epochUTC"][sat_mask].values
+        sat_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][sat_mask].values
         sat_weights = mpc_batch.table["weight"][sat_mask].values
         sat_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in sat_epochsUTC]
 

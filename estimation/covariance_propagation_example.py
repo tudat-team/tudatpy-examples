@@ -297,7 +297,7 @@ Using the created `Estimator` object, we can perform the simulation of observati
 We collect all relevant inputs in the form of a covariance input, with the variance represented by the noise levels we chose earlier. This will be given as an input to the estimation process, to obtain `covariance_output = estimator.compute_covariance(covariance_input)`. The `covariance_output` will then become the initial covariance to be propagated by subsequent applications of the **state transition matrix**, initialized by the function `state_transition_interface` of the `estimator` object. 
 
 #### 5 - Propagate the Covariances and the Formal Errors
-Covariances and Formal Errors are propagated at the `output_times = simulation_times`, using the functions `propagate_covariance_split_output`, `propagate_formal_errors_split_output` (or `propagate_covariance`, `propagate_formal_errors`) of the estimation class, and through the above-defined state transition matrix. Please note that, in principle, one does not need to propagate the **formal errors** if the **propagated covariance** is already available. This is because the formal errors constitute the diagonal elements (**variances**) of the covariance matrix (to learn more about this, also check the [Starlink-32101 Parameter Estimation example](full_estimation_example.ipynb).)
+Covariances and Formal Errors are propagated at the `output_times = simulation_times`, using the functions `propagate_covariance`, `propagate_formal_errors`, and through the above-defined state transition matrix. Please note that, in principle, one does not need to propagate the **formal errors** if the **propagated covariance** is already available. This is because the formal errors constitute the diagonal elements (**variances**) of the covariance matrix (to learn more about this, also check the [Starlink-32101 Parameter Estimation example](full_estimation_example.ipynb).)
 
 #### 6 - Append Results
 We append the formal errors and the covariance obtained for each scenario to the respective lists: `formal_errors_list`, `covariances_list`.
@@ -400,21 +400,22 @@ for n_scenario in [1,2,3]:
 
 # 5 - Propagate the Covariances and the Formal Errors
 
-    #Propagate the covariancees and the formal errors
-    propagated_covariances = estimation_analysis.propagate_covariance_split_output(initial_covariance,state_transition_interface,output_times)
+    # Propagate the covariancees and the formal errors
+    propagated_covariances = estimation_analysis.propagate_covariance(initial_covariance, state_transition_interface,
+                                                                      output_times)
     # Propagate formal errors over the course of the orbit
-    propagated_formal_errors = estimation_analysis.propagate_formal_errors_split_output(
+    propagated_formal_errors = estimation_analysis.propagate_formal_errors(
         initial_covariance=initial_covariance,
         state_transition_interface=state_transition_interface,
         output_times=output_times)
     # Split tuple into epochs and formal errors
-    epochs = np.array(propagated_formal_errors[0])
-    formal_errors = np.array(propagated_formal_errors[1])
+    epochs = np.array(list(propagated_formal_errors.keys()))
+    formal_errors = np.array(list(propagated_formal_errors.values()))
     formal_errors_list.append(formal_errors)
 
 # 6 - Append Results
 
-    covariances = np.array(propagated_covariances[1])
+    covariances = np.array(list(propagated_covariances.values()))
     covariances_list.append(covariances)
     print('... Done.\n')
 
@@ -481,9 +482,6 @@ In order to do this, we need to retrieve the estimated cartesian states for `Sta
 estimation_states = []
 rot_matrix_list = []
 
-
-# Assuming estimation_states, rot_matrix_list, output_times, and converted_formal_errors_matrix_list are defined as provided
-
 # Initialize the converted formal errors matrix list
 converted_formal_errors_matrix_list = np.zeros([3, len(output_times), 6, 6])
 
@@ -501,9 +499,9 @@ for j in [0, 1, 2]:
 fig3, axs3 = plt.subplots(1, 3, figsize=(15, 5))
 
 for j in range(3):
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 1, 1]), label=f"Along-Track", alpha=0.5)
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 2, 2]), label=f"Cross-Track", alpha=0.6)
-    axs3[j].plot(times_plot, np.abs(converted_formal_errors_matrix_list[j, :, 0, 0]), label=f"Radial", alpha=0.8)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 1, 1]), label=f"Along-Track", alpha=0.5)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 2, 2]), label=f"Cross-Track", alpha=0.6)
+    axs3[j].plot(times_plot, np.sqrt(converted_formal_errors_matrix_list[j, :, 0, 0]), label=f"Radial", alpha=0.8)
     axs3[j].set_xlabel('Time (years)')
     axs3[j].set_ylabel('Formal Errors in RSW')
     axs3[j].legend()

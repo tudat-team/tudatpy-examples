@@ -53,9 +53,7 @@ from tudatpy import data
 from tudatpy import constants
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment, environment_setup
-from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
-from tudatpy import estimation
-from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.estimation import observable_models_setup, observations_setup
 
 
 """
@@ -73,7 +71,7 @@ After inspecting the data file, we can see that it contains the following column
 
 We can use the `read_tracking_txt_file` function to read this **raw data** and translate it into an **intermediate format** that takes care of appropriate unit conversions for known column identifiers.
 
-The file columns specified here are all known to Tudat, and can be used to **process the observation** (see *TDB LINK* for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
+The file columns specified here are all known to Tudat, and can be used to **process the observation** (see `tudatpy.data.TrackingDataType` for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
 
 """
 
@@ -110,10 +108,10 @@ An `ObservationCollection` is the useful type for Tudat to perform all its estim
 
 
 # Create ancillary settings
-ancillary_settings = observations_setup.ancillary_settings.n_way_range_ancilliary_settings(frequency_bands=[observations_setup.ancillary_settings.FrequencyBands.x_band])
+ancillary_settings = observations_setup.ancillary_settings.n_way_range_ancillary_settings(frequency_bands=[observations_setup.ancillary_settings.FrequencyBands.x_band])
 
 # Create the observation collection
-observations = observations_setup.observations_wrapper.create_tracking_txtfile_observation_collection(
+observation_collection = observations_setup.observations_wrapper.create_tracking_txtfile_observation_collection(
     raw_datafile, "Mars", ancillary_settings=ancillary_settings
 )
 
@@ -125,8 +123,8 @@ The range from Earth to Mars and back oscillates between about 1.2 AU at closest
 """
 
 
-observation_times = np.array(observations.concatenated_times)
-observation_vals = observations.concatenated_observations
+observation_times = np.array(observation_collection.concatenated_times)
+observation_vals = observation_collection.concatenated_observations
 observation_times_year = observation_times / constants.JULIAN_YEAR + 2000
 
 
@@ -136,7 +134,7 @@ plt.plot(observation_times_year, observation_vals / constants.ASTRONOMICAL_UNIT,
 plt.xlabel("Time [year]")
 plt.ylabel("Two-way range [AU]")
 plt.legend()
-plt.grid("on")
+plt.grid(True)
 plt.show()
 
 
@@ -201,8 +199,8 @@ The system of bodies was already defined above, and all the other required infor
 
 
 # Extract the relevant information from the real observations to mimic
-linkdef_ids = observations.concatenated_link_definition_ids
-distinct_linkdefs = observations.get_link_definitions_for_observables(observable_models_setup.model_settings.n_way_range_type)
+linkdef_ids = observation_collection.concatenated_link_definition_ids
+distinct_linkdefs = observation_collection.get_link_definitions_for_observables(observable_models_setup.model_settings.n_way_range_type)
 
 # Create the observation model settings to match those of the real observations
 observation_model_settings = [
@@ -214,7 +212,7 @@ def create_observations(observation_model_settings, bodies):
     observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(observation_model_settings, bodies)
 
     # Get the simulator settings directly from the real observations
-    observation_simulation_settings = observations_setup.observations_simulation_settings.observation_settings_from_collection(observations, bodies)
+    observation_simulation_settings = observations_setup.observations_simulation_settings.observation_settings_from_collection(observation_collection, bodies)
 
     # Simulate the observations
     simulated_observations = observations_setup.observations_wrapper.simulate_observations(observation_simulation_settings, observation_simulators, bodies)
@@ -238,7 +236,7 @@ plt.plot(observation_times_year, residuals_simple, ".")
 plt.title("Most simple simulation")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
-plt.grid("on")
+plt.grid(True)
 plt.axhline(0, color="k", zorder=0)
 plt.show()
 
@@ -259,7 +257,7 @@ plt.plot(observation_times_year, residuals_rotation, ".")
 plt.title("Simulation with ITRF rotation model")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
-plt.grid("on")
+plt.grid(True)
 plt.axhline(0, color="k", zorder=0)
 plt.show()
 
@@ -292,7 +290,7 @@ plt.plot(observation_times_year, residuals_lighttime, ".")
 plt.title("Simulation with light time corrections")
 plt.xlabel("Time [year]")
 plt.ylabel("Residuals [m]")
-plt.grid("on")
+plt.grid(True)
 plt.axhline(0, color="k", zorder=0)
 plt.show()
 
