@@ -640,7 +640,7 @@ print("Parameters vector [various]: ", island.get_population().champion_x)
 
 # Plot fitness over generations
 fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-ax.plot(np.arange(0, num_gen+1), np.float_(list_of_champion_f) / 1000)
+ax.plot(np.arange(0, num_gen+1), np.float64(list_of_champion_f) / 1000)
 
 # Prettify
 ax.set_xlim((0, num_gen))
