@@ -69,7 +69,7 @@ First, we create the LoadPDS() object.
 """
 
 
-object = LoadPDS()
+pds_query = LoadPDS()
 spice.clear_kernels()  # lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
 
 
@@ -107,7 +107,7 @@ end_date_mro = datetime(2007, 1, 5)
 # (only MRO is shown here. Uncomment the corresponding lines to download data for MEX and JUICE!)
 
 kernel_files_mro, radio_science_files_mro, ancillary_files_mro = (
-    object.get_mission_files(
+    pds_query.get_mission_files(
         input_mission="mro",
         start_date=start_date_mro,
         end_date=end_date_mro,
@@ -195,7 +195,7 @@ The user can still define a custom output path using the flag `custom_output` in
 # Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
 flyby_IDs = "T011"
 kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = (
-    object.get_mission_files(
+    pds_query.get_mission_files(
         input_mission="cassini",
         flyby_IDs=flyby_IDs,
         custom_output="CASSINI_CUSTOM_ARCHIVE/",
@@ -227,7 +227,7 @@ start_date_grail_b = datetime(2012, 5, 6)
 end_date_grail_b = datetime(2012, 6, 12)
 
 kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = (
-    object.get_mission_files(
+    pds_query.get_mission_files(
         input_mission="grail-a",
         start_date=start_date_grail_a,
         end_date=end_date_grail_a,
@@ -307,7 +307,7 @@ local_path = "./lro_archive"
 start_date_lro = datetime(2009, 7, 1)
 end_date_lro = datetime(2009, 7, 10)
 
-object.add_custom_mission_kernel_url(custom_input_mission, custom_ck_url)
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_ck_url)
 
 placeholders_ck = [
     "mission",
@@ -320,10 +320,10 @@ placeholders_ck = [
     "version",
     "extension",
 ]
-custom_ck_pattern = object.create_pattern(placeholders_ck)
+custom_ck_pattern = pds_query.create_pattern(placeholders_ck)
 
-object.add_custom_mission_kernel_pattern(custom_input_mission, "ck", custom_ck_pattern)
-object.dynamic_download_url_files_time_interval(
+pds_query.add_custom_mission_kernel_pattern(custom_input_mission, "ck", custom_ck_pattern)
+pds_query.dynamic_download_url_files_time_interval(
     custom_input_mission, local_path, start_date_lro, end_date_lro, custom_ck_url
 )
 
@@ -339,13 +339,13 @@ placeholders_spk = [
     "version",
     "extension",
 ]
-custom_spk_pattern = object.create_pattern(placeholders_spk)
+custom_spk_pattern = pds_query.create_pattern(placeholders_spk)
 
-object.add_custom_mission_kernel_url(custom_input_mission, custom_spk_url)
-object.add_custom_mission_kernel_pattern(
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_spk_url)
+pds_query.add_custom_mission_kernel_pattern(
     custom_input_mission, "spk", custom_spk_pattern
 )
-object.dynamic_download_url_files_time_interval(
+pds_query.dynamic_download_url_files_time_interval(
     custom_input_mission, local_path, start_date_lro, end_date_lro, custom_spk_url
 )
 
@@ -372,7 +372,7 @@ Here's how it's done:
 custom_fk_url = (
     "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/fk/"
 )
-object.get_kernels(
+pds_query.get_kernels(
     input_mission="lro", url=custom_fk_url, wanted_files_patterns=["lro*.tf"]
 )
 
@@ -408,14 +408,14 @@ custom_kernels_url = (
     "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/"
 )
 
-object.add_custom_mission_meta_kernel_url(custom_input_mission, custom_meta_kernel_url)
-object.add_custom_mission_meta_kernel_pattern(
+pds_query.add_custom_mission_meta_kernel_url(custom_input_mission, custom_meta_kernel_url)
+pds_query.add_custom_mission_meta_kernel_pattern(
     custom_input_mission, custom_meta_kernel_pattern
 )
-object.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
 custom_local_path = "./lro_archive"
 
-object.get_mission_files(
+pds_query.get_mission_files(
     input_mission=custom_input_mission,
     custom_output=custom_local_path,
     all_meta_kernel_files=True,
