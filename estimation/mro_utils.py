@@ -1,5 +1,6 @@
 # %%
 import os
+from pathlib import Path
 import numpy as np
 from tudatpy.dynamics import environment_setup
 
@@ -567,7 +568,7 @@ def get_mro_files(local_path, start_date, end_date):
 
 def macromodel_mro():
 
-    dae_path = "mro_macromodel/"
+    dae_path = Path(__file__).parent / "mro_macromodel"
 
     # BUS
     bus_material_properties = {
@@ -589,7 +590,7 @@ def macromodel_mro():
     bus_reradiation_settings = {"INS": True, "BUS": True}
     bus_frame_origin = np.zeros(3)
     bus_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        dae_path + "MRO_bus_lowfidelity.dae",
+        (dae_path / "MRO_bus_lowfidelity.dae").as_posix(),
         bus_frame_origin,
         bus_material_properties,
         bus_reradiation_settings,
@@ -614,11 +615,11 @@ def macromodel_mro():
     hga_reradiation_settings = {"HGA_front": True, "HGA_back": True}
     hga_frame_origin = np.array([0.0, -3.15, -1.52])
     hga_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        dae_path + "MRO_hga_8.dae",
+        (dae_path / "MRO_hga_8.dae").as_posix(),
         hga_frame_origin,
         hga_material_properties,
         hga_reradiation_settings,
-        "MRO_HGA_OUTER_GIMBAL",
+        frame_orientation="MRO_HGA_OUTER_GIMBAL",
     )
     hga_rotation_settings = environment_setup.rotation_model.spice(
         "MRO_SPACECRAFT", "MRO_HGA_OUTER_GIMBAL", ""
@@ -643,22 +644,22 @@ def macromodel_mro():
     sa_reradiation_settings = {"SA_front": True, "SA_back": True}
     sapx_frame_origin = np.array([1.144, -2.5354, 0.113])
     sapx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        dae_path + "MRO_sa.dae",
+        (dae_path / "MRO_sa.dae").as_posix(),
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
-        "MRO_SAPX",
+        frame_orientation="MRO_SAPX",
     )
     sapx_rotation_settings = environment_setup.rotation_model.spice(
         "MRO_SPACECRAFT", "MRO_SAPX", ""
     )
     samx_frame_origin = np.array([-1.144, -2.5354, 0.113])
     samx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        dae_path + "MRO_sa.dae",
+        (dae_path / "MRO_sa.dae").as_posix(),
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
-        "MRO_SAMX",
+        frame_orientation="MRO_SAMX",
     )
     samx_rotation_settings = environment_setup.rotation_model.spice(
         "MRO_SPACECRAFT", "MRO_SAMX", ""
