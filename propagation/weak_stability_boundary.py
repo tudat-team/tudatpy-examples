@@ -4,8 +4,10 @@
  
 This examples shows how to use **TUDAT functionalities** to:
 1) Define a custom spacecraft / object function to be analyzed
-1) Simulate N-body non-keplerian dynamics
-3) propagate using a **variable time step**
+2) Simulate N-body non-keplerian dynamics
+3) Simulate complex dynamics of Laplace - coupled Jovian system
+4) propagate using a **variable time step**
+5) Postprocess and visualize results. 
 
 """
 
@@ -13,12 +15,13 @@ This examples shows how to use **TUDAT functionalities** to:
 ## Import Statements
 To start off, we import all the relevant modules.
 """
-
+#standard imports
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from typing import List, Tuple
 from scipy.signal import argrelextrema
+from scipy.optimize import brentq
 # Tudat imports
 import tudatpy
 from tudatpy.trajectory_design import transfer_trajectory
@@ -31,6 +34,8 @@ from tudatpy.kernel.astro import element_conversion
 from tudatpy.kernel.astro import frame_conversion
 from matplotlib.animation import FuncAnimation
 
+#loading spice kernels:
+spice.load_standard_kernels()  
 
 """
 # Wrapper Classes
@@ -76,14 +81,8 @@ class ReferenceFrame:
         self.Europa     = 4
         self.Io         = 5
 
-object = OrbitalSate(
-    SMA = 12620671.675021729,
-    ECC = 0.71771389645297878,
-    INC = 0.41381573069655914,
-    LPE = 223.98450368357575 ,
-    LAN = 185.69309224626306,
-    MNA = 6.1484626004311655,
-)
+
+
 
 
 """
@@ -199,7 +198,7 @@ def spacecraft_state_function(current_time, object_state = None):
 
     return np.concatenate([position_3d, velocity_3d])
 
-def create_bodies(FRAME = "J2000", spacecraft="target", initial_state = object):
+def create_bodies(FRAME = "J2000", spacecraft="target", initial_state = None):
     """
     Assembles the tudat SystemOfBodies for the simulation.
 
@@ -371,37 +370,49 @@ def simulate(bodies, bodies_to_create, system_initial_state, central_bodies, acc
 
 """
 # Plotting Functions
-We define **two auxiliary functions** to be used throughout the code:
-1) `spacecraft_state_function`
+We define **three plotting functions** to be used throughout the code:
+1) `plot_jovian_system`
 
-   This is the custom ephemeris function that defines the initial state of the custom body. The function takes as an input:
-   - current_time (required to set up custom epehmeris)
-   - object_state => OrbitalState class object with orbital information.
-
-   The function then converts the OrbitalState parameters into cartesian position and velocity components in the J2000 frame.
+   This function takes as inputs:
 
 
-2) `create_bodies`
+    - central_body          => position array of the central body 
+    - moon                  => position array of the target moon
+    - center                => central body of the IRF
+    - system_state_array    => TUDat propogator ourput - evolution of body positions
+
+
+2) `plot_spacecraft_trajectories`
     This function takes as inputs:
 
 
-    - Frame
-    - spacecraft / object name
-    - initial state of the object
+    - begin                 => begin index of the state array (can be used for slicing the array)
+    - end                   => end index of the state array (can be used for slicing the array)
+    - center                => central body of the IRF
+    - system_state_array    => TUDat propogator ourput - evolution of body positions
 
-    and it creates the Jovian System + Sun + Object bodies.
-3) `initialize_simulation`
+    And plots the Spacecraft/ Body trajectories in the chosen frame.
+3) `plot_spacecraft_trajectories_triple`
     This function takes as inputs:
 
 
-    - Frame
-    - spacecraft / object name
-    - initial state of the object
+    - begin                 => begin index of the state array (can be used for slicing the array)
+    - end                   => end index of the state array (can be used for slicing the array)
+    - center                => central body of the IRF
+    - system_state_array    => TUDat propogator ourput - evolution of body positions
 
-    and it creates the Jovian System + Sun + Object bodies.
+    And plots the Jovian system + Distance from Jupiter + Distance from Ganymede in a triple window fashion.
+4) `plot_mission_segment`
+    This function acts as a wrapper for making multiple plots / calls of previously defined plotting functions:
+
+
+    - begin                 => begin index of the state array (can be used for slicing the array)
+    - end                   => end index of the state array (can be used for slicing the array)
+    - center                => central body of the IRF
+    - system_state_array    => TUDat propogator ourput - evolution of body positions
+
 """
-spice.load_standard_kernels()  
-def plot_jovian_system(system_state_array, central_body, moon, begin = 0, end = None, skip_moons=False, ax1=None, fig1=None, sphere=True, normalization=1, cube=1):
+def plot_jovian_system(system_state_array, central_body, moon, begin = 0, end = None, skip_moons=False, ax1=None, fig1=None, sphere=True, normalization=1, cube=1, frame_name = "Jupiter"):
     """
     If ax1 is provided, draws into that (existing) 3D axis instead of
     creating a new standalone figure — lets this be used as one panel
@@ -413,7 +424,7 @@ def plot_jovian_system(system_state_array, central_body, moon, begin = 0, end = 
         fig1 = plt.figure(figsize=(8, 8))
         ax1 = fig1.add_subplot(111, projection='3d')
 
-    ax1.set_title('Ganymede-Fixed Inertial Reference Frame')
+    ax1.set_title(f"{frame_name}-Fixed Inertial Reference Frame")
 
     if not skip_moons:
         for i in range(len(bodies_to_create)):
@@ -438,11 +449,13 @@ def plot_jovian_system(system_state_array, central_body, moon, begin = 0, end = 
     ax1.set_box_aspect([1, 1, 1])
     ax1.scatter(0, 0, 0)
     ax1.legend()
-    ax1.set_xlabel('x [m]')
+    target_math = frame_name.replace(" ", r"\ ")  
+
+    ax1.set_xlabel(rf"$x / R_{{\mathrm{{{target_math}}}}}$")
     ax1.set_xlim([-cube, cube])
-    ax1.set_ylabel('y [m]')
+    ax1.set_ylabel(rf"$x / R_{{\mathrm{{{target_math}}}}}$")
     ax1.set_ylim([-cube, cube])
-    ax1.set_zlabel('z [m]')
+    ax1.set_zlabel(rf"$x / R_{{\mathrm{{{target_math}}}}}$")
     ax1.set_zlim([-cube, cube])
 
     if standalone:
@@ -502,8 +515,9 @@ def plot_spacecraft_trajectories(begin, end, center, moon, system_state_array, a
                     ax2.scatter(time[perigee_idx], dist[perigee_idx],
                                 color="grey", marker='v', s=60, label="periapsis")
                 ax2.set_xlabel('time [days]')
-                ax2.set_ylabel(f"distance from {target}")
-                ax2.set_title(f"Distance from {target}")
+                target_math = target.replace(" ", r"\ ")  # escape spaces for mathtext
+                ax2.set_title(rf"Distance from {target}")
+                ax2.set_ylabel(rf"Distance from {target} [$(r / R_{{\mathrm{{{target_math}}}}})$]")
                 ax2.legend()
 
 def plot_spacecraft_trajectories_triple(begin, end, center, system_state_array, ax1, ax2=None, ax3=None, color="blue",
@@ -565,7 +579,7 @@ def plot_spacecraft_trajectories_triple(begin, end, center, system_state_array, 
                 ax1.scatter(state[idx, 0], state[idx, 1], state[idx, 2],
                             color="red", marker='v', s=60)
                 ax1.text(state[idx, 0], state[idx, 1], state[idx, 2],
-                          'periapsis', fontsize=7, color="red")
+                          'periapsis', fontsize=7, color="grey")
 
             # side-by-side distance-from-center plot
             if ax2 is not None:
@@ -575,11 +589,11 @@ def plot_spacecraft_trajectories_triple(begin, end, center, system_state_array, 
                                 color="red", marker='^', s=60, label="apoapsis")
                 if len(perigee_idx):
                     ax2.scatter(time[perigee_idx], dist[perigee_idx],
-                                color="red", marker='v', s=60, label="periapsis")
+                                color="grey", marker='v', s=60, label="periapsis")
                 ax2.set_xlabel('time [days]')
-                ax2.set_ylabel('distance from center [m]')
-                ax2.set_title('Distance from center')
-                ax2.legend()
+                ax2.set_ylabel('distance from Jupiter [m]')
+                ax2.set_title('Distance from Jupiter [m]')
+                #ax2.legend()
 
             # third plot: distance from each moon in extra_moons
             if ax3 is not None:
@@ -603,23 +617,69 @@ def plot_spacecraft_trajectories_triple(begin, end, center, system_state_array, 
 
                 ax3.set_xlabel('time [s]')
                 ax3.set_ylabel('distance [m]')
-                ax3.set_title('Distance from moons')
-                ax3.legend()
+                ax3.set_title('Distance from Ganymede')
+                #ax3.legend()
 
-epoch = DateTime(2036, 1,27, 12,40,45).to_epoch()
-state = spice.get_body_cartesian_state_at_epoch(
-    target_body_name="Ganymede",
-    observer_body_name="Jupiter",
-    reference_frame_name="ECLIPJ2000",
-    aberration_corrections="NONE",
-    ephemeris_time=epoch
-)
-jupiter_gm = spice.get_body_gravitational_parameter("Jupiter")
-kepler_elements = element_conversion.cartesian_to_keplerian(state, jupiter_gm)
+def plot_mission_segment(begin, end, system_state_array, color="blue", show_closeup = False):
+    CENTRAL_BODY    = ReferenceFrame().Jupiter
+    TARGET_MOON     = ReferenceFrame().Ganymede
+    central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
+    moon            = system_state_array[:, TARGET_MOON  * 6 + 1    : TARGET_MOON  * 6 + 7]
+    spacecraft      = system_state_array[:, 6 * 6 + 1 : 6 * 6 + 7]
+    times           = system_state_array[:, 0]
+    cube =  20
+    fig1 = plt.figure(figsize=(14, 7))
+    ax1 = fig1.add_subplot(121, projection='3d')
+    ax2 = fig1.add_subplot(122)
+    plot_jovian_system(system_state_array=system_state_array, central_body=central_body, moon=moon, skip_moons=False, ax1=ax1, fig1=fig1, normalization=JUPITER_RADIUS, cube=cube)
+    plot_spacecraft_trajectories(begin, end, system_state_array=system_state_array, center=central_body, moon=moon, ax1=ax1, ax2=ax2, color=color, target="Jupiter", normalization=JUPITER_RADIUS, cube=cube)
+    plt.tight_layout()
+    plt.show()
 
-semi_major_axis = kepler_elements[0] 
 
-from scipy.optimize import brentq
+    #this can also be done in Ganymede-centered IRF:
+    if show_closeup:
+         
+        CENTRAL_BODY    = ReferenceFrame().Ganymede
+        TARGET_MOON     = ReferenceFrame().Ganymede
+        central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
+        moon            = system_state_array[:, TARGET_MOON  * 6 + 1    : TARGET_MOON  * 6 + 7]
+        spacecraft      = system_state_array[:, 6 * 6 + 1 : 6 * 6 + 7]
+        times           = system_state_array[:, 0]
+        cube = 10
+
+        fig1 = plt.figure(figsize=(14, 7))
+        ax1 = fig1.add_subplot(121, projection='3d')
+        ax2 = fig1.add_subplot(122)
+        plot_jovian_system(system_state_array=system_state_array,central_body=central_body, moon=moon, skip_moons=True, ax1=ax1, fig1=fig1, normalization=GANYMEDE_RADIUS, cube=cube, frame_name="Ganymede")
+        plot_spacecraft_trajectories(begin, end, system_state_array=system_state_array, center=central_body, moon=moon, ax1=ax1, ax2=ax2, color="green", target="Ganymede", normalization=GANYMEDE_RADIUS, cube=cube)
+        plt.tight_layout()
+        plt.show()
+ 
+"""
+# CR3BP Functions
+We define **two CR3BP functions** to be used throughout the code:
+1) `_draw_rotating_potential_2d`
+
+   The purpose of this function is to switch to a Co-Rotating Frame and plot the target object trajectories. This function takes as arguments:
+
+
+
+    - central_body          => position array of the central body 
+    - moon                  => position array of the target moon
+    - spacecraft            => position array of the body of interest
+    - times                 => array of discrete timesteps
+    
+    Optional arguments allow to customize the plotting:
+
+    -offset                  => allows to choose the x y scales for the plotting rectangle (in semi-major-axis normalized coordinates)
+    -range                   => allows to choose the zoom scale for the xy plot
+
+
+2) `plot_rotating_potential_dual`
+    This function is a wrapper for plotting side by side the Co-Rotating frame with different zoom levels
+"""
+
 def _draw_rotating_potential_2d(central_body, moon, spacecraft, times, ax,
                                  range=0.1, offset=(1, 0), show_potential=True,
                                  title=None, color="violet", plot_isopotential=False, label=None):
@@ -720,7 +780,6 @@ def _draw_rotating_potential_2d(central_body, moon, spacecraft, times, ax,
         r2 = np.sqrt((xv - x_G)**2 + yv**2)   # distance to Ganymede
         return 0.5 * (xv ** 2 + yv ** 2) + (1 - mu) / r1 + mu / r2
 
-    print(f"Jacobi for the SC: {v_rot_sc / a} | {pos_sc_rot[0] / a} | {pos_sc_rot[1] / a} |  {omega1(pos_sc_rot[0] / a, pos_sc_rot[1] / a)}")
     print(f"Jacobi for the SC:{omega1(pos_sc_rot[0] / a, pos_sc_rot[1] / a) * 2 - (np.sqrt(np.dot(v_rot_sc, v_rot_sc)) / v_char) ** 2} ")
 
     def dUdx(xval, mu):
@@ -741,7 +800,6 @@ def _draw_rotating_potential_2d(central_body, moon, spacecraft, times, ax,
     print(f"Jacobi for L1: {2 * U_L1}")
     print(f"Jacobi for L2: {2 * U_L2}")
     print(f"excess energy: {2 * U_L1 - (omega1(pos_sc_rot[0] / a, pos_sc_rot[1] / a) * 2 - (np.sqrt(np.dot(v_rot_sc, v_rot_sc)) / v_char) ** 2)} ")
-    print(L1_x)
 
     U_plot = np.clip(U, -5, -1.3)
 
@@ -768,14 +826,9 @@ def _draw_rotating_potential_2d(central_body, moon, spacecraft, times, ax,
         ax.plot(x_G, 0, 'o', color='steelblue', markersize=8, zorder=5)
         ax.plot(x_J, 0, 'o', color='steelblue', markersize=32, zorder=5)
 
-        legend_elements = [
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='steelblue', markersize=8, label='Ganymede'),
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='steelblue', markersize=10, label='Jupiter'),
-        ]
-        ax.legend(handles=legend_elements)  
-        ax.set_xlabel('x')
+        ax.set_xlabel(r'$x / a_{\mathrm{Ganymede}}$')
+        ax.set_ylabel(r'$y / a_{\mathrm{Ganymede}}$')
         ax.set_xlim([x_min, x_max])
-        ax.set_ylabel('y')
         ax.set_ylim([y_min, y_max])
 
         levels_lines = np.linspace(np.percentile(U_plot, 40), U_plot.max(), 120)
@@ -788,82 +841,67 @@ def _draw_rotating_potential_2d(central_body, moon, spacecraft, times, ax,
 def plot_rotating_potential_dual(central_body, moon, spacecraft, times,
                                   close_range=0.1, close_offset=(1, 0),
                                   wide_range=1.5, wide_offset=(0, 0),
-                                  ax1 = None,
-                                  ax2 = None,
-                                  show_potential=True, color="violet", plot_isopotential=False, label=None):
+                                  ax1=None,
+                                  ax2=None,
+                                  show_potential=True, color="violet",
+                                  plot_isopotential=False, label=None,
+                                  suptitle=None):
     """
     Side-by-side CR3BP rotating-frame potential plots (2D imshow):
     a close-up around the moon, and a wide view of the whole
     Jupiter-Ganymede system.
     """
-    
 
     _draw_rotating_potential_2d(central_body, moon, spacecraft, times=times, ax=ax1,
                                  range=close_range, offset=close_offset,
-                                 show_potential=show_potential, title="Close-up Ganymede", color=color, plot_isopotential=plot_isopotential, label=label)
+                                 show_potential=show_potential, title="Close-up Ganymede",
+                                 color=color, plot_isopotential=plot_isopotential, label=label)
     _draw_rotating_potential_2d(central_body, moon, spacecraft, times=times, ax=ax2,
                                  range=wide_range, offset=wide_offset,
-                                 show_potential=show_potential, title="Jupiter-Ganymede system", color=color,  plot_isopotential=plot_isopotential, label=label)
+                                 show_potential=show_potential, title="Jupiter-Ganymede CR3BP system",
+                                 color=color, plot_isopotential=plot_isopotential, label=label)
+
+    if suptitle is not None:
+        fig = ax1.figure if ax1 is not None else ax2.figure
+        fig.suptitle(suptitle)
 
 
 
 
-def plot_mission_segment(begin, end, system_state_array):
-    CENTRAL_BODY    = ReferenceFrame().Jupiter
-    TARGET_MOON     = ReferenceFrame().Ganymede
-    central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
-    moon            = system_state_array[:, TARGET_MOON  * 6 + 1    : TARGET_MOON  * 6 + 7]
-    spacecraft      = system_state_array[:, 6 * 6 + 1 : 6 * 6 + 7]
-    times           = system_state_array[:, 0]
-    cube =  500
-    fig1 = plt.figure(figsize=(14, 7))
-    ax1 = fig1.add_subplot(121, projection='3d')
-    ax2 = fig1.add_subplot(122)
-    plot_jovian_system(system_state_array=system_state_array, central_body=central_body, moon=moon, skip_moons=False, ax1=ax1, fig1=fig1, normalization=JUPITER_RADIUS, cube=cube)
-    plot_spacecraft_trajectories(begin, end, system_state_array=system_state_array, center=central_body, moon=moon, ax1=ax1, ax2=ax2, color="green", target="Jupiter", normalization=JUPITER_RADIUS, cube=cube)
-    plt.tight_layout()
-    plt.show()
 
 
-    #this can also be done in Ganymede-centered IRF:
-    CENTRAL_BODY    = ReferenceFrame().Ganymede
-    TARGET_MOON     = ReferenceFrame().Ganymede
-    central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
-    moon            = system_state_array[:, TARGET_MOON  * 6 + 1    : TARGET_MOON  * 6 + 7]
-    spacecraft      = system_state_array[:, 6 * 6 + 1 : 6 * 6 + 7]
-    times           = system_state_array[:, 0]
-
-    cube = 10
-
-    fig1 = plt.figure(figsize=(14, 7))
-    ax1 = fig1.add_subplot(121, projection='3d')
-    ax2 = fig1.add_subplot(122)
-    plot_jovian_system(system_state_array=system_state_array,central_body=central_body, moon=moon, skip_moons=True, ax1=ax1, fig1=fig1, normalization=GANYMEDE_RADIUS, cube=cube)
-    plot_spacecraft_trajectories(begin, end, system_state_array=system_state_array, center=central_body, moon=moon, ax1=ax1, ax2=ax2, color="green", target="Ganymede", normalization=GANYMEDE_RADIUS, cube=cube)
-    plt.tight_layout()
-    plt.show()
- 
 """
 ## Environment Setup
-### Initiates spice kernels, simulation start and end dates, and creates the system of bodies
+### We Initiate spice kernels, simulation start and end dates, and create the system of bodies
 As for our framework, we need to create bodies for: Europa, Ganymede, Callisto, Io Jupiter and the Sun.
 We will select Solar System Barycenter (SSB) as origin of our global frame, and orient it according to the J2000. Next, the defualt body settings can be defined.
+We also define an initial state for our object of interest. This has been chosen manualy to lie in the WSB of Ganymede:
 """
 
-#load standard SPICE kernels
+#initialize our object orbit around Ganymede
+object = OrbitalSate(
+    SMA = 12620671.675021729,
+    ECC = 0.71771389645297878,
+    INC = 0.41381573069655914,
+    LPE = 223.98450368357575 ,
+    LAN = 185.69309224626306,
+    MNA = 6.1484626004311655,
+)
 
-
-#define simulation window
+#define simulation window - we start in 2036, similar to  JUICE mission and simulate for a year:
 simulation_start_epoch = DateTime(2036, 1,27, 12,40,45).to_epoch()
-simulation_end_epoch   = simulation_start_epoch + constants.JULIAN_YEAR #simulation_start_epoch + 30006000
-fixed_step_size = 2000
+simulation_end_epoch   = simulation_start_epoch + constants.JULIAN_YEAR
+fixed_step_size = 2000 #fixed step size if we choose to use fixed step propogator
 
-#create bodies
-bodies, bodies_to_create, body_settings = create_bodies()
-JUPITER_RADIUS   = spice.get_average_radius("Ganymede")
+
+#we use the helper functions to create the bodies
+bodies, bodies_to_create, body_settings = create_bodies(initial_state=object)
+
+#some defines from SPICE to be used in plotting
+JUPITER_RADIUS   = spice.get_average_radius("Jupiter") 
 GANYMEDE_RADIUS  = spice.get_average_radius("Ganymede")
 
-#initialize the simulation
+#initialize the simulation via the helper function. 
 system_initial_state, central_bodies, acceleration_models,  termination_settings = initialize_simulation(bodies, bodies_to_create, body_settings, simulation_start_epoch, simulation_end_epoch)
 
 #with the system initialized, create a simulation and simulate:
@@ -872,7 +910,7 @@ system_state_array, rotation_matrix = simulate(bodies, bodies_to_create, system_
 
 """
 ## Analysis of the results
-### Initiates spice kernels, simulation start and end dates, and creates the system of bodies
+### Post-processing and visualization of the results. 
 As for our framework, we need to create bodies for: Europa, Ganymede, Callisto, Io Jupiter and the Sun.
 We will select Solar System Barycenter (SSB) as origin of our global frame, and orient it according to the J2000. Next, the defualt body settings can be defined.
 """
@@ -881,30 +919,34 @@ We will select Solar System Barycenter (SSB) as origin of our global frame, and 
 
 
 #We can now plot the evolution of the Jovian system:
-EOM = len(system_state_array[:, 0])
+
+EOM = len(system_state_array[:, 0]) #define the End of mission epoch
+
+#use the helper function to plot for the duration of the simulation the evolution of the Jovian system + our body
 plot_mission_segment(0, EOM, system_state_array=system_state_array)
 
 
 """
-## Analysis of the results
-### Clearly, the full trajectory visualization looks a bit messy. This can be cleaned up by noticing that the mission contains 4 key segments:
-- initial weakly - captured orbit around Ganymede
-- Jupiter - centered orbit
-- second weak capture at Ganymede
-- Jupiter - centered orbit + perturbations
+### Clearly, the full trajectory visualization looks a bit messy. This can be cleaned up by noticing that the simulated mission trajectory contains 4 key segments:
+- initial weakly - stable orbit around Ganymede (at the WSB)
+- Jupiter - centered orbit after escaping Ganymede
+- second weak capture at Ganymede 
+- Jupiter - centered orbit + perturbations from Ganymede flybys
 These segments can be identified by considering the distance of the spacecraft from Ganymede:
 """
 
 
-CENTRAL_BODY    = ReferenceFrame().Jupiter
-TARGET_MOON     = ReferenceFrame().Ganymede
+CENTRAL_BODY    = ReferenceFrame().Jupiter #we choose Jupiter as our central body for the Inertial Reference Frame
+TARGET_MOON     = ReferenceFrame().Ganymede #Ganymede as our target Moon
+
+#extract trajectory informations for CENTRAL_BODY, TARGET_MOON and spacecraft
 central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
 moon            = system_state_array[:, TARGET_MOON  * 6 + 1    : TARGET_MOON  * 6 + 7]
 spacecraft      = system_state_array[:, 6 * 6 + 1 : 6 * 6 + 7]
 times           = system_state_array[:, 0]
 
 #get distance from Ganymede as a function of time (normalized by Ganymede radius):
-spacecraft_distance_ganymede = spacecraft - moon
+spacecraft_distance_ganymede = spacecraft - moon #get distance from Ganymede
 spacecraft_distance_ganymede = np.sqrt(
     spacecraft_distance_ganymede[:, 0] ** 2 + 
     spacecraft_distance_ganymede[:, 1] ** 2 + 
@@ -912,19 +954,30 @@ spacecraft_distance_ganymede = np.sqrt(
 ) / GANYMEDE_RADIUS
 
 
-#now, find mission segments:
+#now, find mission segments. We set the cutoff as 40 Ganymede radii for escape, and 34 Ganymede radii for capture:
 moon_escape1    = np.argmax(spacecraft_distance_ganymede > 40)
 moon_capture1   = moon_escape1 + np.argmax(spacecraft_distance_ganymede[moon_escape1:] < 34)
 moon_escape2    = moon_capture1 + np.argmax(spacecraft_distance_ganymede[moon_capture1:] > 40)
 
 
-#now plot them:
-plot_mission_segment(0, moon_escape1, system_state_array=system_state_array)
+#now plot them via helper functions. For WSB orbits around Ganymede, visualize that frame too:
+plot_mission_segment(0, moon_escape1, system_state_array=system_state_array, show_closeup=True)
 plot_mission_segment(moon_escape1, moon_capture1, system_state_array=system_state_array)
-plot_mission_segment(moon_capture1, moon_escape2, system_state_array=system_state_array)
+plot_mission_segment(moon_capture1, moon_escape2, system_state_array=system_state_array, show_closeup=True)
 
 
-#switching to Jupiter-Centered frame:
+"""
+###Plotting the Entire Trajectory
+We can now once again switch back to Jupiter centered IRF and plot all of the trajectory segments there,
+together with distances from Jupiter and Ganymede.
+
+The results, including the ballistic pumpdown, are similar to the trajectories to be used by Juice during Callisto - Ganymede transfer.
+
+https://link.springer.com/article/10.1007/s11214-024-01093-y
+Pages 33 - 44
+"""
+
+#select Jupiter as the center
 CENTRAL_BODY    = ReferenceFrame().Jupiter
 TARGET_MOON     = ReferenceFrame().Ganymede
 central_body    = system_state_array[:, CENTRAL_BODY * 6 + 1    : CENTRAL_BODY * 6 + 7]
@@ -935,15 +988,51 @@ ax1 = fig1.add_subplot(131, projection='3d')
 ax2 = fig1.add_subplot(132)
 ax3 = fig1.add_subplot(133)
 
-plot_jovian_system(system_state_array=system_state_array, central_body=central_body, moon=moon, skip_moons=False, ax1=ax1, fig1=fig1, normalization=JUPITER_RADIUS, cube=400)
-plot_spacecraft_trajectories_triple(0, moon_escape1, center=central_body,  system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="blue", normalization=JUPITER_RADIUS, cube=500)
-plot_spacecraft_trajectories_triple(moon_escape1, moon_capture1, center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="green", normalization=JUPITER_RADIUS, cube=500)
-plot_spacecraft_trajectories_triple(moon_capture1, moon_escape2, center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="cyan", normalization=JUPITER_RADIUS, cube=500)
-plot_spacecraft_trajectories_triple(moon_escape2, len(system_state_array[:, 0]), center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, normalization=JUPITER_RADIUS, color="violet", cube=500)
+#plot Jovian moon evolution
+plot_jovian_system(system_state_array=system_state_array, central_body=central_body, moon=moon, skip_moons=False, ax1=ax1, fig1=fig1, normalization=JUPITER_RADIUS, cube=20)
+
+#plot 1st mission segment (WSB orbit around Ganymede)
+plot_spacecraft_trajectories_triple(0, moon_escape1, center=central_body,  system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="blue", normalization=JUPITER_RADIUS, cube=20)
+
+#plot 2nd mission segment (escape into Jupiter orbit)
+plot_spacecraft_trajectories_triple(moon_escape1, moon_capture1, center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="green", normalization=JUPITER_RADIUS, cube=20)
+
+#plot 3rd mission segment (Weak capture at Ganymede)
+plot_spacecraft_trajectories_triple(moon_capture1, moon_escape2, center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, color="cyan", normalization=JUPITER_RADIUS, cube=20)
+
+#plot 4th mission segment (escape into Jupiter orbit + pumpdown towards Europa)
+plot_spacecraft_trajectories_triple(moon_escape2, len(system_state_array[:, 0]), center=central_body, system_state_array=system_state_array, ax1=ax1, ax2=ax2, ax3=ax3, normalization=JUPITER_RADIUS, color="violet", cube=20)
 plt.tight_layout()
 plt.show()
 
+"""
+###Plotting the Trajectory in Co-Rotating Frame
+Better understanding of the trajectory can be gained by visualizing the trajectories in Jupiter-Ganymede Co-Rotating Frame.
+The approach employed is that of a general CR3BP problem, see details in:
+https://orbital-mechanics.space/the-n-body-problem/circular-restricted-three-body-problem.html
+
+We use the helper functions for the CR3BP to plot the different mission segments 1 through 4:
+"""
+
+
+#we need to know the average semi-major axis of Ganymede at the current epoch. This can be computed from SPICE:
+
+epoch = simulation_start_epoch
+state = spice.get_body_cartesian_state_at_epoch(
+    target_body_name="Ganymede",
+    observer_body_name="Jupiter",
+    reference_frame_name="ECLIPJ2000",
+    aberration_corrections="NONE",
+    ephemeris_time=epoch
+)
+jupiter_gm = spice.get_body_gravitational_parameter("Jupiter")
+kepler_elements = element_conversion.cartesian_to_keplerian(state, jupiter_gm)
+
+semi_major_axis = kepler_elements[0] 
+
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+#plot the trajectories + Jacobi potential for CR3BP 
 plot_rotating_potential_dual(
     central_body=central_body[0:moon_escape1],
     moon=moon[0:moon_escape1], 
@@ -958,7 +1047,8 @@ plot_rotating_potential_dual(
     ax2=ax2,
     color="blue",
     plot_isopotential=True,
-    label="Initial Weak-Orbit"
+    label="Initial Weak-Orbit (Phase 1)",
+    suptitle="Trajectories in Jupiter-Ganymede Co-Rotating Frame",
 )
 plot_rotating_potential_dual(
     central_body=central_body[moon_escape1:moon_capture1],
@@ -973,7 +1063,7 @@ plot_rotating_potential_dual(
     ax1=ax1,
     ax2=ax2,
     color="green",
-    label="Jupiter centered orbit"
+    label="Jupiter centered orbit (Phase 2)"
 )
 plot_rotating_potential_dual(
     central_body=central_body[moon_capture1:moon_escape2],
@@ -988,15 +1078,14 @@ plot_rotating_potential_dual(
     ax1=ax1,
     ax2=ax2,
     color="cyan",
-    label="Second Weak Capture"
+    label="Second Weak Capture (Phase 3)"
 )
 ax2.legend()
 ax1.legend()
 plt.tight_layout()
 plt.show()
 
-#finally, the rest of the evolution:
-
+#finally, the rest of the trajectory evolution:
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 plot_rotating_potential_dual(
     central_body=central_body[moon_capture1:EOM],
@@ -1011,7 +1100,9 @@ plot_rotating_potential_dual(
     ax1=ax1,
     ax2=ax2,
     color="blue",
-    plot_isopotential=True
+    plot_isopotential=True,
+    label="Pumpdown towards Europa (Phase 4)",
+    suptitle="Trajectories in Jupiter-Ganymede Co-Rotating Frame",
 )
 plt.tight_layout()
 plt.show()
