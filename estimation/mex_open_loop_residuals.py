@@ -32,8 +32,9 @@ from tudatpy.dynamics import environment_setup, environment
 from tudatpy.estimation.observations_setup.ancillary_settings import FrequencyBands
 from tudatpy.estimation.observable_models_setup import links
 from tudatpy.estimation import observable_models_setup, observations_setup, observations
-import tudatpy.data as data
-from tudatpy.data.mission_data_downloader import *
+from tudatpy.data_input.data_retrieval.missions import LoadPDS
+from tudatpy.data_input.tracking_data.fdets import FdetDateFormat, read_fdets_data
+from tudatpy.data_input.tracking_data.ifms import read_ifms_data
 from tudatpy.interface import spice
 
 print("✓ Libraries imported successfully")
@@ -97,17 +98,21 @@ print("✓ Data download complete!")
 # USER CONFIGURATION - UPDATE THESE PATHS
 # =============================================================================
 
-BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'  # ← Change this to your base directory
+BASE_DIR = '/home/dominic/Tudat/studentCode/LuigiCode/mex_phobos_flyby'
 
 # Subdirectories
 KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
 FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
-IFMS_FOLDER = './mex_archive/ifms_filtered'
+IFMS_FOLDER = os.path.join(BASE_DIR, 'ifms/filtered')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 
 # Reference data
-WEATHER_DATA_DIR = './mex_archive/met'
+WEATHER_DATA_DIR = os.path.join(BASE_DIR, 'met')
+if not os.path.exists(WEATHER_DATA_DIR):
+    WEATHER_DATA_DIR = './mex_archive/met'
 VMF_FILE = os.path.join(BASE_DIR, 'VMF/y2013.vmf3_r.txt')
+if not os.path.exists(VMF_FILE):
+    VMF_FILE = './estimation/mex_archive/vmf/y2013.vmf3_r.txt'
 
 # Analysis time window
 ANALYSIS_START = datetime(2013, 12, 28, 0, 0, 0)
@@ -310,6 +315,18 @@ body_settings.get(SPACECRAFT_NAME).rotation_model_settings = environment_setup.r
 # Add ground stations
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 
+# Load weather data into ground station settings before creating the bodies
+weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
+for station_code, weather_files in weather_dict.items():
+    environment_setup.ground_station.set_estrack_weather_data_in_ground_station_settings(
+        body_settings.get("Earth").ground_station_settings,
+        weather_files,
+        code_to_site(station_code),
+    )
+use_troposphere_corrections = bool(weather_dict) and os.path.exists(VMF_FILE)
+if not use_troposphere_corrections:
+    print("No complete weather/VMF data found; running without tropospheric light-time corrections.")
+
 # Create the complete system
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
@@ -368,12 +385,6 @@ antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(
 
 time_scale_converter = time_representation.default_time_scale_converter()
 
-# Load weather data into ground stations
-weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
-for station_code in weather_dict.keys():
-    weather_files = weather_dict[station_code]
-    data.set_estrack_weather_data_in_ground_stations(bodies, weather_files, code_to_site(station_code))
-
 print("✓ Antenna ephemeris configured")
 print("✓ Weather data loaded into ground stations")
 
@@ -427,10 +438,16 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     print(f"[{ifms_idx}/{len(ifms_files)}] Processing {transmitting_station_name}...")
 
     # Load IFMS observations
-    ifms_collection = observations_setup.observations_wrapper.observations_from_ifms_files(
-        [ifms_file], bodies, SPACECRAFT_NAME, transmitting_station_name,
-        reception_band, transmission_band
+    tracking_data, supplementary_data = read_ifms_data(
+        [ifms_file],
+        SPACECRAFT_NAME,
+        [transmitting_station_name],
+        frequency_bands=[1.0, 1.0],
+        reception_reference_frequency_band=1.0,
+        doppler_reference_frequency=base_frequency,
     )
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    ifms_collection = observations.create_observation_collection(tracking_data, bodies)
 
     # Filter by time window
     time_filter = observations.observations_processing.observation_filter(
@@ -450,16 +467,17 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         bodies, antenna_ephemeris, "Antenna", "MEX", links.retransmitter
     )
 
-    # Configure troposphere corrections
-    observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
-        [VMF_FILE], True, False, bodies, False, True
-    )
-
     # Define light-time corrections
     light_time_corrections = [
-        observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"]),
-        observable_models_setup.light_time_corrections.saastamoinen_tropospheric_light_time_correction()
+        observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
     ]
+    if use_troposphere_corrections:
+        observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
+            [VMF_FILE], True, False, bodies, False, True
+        )
+        light_time_corrections.append(
+            observable_models_setup.light_time_corrections.saastamoinen_tropospheric_light_time_correction()
+        )
 
     # Create observation models
     doppler_link_ends = ifms_collection.link_definitions_per_observable[
@@ -549,10 +567,18 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         print(f"  Processing FDETS: {site_name}...")
 
         # Load FDETS observations
-        fdets_collection = observations_setup.observations_wrapper.observations_from_fdets_files(
-            fdets_file, base_frequency, column_types, SPACECRAFT_NAME,
-            transmitting_station_name, site_name, reception_band, transmission_band
+        tracking_data, supplementary_data = read_fdets_data(
+            [fdets_file],
+            [base_frequency],
+            FdetDateFormat.datetime_string,
+            SPACECRAFT_NAME,
+            [transmitting_station_name],
+            [site_name],
         )
+        observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+        for tracking_data_set in tracking_data:
+            tracking_data_set.add_double_vector_ancillary_setting("frequency bands", [1.0, 1.0])
+        fdets_collection = observations.create_observation_collection(tracking_data, bodies)
 
         fdets_collection.filter_observations(time_filter_based_on_ifms)
         fdets_collection.remove_empty_observation_sets()

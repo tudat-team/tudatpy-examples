@@ -29,7 +29,7 @@ from tudatpy.dynamics import environment_setup, environment, propagation_setup, 
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
+from tudatpy.data_input.environment_data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
 from numpy import savetxt
 

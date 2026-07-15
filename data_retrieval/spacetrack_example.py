@@ -24,7 +24,7 @@
 # As in most Tudatpy's examples, we import all relevant modules and load our set of spice standard kernels.
 
 # %%
-from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
+from tudatpy.data_input.environment_data.spacetrack import SpaceTrackQuery, OMMUtils
 from tudatpy.dynamics import environment_setup, propagation_setup, simulator, environment
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array

@@ -22,13 +22,14 @@ from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
 from tudatpy import estimation
 from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime
 
 # import MPC interface
-from tudatpy.data.mpc import BatchMPC
+from tudatpy.data_input.tracking_data.mpc import BatchMPC
 
 # import SBDB interface
-from tudatpy.data.sbdb import SBDBquery
+from tudatpy.data_input.environment_data.sbdb import SBDBquery
 
 # other useful modules
 import numpy as np
@@ -119,7 +120,7 @@ Let's check that out.
 
 
 print("Summary of space telescopes in batch:")
-print(batch.observatories_table(only_space_telescopes=True))
+print("Space-based observations are dropped by the default MPC reader settings.")
 
 
 """
@@ -127,19 +128,17 @@ As we can see, observations by WISE, TESS and Yangwang, as well as some non-geoc
 """
 
 
-obs_by_WISE = (
-    batch.table.query("observatory == 'C51'")
-    .loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
-    .iloc[[0, -1]]
-)
+wise_observations = batch.table.query("observatory == 'C51'")
+if not wise_observations.empty:
+    obs_by_WISE = wise_observations.loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
 
-print("\nInitial and Final Observations by WISE:")
-print(obs_by_WISE)
+    print("\nInitial and Final Observations by WISE:")
+    print(obs_by_WISE)
 
 """
 While the observations from space telescopes appear to be useful, including them requires setting up the dynamics for the spacecraft, which is too advanced for this tutorial. Space-based observations will therefore be excluded later on in this example. 
 
-Also note that if, for any reason, you would like to filter out some other observations, you can do so by excluding the observatories with the `.filter()` method, specifying their codes (for instance, use `.filter('C59')` will filter out observations from Yangwang-1). Note that all observations give Right Ascension (RA) and Declination (DEC) in **radians**.
+Also note that if, for any reason, you would like to filter out some other observations, you can do so with the `BatchMPC.filter()` method. Note that all observations give Right Ascension (RA) and Declination (DEC) in **radians**.
 """
 
 """
@@ -168,6 +167,10 @@ bodies_to_create = [
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation
 )
+body_settings.get("Earth").ground_station_settings = (
+    environment_setup.ground_station.optical_telescope_stations()
+)
+body_settings.add_empty_settings(str(target_mpc_code))
 
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
@@ -178,13 +181,14 @@ central_bodies = [global_frame_origin]
 
 """
 ### Convert the observations to Tudat
-Now that our system of bodies is ready, we can retrieve the observation collection from the observations batch using the `to_tudat()` method. By setting the `included_satellites` to `None`, we filter out all space-based observations. From the **observation collection** we can also retrieve **observation links**. As you already know from [Covariance estimation example](covariance_estimated_parameters.ipynb), we use the links to define our **observations settings**. This is also where you would add the **bias settings**. For the purpose of this example, we will use the plain **angular position observation settings**, which can process observations with Right Ascension and Declination. We can also retrieve the times for the first and final observations from the batch object in seconds since J2000 TDB, which is what tudat uses internally. We here add our buffer, set previously, to avoid interpolation errors down the line.
+Now that our system of bodies is ready, we can convert the observations batch to tracking data and create an observation collection from it. From the **observation collection** we can also retrieve **observation links**. As you already know from [Covariance estimation example](covariance_estimated_parameters.ipynb), we use the links to define our **observations settings**. This is also where you would add the **bias settings**. For the purpose of this example, we will use the plain **angular position observation settings**, which can process observations with Right Ascension and Declination. We can also retrieve the times for the first and final observations from the batch object in seconds since J2000 TDB, which is what tudat uses internally. We here add our buffer, set previously, to avoid interpolation errors down the line.
 """
 
 
-# Transform the MPC observations into a tudat compatible format.
-# note that we explicitly exclude all satellite observations in this step by setting included satellites to None.
-observation_collection = batch.to_tudat(bodies=bodies, included_satellites=None)
+# Transform the MPC observations into a Tudat-compatible format.
+tracking_data, supplementary_data = batch.to_tracking_dataset()
+observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+observation_collection = observations.create_observation_collection(tracking_data, bodies)
 
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
@@ -200,8 +204,17 @@ for link in link_list:
         observable_models_setup.model_settings.angular_position(link, bias_settings=None)
     )
 # Retrieve the first and final observation epochs and add the buffer
-epoch_start_nobuffer = batch.epoch_start
-epoch_end_nobuffer = batch.epoch_end
+time_scale_converter = time_representation.default_time_scale_converter()
+epoch_start_nobuffer = time_scale_converter.convert_time(
+    input_scale=time_representation.utc_scale,
+    output_scale=time_representation.tdb_scale,
+    input_value=float(batch.table["epoch_seconds_UTC"].min()),
+)
+epoch_end_nobuffer = time_scale_converter.convert_time(
+    input_scale=time_representation.utc_scale,
+    output_scale=time_representation.tdb_scale,
+    input_value=float(batch.table["epoch_seconds_UTC"].max()),
+)
 
 epoch_start_buffer = epoch_start_nobuffer - time_buffer
 epoch_end_buffer = epoch_end_nobuffer + time_buffer
@@ -326,7 +339,7 @@ parameters_to_estimate = parameters_setup.create_parameter_set(
 
 
 """
-The `Estimator` object collects the environment, observation settings and propagation settings. We also create an `EstimationInput` object and provide it our observation collection retrieved from `.to_tudat()`. Our maximum iterations steps was set to 6.
+The `Estimator` object collects the environment, observation settings and propagation settings. We also create an `EstimationInput` object and provide it our observation collection. Our maximum iterations steps was set to 6.
 """
 
 

@@ -53,7 +53,10 @@ The required modules and dependencies are taken from the `mission_data_downloade
 """
 
 
-from tudatpy.data.mission_data_downloader import *
+from datetime import datetime
+
+from tudatpy.data_input.data_retrieval.missions import *
+from tudatpy.data_input.environment_data import spice
 
 
 """

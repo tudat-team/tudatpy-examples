@@ -17,13 +17,13 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup, parameters_setup, propagation_setup
 from tudatpy import estimation
-from tudatpy.estimation import observable_models_setup, estimation_analysis
+from tudatpy.estimation import observable_models_setup, observations, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
 import matplotlib.gridspec as gridspec
-from tudatpy.data.mpc import BatchMPC
-from tudatpy.data.horizons import HorizonsQuery
-from tudatpy.data.sbdb import SBDBquery
+from tudatpy.data_input.tracking_data.mpc import BatchMPC
+from tudatpy.data_input.environment_data.horizons import HorizonsQuery
+from tudatpy.data_input.environment_data.sbdb import SBDBquery
 
 
 # other useful modules
@@ -33,6 +33,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.lines import Line2D
 from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime
 from astropy.table import Table
@@ -40,6 +41,17 @@ from astropy.table import Table
 # SPICE KERNELS
 spice.load_standard_kernels()
 
+
+def utc_seconds_to_tdb(utc_seconds):
+    time_scale_converter = time_representation.default_time_scale_converter()
+    return [
+        time_scale_converter.convert_time(
+            input_scale=time_representation.utc_scale,
+            output_scale=time_representation.tdb_scale,
+            input_value=float(epoch),
+        )
+        for epoch in utc_seconds
+    ]
 
 """
 ## Preparing the environment and observations
@@ -218,8 +230,9 @@ batch.filter(
 )
 
 # Retrieve the first and final observation epochs and add the buffer
-epoch_start_nobuffer = DateTime.from_epoch(batch.epoch_start)
-epoch_end_nobuffer =  DateTime.from_epoch(batch.epoch_end)
+observation_epochs_tdb = utc_seconds_to_tdb(batch.table["epoch_seconds_UTC"])
+epoch_start_nobuffer = DateTime.from_epoch(min(observation_epochs_tdb))
+epoch_end_nobuffer =  DateTime.from_epoch(max(observation_epochs_tdb))
 
 print(f"Epoch Start (no buffer): {epoch_start_nobuffer.to_epoch()}")
 print(f"Epoch End (no buffer): {epoch_end_nobuffer.to_epoch()}")
@@ -242,7 +255,7 @@ initial_guess = spice.get_body_cartesian_state_at_epoch(
 )
 
 print("Summary of space telescopes in batch:")
-print(batch.observatories_table(only_space_telescopes=True))
+print("Space-based and miscellaneous observations are dropped by the default MPC reader settings.")
 
 """
 ### Retrieving satellite and astroid ephemerides from JPL Horizons
@@ -266,7 +279,8 @@ for code, name in zip(satellites_Horizons_codes, satellites_names):
         extended_query=True,  # extended query allows for more data to be retrieved.
     )
 
-    sat_ephemeris[name] = query.create_ephemeris_tabulated(
+    sat_ephemeris[name] = environment_setup.ephemeris.jpl_horizons_from_query(
+        query,
         frame_origin=global_frame_origin,
         frame_orientation=global_frame_orientation,
     )
@@ -283,7 +297,8 @@ for code in lvl3_asteroids:
         extended_query=True,
     )
 
-    ast_ephemeris[code] = query.create_ephemeris_tabulated(
+    ast_ephemeris[code] = environment_setup.ephemeris.jpl_horizons_from_query(
+        query,
         frame_origin=global_frame_origin,
         frame_orientation=global_frame_orientation,
     )
@@ -300,7 +315,8 @@ for code in lvl3_extra_bodies:
         extended_query=True,
     )
 
-    other_ephemeris[code] = query.create_ephemeris_tabulated(
+    other_ephemeris[code] = environment_setup.ephemeris.jpl_horizons_from_query(
+        query,
         frame_origin=global_frame_origin,
         frame_orientation=global_frame_orientation,
     )
@@ -348,6 +364,11 @@ bodies_SPICE = [
 body_settings = environment_setup.get_default_body_settings(
     bodies_SPICE, global_frame_origin, global_frame_orientation
 )
+body_settings.get("Earth").ground_station_settings = (
+    environment_setup.ground_station.optical_telescope_stations()
+)
+for body_name in batch.MPC_objects:
+    body_settings.add_empty_settings(str(body_name))
 
 # Add satellite(s) and their ephemerides to body settings
 for name in satellites_names:
@@ -532,26 +553,15 @@ def perform_estimation(
         apply_star_catalog_debias: bool,
         apply_weighting_scheme: bool,
 ):
-    # The satellites are present in the integration of all setups,
-    # the included satellitess parameter in to_tudat() dictates whether a satellite's observations are used.
-    if use_satellite_data:
-        included_satellites = {
-            mpc: name for mpc, name in zip(satellites_MPC_codes, satellites_names)
-        }
-    else:
-        included_satellites = None
-
-    # As in the first example, the observation collection is created with BatchMPC.to_tudat()
-    # This time, the star catalog biases and weights are enabled,
-    # the included_satellites parameter ensures satellite observations are included.
-    # internally, to_tudat() links a space telescope's observatory code to the spacecraft's dynamics.
+    # As in the first example, the observation collection is created from the
+    # tracking-data objects produced by BatchMPC.
     batch_temp = batch.copy()
-    observation_collection = batch_temp.to_tudat(
-        bodies=bodies,
-        included_satellites=included_satellites,
-        apply_star_catalog_debias=apply_star_catalog_debias,
-        apply_weights_VFCC17=apply_weighting_scheme,
+    tracking_data, supplementary_data = batch_temp.to_tracking_dataset(
+        add_weights=apply_weighting_scheme,
+        add_star_catalog_corrections=apply_star_catalog_debias,
     )
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    observation_collection = observations.create_observation_collection(tracking_data, bodies)
 
     # Set up the accelerations settings for each body, in this case only Eros
     acceleration_settings = {}
@@ -1038,6 +1048,11 @@ def plot_star_catalog_corrections(
         Figure, RA axis, Dec axis, RA histogram, Dec histogram
     """
 
+    if not {"corr_RA_EFCC18", "corr_DEC_EFCC18"}.issubset(mpc_batch.table.columns):
+        print("Skipping star-catalog correction plot because correction columns are not stored in BatchMPC.table.")
+        fig, ax = plt.subplots(figsize=figsize)
+        return fig, ax, ax, ax, ax
+
     # Extract data
     if include_satellites:
         epochsUTC = mpc_batch.table["epoch_seconds_UTC"].values
@@ -1115,6 +1130,11 @@ def plot_observation_weights(
     fig, ax, hist_ax
         Figure, main scatter axis, histogram axis
     """
+
+    if "weight" not in mpc_batch.table.columns:
+        print("Skipping observation-weight plot because weights are stored in the observation collection, not BatchMPC.table.")
+        fig, ax = plt.subplots(figsize=figsize)
+        return fig, ax, ax
 
     # Extract regular and satellite observations
     reg_mask = mpc_batch.table["note2"] != "S"
@@ -1262,7 +1282,7 @@ The plots below show star catalog corrections and observation weights for the ob
 
 
 temp = batch.copy()
-temp.to_tudat(bodies=bodies, included_satellites=None, apply_weights_VFCC17=True)
+temp.to_tracking_dataset(add_weights=True, add_star_catalog_corrections=True)
 # mark weights red if it is a satellite observation
 
 plot_star_catalog_corrections(temp)
@@ -1760,9 +1780,11 @@ fig, _, _ = plot_observation_weights(temp, include_satellites=False, figsize=(6,
 
 
 
-fig = batch.plot_observations_sky(figsize=(6, 4))
+fig = plt.figure(figsize=(6, 4))
+ax = fig.add_subplot(111, projection="aitoff")
+ax.scatter(batch.table.RA - np.pi, batch.table.DEC, marker="+")
+ax.grid()
 fig.suptitle(f"{batch.size} observations for {target_name} in the sky")
-fig.axes[0].get_legend().remove()
 # fig.savefig("Eros_observations_sky.pdf")
 
 

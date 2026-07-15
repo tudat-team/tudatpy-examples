@@ -49,8 +49,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Tudatpy imports
-from tudatpy import data
 from tudatpy import constants
+from tudatpy.data_input.tracking_data.generic_text_file import read_generic_text_data
 from tudatpy.interface import spice
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.estimation import observable_models_setup, observations_setup
@@ -69,9 +69,9 @@ After inspecting the data file, we can see that it contains the following column
 4) the round-trip light
 5) a correction term.
 
-We can use the `read_tracking_txt_file` function to read this **raw data** and translate it into an **intermediate format** that takes care of appropriate unit conversions for known column identifiers.
+We can use the `read_generic_text_data` function to read this **raw data** and translate it into an **intermediate format** that takes care of appropriate unit conversions for known column identifiers.
 
-The file columns specified here are all known to Tudat, and can be used to **process the observation** (see `tudatpy.data.TrackingDataType` for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_tracking_txt_file` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
+The file columns specified here are all known to Tudat, and can be used to **process the observation** (see `tudatpy.data_input.tracking_data.generic_text_file.TrackingDataType` for a complete list of available column types). If a file contains additional columns, they can be specified with any unknown string and the `read_generic_text_data` function will load them in string format without using them further. If needed, these can be accessed as a dictionary through `raw_datafile.raw_datamap`.
 
 """
 
@@ -90,9 +90,9 @@ file_columns = [
     "time_tag_delay_microseconds",
 ]
 
-raw_datafile = data.read_tracking_txt_file(
-    file_name=TRACKING_FNAME, column_types=file_columns, comment_symbol="#", value_separators=",:\t "
-)
+raw_datafile = read_generic_text_data(
+    file_names=[TRACKING_FNAME], column_types=file_columns, comment_symbol="#", value_separators=",:\t "
+)[0]
 
 
 """

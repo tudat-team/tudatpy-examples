@@ -31,7 +31,7 @@ from tudatpy.interface import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
-from tudatpy.data.processTrk234 import Trk234Processor
+from tudatpy.data_input.tracking_data.tnf import TnfTrackingDataProcessor
 
 from tudatpy.dynamics import environment_setup
 from tudatpy import estimation
@@ -500,11 +500,17 @@ def perform_residuals_analysis(inputs):
         # For the latest TNF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
         tnf_files = tnf_files[:-1]
 
-        tnfProcessor = Trk234Processor(
+        tnfProcessor = TnfTrackingDataProcessor(
             tnf_files, ["doppler", "range"], spacecraft_name="MRO"
         )
-        original_odf_observations = tnfProcessor.process()
-        tnfProcessor.set_tnf_information_in_bodies(bodies)
+        tracking_data, supplementary_data = tnfProcessor.process()
+        observations.set_tracking_supplementary_data_in_bodies(
+            bodies, supplementary_data
+        )
+        tnfProcessor.set_transponder_turnaround_ratio(bodies)
+        original_odf_observations = observations.create_observation_collection(
+            tracking_data, bodies
+        )
 
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []

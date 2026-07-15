@@ -37,7 +37,7 @@ import os
 
 # Load required tudatpy modules
 from datetime import datetime
-from tudatpy.data import grail_antenna_file_reader
+from tudatpy.data_input.environment_data.missions.grail import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation

@@ -13,7 +13,7 @@ from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
 from tudatpy.util import redirect_std
 from tudatpy.interface import spice
 from tudatpy.astro import time_representation, element_conversion
-from tudatpy.data import processTrk234
+from tudatpy.data_input.tracking_data.tnf import TnfTrackingDataProcessor
 
 from tudatpy.dynamics import (
     environment_setup,
@@ -98,15 +98,17 @@ def process_arc(inputs):
     if arc_index == 4:
         tnf_files.append("mro_kernels/mromagr2012_016_0520xmmmv1.tnf")
 
-    # LOAD TNF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
-    tnfProcessor = processTrk234.Trk234Processor(
+    # Load TNF tracking data. Conversion to an ObservationCollection is done
+    # after the bodies are created, because the new tracking-data workflow
+    # resolves link ends against the simulation environment.
+    tnfProcessor = TnfTrackingDataProcessor(
         tnf_files,
         ["doppler"],
         spacecraft_name="MRO",
     )
-    original_observations = tnfProcessor.process()
+    tracking_data, supplementary_data = tnfProcessor.process()
 
-    # Remove observation outside the arc time interval
+    # Define arc time interval
     arcStart = time_representation.DateTime.from_python_datetime(
         startDateTime
     ).to_epoch()
@@ -124,33 +126,9 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # Filter observations to the arc time interval
-    arc_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        arcStart.to_float(),
-        arcEnd.to_float(),
-        use_opposite_condition=True,
-    )
-    original_observations.filter_observations(arc_filter)
-    original_observations.remove_empty_observation_sets()
-
-    # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    compressed_observations = (
-        observations_setup.observations_wrapper.create_compressed_doppler_collection(
-            original_observations, 60, 10
-        )
-    )
-
-    # Add transpondr delay
-    compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
-
     # Buffer model/propagation start and end times
-    observation_time_limits = original_observations.time_bounds_time_object
-    obs_start_time = observation_time_limits[0]
-    obs_end_time = observation_time_limits[1]
-
-    prop_start_time = observation_time_limits[0] - 3600.0
-    prop_end_time = observation_time_limits[1] + 3600.0
+    prop_start_time = arcStart - 3600.0
+    prop_end_time = arcEnd + 3600.0
 
     # ====================
     # Create default body settings for celestial bodies
@@ -309,7 +287,36 @@ def process_arc(inputs):
         bodies, spacecraft_name, radiation_pressure_settings
     )
 
-    tnfProcessor.set_tnf_information_in_bodies(bodies)
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    tnfProcessor.set_transponder_turnaround_ratio(bodies)
+
+    original_observations = observations.create_observation_collection(
+        tracking_data, bodies
+    )
+
+    # Filter observations to the arc time interval
+    arc_filter = observations.observations_processing.observation_filter(
+        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+        arcStart.to_float(),
+        arcEnd.to_float(),
+        use_opposite_condition=True,
+    )
+    original_observations.filter_observations(arc_filter)
+    original_observations.remove_empty_observation_sets()
+
+    observation_time_limits = original_observations.time_bounds_time_object
+    obs_start_time = observation_time_limits[0]
+    obs_end_time = observation_time_limits[1]
+
+    # Compress Doppler observations from 1.0 s integration time to 60.0 s
+    compressed_observations = (
+        observations_setup.observations_wrapper.create_compressed_doppler_collection(
+            original_observations, 60, 10
+        )
+    )
+
+    # Add transponder delay
+    compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
 
     # ===================================================================================================
     # SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
