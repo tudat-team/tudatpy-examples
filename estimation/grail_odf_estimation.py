@@ -32,6 +32,7 @@ from tudatpy.data_input.environment_data.missions.grail import (
     grail_antenna_file_reader,
     grail_mass_level_0_file_reader,
 )
+from tudatpy.data_input.tracking_data import odf
 from tudatpy.data_input.environment_data import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
@@ -107,7 +108,6 @@ def run_odf_estimation(inputs):
         True,
         True,
     ):
-
         print("input_index", input_index)
 
         filename_suffix = str(input_index)
@@ -145,10 +145,178 @@ def run_odf_estimation(inputs):
             odf_files = ["grail_kernels/gralugf2012_097_0235smmmv1.odf"]
 
         # Load ODF files
-        multi_odf_file_contents = (
-            observations_setup.observations_wrapper.process_odf_data_multiple_files(
-                odf_files, "GRAIL-A", True
+        tracking_data, supplementary_data = odf.read_odf_data(
+            odf_files, "GRAIL-A", verbose_output=True
+        )
+
+        # Define a 1h time buffer around the day-long arc under consideration. This is used to construct the
+        # dynamical environment below, before the actual observation time bounds are known (the environment is
+        # itself required to create the observation collection from the loaded ODF tracking data).
+        obs_time_buffer = 3600.0
+        env_start_time = date - obs_time_buffer
+        env_end_time = date + 86400.0 + obs_time_buffer
+
+        ### ------------------------------------------------------------------------------------------
+        ### CREATE DYNAMICAL ENVIRONMENT
+        ### ------------------------------------------------------------------------------------------
+
+        # Create default body settings for celestial bodies
+        bodies_to_create = [
+            "Earth",
+            "Sun",
+            "Mercury",
+            "Venus",
+            "Mars",
+            "Jupiter",
+            "Saturn",
+            "Moon",
+        ]
+        global_frame_origin = "SSB"
+        global_frame_orientation = "J2000"
+        body_settings = environment_setup.get_default_body_settings_time_limited(
+            bodies_to_create,
+            env_start_time,
+            env_end_time,
+            global_frame_origin,
+            global_frame_orientation,
+        )
+
+        # Modify default shape, rotation, and gravity field settings for the Earth
+        body_settings.get(
+            "Earth"
+        ).shape_settings = environment_setup.shape.oblate_spherical_spice()
+        body_settings.get(
+            "Earth"
+        ).rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+            environment_setup.rotation_model.iau_2006,
+            global_frame_orientation,
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                env_start_time,
+                env_end_time,
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                env_start_time,
+                env_end_time,
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                env_start_time,
+                env_end_time,
+                60.0,
+            ),
+        )
+        body_settings.get(
+            "Earth"
+        ).gravity_field_settings.associated_reference_frame = "ITRS"
+
+        # Set up DSN ground stations
+        body_settings.get(
+            "Earth"
+        ).ground_station_settings = environment_setup.ground_station.dsn_stations()
+
+        # Modify default rotation and gravity field settings for the Moon
+        body_settings.get(
+            "Moon"
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
+        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings = (
+            environment_setup.gravity_field.predefined_spherical_harmonic(
+                environment_setup.gravity_field.gggrx1200, 500
             )
+        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings.associated_reference_frame = "MOON_PA_DE440"
+
+        # Define gravity field variations for the tides on the Moon
+        moon_gravity_field_variations = list()
+        moon_gravity_field_variations.append(
+            environment_setup.gravity_field_variation.solid_body_tide(
+                "Earth", 0.02405, 2
+            )
+        )
+        moon_gravity_field_variations.append(
+            environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.02405, 2)
+        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_variation_settings = moon_gravity_field_variations
+        body_settings.get("Moon").ephemeris_settings.frame_origin = "Earth"
+
+        # Add Moon radiation properties
+        moon_surface_radiosity_models = [
+            radiation_pressure.thermal_emission_angle_based_radiosity(
+                95.0, 385.0, 0.95, "Sun"
+            ),
+            radiation_pressure.variable_albedo_surface_radiosity(
+                radiation_pressure.predefined_spherical_harmonic_surface_property_distribution(
+                    radiation_pressure.albedo_dlam1
+                ),
+                "Sun",
+            ),
+        ]
+        body_settings.get(
+            "Moon"
+        ).radiation_source_settings = (
+            radiation_pressure.panelled_extended_radiation_source(
+                moon_surface_radiosity_models, [6, 12]
+            )
+        )
+
+        # Create empty settings for the GRAIL spacecraft
+        spacecraft_name = "GRAIL-A"
+        spacecraft_central_body = "Moon"
+        body_settings.add_empty_settings(spacecraft_name)
+        body_settings.get(spacecraft_name).constant_mass = 221.69
+
+        # Define translational ephemeris from SPICE
+        body_settings.get(
+            spacecraft_name
+        ).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+            env_start_time,
+            env_end_time,
+            10.0,
+            spacecraft_central_body,
+            global_frame_orientation,
+        )
+
+        # Define rotational ephemeris from SPICE
+        body_settings.get(
+            spacecraft_name
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
+        )
+
+        # Define GRAIL panel geometry, which will be used for the panel radiation pressure model
+        body_settings.get(
+            spacecraft_name
+        ).vehicle_shape_settings = get_grail_panel_geometry()
+
+        # Create environment
+        bodies = environment_setup.create_system_of_bodies(body_settings)
+
+        bodies.get(
+            spacecraft_name
+        ).system_models.set_default_transponder_turnaround_ratio_function()
+
+        # Add radiation pressure target models for GRAIL (cannonball model for the solar radiation pressure,
+        # and complete panel model for the radiation pressure from the Moon)
+        occulting_bodies = dict()
+        occulting_bodies["Sun"] = ["Earth"]
+        pixel_source = {"Sun": 0, "Moon": 0}  # No self-shadowing
+        environment_setup.add_radiation_pressure_target_model(
+            bodies,
+            spacecraft_name,
+            radiation_pressure.panelled_radiation_target(
+                occulting_bodies, pixel_source
+            ),
         )
 
         # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
@@ -157,13 +325,8 @@ def run_odf_estimation(inputs):
         # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
-        original_odf_observations = observations_setup.observations_wrapper.create_odf_observed_observation_collection(
-            multi_odf_file_contents,
-            [observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type],
-            [
-                time_representation.Time(0, np.nan),
-                time_representation.Time(0, np.nan),
-            ],
+        original_odf_observations = observations.create_observation_collection(
+            tracking_data, bodies
         )
 
         # Filter all ODF observations that exceed the arc duration of one day
@@ -199,164 +362,9 @@ def run_odf_estimation(inputs):
         )
         compressed_observations.print_observation_sets_start_and_size()
 
-        ### ------------------------------------------------------------------------------------------
-        ### CREATE DYNAMICAL ENVIRONMENT
-        ### ------------------------------------------------------------------------------------------
-
-        # Create default body settings for celestial bodies
-        bodies_to_create = [
-            "Earth",
-            "Sun",
-            "Mercury",
-            "Venus",
-            "Mars",
-            "Jupiter",
-            "Saturn",
-            "Moon",
-        ]
-        global_frame_origin = "SSB"
-        global_frame_orientation = "J2000"
-        body_settings = environment_setup.get_default_body_settings_time_limited(
-            bodies_to_create,
-            obs_start_time.to_float(),
-            obs_end_time.to_float(),
-            global_frame_origin,
-            global_frame_orientation,
-        )
-
-        # Modify default shape, rotation, and gravity field settings for the Earth
-        body_settings.get("Earth").shape_settings = (
-            environment_setup.shape.oblate_spherical_spice()
-        )
-        body_settings.get("Earth").rotation_model_settings = (
-            environment_setup.rotation_model.gcrs_to_itrs(
-                environment_setup.rotation_model.iau_2006,
-                global_frame_orientation,
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
-                    3600.0,
-                ),
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
-                    3600.0,
-                ),
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
-                    60.0,
-                ),
-            )
-        )
-        body_settings.get("Earth").gravity_field_settings.associated_reference_frame = (
-            "ITRS"
-        )
-
-        # Set up DSN ground stations
-        body_settings.get("Earth").ground_station_settings = (
-            environment_setup.ground_station.dsn_stations()
-        )
-
-        # Modify default rotation and gravity field settings for the Moon
-        body_settings.get("Moon").rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
-            )
-        )
-        body_settings.get("Moon").gravity_field_settings = (
-            environment_setup.gravity_field.predefined_spherical_harmonic(
-                environment_setup.gravity_field.gggrx1200, 500
-            )
-        )
-        body_settings.get("Moon").gravity_field_settings.associated_reference_frame = (
-            "MOON_PA_DE440"
-        )
-
-        # Define gravity field variations for the tides on the Moon
-        moon_gravity_field_variations = list()
-        moon_gravity_field_variations.append(
-            environment_setup.gravity_field_variation.solid_body_tide(
-                "Earth", 0.02405, 2
-            )
-        )
-        moon_gravity_field_variations.append(
-            environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.02405, 2)
-        )
-        body_settings.get("Moon").gravity_field_variation_settings = (
-            moon_gravity_field_variations
-        )
-        body_settings.get("Moon").ephemeris_settings.frame_origin = "Earth"
-
-        # Add Moon radiation properties
-        moon_surface_radiosity_models = [
-            radiation_pressure.thermal_emission_angle_based_radiosity(
-                95.0, 385.0, 0.95, "Sun"
-            ),
-            radiation_pressure.variable_albedo_surface_radiosity(
-                radiation_pressure.predefined_spherical_harmonic_surface_property_distribution(
-                    radiation_pressure.albedo_dlam1
-                ),
-                "Sun",
-            ),
-        ]
-        body_settings.get("Moon").radiation_source_settings = (
-            radiation_pressure.panelled_extended_radiation_source(
-                moon_surface_radiosity_models, [6, 12]
-            )
-        )
-
-        # Create empty settings for the GRAIL spacecraft
-        spacecraft_name = "GRAIL-A"
-        spacecraft_central_body = "Moon"
-        body_settings.add_empty_settings(spacecraft_name)
-        body_settings.get(spacecraft_name).constant_mass = 221.69
-
-        # Define translational ephemeris from SPICE
-        body_settings.get(spacecraft_name).ephemeris_settings = (
-            environment_setup.ephemeris.interpolated_spice(
-                obs_start_time.to_float(),
-                obs_end_time.to_float(),
-                10.0,
-                spacecraft_central_body,
-                global_frame_orientation,
-            )
-        )
-
-        # Define rotational ephemeris from SPICE
-        body_settings.get(spacecraft_name).rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
-            )
-        )
-
-        # Define GRAIL panel geometry, which will be used for the panel radiation pressure model
-        body_settings.get(spacecraft_name).vehicle_shape_settings = (
-            get_grail_panel_geometry()
-        )
-
-        # Create environment
-        bodies = environment_setup.create_system_of_bodies(body_settings)
-
-        # Add radiation pressure target models for GRAIL (cannonball model for the solar radiation pressure,
-        # and complete panel model for the radiation pressure from the Moon)
-        occulting_bodies = dict()
-        occulting_bodies["Sun"] = ["Earth"]
-        pixel_source = {"Sun": 0, "Moon": 0}  # No self-shadowing
-        environment_setup.add_radiation_pressure_target_model(
-            bodies,
-            spacecraft_name,
-            radiation_pressure.panelled_radiation_target(
-                occulting_bodies, pixel_source
-            ),
-        )
-
         # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the GRAIL spacecraft
-        observations_setup.observations_wrapper.set_odf_information_in_bodies(
-            multi_odf_file_contents, bodies
+        observations.set_tracking_supplementary_data_in_bodies(
+            bodies, supplementary_data
         )
 
         ### ------------------------------------------------------------------------------------------
@@ -719,7 +727,6 @@ if __name__ == "__main__":
 
     # For each parallel run
     for i in range(nb_parallel_runs):
-
         # First retrieve the names of all the relevant kernels and data files necessary to cover the date of interest
         (
             clock_file,
@@ -798,7 +805,9 @@ if __name__ == "__main__":
         all_prefit.append(prefit_residuals)
         all_postfit.append(postfit_residuals)
 
-        start_date = time_representation.DateTime.from_python_datetime(dates[i]).to_epoch()
+        start_date = time_representation.DateTime.from_python_datetime(
+            dates[i]
+        ).to_epoch()
 
         # Plot the results of the current estimation.
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
