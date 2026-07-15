@@ -395,12 +395,7 @@ position_difference = {'Io': state_history_difference[:, 0:3],
                        'Ganymede': state_history_difference[:, 12:15],
                        'Callisto': state_history_difference[:, 18:21]}
 
-### PLOTTING ###
-time2plt = list()
-epochs_julian_seconds = np.vstack(list(state_history.keys()))
-for epoch in epochs_julian_seconds:
-    epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
-    time2plt.append(time_representation.DateTime.from_julian_day(epoch_days).to_python_datetime())
+time2plt = [time_representation.DateTime.from_epoch(epoch).to_python_datetime() for epoch in state_history.keys()]
 
 fig, ax1 = plt.subplots(1, 1, figsize=(10, 6))
 
@@ -485,13 +480,6 @@ laplace_stability_ephem = mean_longitude_dict_ephem['Io'] \
                          - 3 * mean_longitude_dict_ephem['Europa'] \
                          + 2 * mean_longitude_dict_ephem['Ganymede']
 laplace_stability_ephem = np.mod(laplace_stability_ephem, 2 * math.pi)
-
-### PLOTTING ###
-time2plt = list()
-epochs_julian_seconds = np.vstack(list(state_history.keys()))
-for epoch in epochs_julian_seconds:
-    epoch_days = constants.JULIAN_DAY_ON_J2000 + epoch / constants.JULIAN_DAY
-    time2plt.append(time_representation.DateTime.from_julian_day(epoch_days).to_python_datetime())
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
