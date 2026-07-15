@@ -27,7 +27,7 @@ from urllib.request import urlretrieve
 
 
 # Load required tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util

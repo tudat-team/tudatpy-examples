@@ -16,7 +16,7 @@ Let's start with importing the required modules. Most - if not all - of them (sp
 
 
 # Tudat imports for propagation and estimation
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator

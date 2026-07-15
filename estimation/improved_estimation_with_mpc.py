@@ -14,7 +14,7 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 
 
 # Tudat imports for propagation and estimation
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment_setup, parameters_setup, propagation_setup
 from tudatpy import estimation
 from tudatpy.estimation import observable_models_setup, observations, estimation_analysis
@@ -623,7 +623,7 @@ def perform_estimation(
         ),
     )
 
-    # to_tudat() applies weights to a set of observations between an observatory and the target.
+    # The tracking-data conversion applies weights to a set of observations between an observatory and the target.
     # the method below tells tudat to use the weights applied to these sets.
     # This step is required when setting weights through the BatchMPC class.
     if apply_weighting_scheme:
@@ -1272,9 +1272,9 @@ Before running the next round, lets have a quick look at the star catalog correc
 - "Star catalog position and proper motion corrections in asteroid astrometry II: The Gaia era" by Eggl et al.
 - "Statistical analysis of astrometric errors for the most productive asteroid surveys" by Veres et al.
 
-Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()`.
+Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `add_star_catalog_corrections` option in `BatchMPC.to_tracking_dataset()`.
 
-Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `apply_star_catalog_debias` option in `BatchMPC.to_tudat()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection().
+Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `add_weights` option in `BatchMPC.to_tracking_dataset()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection()`.
 `
 
 The plots below show star catalog corrections and observation weights for the observation period. Note in the star catalog correction graph how the number of corrections required (non-zero points) quickly reduces after 2016 once operators start implementing GAIA. Note also how a large clump of satellite observations in 2021 gets deweighted to prevent bias towards the satellite.

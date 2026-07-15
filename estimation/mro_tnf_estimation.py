@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
 
 from tudatpy.util import redirect_std
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
 from tudatpy.data_input.tracking_data.tnf import TnfTrackingDataProcessor
 

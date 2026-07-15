@@ -30,7 +30,7 @@ from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator

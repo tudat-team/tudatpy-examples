@@ -23,7 +23,7 @@ from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation, propagation_setup, simulator
@@ -37,7 +37,7 @@ from tudatpy.util import result2array
 We define **two auxiliary functions** to be used throughout the code:
 1) `get_juice_position_wrt_moon`
 
-   This function takes a time instant as input, and gives the **cartesian position of JUICE (body -28) with respect to the flyby moon**, in the J2000 reference frame as output. It is just a call to the [`spice.get_body_cartesian_position_at_epoch`](https://py.api.tudat.space/en/latest/spice.html#tudatpy.interface.spice.get_body_cartesian_position_at_epoch). 
+   This function takes a time instant as input, and gives the **cartesian position of JUICE (body -28) with respect to the flyby moon**, in the J2000 reference frame as output. It is just a call to `spice.get_body_cartesian_position_at_epoch` from `tudatpy.data_input.environment_data.spice`.
 
 3) `find_closest_approaches`
 This function takes as inputs:

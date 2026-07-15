@@ -33,7 +33,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from matplotlib.patches import Rectangle, ConnectionPatch
 
 # Load Spice kernels

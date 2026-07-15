@@ -69,7 +69,7 @@ from numpy import pi as PI
 from numpy.fft import rfft, rfftfreq
 from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import constants, dynamics
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup, propagation_setup, simulator, propagation

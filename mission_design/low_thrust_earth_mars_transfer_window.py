@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import tudatpy
 from tudatpy import constants
 from tudatpy import dynamics
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.trajectory_design import shape_based_thrust
 from tudatpy.trajectory_design import transfer_trajectory

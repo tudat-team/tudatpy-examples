@@ -33,7 +33,7 @@ import pickle
 
 # Tudat imports
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup
 from tudatpy.trajectory_design.porkchop import porkchop, plot_porkchop

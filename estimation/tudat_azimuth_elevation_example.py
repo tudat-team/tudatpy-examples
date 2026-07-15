@@ -9,7 +9,7 @@ Whether you're looking to impress your friends by showing them when and where th
 
 """
 ## Import Relevant Modules
-Let's start by importing all relevant modules and libraries. Notably, we will need the [HorizonsQuery class](https://py.api.tudat.space/en/latest/data_input/environment_data/horizons.html#tudatpy.data_input.environment_data.horizons.HorizonsQuery), containing wrapper function to the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). We will also make use of Tudat's interface to the NASA's [spice tool](https://py.api.tudat.space/en/latest/spice.html). The Horizons tool provides access to high-precision ephemerides for solar system objects, offering position and velocity data. The SPICE tool, developed by NASA, enables the computation of spacecraft trajectory, orientation, and other mission-related data using detailed planetary and satellite models.
+Let's start by importing all relevant modules and libraries. Notably, we will need the [HorizonsQuery class](https://py.api.tudat.space/en/latest/data_input/environment_data/horizons.html#tudatpy.data_input.environment_data.horizons.HorizonsQuery), containing wrapper function to the [JPL Horizons tool](https://ssd.jpl.nasa.gov/horizons/app.html#/). We will also make use of Tudat's interface to NASA's SPICE tool through `tudatpy.data_input.environment_data.spice`. The Horizons tool provides access to high-precision ephemerides for solar system objects, offering position and velocity data. The SPICE tool, developed by NASA, enables the computation of spacecraft trajectory, orientation, and other mission-related data using detailed planetary and satellite models.
 """
 
 
@@ -17,7 +17,7 @@ Let's start by importing all relevant modules and libraries. Notably, we will ne
 import numpy as np
 from matplotlib import pyplot as plt
 from tudatpy.data_input.environment_data.horizons import HorizonsQuery
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
 from tudatpy.math import interpolators
 from tudatpy.dynamics import environment, environment_setup

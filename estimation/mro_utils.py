@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 import glob
 import re
 import pandas as pd
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 
 

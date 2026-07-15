@@ -32,7 +32,7 @@ import matplotlib.dates as mdates
 # tudatpy imports
 from tudatpy import util
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator

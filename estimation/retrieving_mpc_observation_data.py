@@ -19,12 +19,12 @@ The following asteroids will be used in the example:
 
 """
 ### Import statements
-In this example we do not perform an estimation, as such we only need the `BatchMPC`  class from `data` , `environment_setup`  and `observation`  to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation ouput and load the standard `SPICE` kernels.
+In this example we do not perform an estimation, as such we only need the `BatchMPC` class from `data_input.tracking_data.mpc`, `environment_setup` and `observation` to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation output and load the standard `SPICE` kernels.
 """
 
 
 from tudatpy.data_input.tracking_data.mpc import BatchMPC
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
@@ -112,7 +112,7 @@ batch1.summary()
 
 """
 ### Set up the system of bodies
-A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](estimation_with_mpc.ipynb) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
+A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](estimation_with_mpc.ipynb) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used when converting the loaded tracking data to an observation collection.
 """
 
 
@@ -139,19 +139,19 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 
 """
-Now that our batch is ready, we can transform it to a Tudat `ObservationCollection` object using the `to_tudat()` method.
+Now that our batch is ready, we can transform it to Tudat tracking-data objects and then create an `ObservationCollection`.
 
-The `.to_tudat()` does the following for us:
+This does the following for us:
 
 1. Creates an empty body for each minor planet with their MPC code as a name.
 2. Adds this body to the system of bodies inputted to the method.
 3. Retrieves the global position of the terrestrial observatories in the batch and adds these stations to the Tudat environment.
 4. Creates link definitions between each unique terrestrial observatory/ minor planet combination in the batch.
-5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires an additional input.
+5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires the corresponding spacecraft bodies to be present in the environment.
 6. Creates a `SingleObservationSet` object for each unique link that includes all observations for that link.
 7. Returns an `ObservationCollection` object.
 
-If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `.to_tudat()` method. The `.to_tudat()`method does not alter the batch object itself.
+If our batch includes space telescopes like WISE and TESS, their Tudat bodies must be available when the observation collection is created. The additional features section shows an example of how to add a spacecraft body.
 """
 
 
@@ -171,7 +171,7 @@ object_names = batch1.MPC_objects
 
 
 """
-We can now retrieve the links from the ObservationCollection we got from `to_tudat()` and create settings for these links. This is where link biases would be set, for now we just keep the settings default.
+We can now retrieve the links from the `ObservationCollection` and create settings for these links. This is where link biases would be set, for now we just keep the settings default.
 """
 
 
@@ -267,7 +267,7 @@ That's it! Next, check out the [Estimation with MPC](estimation_with_mpc.ipynb) 
 
 """
 ### Using satellite observations.
-Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. This body must then be linked to the MPC code for that space telescope when calling the `to_tudat()` method. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
+Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. The body must then be available in the system of bodies when the observation collection is created. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
 """
 
 
@@ -294,15 +294,15 @@ else:
 
 
 """
-### Manual retrieval from astroquery
-Those familiar with astroquery (or those who have existing filtering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
+### Manual retrieval from existing tables
+Those with existing filtering or retrieval processes may use the `from_astropy()` and `from_pandas()` methods to import tabular observations before converting the batch to Tudat tracking data. The input must meet the requirements described in the API documentation.
 """
 
 
 batch2 = BatchMPC()
 batch2.get_observations([238])
 
-print_batch_summary(batch2)
+batch2.summary()
 
 
 """
@@ -315,7 +315,7 @@ Batches can be combined using the `+` operator, duplicates are removed.
 
 
 batch3 = batch2 + batch1
-print_batch_summary(batch3)
+batch3.summary()
 
 
 """

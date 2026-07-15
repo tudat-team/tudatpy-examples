@@ -20,6 +20,7 @@ import random
 import os
 from datetime import datetime
 from collections import defaultdict
+from urllib.request import urlretrieve
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -35,7 +36,7 @@ from tudatpy.estimation import observable_models_setup, observations_setup, obse
 from tudatpy.data_input.data_retrieval.missions import LoadPDS
 from tudatpy.data_input.tracking_data.fdets import FdetDateFormat, read_fdets_data
 from tudatpy.data_input.tracking_data.ifms import read_ifms_data
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 
 print("✓ Libraries imported successfully")
 
@@ -55,9 +56,29 @@ spice.clear_kernels()
 
 # Mission configuration
 input_mission = 'mex'
-local_path = './mex_archive'
+script_directory = Path(__file__).resolve().parent
+mex_archive_directory = script_directory / 'mex_archive'
+local_path = str(mex_archive_directory)
+KERNELS_FOLDER = Path(
+    os.environ.get('MEX_KERNELS_DIR', str(mex_archive_directory / 'kernels'))
+)
 start_date_mex = datetime(2013, 12, 27)
 end_date_mex = datetime(2013, 12, 31)
+
+mex_spice_kernel_urls = {
+    'ATNM_MEASURED_2013_V04.BC': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/ck/ATNM_MEASURED_2013_V04.BC',
+    'MEX_250109_STEP.TSC': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/former_versions/MEX_250109_STEP.TSC',
+    'MEX_STRUCT_V01.BSP': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/spk/MEX_STRUCT_V01.BSP',
+    'MEX_V16.TF': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/fk/MEX_V16.TF',
+    'ORMM_T19_131201000000_01033.BSP': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/spk/ORMM_T19_131201000000_01033.BSP',
+}
+
+KERNELS_FOLDER.mkdir(parents=True, exist_ok=True)
+for kernel_name, kernel_url in mex_spice_kernel_urls.items():
+    kernel_path = KERNELS_FOLDER / kernel_name
+    if not kernel_path.exists():
+        print("download", kernel_path)
+        urlretrieve(kernel_url, kernel_path)
 
 # Define URLs for meteorological and IFMS data
 custom_met_urls = [
@@ -91,28 +112,19 @@ print("✓ Data download complete!")
 # %% [markdown]
 # ### Configure Your Analysis
 #
-# **Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
+# The FDETS and VMF files used by this example are included in the example repository.
+# Mission-specific SPICE kernels are loaded from ``estimation/mex_archive/kernels`` by default.
+# Set the ``MEX_KERNELS_DIR`` environment variable to use a different local kernel folder.
 
 # %%
-# =============================================================================
-# USER CONFIGURATION - UPDATE THESE PATHS
-# =============================================================================
-
-BASE_DIR = '/home/dominic/Tudat/studentCode/LuigiCode/mex_phobos_flyby'
-
-# Subdirectories
-KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
-FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
-IFMS_FOLDER = os.path.join(BASE_DIR, 'ifms/filtered')
-OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+# Local data folders
+FDETS_FOLDER = str(mex_archive_directory / 'fdets')
+IFMS_FOLDER = str(mex_archive_directory / 'ifms')
+OUTPUT_DIR = str(mex_archive_directory / 'output')
 
 # Reference data
-WEATHER_DATA_DIR = os.path.join(BASE_DIR, 'met')
-if not os.path.exists(WEATHER_DATA_DIR):
-    WEATHER_DATA_DIR = './mex_archive/met'
-VMF_FILE = os.path.join(BASE_DIR, 'VMF/y2013.vmf3_r.txt')
-if not os.path.exists(VMF_FILE):
-    VMF_FILE = './estimation/mex_archive/vmf/y2013.vmf3_r.txt'
+WEATHER_DATA_DIR = str(mex_archive_directory / 'met')
+VMF_FILE = str(mex_archive_directory / 'vmf' / 'y2013.vmf3_r.txt')
 
 # Analysis time window
 ANALYSIS_START = datetime(2013, 12, 28, 0, 0, 0)
@@ -228,11 +240,14 @@ spice.load_standard_kernels()
 
 # Load Mars Express mission kernels
 kernel_count = 0
-for kernel in os.listdir(KERNELS_FOLDER):
-    if not kernel.startswith('.'):
-        kernel_path = os.path.join(KERNELS_FOLDER, kernel)
-        spice.load_kernel(kernel_path)
-        kernel_count += 1
+if os.path.exists(KERNELS_FOLDER):
+    for kernel in os.listdir(str(KERNELS_FOLDER)):
+        if not kernel.startswith('.'):
+            kernel_path = os.path.join(str(KERNELS_FOLDER), kernel)
+            spice.load_kernel(kernel_path)
+            kernel_count += 1
+else:
+    print(f"Warning: MEX kernel directory not found at {KERNELS_FOLDER}")
 
 print(f"✓ Loaded {kernel_count} mission-specific kernels")
 

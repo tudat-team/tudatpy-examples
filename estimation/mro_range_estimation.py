@@ -50,8 +50,9 @@ import matplotlib.pyplot as plt
 
 # Tudatpy imports
 from tudatpy import constants
+from tudatpy.astro import time_representation
 from tudatpy.data_input.tracking_data.generic_text_file import read_generic_text_data
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.estimation import observable_models_setup, observations_setup
 
@@ -278,7 +279,11 @@ light_time_correction_list =[
 ]
 
 observation_model_settings_lighttime = [
-    observable_models_setup.model_settings.n_way_range(distinct_linkdefs[linkdef_id], light_time_correction_list) for linkdef_id in linkdef_ids
+    observable_models_setup.model_settings.n_way_range(
+        distinct_linkdefs[linkdef_id],
+        light_time_correction_list,
+        time_scale_for_observable=time_representation.TimeScales.utc_scale,
+    ) for linkdef_id in linkdef_ids
 ]
 
 simulated_observations_lighttime = create_observations(observation_model_settings_lighttime, bodies_rotation)

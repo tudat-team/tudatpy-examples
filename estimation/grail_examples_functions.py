@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 # Load required tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 from tudatpy.dynamics import environment_setup
 

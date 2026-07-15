@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array

@@ -29,7 +29,7 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 
 # Load tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment,environment_setup, propagation, propagation_setup, simulator
 from tudatpy.astro import element_conversion, time_representation
 from tudatpy import constants

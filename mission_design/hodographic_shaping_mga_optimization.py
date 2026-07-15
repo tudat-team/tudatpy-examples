@@ -212,7 +212,7 @@ class MGAHodographicShapingTrajectoryOptimizationProblem:
         # Radius of solar system bodies, used to define the swingby periapsis radius.
         #
         # The values were retrieved from SPICE, using:
-        # from tudatpy.interface import spice
+        # from tudatpy.data_input.environment_data import spice
         # spice.load_standard_kernels()
         # bodies_to_create = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
         # planetary_radii = {}

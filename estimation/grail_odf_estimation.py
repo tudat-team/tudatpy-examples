@@ -32,7 +32,7 @@ from tudatpy.data_input.environment_data.missions.grail import (
     grail_antenna_file_reader,
     grail_mass_level_0_file_reader,
 )
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
