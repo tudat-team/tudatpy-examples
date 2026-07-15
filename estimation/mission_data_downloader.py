@@ -1,4 +1,8 @@
 """
+# Automatically Download Mission data
+"""
+
+"""
 ## Objectives
 
 - This script shows how to use the TudatPy `mission_data_downloader` functionality  to download:
@@ -53,7 +57,10 @@ The required modules and dependencies are taken from the `mission_data_downloade
 """
 
 
+from datetime import datetime
+
 from tudatpy.data.mission_data_downloader import *
+from tudatpy.interface import spice
 
 
 """
@@ -62,8 +69,8 @@ First, we create the LoadPDS() object.
 """
 
 
-object = LoadPDS()
-spice.clear_kernels() #lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
+pds_query = LoadPDS()
+spice.clear_kernels()  # lets clear the kernels to avoid duplicates,since we will load all standard + Downloaded + existing kernels
 
 
 """
@@ -90,35 +97,38 @@ Here, we will only showcase the downloading of MRO files. However, **if you wish
 start_date_mro = datetime(2007, 1, 3)
 end_date_mro = datetime(2007, 1, 5)
 
-#start_date_mex = datetime(2004, 1, 3)
-#end_date_mex = datetime(2004,2, 7) 
+# start_date_mex = datetime(2004, 1, 3)
+# end_date_mex = datetime(2004,2, 7)
 
-#start_date_juice = datetime(2023, 7, 1)
-#end_date_juice = datetime(2023, 8, 10)
+# start_date_juice = datetime(2023, 7, 1)
+# end_date_juice = datetime(2023, 8, 10)
 
 # Download Mission Files with default output folder
 # (only MRO is shown here. Uncomment the corresponding lines to download data for MEX and JUICE!)
 
-kernel_files_mro, radio_science_files_mro, ancillary_files_mro = object.get_mission_files(
-    input_mission = 'mro', 
-    start_date = start_date_mro, 
-    end_date = end_date_mro, 
-    custom_output = None,
-    load_kernels = True)      
+kernel_files_mro, radio_science_files_mro, ancillary_files_mro = (
+    pds_query.get_mission_files(
+        input_mission="mro",
+        start_date=start_date_mro,
+        end_date=end_date_mro,
+        custom_output=None,
+        load_kernels=True,
+    )
+)
 
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+print(f"Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}")
 
-#kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(
-#    input_mission = 'mex', 
-#    start_date = start_date_mex, 
-#    end_date = end_date_mex)         
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+# kernel_files_mex, radio_science_files_mex, ancillary_files_mex = object.get_mission_files(
+#    input_mission = 'mex',
+#    start_date = start_date_mex,
+#    end_date = end_date_mex)
+# print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
-#kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
+# kernel_files_juice, radio_science_files_juice, ancillary_files_juice = object.get_mission_files(
 #    input_mission = 'juice',
 #    start_date = start_date_juice,
-#    end_date = end_date_juice) 
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+#    end_date = end_date_juice)
+# print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
 
 
 """
@@ -127,17 +137,17 @@ Let's print the list of existing + downloaded files.
 """
 
 
-print(f'MRO Kernels: {kernel_files_mro}\n')
-print(f'MRO Radio Science: {radio_science_files_mro}\n')
-print(f'MRO Ancillary: {ancillary_files_mro}\n')
+print(f"MRO Kernels: {kernel_files_mro}\n")
+print(f"MRO Radio Science: {radio_science_files_mro}\n")
+print(f"MRO Ancillary: {ancillary_files_mro}\n")
 
-#print(f'MEX Kernels: {kernel_files_mex}\n')
-#print(f'MEX Radio Science: {radio_science_files_mex}\n')
-#print(f'MEX Ancillary: {ancillary_files_mex}\n')
+# print(f'MEX Kernels: {kernel_files_mex}\n')
+# print(f'MEX Radio Science: {radio_science_files_mex}\n')
+# print(f'MEX Ancillary: {ancillary_files_mex}\n')
 
-#print(f'JUICE Kernels: {kernel_files_juice}\n')
-#print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
-#print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
+# print(f'JUICE Kernels: {kernel_files_juice}\n')
+# print(f'JUICE Radio Science: {radio_science_files_juice}\n') # it will be empty for now... (no Radio Science yet available on the server)
+# print(f'JUICE Ancillary: {ancillary_files_juice}\n') # it will be empty for now... (no Ancillary files yet available on the server)
 
 
 """
@@ -183,12 +193,15 @@ The user can still define a custom output path using the flag `custom_output` in
 
 
 # Download Cassini Titan Flyby T011 Files specifying './CASSINI_ARCHIVE/' as custom output
-flyby_IDs = 'T011'
-kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = object.get_mission_files(
-    input_mission = 'cassini', 
-    flyby_IDs = flyby_IDs, 
-    custom_output = 'CASSINI_CUSTOM_ARCHIVE/')
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}')
+flyby_IDs = "T011"
+kernel_files_cassini, radio_science_files_cassini, ancillary_files_cassini = (
+    pds_query.get_mission_files(
+        input_mission="cassini",
+        flyby_IDs=flyby_IDs,
+        custom_output="CASSINI_CUSTOM_ARCHIVE/",
+    )
+)
+print(f"Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}")
 
 
 """
@@ -197,9 +210,9 @@ Last, you can print the list of existing + downloaded files.
 """
 
 
-print(f'CASSINI Kernels: {kernel_files_cassini}\n')
-print(f'CASSINI Radio Science: {radio_science_files_cassini}\n')
-print(f'CASSINI Ancillary: {ancillary_files_cassini}\n')
+print(f"CASSINI Kernels: {kernel_files_cassini}\n")
+print(f"CASSINI Radio Science: {radio_science_files_cassini}\n")
+print(f"CASSINI Ancillary: {ancillary_files_cassini}\n")
 
 
 """
@@ -213,26 +226,30 @@ end_date_grail_a = datetime(2012, 4, 12)
 start_date_grail_b = datetime(2012, 5, 6)
 end_date_grail_b = datetime(2012, 6, 12)
 
-kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = object.get_mission_files(
-    input_mission = 'grail-a', 
-    start_date = start_date_grail_a, 
-    end_date = end_date_grail_a, 
-    custom_output = './GRAIL_ARCHIVE'
-)         
-print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
+kernel_files_grail_a, radio_science_files_grail_a, ancillary_files_grail_a = (
+    pds_query.get_mission_files(
+        input_mission="grail-a",
+        start_date=start_date_grail_a,
+        end_date=end_date_grail_a,
+        custom_output="./GRAIL_ARCHIVE",
+    )
+)
+print(
+    f"Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n"
+)
 
-print(f'GRAIL-A Kernels: {kernel_files_grail_a}\n')
-print(f'GRAIL-A Radio Science: {radio_science_files_grail_a}\n')
-print(f'GRAIL-A Ancillary: {ancillary_files_grail_a}\n\n')
+print(f"GRAIL-A Kernels: {kernel_files_grail_a}\n")
+print(f"GRAIL-A Radio Science: {radio_science_files_grail_a}\n")
+print(f"GRAIL-A Ancillary: {ancillary_files_grail_a}\n\n")
 
-#kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(
+# kernel_files_grail_b, radio_science_files_grail_b, ancillary_files_grail_b = object.get_mission_files(
 #    input_mission = 'grail-b', start_date = start_date_grail_b, end_date = end_date_grail_b, custom_output = './GRAIL_ARCHIVE'
-#)         
-#print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
+# )
+# print(f'Total number of loaded kernels: {spice.get_total_count_of_kernels_loaded()}\n\n')
 
-#print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
-#print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
-#print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
+# print(f'GRAIL-B Kernels: {kernel_files_grail_b}\n')
+# print(f'GRAIL-B Radio Science: {radio_science_files_grail_b}\n')
+# print(f'GRAIL-B Ancillary: {ancillary_files_grail_b}\n')
 
 
 """
@@ -281,28 +298,56 @@ As it will be shown later in the example, you can also **[download all files of 
 """
 
 
-custom_input_mission = 'lro'
-custom_ck_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/ck/'
+custom_input_mission = "lro"
+custom_ck_url = (
+    "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/ck/"
+)
 
-local_path = './lro_archive'
+local_path = "./lro_archive"
 start_date_lro = datetime(2009, 7, 1)
 end_date_lro = datetime(2009, 7, 10)
 
-object.add_custom_mission_kernel_url(custom_input_mission, custom_ck_url)
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_ck_url)
 
-placeholders_ck = ['mission', 'instrument', '_', 'start_date_file', '_', 'end_date_file', '_', 'version', 'extension']
-custom_ck_pattern = object.create_pattern(placeholders_ck)
+placeholders_ck = [
+    "mission",
+    "instrument",
+    "_",
+    "start_date_file",
+    "_",
+    "end_date_file",
+    "_",
+    "version",
+    "extension",
+]
+custom_ck_pattern = pds_query.create_pattern(placeholders_ck)
 
-object.add_custom_mission_kernel_pattern(custom_input_mission, 'ck', custom_ck_pattern)
-object.dynamic_download_url_files_time_interval(custom_input_mission, local_path, start_date_lro, end_date_lro, custom_ck_url)
+pds_query.add_custom_mission_kernel_pattern(custom_input_mission, "ck", custom_ck_pattern)
+pds_query.dynamic_download_url_files_time_interval(
+    custom_input_mission, local_path, start_date_lro, end_date_lro, custom_ck_url
+)
 
-custom_spk_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/spk/'
-placeholders_spk = ['mission', 'instrument', '_', 'start_date_file', '_', 'end_date_file', '_', 'version', 'extension']
-custom_spk_pattern = object.create_pattern(placeholders_spk)
+custom_spk_url = "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/spk/"
+placeholders_spk = [
+    "mission",
+    "instrument",
+    "_",
+    "start_date_file",
+    "_",
+    "end_date_file",
+    "_",
+    "version",
+    "extension",
+]
+custom_spk_pattern = pds_query.create_pattern(placeholders_spk)
 
-object.add_custom_mission_kernel_url(custom_input_mission, custom_spk_url)
-object.add_custom_mission_kernel_pattern(custom_input_mission, 'spk', custom_spk_pattern)
-object.dynamic_download_url_files_time_interval(custom_input_mission, local_path, start_date_lro, end_date_lro, custom_spk_url)
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_spk_url)
+pds_query.add_custom_mission_kernel_pattern(
+    custom_input_mission, "spk", custom_spk_pattern
+)
+pds_query.dynamic_download_url_files_time_interval(
+    custom_input_mission, local_path, start_date_lro, end_date_lro, custom_spk_url
+)
 
 
 """
@@ -324,8 +369,12 @@ Here's how it's done:
 """
 
 
-custom_fk_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/fk/'
-object.get_kernels(input_mission = 'lro', url = custom_fk_url, wanted_files_patterns = ['lro*.tf'])
+custom_fk_url = (
+    "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/fk/"
+)
+pds_query.get_kernels(
+    input_mission="lro", url=custom_fk_url, wanted_files_patterns=["lro*.tf"]
+)
 
 
 """
@@ -352,20 +401,25 @@ Neverthless, we encourage users to play with this cool feature!
 """
 
 
-custom_input_mission = 'lro'
-custom_meta_kernel_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/extras/mk/'
-custom_meta_kernel_pattern = 'lro_2024_v02.tm'
-custom_kernels_url = 'https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/'
+custom_input_mission = "lro"
+custom_meta_kernel_url = "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/extras/mk/"
+custom_meta_kernel_pattern = "lro_2024_v02.tm"
+custom_kernels_url = (
+    "https://naif.jpl.nasa.gov/pub/naif/pds/data/lro-l-spice-6-v1.0/lrosp_1000/data/"
+)
 
-object.add_custom_mission_meta_kernel_url(custom_input_mission , custom_meta_kernel_url)
-object.add_custom_mission_meta_kernel_pattern(custom_input_mission , custom_meta_kernel_pattern)
-object.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
-custom_local_path = './lro_archive'
+pds_query.add_custom_mission_meta_kernel_url(custom_input_mission, custom_meta_kernel_url)
+pds_query.add_custom_mission_meta_kernel_pattern(
+    custom_input_mission, custom_meta_kernel_pattern
+)
+pds_query.add_custom_mission_kernel_url(custom_input_mission, custom_kernels_url)
+custom_local_path = "./lro_archive"
 
-object.get_mission_files(
-    input_mission = custom_input_mission, 
-    custom_output = custom_local_path, 
-    all_meta_kernel_files = True)
+pds_query.get_mission_files(
+    input_mission=custom_input_mission,
+    custom_output=custom_local_path,
+    all_meta_kernel_files=True,
+)
 
 
 plt.show()

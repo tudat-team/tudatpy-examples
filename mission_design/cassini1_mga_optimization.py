@@ -405,7 +405,7 @@ print("Jupiter-Saturn time of flight [days]: ", best_decision_variables[5])
 fig, ax = plt.subplots(figsize=(8, 4))
 ax.plot(
     np.arange(0, number_of_evolutions),
-    np.float_(fitness_list) / 1000,
+    np.float64(fitness_list) / 1000,
     label="Function value: Feval",
 )
 # Plot champion

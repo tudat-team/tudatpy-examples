@@ -17,13 +17,15 @@ Due to the relative complexity of this example, it is useful to provide the expl
 
 The equations we will use here for the translational and rotational dynamics are:
 
-\begin{equation}
+\begin{equation*}
 \frac{\text{d}\vec v}{\text{d}t}=(\mu_{\text{M}}+\mu_{\text{P}}) \left(-\frac{\vec r}{r^3}+\frac{1}{\mu_{\text{M}}}\mathbf{R^{\mathcal{I/M}}}\nabla_{\mathcal M}U_{\text{M}}(\vec\rho_M^{\ P}) - \frac{1}{\mu_{\text{P}}}\mathbf{R^{\mathcal{I/P}}}\nabla_{\mathcal P}U_{\text{P}}(\vec\rho_P^{\ M})\right) - \sum_{i=1}^N\mu_i\left(\frac{\vec r_{iP}}{r_{iP}^3}-\frac{\vec r_i}{r_i^3}\right)
-\end{equation}
+\end{equation*}
 
-\begin{equation}
-    \mathbf I\frac{\text d\vec\omega}{\text dt} + \vec\omega\times\left(\mathbf I\vec\omega\right) = -M\vec\rho_P^{\ M}\times\left(\mathbf{R^{\mathcal{I/P}}}\nabla_{\mathcal P}U_{\text{P}}(\vec\rho_P^{\ M})\right) - \sum_{i=1}^NM_i\vec\rho_P^{\ i}\times\left(\mathbf{R^{\mathcal{I/P}}}\nabla_{\mathcal P}U_{\text{P}}(\vec\rho_P^{\ i})\right)
-\end{equation}
+and
+
+\begin{equation*}
+\mathbf{I} \frac{\text d\vec\omega}{\text dt} + \vec\omega\times\left(\mathbf{I} \vec\omega\right) = -M\vec\rho_P^{\ M}\times\left(\mathbf{R^{\mathcal{I/P}}}\nabla_{\mathcal P}U_{\text{P}}(\vec\rho_P^{\ M})\right) - \sum_{i=1}^NM_i\vec\rho_P^{\ i}\times\left(\mathbf{R^{\mathcal{I/P}}}\nabla_{\mathcal P}U_{\text{P}}(\vec\rho_P^{\ i})\right)
+\end{equation*}
 
 where:
 
@@ -180,7 +182,7 @@ There are two functions that will be required in this example but have no direct
 def bring_inside_bounds(original: float | np.ndarray, lower_bound: float,
                         upper_bound: float, include: str = 'lower') -> float | np.ndarray:
 
-    """This function brings a number inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\pi$ is equivalent to an angle of $\pi$ and at the same time equivalent to an angle of $-\pi$). If a (multidimensional) array is passed, the operation is performed on all its entries. It returns the same object and of the same dimension as it was given.
+    """This function brings a number inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\\pi$ is equivalent to an angle of $\\pi$ and at the same time equivalent to an angle of $-\\pi$). If a (multidimensional) array is passed, the operation is performed on all its entries. It returns the same object and of the same dimension as it was given.
     *Note:* This function's support of arrays is limited to one-dimensional and two-dimensional arrays.
 
     Parameters
@@ -225,7 +227,7 @@ def bring_inside_bounds(original: float | np.ndarray, lower_bound: float,
 def bring_inside_bounds_single_dim(original: np.ndarray, lower_bound: float,
                                    upper_bound: float, include: str = 'lower') -> np.ndarray:
 
-    """This function brings the entries of a one-dimensional array inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\pi$ is equivalent to an angle of $\pi$ and at the same time equivalent to an angle of $-\pi$). It returns another one-dimensional array.
+    """This function brings the entries of a one-dimensional array inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\\pi$ is equivalent to an angle of $\\pi$ and at the same time equivalent to an angle of $-\\pi$). It returns another one-dimensional array.
 
     Parameters
     ----------
@@ -258,7 +260,7 @@ def bring_inside_bounds_single_dim(original: np.ndarray, lower_bound: float,
 def bring_inside_bounds_double_dim(original: np.ndarray, lower_bound: float,
                                    upper_bound: float, include: str = 'lower') -> np.ndarray:
 
-    """This function brings the entries of a two-dimensional array inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\pi$ is equivalent to an angle of $\pi$ and at the same time equivalent to an angle of $-\pi$). It returns another two-dimensional array.
+    """This function brings the entries of a two-dimensional array inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\\pi$ is equivalent to an angle of $\\pi$ and at the same time equivalent to an angle of $-\\pi$). It returns another two-dimensional array.
 
     Parameters
     ----------
@@ -293,7 +295,7 @@ def bring_inside_bounds_double_dim(original: np.ndarray, lower_bound: float,
 def bring_inside_bounds_scalar(original: float, lower_bound: float,
                                upper_bound: float, include: str = 'lower') -> float:
 
-    """This function brings a scalar inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\pi$ is equivalent to an angle of $\pi$ and at the same time equivalent to an angle of $-\pi$). It returns another scalar.
+    """This function brings a scalar inside the given bounds, assuming the interval defined by the bounds can periodically extend the whole real line (e.g. an angle of 9$\\pi$ is equivalent to an angle of $\\pi$ and at the same time equivalent to an angle of $-\\pi$). It returns another scalar.
 
     Parameters
     ----------
