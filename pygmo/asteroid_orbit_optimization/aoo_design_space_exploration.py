@@ -42,9 +42,9 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.data import save2txt
+from tudatpy.util import save2txt
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
 from tudatpy.dynamics import environment_setup

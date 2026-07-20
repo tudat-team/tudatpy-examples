@@ -5,11 +5,12 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 # Load required standard modules
 import os
+from datetime import datetime
 import numpy as np
 import pandas as pd
 
 # Load required tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 from tudatpy.dynamics import environment_setup
 
@@ -160,16 +161,58 @@ def get_grail_files(local_path, start_date, end_date):
     url_odf = (
         "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/odf/"
     )
-    # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
-    odf_files = download_url_files_time(
-        local_path=local_path,
-        filename_format="gralugf*_\w\w\w\wsmmmv1.odf",
-        start_date=start_date,
-        end_date=end_date,
-        url=url_odf,
-        time_format="%Y_%j",
-        indices_date_filename=[7],
-    )
+    # The fixed April 2012 examples use the published ODF manifest below. There
+    # are legitimate no-tracking days, so the absence of a daily file must not
+    # by itself trigger a remote directory query.
+    april_2012_odf_manifest = {
+        "gralugf2012_093_0400smmmv1.odf",
+        "gralugf2012_094_0931smmmv1.odf",
+        "gralugf2012_095_0435smmmv1.odf",
+        "gralugf2012_096_0459smmmv1.odf",
+        "gralugf2012_097_0235smmmv1.odf",
+        "gralugf2012_099_0407smmmv1.odf",
+        "gralugf2012_100_0540smmmv1.odf",
+        "gralugf2012_101_0235smmmv1.odf",
+        "gralugf2012_102_0358smmmv1.odf",
+        "gralugf2012_103_0145smmmv1.odf",
+        "gralugf2012_105_0352smmmv1.odf",
+        "gralugf2012_107_0405smmmv1.odf",
+        "gralugf2012_108_0450smmmv1.odf",
+        "gralugf2012_109_1227smmmv1.odf",
+        "gralugf2012_111_1332smmmv1.odf",
+        "gralugf2012_114_0900smmmv1.odf",
+        "gralugf2012_117_0300smmmv1.odf",
+        "gralugf2012_119_0545smmmv1.odf",
+        "gralugf2012_121_0155smmmv1.odf",
+    }
+    available_local_files = set(os.listdir(local_path))
+    april_start = datetime(2012, 4, 1)
+    april_end = datetime(2012, 4, 30)
+    if (
+        start_date >= april_start
+        and end_date <= april_end
+        and april_2012_odf_manifest.issubset(available_local_files)
+    ):
+        odf_files = sorted(
+            local_path + filename
+            for filename in april_2012_odf_manifest
+            if start_date
+            <= datetime.strptime(filename[7:15], "%Y_%j")
+            <= end_date
+        )
+        print("Reusing complete local April 2012 GRAIL ODF archive")
+    else:
+        # Retrieve missing files explicitly for other intervals or an incomplete
+        # copy of the fixed example archive.
+        odf_files = download_url_files_time(
+            local_path=local_path,
+            filename_format=r"gralugf*_\w\w\w\wsmmmv1.odf",
+            start_date=start_date,
+            end_date=end_date,
+            url=url_odf,
+            time_format="%Y_%j",
+            indices_date_filename=[7],
+        )
 
     # Print the name of all relevant ODF files that have been identified over the time interval of interest
     print("relevant odf files")

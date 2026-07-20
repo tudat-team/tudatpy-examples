@@ -41,7 +41,7 @@ from tudatpy import constants
 from tudatpy import dynamics
 from tudatpy.astro import element_conversion
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import (
     environment_setup,
     propagation_setup,
@@ -484,7 +484,7 @@ legend_handles = [
 ax.legend(handles=legend_handles, loc="lower right")
 
 
-"""
+r"""
 ## Post-processing 3 — in-plane spacing analysis and it's drift
 
 Plot the angular separation between adjacent satellites in Shell A, plane 0. Initially these 8 satellites are spaced exactly **45°** apart (`= 360° / (T/P) = 360° / 8`). We measure spacing directly from position vectors via `arccos(r̂₁ · r̂₂)` — this is singularity-free for circular orbits where the Keplerian true anomaly is degenerate.

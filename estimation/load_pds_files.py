@@ -202,7 +202,7 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
     # BeautifulSoup package to look for all pattern-matching names at the targeted url (without any a priori information on the date and/or
     # wildcard present in the file name)
     reduced_filename = filename_split[-1]
-    reduced_filename = reduced_filename.replace('\w', '*')
+    reduced_filename = reduced_filename.replace(r'\w', '*')
 
     # Retrieve all filenames present at the "local_path" location that match the specified filename format
     existing_files = glob.glob(local_path + reduced_filename)
@@ -303,7 +303,6 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
 
     # Return the list of all relevant files that should be loaded to cover the time interval of interest
     return relevant_files
-
 
 
 

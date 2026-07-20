@@ -6,7 +6,7 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-"""
+r"""
 ## Objectives 
 
 This example illustrates the usage of PyGMO to optimize a low-thrust interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat. The low-thrust legs are simulated using hodographic shaping. The spacecraft is considered to depart from the edge of the sphere of influence (SOI) of the Earth, execute swingbys at the Mars and Earth, and arrive at the edge of Jupiter's SOI. Thus, the transfer includes 3 legs and 2 swingbys.
@@ -146,7 +146,7 @@ def create_low_thrust_transfer_object(transfer_body_order: list,
 ## Optimisation problem
 """
 
-"""
+r"""
 The core of the optimization process is realized by PyGMO, which requires the definition of a problem class.
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `MGAHodographicShapingTrajectoryOptimizationProblem`.
 
@@ -212,7 +212,7 @@ class MGAHodographicShapingTrajectoryOptimizationProblem:
         # Radius of solar system bodies, used to define the swingby periapsis radius.
         #
         # The values were retrieved from SPICE, using:
-        # from tudatpy.interface import spice
+        # from tudatpy.data_input.environment_data import spice
         # spice.load_standard_kernels()
         # bodies_to_create = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
         # planetary_radii = {}
@@ -625,7 +625,7 @@ print('Evolution finished')
 ## Results Analysis
 """
 
-"""
+r"""
 Having finished the optimisation, it is now possible to analyse the results. An optimum of 41.7 km/s was found, which is a very significant improvement with respect to the best fitness in the initial population (above 200 km/s). The evolution of the minimum $\Delta V$ throughout the optimization is plotted.
 """
 
@@ -647,7 +647,7 @@ ax.set_xlim((0, num_gen))
 ax.grid('major')
 ax.set_title('Best individual over generations')
 ax.set_xlabel('Number of generation')
-ax.set_ylabel('$\Delta V$ [km/s]')
+ax.set_ylabel(r'$\Delta V$ [km/s]')
 
 
 """

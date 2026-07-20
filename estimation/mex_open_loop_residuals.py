@@ -18,8 +18,12 @@ import csv
 import numpy as np
 import random
 import os
+import re
 from datetime import datetime
 from collections import defaultdict
+from bs4 import BeautifulSoup
+import requests
+from urllib.request import urlretrieve
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -29,12 +33,11 @@ from pathlib import Path
 from tudatpy.astro import time_representation
 from tudatpy.math import interpolators
 from tudatpy.dynamics import environment_setup, environment
-from tudatpy.estimation.observations_setup.ancillary_settings import FrequencyBands
 from tudatpy.estimation.observable_models_setup import links
 from tudatpy.estimation import observable_models_setup, observations_setup, observations
-import tudatpy.data as data
-from tudatpy.data.mission_data_downloader import *
-from tudatpy.interface import spice
+from tudatpy.data_input.tracking_data.fdets import FdetDateFormat, read_fdets_data
+from tudatpy.data_input.tracking_data.ifms import read_ifms_data
+from tudatpy.data_input.environment_data import spice
 
 print("✓ Libraries imported successfully")
 
@@ -48,15 +51,54 @@ print("✓ Libraries imported successfully")
 # %%
 print("Downloading Mars Express mission data from ESA archives...")
 
-# Initialize data loader
-object = LoadPDS()
 spice.clear_kernels()
 
 # Mission configuration
-input_mission = 'mex'
-local_path = './mex_archive'
+script_directory = Path(__file__).resolve().parent
+mex_archive_directory = script_directory / 'mex_archive'
+local_met_directory = mex_archive_directory / 'met'
+local_ifms_directory = mex_archive_directory / 'ifms'
+existing_mex_ifms_files = []
+existing_mex_met_directory = (
+    Path(os.environ['MEX_MET_DIR'])
+    if os.environ.get('MEX_MET_DIR')
+    and Path(os.environ['MEX_MET_DIR']).is_dir()
+    else None
+)
+weather_data_directory = existing_mex_met_directory or local_met_directory
+existing_mex_kernels = (
+    Path.home()
+    / 'Tudat'
+    / 'studentCode'
+    / 'LuigiCode'
+    / 'mex_phobos_flyby'
+    / 'kernels'
+)
+default_mex_kernels = (
+    existing_mex_kernels
+    if existing_mex_kernels.is_dir()
+    else mex_archive_directory / 'kernels'
+)
+KERNELS_FOLDER = Path(
+    os.environ.get('MEX_KERNELS_DIR', str(default_mex_kernels))
+)
 start_date_mex = datetime(2013, 12, 27)
 end_date_mex = datetime(2013, 12, 31)
+
+mex_spice_kernel_urls = {
+    'ATNM_MEASURED_2013_V04.BC': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/ck/ATNM_MEASURED_2013_V04.BC',
+    'MEX_250109_STEP.TSC': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/sclk/former_versions/MEX_250109_STEP.TSC',
+    'MEX_STRUCT_V01.BSP': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/spk/MEX_STRUCT_V01.BSP',
+    'MEX_V16.TF': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/fk/MEX_V16.TF',
+    'ORMM_T19_131201000000_01033.BSP': 'https://spiftp.esac.esa.int/data/SPICE/MARS-EXPRESS/kernels/spk/ORMM_T19_131201000000_01033.BSP',
+}
+
+KERNELS_FOLDER.mkdir(parents=True, exist_ok=True)
+for kernel_name, kernel_url in mex_spice_kernel_urls.items():
+    kernel_path = KERNELS_FOLDER / kernel_name
+    if not kernel_path.exists():
+        print("download", kernel_path)
+        urlretrieve(kernel_url, kernel_path)
 
 # Define URLs for meteorological and IFMS data
 custom_met_urls = [
@@ -71,43 +113,76 @@ custom_ifms_urls = [
     'https://archives.esac.esa.int/psa/ftp/MARS-EXPRESS/MRS/MEX-X-MRS-1-2-3-EXT4-3628-V1.0/DATA/LEVEL02/CLOSED_LOOP/IFMS/DP2'
 ]
 
-# Download meteorological data
-for custom_met_url in custom_met_urls:
-    object.add_custom_mission_kernel_url(input_mission, custom_met_url)
-    custom_met_pattern = '^(?P<station>M32ICL3L1B)_(?P<type>[A-Z0-9]+)_(?P<date_file>\d+)_(?P<number>\d+)(?P<extension>\.TAB)$'
-    object.add_custom_mission_kernel_pattern(input_mission, 'met', custom_met_pattern)
-    object.dynamic_download_url_files_single_time(input_mission, local_path, start_date_mex, end_date_mex, custom_met_url)
+def download_psa_files(urls, filename_pattern, destination):
+    """Download every matching PSA product in the configured date window."""
+    destination.mkdir(parents=True, exist_ok=True)
+    matching_files = {}
+    for url in urls:
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+        for link in BeautifulSoup(response.text, 'html.parser').find_all('a', href=True):
+            filename = os.path.basename(link['href'])
+            match = filename_pattern.fullmatch(filename)
+            if match is None:
+                continue
+            product_date = datetime.strptime(match.group('date')[:5], '%y%j')
+            if start_date_mex <= product_date <= end_date_mex:
+                matching_files[filename] = url
 
-# Download IFMS data
-for custom_ifms_url in custom_ifms_urls:
-    object.add_custom_mission_kernel_url(input_mission, custom_ifms_url)
-    custom_ifms_pattern = '^(?P<station>M32ICL3L02|M32ICL2L02)_(?P<type>D2X)_(?P<date_file>\d+)_(?P<number>\d+)(?P<extension>\.TAB)$'
-    object.add_custom_mission_kernel_pattern(input_mission, 'ifms', custom_ifms_pattern)
-    object.dynamic_download_url_files_single_time(input_mission, local_path, start_date_mex, end_date_mex, custom_ifms_url)
+    local_files = []
+    for filename, url in sorted(matching_files.items()):
+        local_file = destination / filename
+        if not local_file.exists():
+            print(f"Downloading {filename}")
+            urlretrieve(url.rstrip('/') + '/' + filename, local_file)
+        local_files.append(local_file)
+    return local_files
+
+
+if existing_mex_met_directory is None:
+    met_files = download_psa_files(
+        custom_met_urls,
+        re.compile(r'M32ICL2L1B_MET_(?P<date>\d{9})_\d+\.TAB'),
+        local_met_directory,
+    )
+    weather_data_directory = local_met_directory
+else:
+    met_files = sorted(existing_mex_met_directory.glob('M32ICL?L1B_MET_*.TAB'))
+    print(f"Reusing existing meteorological data from {existing_mex_met_directory}")
+
+existing_mex_ifms_files = download_psa_files(
+    custom_ifms_urls,
+    re.compile(r'M32ICL2L02_D2X_(?P<date>\d{9})_\d+\.TAB'),
+    local_ifms_directory,
+)
+
+if not met_files or not existing_mex_ifms_files:
+    raise RuntimeError("The required MEX meteorological or IFMS products are unavailable.")
+
+print(
+    f"Reusing or downloaded {len(met_files)} meteorological and "
+    f"{len(existing_mex_ifms_files)} IFMS files"
+)
 
 print("✓ Data download complete!")
 
 # %% [markdown]
 # ### Configure Your Analysis
 #
-# **Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
+# The FDETS and VMF files used by this example are included in the example repository.
+# Mission-specific SPICE kernels are reused from an existing Tudat checkout when
+# available, otherwise they are downloaded to ``estimation/mex_archive/kernels``.
+# Set ``MEX_KERNELS_DIR`` to select a different local kernel folder explicitly.
 
 # %%
-# =============================================================================
-# USER CONFIGURATION - UPDATE THESE PATHS
-# =============================================================================
-
-BASE_DIR = '/Users/lgisolfi/Desktop/mex_phobos_flyby'  # ← Change this to your base directory
-
-# Subdirectories
-KERNELS_FOLDER = os.path.join(BASE_DIR, 'kernels')
-FDETS_FOLDER = os.path.join(BASE_DIR, 'fdets/complete')
-IFMS_FOLDER = './mex_archive/ifms_filtered'
-OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+# Local data folders
+FDETS_FOLDER = str(mex_archive_directory / 'fdets')
+IFMS_FOLDER = str(local_ifms_directory)
+OUTPUT_DIR = str(mex_archive_directory / 'output')
 
 # Reference data
-WEATHER_DATA_DIR = './mex_archive/met'
-VMF_FILE = os.path.join(BASE_DIR, 'VMF/y2013.vmf3_r.txt')
+WEATHER_DATA_DIR = str(weather_data_directory)
+VMF_FILE = str(mex_archive_directory / 'vmf' / 'y2013.vmf3_r.txt')
 
 # Analysis time window
 ANALYSIS_START = datetime(2013, 12, 28, 0, 0, 0)
@@ -223,11 +298,14 @@ spice.load_standard_kernels()
 
 # Load Mars Express mission kernels
 kernel_count = 0
-for kernel in os.listdir(KERNELS_FOLDER):
-    if not kernel.startswith('.'):
-        kernel_path = os.path.join(KERNELS_FOLDER, kernel)
-        spice.load_kernel(kernel_path)
-        kernel_count += 1
+if os.path.exists(KERNELS_FOLDER):
+    for kernel in os.listdir(str(KERNELS_FOLDER)):
+        if not kernel.startswith('.'):
+            kernel_path = os.path.join(str(KERNELS_FOLDER), kernel)
+            spice.load_kernel(kernel_path)
+            kernel_count += 1
+else:
+    print(f"Warning: MEX kernel directory not found at {KERNELS_FOLDER}")
 
 print(f"✓ Loaded {kernel_count} mission-specific kernels")
 
@@ -310,6 +388,18 @@ body_settings.get(SPACECRAFT_NAME).rotation_model_settings = environment_setup.r
 # Add ground stations
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 
+# Load weather data into ground station settings before creating the bodies
+weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
+for station_code, weather_files in weather_dict.items():
+    environment_setup.ground_station.set_estrack_weather_data_in_ground_station_settings(
+        body_settings.get("Earth").ground_station_settings,
+        weather_files,
+        code_to_site(station_code),
+    )
+use_troposphere_corrections = bool(weather_dict) and os.path.exists(VMF_FILE)
+if not use_troposphere_corrections:
+    print("No complete weather/VMF data found; running without tropospheric light-time corrections.")
+
 # Create the complete system
 bodies = environment_setup.create_system_of_bodies(body_settings)
 
@@ -338,10 +428,6 @@ print("Preparing for IFMS data processing...")
 ifms_station_residuals = {}
 processed_ifms_count = 0
 
-# Frequency bands used
-reception_band = FrequencyBands.x_band
-transmission_band = FrequencyBands.x_band
-
 # Get IFMS files
 ifms_files = []
 if os.path.exists(IFMS_FOLDER):
@@ -368,12 +454,6 @@ antenna_ephemeris = environment_setup.ephemeris.create_ephemeris(
 
 time_scale_converter = time_representation.default_time_scale_converter()
 
-# Load weather data into ground stations
-weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
-for station_code in weather_dict.keys():
-    weather_files = weather_dict[station_code]
-    data.set_estrack_weather_data_in_ground_stations(bodies, weather_files, code_to_site(station_code))
-
 print("✓ Antenna ephemeris configured")
 print("✓ Weather data loaded into ground stations")
 
@@ -399,10 +479,6 @@ processed_fdets_count = 0
 
 # FDETS configuration
 base_frequency = 8412e6
-column_types = [
-    "utc_datetime_string", "signal_to_noise_ratio", "normalised_spectral_max",
-    "doppler_measured_frequency_hz", "doppler_noise_hz"
-]
 
 # Station name mapping
 station_mapping = {
@@ -427,10 +503,16 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     print(f"[{ifms_idx}/{len(ifms_files)}] Processing {transmitting_station_name}...")
 
     # Load IFMS observations
-    ifms_collection = observations_setup.observations_wrapper.observations_from_ifms_files(
-        [ifms_file], bodies, SPACECRAFT_NAME, transmitting_station_name,
-        reception_band, transmission_band
+    tracking_data, supplementary_data = read_ifms_data(
+        [ifms_file],
+        SPACECRAFT_NAME,
+        [transmitting_station_name],
+        frequency_bands=[1.0, 1.0],
+        reception_reference_frequency_band=1.0,
+        doppler_reference_frequency=0.0,
     )
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    ifms_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
     # Filter by time window
     time_filter = observations.observations_processing.observation_filter(
@@ -446,20 +528,22 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         continue
 
     # Set reference point to antenna
+    ifms_antenna_name = f"Antenna_IFMS_{ifms_idx}"
     ifms_collection.set_reference_point(
-        bodies, antenna_ephemeris, "Antenna", "MEX", links.retransmitter
-    )
-
-    # Configure troposphere corrections
-    observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
-        [VMF_FILE], True, False, bodies, False, True
+        bodies, antenna_ephemeris, ifms_antenna_name, "MEX", links.retransmitter
     )
 
     # Define light-time corrections
     light_time_corrections = [
-        observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"]),
-        observable_models_setup.light_time_corrections.saastamoinen_tropospheric_light_time_correction()
+        observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
     ]
+    if use_troposphere_corrections:
+        observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
+            [VMF_FILE], True, False, bodies, False, True
+        )
+        light_time_corrections.append(
+            observable_models_setup.light_time_corrections.saastamoinen_tropospheric_light_time_correction()
+        )
 
     # Create observation models
     doppler_link_ends = ifms_collection.link_definitions_per_observable[
@@ -483,7 +567,6 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     observations.compute_residuals_and_dependent_variables(
         ifms_collection, observation_simulators, bodies
     )
-
     # Filter outliers
     residual_filter = observations.observations_processing.observation_filter(
         observations.observations_processing.ObservationFilterType.residual_filtering, 0.1
@@ -549,10 +632,18 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         print(f"  Processing FDETS: {site_name}...")
 
         # Load FDETS observations
-        fdets_collection = observations_setup.observations_wrapper.observations_from_fdets_files(
-            fdets_file, base_frequency, column_types, SPACECRAFT_NAME,
-            transmitting_station_name, site_name, reception_band, transmission_band
+        tracking_data, supplementary_data = read_fdets_data(
+            [fdets_file],
+            [base_frequency],
+            FdetDateFormat.datetime_string,
+            SPACECRAFT_NAME,
+            [transmitting_station_name],
+            [site_name],
         )
+        observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+        for tracking_data_set in tracking_data:
+            tracking_data_set.add_double_vector_ancillary_setting("frequency bands", [1.0, 1.0])
+        fdets_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
         fdets_collection.filter_observations(time_filter_based_on_ifms)
         fdets_collection.remove_empty_observation_sets()
@@ -561,15 +652,16 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
             continue
 
         # Define link
+        fdets_antenna_name = f"Antenna_FDETS_{ifms_idx}_{site_name}"
         link_ends_fdets = {
             links.receiver: links.body_reference_point_link_end_id('Earth', site_name),
-            links.retransmitter: links.body_reference_point_link_end_id('MEX', 'Antenna'),
+            links.retransmitter: links.body_reference_point_link_end_id('MEX', fdets_antenna_name),
             links.transmitter: links.body_reference_point_link_end_id('Earth', transmitting_station_name),
         }
         link_definition_fdets = links.LinkDefinition(link_ends_fdets)
 
         fdets_collection.set_reference_point(
-            bodies, antenna_ephemeris, "Antenna", "MEX", links.retransmitter
+            bodies, antenna_ephemeris, fdets_antenna_name, "MEX", links.retransmitter
         )
 
         # Create observation model

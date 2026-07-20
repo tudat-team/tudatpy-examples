@@ -34,7 +34,7 @@ from matplotlib import pyplot as plt
 
 
 # Load tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import element_conversion
@@ -43,7 +43,7 @@ from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
 
 
-"""
+r"""
 ## Aerodynamic guidance class
 
 First of all, let's  create a class that contains the aerodynamic guidance. This class needs to be inherited from `propagation.AerodynamicGuidance`.

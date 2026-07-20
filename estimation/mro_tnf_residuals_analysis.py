@@ -22,16 +22,17 @@ import shutil
 import numpy as np
 from matplotlib import pyplot as plt
 from datetime import datetime
+from pathlib import Path
 from urllib.request import urlretrieve
 
 
 
 # Load required tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
-from tudatpy.data.processTrk234 import Trk234Processor
+from tudatpy.data_input.tracking_data.tnf import TnfTrackingDataProcessor
 
 from tudatpy.dynamics import environment_setup
 from tudatpy import estimation
@@ -168,12 +169,22 @@ def get_mro_files(local_path, start_date, end_date):
     # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
     tnf_files = download_url_files_time(
         local_path=local_path,
-        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
+        filename_format=r"mromagr*_\w\w\w\wxmmmv1.tnf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,
         time_format="%Y_%j",
         indices_date_filename=[7],
+    )
+
+    # Rebuild the list from the populated cache so that multiple tracking sessions
+    # on the same day are retained consistently on both first and cached runs.
+    tnf_files = sorted(
+        str(file)
+        for file in Path(local_path).glob("mromagr*.tnf")
+        if start_date
+        <= datetime.strptime(file.name[7:15], "%Y_%j")
+        <= end_date
     )
 
     # Print the name of all relevant TNF files that have been identified over the time interval of interest
@@ -500,11 +511,17 @@ def perform_residuals_analysis(inputs):
         # For the latest TNF data set, this might imply stepping outside the time interval that the loaded spice kernels cover.
         tnf_files = tnf_files[:-1]
 
-        tnfProcessor = Trk234Processor(
+        tnfProcessor = TnfTrackingDataProcessor(
             tnf_files, ["doppler", "range"], spacecraft_name="MRO"
         )
-        original_odf_observations = tnfProcessor.process()
-        tnfProcessor.set_tnf_information_in_bodies(bodies)
+        tracking_data, supplementary_data = tnfProcessor.process()
+        observations.set_tracking_supplementary_data_in_bodies(
+            bodies, supplementary_data
+        )
+        tnfProcessor.set_transponder_turnaround_ratio(bodies)
+        original_odf_observations = observations.create_observation_collection_from_tracking_data(
+            tracking_data, bodies
+        )
 
         # Filter out observations on dates when orientation kernels are incomplete
         dates_to_filter_float = []
@@ -540,7 +557,7 @@ def perform_residuals_analysis(inputs):
         original_odf_observations.print_observation_sets_start_and_size()
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = observations_setup.observations_wrapper.create_compressed_doppler_collection(
+        compressed_observations = observations.create_compressed_doppler_collection(
             original_odf_observations, 60, 10
         )
         print("Compressed observations: ")
@@ -987,6 +1004,14 @@ setup_outputs_folder("outputs")
 # Specify the number of cores over which this example is to run
 nb_cores = 6
 
+example_directory = (
+    Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+)
+default_mro_archive = example_directory / "mro_kernels"
+mro_kernel_path = Path(os.environ.get("MRO_KERNELS_DIR", default_mro_archive))
+mro_kernel_path.mkdir(parents=True, exist_ok=True)
+mro_kernel_path_string = str(mro_kernel_path) + os.sep
+
 # Define start and end dates for the six time intervals to be analysed in parallel computations.
 # Each parallel run covers two months of data for the example to parse a total timespan of one year.
 start_dates = [
@@ -1019,7 +1044,7 @@ for i in range(nb_cores):
         trajectory_files,
         frames_def_file,
         structure_file,
-    ) = get_mro_files("mro_kernels/", start_dates[i], end_dates[i])
+    ) = get_mro_files(mro_kernel_path_string, start_dates[i], end_dates[i])
 
     # Construct a list of input arguments containing the arguments needed this specific parallel run.
     # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
@@ -1408,8 +1433,5 @@ for obsName in ["range", "doppler"]:
     ax1.set_xlabel("Time [hours]")
     fig3.tight_layout()
     ax1.set_title("Residuals over one day")
-
-plt.show()
-
 
 plt.show()

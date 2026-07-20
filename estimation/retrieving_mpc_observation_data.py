@@ -19,23 +19,36 @@ The following asteroids will be used in the example:
 
 """
 ### Import statements
-In this example we do not perform an estimation, as such we only need the `BatchMPC`  class from `data` , `environment_setup`  and `observation`  to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation ouput and load the standard `SPICE` kernels.
+In this example we do not perform an estimation, as such we only need the `BatchMPC` class from `data_input.tracking_data.mpc`, `environment_setup` and `observation` to convert our observations to Tudat and optionally datetime to filter our batch. We will also use the **Tudat Horizons** interface to compare observation output and load the standard `SPICE` kernels.
 """
 
 
-from tudatpy.data.mpc import BatchMPC
-from tudatpy.interface import spice
+from tudatpy.data_input.tracking_data.mpc import BatchMPC
+from tudatpy.data_input.environment_data import spice
+from tudatpy.astro import time_representation
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
 from tudatpy.estimation import observable_models_setup, observable_models, observations_setup, observations, estimation_analysis
 
 
-from tudatpy.data.horizons import HorizonsQuery
+from tudatpy.data_input.environment_data.horizons import HorizonsQuery
 
 from datetime import datetime
+import os
 import numpy as np
 import matplotlib.pyplot as plt
-from astroquery.mpc import MPC
+
+
+def utc_seconds_to_tdb(utc_seconds):
+    time_scale_converter = time_representation.default_time_scale_converter()
+    return [
+        time_scale_converter.convert_time(
+            input_scale=time_representation.utc_scale,
+            output_scale=time_representation.tdb_scale,
+            input_value=float(epoch),
+        )
+        for epoch in utc_seconds
+    ]
 
 
 # Load spice kernels
@@ -70,13 +83,13 @@ We can also directly have a look at the the observations themselves. For example
 """
 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
-obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
+obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
 
 print("Initial and Final Observations by TESS")
-print(obs_by_TESS)
+print(obs_by_TESS.iloc[[0, -1]] if not obs_by_TESS.empty else "No TESS observations in this batch.")
 print("Initial and Final Observations by WISE")
-print(obs_by_WISE)
+print(obs_by_WISE.iloc[[0, -1]] if not obs_by_WISE.empty else "No WISE observations in this batch.")
 
 
 """
@@ -99,7 +112,7 @@ batch1.summary()
 
 """
 ### Set up the system of bodies
-A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](estimation_with_mpc.ipynb) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used in the `to_tudat()` method.
+A **system of bodies** must be created to keep observatories' positions consistent with Earth's shape model and to allow the attachment of these observatories to Earth. For the purposes of this example, we keep it as simple as possible. See the [Estimation with MPC](estimation_with_mpc.ipynb) for a more complete setup and explanation appropriate for estimation. For our bodies, we only use **Earth and the Sun**. We set our origin to `"SSB"`, the solar system barycenter. We use the default body settings from the `SPICE` kernel to initialise the planet and use it to create a system of bodies. This system of bodies is used when converting the loaded tracking data to an observation collection.
 """
 
 
@@ -110,6 +123,11 @@ global_frame_origin = "SSB"
 global_frame_orientation = "J2000"
 body_settings = environment_setup.get_default_body_settings(
     bodies_to_create, global_frame_origin, global_frame_orientation)
+body_settings.get("Earth").ground_station_settings = (
+    environment_setup.ground_station.optical_telescope_stations()
+)
+for body_name in batch1.MPC_objects:
+    body_settings.add_empty_settings(str(body_name))
 
 # Create system of bodies
 bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -121,23 +139,25 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 
 """
-Now that our batch is ready, we can transform it to a Tudat `ObservationCollection` object using the `to_tudat()` method.
+Now that our batch is ready, we can transform it to Tudat tracking-data objects and then create an `ObservationCollection`.
 
-The `.to_tudat()` does the following for us:
+This does the following for us:
 
 1. Creates an empty body for each minor planet with their MPC code as a name.
 2. Adds this body to the system of bodies inputted to the method.
 3. Retrieves the global position of the terrestrial observatories in the batch and adds these stations to the Tudat environment.
 4. Creates link definitions between each unique terrestrial observatory/ minor planet combination in the batch.
-5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires an additional input.
+5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires the corresponding spacecraft bodies to be present in the environment.
 6. Creates a `SingleObservationSet` object for each unique link that includes all observations for that link.
 7. Returns an `ObservationCollection` object.
 
-If our batch includes space telescopes like WISE and TESS we must either link their Tudat name or exclude them. For now we exclude them by setting `included_satellites` to `None`. The additional features section shows an example of how to link satellites to the `.to_tudat()` method. The `.to_tudat()`method does not alter the batch object itself.
+If our batch includes space telescopes like WISE and TESS, their Tudat bodies must be available when the observation collection is created. The additional features section shows an example of how to add a spacecraft body.
 """
 
 
-observation_collection = batch1.to_tudat(bodies, included_satellites=None, apply_star_catalog_debias = False)
+tracking_data, supplementary_data = batch1.to_tracking_dataset()
+observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
 
 """
@@ -145,13 +165,13 @@ The names of the bodies added to the system of bodies object as well as the date
 """
 
 
-epoch_start = batch1.epoch_start # in seconds since J2000 TDB (Tudat default)
-epoch_end = batch1.epoch_end
+epoch_start = min(utc_seconds_to_tdb(batch1.table.epoch_seconds_UTC)) # in seconds since J2000 TDB (Tudat default)
+epoch_end = max(utc_seconds_to_tdb(batch1.table.epoch_seconds_UTC))
 object_names = batch1.MPC_objects
 
 
 """
-We can now retrieve the links from the ObservationCollection we got from `to_tudat()` and create settings for these links. This is where link biases would be set, for now we just keep the settings default.
+We can now retrieve the links from the `ObservationCollection` and create settings for these links. This is where link biases would be set, for now we just keep the settings default.
 """
 
 
@@ -194,7 +214,7 @@ batch_eros.filter(
 )
 
 # Retrieve MPC observation times, RA and DEC
-batch_times = batch_eros.table.epoch_seconds_TDB.to_list()
+batch_times = utc_seconds_to_tdb(batch_eros.table.epoch_seconds_UTC)
 batch_times_utc = batch_eros.table.epoch_seconds_UTC.to_list()
 batch_RA = batch_eros.table.RA
 batch_DEC = batch_eros.table.DEC
@@ -247,7 +267,7 @@ That's it! Next, check out the [Estimation with MPC](estimation_with_mpc.ipynb) 
 
 """
 ### Using satellite observations.
-Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. This body must then be linked to the MPC code for that space telescope when calling the `to_tudat()` method. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
+Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. The body must then be available in the system of bodies when the observation collection is created. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
 """
 
 
@@ -255,47 +275,32 @@ Space Telescopes in Tudat are treated as bodies instead of stations. To use thei
 # This allows us to add ephemeris settings, 
 # which tudat uses to create an ephemeris which is consistent with the rest of the environment.
 TESS_code = "-95"
-body_settings.add_empty_settings("TESS")
+if os.path.exists("tess_20_year_long_predictive.bsp"):
+    body_settings.add_empty_settings("TESS")
 
-# Set up the space telescope's dynamics, TESS orbits earth
-# the spice kernel can be retrieved from: https://archive.stsci.edu/missions/tess/models/
-spice.load_kernel(r"tess_20_year_long_predictive.bsp")
-body_settings.get("TESS").ephemeris_settings =  environment_setup.ephemeris.direct_spice(
-     "Earth", global_frame_orientation, TESS_code)
+    # Set up the space telescope's dynamics, TESS orbits earth
+    # the spice kernel can be retrieved from: https://archive.stsci.edu/missions/tess/models/
+    spice.load_kernel(r"tess_20_year_long_predictive.bsp")
+    body_settings.get("TESS").ephemeris_settings =  environment_setup.ephemeris.direct_spice(
+         "Earth", global_frame_orientation, TESS_code)
 
-# NOTE this is incorrect, here we are trying to set the ephemeris directly:
-# Setting the ephemeris settings allows tudat to complete the relevant setup for the body. 
-# bodies.create_empty_body("TESS")
-# bodies.get("TESS").ephemeris = environment_setup.ephemeris.direct_spice(
-#      global_frame_origin, global_frame_orientation, TESS_code)
-
-# Create system of bodies
-bodies = environment_setup.create_system_of_bodies(body_settings)
-# create dictionary to link names. MPCcode:NameInTudat
-sats_dict = {"C57":"TESS"}
-
-observation_collection = batch1.to_tudat(bodies, included_satellites=sats_dict, apply_star_catalog_debias = False)
+    # Create system of bodies
+    bodies = environment_setup.create_system_of_bodies(body_settings)
+    tracking_data, supplementary_data = batch1.to_tracking_dataset()
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
+else:
+    print("Skipping optional TESS SPICE example because tess_20_year_long_predictive.bsp is not available.")
 
 
 """
-### Manual retrieval from astroquery
-Those familiar with astroquery (or those who have existing filtering/ retrieval processes) may use the `from_astropy()` and `from_pandas()` methods to still use `to_tudat()` functionality. The input must meet some requirements which can be found in the API documentation, the default format from astroquery fits these requirements.
+### Manual retrieval from existing tables
+Those with existing filtering or retrieval processes may use the `from_astropy()` and `from_pandas()` methods to import tabular observations before converting the batch to Tudat tracking data. The input must meet the requirements described in the API documentation.
 """
 
-
-mpc_code_hypatia = 238
-data = MPC.get_observations(mpc_code_hypatia)
-
-# ...
-# Any additional filtering steps
-# ...
 
 batch2 = BatchMPC()
-batch2.from_astropy(data)
-
-# alternative if pandas is preferred:
-# data_pandas = data.to_pandas()
-# batch2.from_astropy(data_pandas)
+batch2.get_observations([238])
 
 batch2.summary()
 
@@ -340,17 +345,29 @@ The `.plot_observations_sky()` method can be used to view a projection of the ob
 """
 
 
-# Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
-fig = batch1.plot_observations_sky(projection="aitoff")
-# specific objects can be selected for large batches:
-fig = batch1.plot_observations_sky(projection=None, objects=[329]) 
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="aitoff")
+ax.scatter(batch1.table.RA - np.pi, batch1.table.DEC, marker="+")
+ax.grid()
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+object_329 = batch1.table.query("number == '329' or number == 329")
+ax.scatter(object_329.RA, object_329.DEC, marker="+")
+ax.set_xlabel("Right ascension [rad]")
+ax.set_ylabel("Declination [rad]")
 
 plt.show()
 
 
 
 # Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
-fig = batch1.plot_observations_temporal()
+fig, ax = plt.subplots()
+ax.scatter(batch1.table.epoch_seconds_UTC, batch1.table.RA, marker="+", label="Right ascension")
+ax.scatter(batch1.table.epoch_seconds_UTC, batch1.table.DEC, marker="+", label="Declination")
+ax.set_xlabel("Epoch [s since J2000 UTC]")
+ax.set_ylabel("Angle [rad]")
+ax.legend()
 
 plt.show()
 
