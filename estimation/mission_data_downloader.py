@@ -59,7 +59,7 @@ The required modules and dependencies are taken from `tudatpy.data_input.data_re
 
 from datetime import datetime
 
-from tudatpy.data_input.data_retrieval.missions import *
+from tudatpy.data_input.data_retrieval.missions import LoadPDS
 from tudatpy.data_input.environment_data import spice
 
 
@@ -420,6 +420,3 @@ pds_query.get_mission_files(
     custom_output=custom_local_path,
     all_meta_kernel_files=True,
 )
-
-
-plt.show()

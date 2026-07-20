@@ -325,7 +325,7 @@ def run_odf_estimation(inputs):
         # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
-        original_odf_observations = observations.create_observation_collection(
+        original_odf_observations = observations.create_observation_collection_from_tracking_data(
             tracking_data, bodies
         )
 
@@ -353,7 +353,7 @@ def run_odf_estimation(inputs):
         original_odf_observations.print_observation_sets_start_and_size()
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = observations_setup.observations_wrapper.create_compressed_doppler_collection(
+        compressed_observations = observations.create_compressed_doppler_collection(
             original_odf_observations, 60, 10
         )
         print(
@@ -877,6 +877,3 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
-
-
-plt.show()

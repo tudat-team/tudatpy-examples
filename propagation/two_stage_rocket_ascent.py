@@ -171,7 +171,7 @@ bodies_to_propagate = ["Section 1"]
 central_bodies = ["Mars"]
 
 
-"""
+r"""
 #### Thrust model
 Let's now define a thrust class, which will contain all of the functions needed to fully define a custom thrust model.
 

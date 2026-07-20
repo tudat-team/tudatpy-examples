@@ -314,7 +314,7 @@ state_history_simulated_observations = dynamics_simulator.propagation_results.st
 observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
     observation_settings_list, bodies)
 # Get MEX simulated observations as ObservationCollection
-mex_simulated_observations = observations_setup.observations_wrapper.simulate_observations(
+mex_simulated_observations = observations.simulate_observations(
     observation_simulation_settings,
     observation_simulators,
     bodies)

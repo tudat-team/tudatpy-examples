@@ -304,7 +304,7 @@ ephemeris_observation_simulators = observations_setup.observations_simulation_se
     position_observation_settings, bodies)
 # Get ephemeris states as ObservationCollection
 print('Checking ephemerides...')
-ephemeris_satellite_states = observations_setup.observations_wrapper.simulate_observations(
+ephemeris_satellite_states = observations.simulate_observations(
     observation_simulation_settings,
     ephemeris_observation_simulators,
     bodies)

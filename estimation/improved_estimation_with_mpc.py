@@ -30,12 +30,15 @@ from tudatpy.data_input.environment_data.sbdb import SBDBquery
 import numpy as np
 import datetime
 import pandas as pd
+import requests
+import pathlib
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.lines import Line2D
 from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime
+from astropy import units as u
 from astropy.table import Table
 
 # SPICE KERNELS
@@ -109,12 +112,81 @@ print(f"SPK ID for {target_name} is: {target_spkid}")
 """
 ### Eros Ephemeris Uncertainty
 
-Additionally, we will retrieve the published ephemeris uncertainty from JPL Horizons.
-At the moment, this is not directly supported through Tudat interfaces, but will be added in a future release.
-In this case, the ephemeris uncertainty of Eros has been downloaded manually and is provided in the [data/Eros-Ephemeris-Uncertainty.ecsv](data/Eros-Ephemeris-Uncertainty.ecsv) file, using the code in the following `astroquery` PR: https://github.com/astropy/astroquery/pull/3273
+Additionally, we retrieve the published ephemeris uncertainty from JPL Horizons.
+The installed `astroquery` version does not yet expose the required `vec_table`
+parameter, so this example explicitly queries the documented Horizons API when
+the local cache is absent. The result is stored in
+[data/Eros-Ephemeris-Uncertainty.ecsv](data/Eros-Ephemeris-Uncertainty.ecsv)
+for subsequent runs.
 """
 
-uncertainty_file_path = "data/Eros-Ephemeris-Uncertainty.ecsv"
+uncertainty_file_path = pathlib.Path("data/Eros-Ephemeris-Uncertainty.ecsv")
+
+
+def download_ephemeris_uncertainties(
+    target: str, start: datetime.datetime, end: datetime.datetime, output_path: pathlib.Path
+) -> None:
+    """Download Cartesian and RSW 1-sigma uncertainties from JPL Horizons."""
+
+    response = requests.get(
+        "https://ssd.jpl.nasa.gov/api/horizons.api",
+        params={
+            "format": "text",
+            "COMMAND": f"{target};",
+            "EPHEM_TYPE": "VECTORS",
+            "CENTER": "500@0",
+            "START_TIME": start.strftime("%Y-%m-%d"),
+            "STOP_TIME": end.strftime("%Y-%m-%d"),
+            "STEP_SIZE": "30d",
+            "OUT_UNITS": "KM-S",
+            "REF_PLANE": "FRAME",
+            "REF_SYSTEM": "ICRF",
+            "VEC_CORR": "NONE",
+            "VEC_LABELS": "YES",
+            "VEC_DELTA_T": "NO",
+            "CSV_FORMAT": "YES",
+            "VEC_TABLE": "2xarp",
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+
+    try:
+        records = response.text.split("$$SOE", maxsplit=1)[1].split("$$EOE", maxsplit=1)[0]
+    except IndexError as error:
+        raise RuntimeError("JPL Horizons did not return an ephemeris-uncertainty table.") from error
+
+    rows = [
+        [value.strip() for value in record.split(",")]
+        for record in records.splitlines()
+        if record.strip()
+    ]
+    if not rows or any(len(row) < 23 for row in rows):
+        raise RuntimeError("JPL Horizons returned an incomplete ephemeris-uncertainty table.")
+
+    uncertainty_table = Table()
+    uncertainty_table["datetime_jd"] = [float(row[0]) for row in rows]
+    uncertainty_table["datetime_str"] = [row[1] for row in rows]
+    for name, column_index in {
+        "x_s": 8,
+        "y_s": 9,
+        "z_s": 10,
+        "r_s": 20,
+        "t_s": 21,
+        "n_s": 22,
+    }.items():
+        uncertainty_table[name] = [float(row[column_index]) for row in rows] * u.km
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    uncertainty_table.write(output_path, format="ascii.ecsv")
+
+
+if not uncertainty_file_path.is_file():
+    print(f"Downloading JPL Horizons ephemeris uncertainties to {uncertainty_file_path}")
+    download_ephemeris_uncertainties(
+        target_mpc_code, observations_start, observations_end, uncertainty_file_path
+    )
+
 ephemeris_uncertainty_table = Table.read(uncertainty_file_path)
 
 print(", ".join(ephemeris_uncertainty_table.colnames))
@@ -186,13 +258,13 @@ lvl3_extra_bodies = ["999", "Triton", "Titania"]  # here 999 is Pluto in JPL Hor
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
 
 
-file = "SiMDA_240512.csv"
+simda_file_path = pathlib.Path(__file__).with_name("SiMDA_240512.csv")
 
 min_asteroid_mass = 1e20  # kg
 target_int = int(target_mpc_code)
 
 simda = (
-    pd.read_csv(file)
+    pd.read_csv(simda_file_path)
     .iloc[18:]  # the first 18 rows contain comets, which are omitted
     .assign(NUM=lambda x: np.int32(x.NUM))
     .query(
@@ -561,7 +633,7 @@ def perform_estimation(
         add_star_catalog_corrections=apply_star_catalog_debias,
     )
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-    observation_collection = observations.create_observation_collection(tracking_data, bodies)
+    observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
     # Set up the accelerations settings for each body, in this case only Eros
     acceleration_settings = {}
@@ -622,12 +694,6 @@ def perform_estimation(
             maximum_iterations=number_of_pod_iterations,
         ),
     )
-
-    # The tracking-data conversion applies weights to a set of observations between an observatory and the target.
-    # the method below tells tudat to use the weights applied to these sets.
-    # This step is required when setting weights through the BatchMPC class.
-    if apply_weighting_scheme:
-        pod_input.set_weights_from_observation_collection()
 
     # Set methodological options
     pod_input.define_estimation_settings(reintegrate_variational_equations=True)
@@ -840,7 +906,7 @@ def plot_cartesian(
     axs[2].set_xlabel("Year")
 
     fig.suptitle(f"Error vs {comparison_reference.upper()} over time for {target_name}")
-    fig.set_tight_layout(True)
+    fig.set_layout_engine("tight")
 
     return fig, axs
 
@@ -886,21 +952,21 @@ def add_uncertainty_table_to_cartesian_plot(
         np.array([jpl_uncertainties_km[:, 0], -jpl_uncertainties_km[:, 0]]).T,
         linestyle="--",
         color="black",
-        label="JPL $\pm 3\sigma$ uncertainty",
+        label=r"JPL $\pm 3\sigma$ uncertainty",
     )
     axs[1].plot(
         jpl_uncertainty_epochs_year,
         np.array([jpl_uncertainties_km[:, 1], -jpl_uncertainties_km[:, 1]]).T,
         linestyle="--",
         color="black",
-        label="JPL $\pm 3\sigma$ uncertainty",
+        label=r"JPL $\pm 3\sigma$ uncertainty",
     )
     axs[2].plot(
         jpl_uncertainty_epochs_year,
         np.array([jpl_uncertainties_km[:, 2], -jpl_uncertainties_km[:, 2]]).T,
         linestyle="--",
         color="black",
-        label="JPL $\pm 3\sigma$ uncertainty",
+        label=r"JPL $\pm 3\sigma$ uncertainty",
     )
 
 
@@ -919,7 +985,7 @@ def add_formal_error_to_cartesian_single_plot(
             sigma_level * formal_errors[:, i] / 1e3,
             linestyle="--",
             color=cm.tab10(i),
-            label=f"$\pm {sigma_level}\sigma$ Formal Error {labels[i]}",
+            label=rf"$\pm {sigma_level}\sigma$ Formal Error {labels[i]}",
             )
         ax.plot(
             times_plot,
@@ -1022,21 +1088,22 @@ def plot_cartesian_single(
 
     ax.set_title(f"Error vs {comparison_reference.upper()} over time for {target_name}")
     fig.suptitle(f"Setup: {setup_name}")
-    # fig.set_tight_layout(True)
+    # fig.set_layout_engine("tight")
 
     return fig, ax
 
 
 def plot_star_catalog_corrections(
-        mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 6)
+        tracking_data_objects, include_satellites: bool = True, figsize=(9, 6)
 ):
     """
     Plot star catalog RA/DEC corrections per observation with optional satellite observations.
 
     Parameters
     ----------
-    mpc_batch : BatchMPC
-        Batch containing table with epoch [Julian Days] 'epoch_seconds_TDB', 'epoch_seconds_UTC','corr_RA_EFCC18', 'corr_DEC_EFCC18', 'note2'.
+    tracking_data_objects : list[TrackingData]
+        Optical tracking data containing epochs, star-catalog corrections, and
+        the original MPC ``note2`` field as ancillary data.
     include_satellites : bool, optional
         Whether to include satellite observations, by default True
     figsize : tuple, optional
@@ -1048,21 +1115,31 @@ def plot_star_catalog_corrections(
         Figure, RA axis, Dec axis, RA histogram, Dec histogram
     """
 
-    if not {"corr_RA_EFCC18", "corr_DEC_EFCC18"}.issubset(mpc_batch.table.columns):
-        print("Skipping star-catalog correction plot because correction columns are not stored in BatchMPC.table.")
-        fig, ax = plt.subplots(figsize=figsize)
-        return fig, ax, ax, ax, ax
-
-    # Extract data
-    if include_satellites:
-        epochsUTC = mpc_batch.table["epoch_seconds_UTC"].values
-        ra_corrections = mpc_batch.table["corr_RA_EFCC18"].values
-        dec_corrections = mpc_batch.table["corr_DEC_EFCC18"].values
-    else:
-        mask = mpc_batch.table["note2"] != "S"
-        epochsUTC = mpc_batch.table["epoch_seconds_UTC"][mask].values
-        ra_corrections = mpc_batch.table["corr_RA_EFCC18"][mask].values
-        dec_corrections = mpc_batch.table["corr_DEC_EFCC18"][mask].values
+    epochsUTC = np.concatenate(
+        [
+            np.asarray([float(epoch) for epoch in data.epochs])
+            for data in tracking_data_objects
+        ]
+    )
+    corrections = np.vstack(
+        [np.asarray(data.get_observation_corrections()) for data in tracking_data_objects]
+    )
+    note2 = np.concatenate(
+        [
+            np.asarray(data.get_ancillary_settings_string_vector()["note2"])
+            for data in tracking_data_objects
+        ]
+    )
+    chronological_order = np.argsort(epochsUTC)
+    epochsUTC = epochsUTC[chronological_order]
+    corrections = corrections[chronological_order]
+    note2 = note2[chronological_order]
+    if not include_satellites:
+        mask = note2 != "S"
+        epochsUTC = epochsUTC[mask]
+        corrections = corrections[mask]
+    ra_corrections = corrections[:, 0]
+    dec_corrections = corrections[:, 1]
 
     # Convert epochs to ISO strings (YYYY-MM-DD)
     iso_labels = [DateTime.from_epoch(t).to_iso_string()[:10] for t in epochsUTC]
@@ -1073,7 +1150,13 @@ def plot_star_catalog_corrections(
     # Set up figure and GridSpec
     fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = gridspec.GridSpec(
-        2, 2, width_ratios=[4, 1], height_ratios=[1, 1], hspace=0.1, wspace=0.05
+        2,
+        2,
+        figure=fig,
+        width_ratios=[4, 1],
+        height_ratios=[1, 1],
+        hspace=0.1,
+        wspace=0.05,
     )
 
     ax1 = fig.add_subplot(gs[0, 0])
@@ -1111,15 +1194,16 @@ def plot_star_catalog_corrections(
     return fig, ax1, ax2, hist1, hist2
 
 def plot_observation_weights(
-        mpc_batch, include_satellites: bool = True, figsize=(9, 4)
+        tracking_data_objects, include_satellites: bool = True, figsize=(9, 4)
 ):
     """
     Plot observation weights per RA/DEC pair with optional satellite observations.
 
     Parameters
     ----------
-    mpc_batch : BatchMPC
-        Batch containing table with 'epoch_seconds_UTC', 'weight', and 'note2'.
+    tracking_data_objects : list[TrackingData]
+        Optical tracking data containing epochs, weights, and the original MPC
+        ``note2`` field as ancillary data.
     include_satellites : bool, optional
         Whether to include satellite observations, by default True
     figsize : tuple, optional
@@ -1131,22 +1215,52 @@ def plot_observation_weights(
         Figure, main scatter axis, histogram axis
     """
 
-    if "weight" not in mpc_batch.table.columns:
-        print("Skipping observation-weight plot because weights are stored in the observation collection, not BatchMPC.table.")
-        fig, ax = plt.subplots(figsize=figsize)
-        return fig, ax, ax
+    epochsUTC = np.concatenate(
+        [
+            np.asarray([float(epoch) for epoch in data.epochs])
+            for data in tracking_data_objects
+        ]
+    )
+    def primary_observation_weights(data):
+        weights_array = np.asarray(data.get_observation_weights(), dtype=float)
+        return weights_array if weights_array.ndim == 1 else weights_array[:, 0]
+
+    weights_per_data = [
+        primary_observation_weights(data) for data in tracking_data_objects
+    ]
+    if any(weights_array.size == 0 for weights_array in weights_per_data):
+        print(
+            "Skipping observation-weight plot: the current TrackingData API stores "
+            "the weighting scheme, while weights are realized only in the "
+            "ObservationCollection used for estimation."
+        )
+        return None, None, None
+
+    weights = np.concatenate(
+        weights_per_data
+    )
+    note2 = np.concatenate(
+        [
+            np.asarray(data.get_ancillary_settings_string_vector()["note2"])
+            for data in tracking_data_objects
+        ]
+    )
+    chronological_order = np.argsort(epochsUTC)
+    epochsUTC = epochsUTC[chronological_order]
+    weights = weights[chronological_order]
+    note2 = note2[chronological_order]
 
     # Extract regular and satellite observations
-    reg_mask = mpc_batch.table["note2"] != "S"
-    sat_mask = mpc_batch.table["note2"] == "S"
+    reg_mask = note2 != "S"
+    sat_mask = note2 == "S"
 
-    reg_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][reg_mask].values
-    reg_weights = mpc_batch.table["weight"][reg_mask].values
+    reg_epochsUTC = epochsUTC[reg_mask]
+    reg_weights = weights[reg_mask]
     reg_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in reg_epochsUTC]  # YYYY-MM-DD
 
     if include_satellites:
-        sat_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][sat_mask].values
-        sat_weights = mpc_batch.table["weight"][sat_mask].values
+        sat_epochsUTC = epochsUTC[sat_mask]
+        sat_weights = weights[sat_mask]
         sat_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in sat_epochsUTC]
 
     # Numeric x-axis for plotting
@@ -1155,7 +1269,7 @@ def plot_observation_weights(
         sat_x = np.arange(len(sat_epochsUTC)) + len(reg_x)  # offset to avoid overlap
 
     # Set up figure and GridSpec
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize, layout="constrained")
     gs = gridspec.GridSpec(1, 2, width_ratios=[4, 1], wspace=0.05)
     ax = fig.add_subplot(gs[0])
     hist_ax = fig.add_subplot(gs[1])
@@ -1198,7 +1312,6 @@ def plot_observation_weights(
     ax.set_ylabel(r"Weight $[rad^{-1}]$")
     ax.grid()
     fig.suptitle("Observation Weights per RA/DEC pair")
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     return fig, ax, hist_ax
 
@@ -1274,20 +1387,24 @@ Before running the next round, lets have a quick look at the star catalog correc
 
 Star catalogs are large databases of distant celestial objects (mainly stars) featuring details about their position, motion and other properties. Catalogs are used as reference when making observations of objects such as asteroids. Many different catalogs exist each with slightly varying contents and accuracy. The Gaia space telescope, launched in 2013, was designed specifically to measure celestial objects with unprecedented precision. The emergence of the resulting Gaia star catalogs (first appearing in 2016) has made all previous catalogs obsolete, however, observations made with older catalogs still contain their errors. These errors are corrected per observation by enabling the `add_star_catalog_corrections` option in `BatchMPC.to_tracking_dataset()`.
 
-Additionally, not all observations have the same quality, to account for this we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme which is enabled in Tudat using the `add_weights` option in `BatchMPC.to_tracking_dataset()` and subsequently retrieving the weights in the pod_input using `pod_input.set_weights_from_observation_collection()`.
+Additionally, not all observations have the same quality, so we use weights to increase the effect of quality observations in our estimation. Specific observatories may have a higher accuracy, and individual observatories may improve their observation quality over time. Having too many observations by a single observatory in a short space of time may also introduce a heavy bias in the estimation. The work by Veres et al analyses the most prolific observatories to generate a weighting scheme, which is enabled in Tudat using the `add_weights` option in `BatchMPC.to_tracking_dataset()`. The resulting weights are stored in the observation collection and are used automatically by the estimation input.
 `
 
-The plots below show star catalog corrections and observation weights for the observation period. Note in the star catalog correction graph how the number of corrections required (non-zero points) quickly reduces after 2016 once operators start implementing GAIA. Note also how a large clump of satellite observations in 2021 gets deweighted to prevent bias towards the satellite.
+The plot below shows star catalog corrections for the observation period. Note how the number of corrections required (non-zero points) quickly reduces after 2016 once operators start implementing GAIA. The current tracking-data API retains the selected weighting scheme, while materializing numerical weights only in the observation collection used by the estimator, so the historical per-observation weight plot is skipped.
 """
 
 
 temp = batch.copy()
-temp.to_tracking_dataset(add_weights=True, add_star_catalog_corrections=True)
+temp_tracking_data, _ = temp.to_tracking_dataset(
+    add_weights=True,
+    add_star_catalog_corrections=True,
+    add_ancillary_data=True,
+)
 # mark weights red if it is a satellite observation
 
-plot_star_catalog_corrections(temp)
+plot_star_catalog_corrections(temp_tracking_data)
 
-plot_observation_weights(temp, include_satellites=False)
+plot_observation_weights(temp_tracking_data, include_satellites=False)
 
 
 """
@@ -1431,11 +1548,12 @@ fig, ax = plot_cartesian_single(
 We can also add the formal errors of our solution to the previous plots.
 In order to do that, we propagate our covariance to the output epochs, transform it to the Eros-RSW frame and then compute the corresponding formal errors from the covariance.
 """
-_, covariance_history = estimation.estimation_analysis.propagate_covariance_split_output(
+propagated_covariances = estimation.estimation_analysis.propagate_covariance(
     final_pod_output.covariance,
     final_estimator.state_transition_interface,
     times_get_eph,
 )
+covariance_history = list(propagated_covariances.values())
 
 
 inertial_to_rsw_state_rotation_matrices = []
@@ -1511,7 +1629,7 @@ ax.set_ylabel("Estimated Parameter")
 
 fig.suptitle(f"Correlations for estimated parameters for {target_name}")
 
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 
 
 """
@@ -1629,7 +1747,7 @@ overall_rms_dec_prefit = np.sqrt(np.mean(prefitresiduals[1::2]**2))
 axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_prefit*1e6:.2f}")
 axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_prefit*1e6:.2f}")
 fig.suptitle(f"Pre-Fit Residuals for {target_name}")
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 
 plt.show()
 
@@ -1693,7 +1811,7 @@ overall_rms_dec_postfit = np.sqrt(np.mean(finalresiduals[1::2]**2))
 axs[0].set_title(f"Right Ascension, Overall RMS: {overall_rms_ra_postfit*1e6:.2f}")
 axs[1].set_title(f"Declination, Overall RMS: {overall_rms_dec_postfit*1e6:.2f}")
 fig.suptitle(f"Post-fit residuals for {target_name}")
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 plt.show()
 ######## POSTFIT RESIDUALS PLOTTING ################
 
@@ -1758,7 +1876,7 @@ axs[0].legend()
 fig.suptitle(
     f"Final residual histograms of the {num_observatories} observatories with the most observations for {target_name}"
 )
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 plt.show()
 
 
@@ -1771,11 +1889,13 @@ Since these plots are specifically tailored to the paper format, they contain a 
 """
 
 
-fig, _, _, _, _ = plot_star_catalog_corrections(temp, figsize=(6, 4))
+fig, _, _, _, _ = plot_star_catalog_corrections(temp_tracking_data, figsize=(6, 4))
 
 # fig.savefig("Eros_observation_weights_per_RA_DEC_pair.pdf")
 
-fig, _, _ = plot_observation_weights(temp, include_satellites=False, figsize=(6, 4))
+fig, _, _ = plot_observation_weights(
+    temp_tracking_data, include_satellites=False, figsize=(6, 4)
+)
 # fig.savefig("Eros_star_catalog_corrections.pdf")
 
 

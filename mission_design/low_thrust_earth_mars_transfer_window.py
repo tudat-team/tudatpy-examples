@@ -10,7 +10,7 @@ a copy of the license with this file. If not, please or visit:
 http://tudat.tudelft.nl/LICENSE.
 """
 
-"""
+r"""
 ## Objectives
 
 This example demonstrates the usage of the tudatpy `porkchop` module to determine an optimal launch window (departure and arrival date) for a **low-thrust** Earth-Mars transfer mission.
@@ -370,7 +370,7 @@ def create_hodographic_trajectory(
     return trajectory_object
 
 
-"""
+r"""
 Create function to obtain transfer $\Delta V$
 """
 
@@ -472,7 +472,7 @@ Generating a high-resolution plot may be time-consuming: reusing saved data migh
 
 
 # File
-data_file = 'porkchop.pkl'
+data_file = 'porkchop_low_thrust.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
 RECALCULATE_delta_v = input(
@@ -481,7 +481,7 @@ RECALCULATE_delta_v = input(
 print()
 
 
-"""
+r"""
 Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
  
 - The optimal departure-arrival date combination
@@ -501,18 +501,16 @@ if not os.path.isfile(data_file) or RECALCULATE_delta_v:
         earliest_arrival_time,
         latest_arrival_time,
         time_resolution,
-        function_to_calculate_delta_v=hodographic_low_thrust_trajectory_delta_v
+        function_to_calculate_delta_v=hodographic_low_thrust_trajectory_delta_v,
+        threshold=60,
     )
     # Save data
-    pickle.dump(
-        [departure_epochs, arrival_epochs, ΔV],
-        open(data_file, 'wb')
-    )
+    with open(data_file, 'wb') as output_file:
+        pickle.dump([departure_epochs, arrival_epochs, ΔV], output_file)
 else:
     # Read saved data
-    [departure_epochs, arrival_epochs, ΔV] = pickle.load(
-        open(data_file, 'rb')
-    )
+    with open(data_file, 'rb') as input_file:
+        [departure_epochs, arrival_epochs, ΔV] = pickle.load(input_file)
     # Plot saved data
     plot_porkchop(
         departure_body   = departure_body,
@@ -524,7 +522,7 @@ else:
     )
 
 
-"""
+r"""
 ### Variations
 
 The Tudat `porkchop` module allows us to
@@ -553,7 +551,7 @@ for case in cases:
     )
 
 
-"""
+r"""
 # Verification
 
 Interestingly, discontinuities appear in the $\Delta V$/$C_3$ porkchop. To ensure that the porkchop can be trusted -that it is possible to choose a transfer window based on our porkchop-, we will proceed to investigate two transfers:
@@ -863,11 +861,11 @@ def inspect_low_thrust_trajectory(
 
     # Plot Earth trajectory
     ax5.plot(earth_x, earth_y, earth_z, color='#78c4ff')
-    ax5.scatter(earth_x[0], earth_y[0], earth_z[0], label='Earth, $t_0$', marker='$\Lambda$', s=100, color='#1f9eff')
+    ax5.scatter(earth_x[0], earth_y[0], earth_z[0], label='Earth, $t_0$', marker=r'$\Lambda$', s=100, color='#1f9eff')
 
     # Plot Mars trajectory
     ax5.plot(mars_x, mars_y, mars_z, color='#f04848')
-    ax5.scatter(mars_x[-1], mars_y[-1], mars_z[-1], label='Mars, $t_f$', marker='$\Gamma$', s=100, color='#c93232')
+    ax5.scatter(mars_x[-1], mars_y[-1], mars_z[-1], label='Mars, $t_f$', marker=r'$\Gamma$', s=100, color='#c93232')
 
     # Plot the 3D trajectories
     ax5.plot(x_analytical, y_analytical, z_analytical)
@@ -903,7 +901,7 @@ def inspect_low_thrust_trajectory(
     plt.show()
 
 
-"""
+r"""
 ## Observations and conclusions
 
 Notice that there is a change in the number of revolutions around the Sun between the two transfers: the low $\Delta V$ transfer has close to 3 revolutions around the Sun, while the high $\Delta V$ transfer greatly "stretches" its second revolution around the Sun to reach Mars. This is expected as the chosen number of revolutions (2) allows trajectories with between 2 and 3 revolutions around the Sun: thus, a discontinuity appears as trajectories approach 3 revolutions, and are from that point on forced to use 2; this is the case for the high $\Delta V$ trajectory.
@@ -914,7 +912,7 @@ Next steps in mission design should be the optimization of the shaping function 
 
 """
 
-"""
+r"""
 **Low $\Delta V$ trajectory**
 """
 
@@ -925,7 +923,7 @@ inspect_low_thrust_trajectory(
 )
 
 
-"""
+r"""
 **High $\Delta V$ trajectory**
 """
 
@@ -934,6 +932,3 @@ inspect_low_thrust_trajectory(
     DateTime(2016,10,22),
     DateTime(2021,1,21)
 )
-
-
-plt.show()

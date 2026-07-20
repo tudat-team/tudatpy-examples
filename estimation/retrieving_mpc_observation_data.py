@@ -157,7 +157,7 @@ If our batch includes space telescopes like WISE and TESS, their Tudat bodies mu
 
 tracking_data, supplementary_data = batch1.to_tracking_dataset()
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-observation_collection = observations.create_observation_collection(tracking_data, bodies)
+observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
 
 """
@@ -288,7 +288,7 @@ if os.path.exists("tess_20_year_long_predictive.bsp"):
     bodies = environment_setup.create_system_of_bodies(body_settings)
     tracking_data, supplementary_data = batch1.to_tracking_dataset()
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-    observation_collection = observations.create_observation_collection(tracking_data, bodies)
+    observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 else:
     print("Skipping optional TESS SPICE example because tess_20_year_long_predictive.bsp is not available.")
 

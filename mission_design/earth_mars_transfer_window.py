@@ -1,4 +1,4 @@
-"""
+r"""
 # Earth-Mars transfer window design using Porkchop Plots
 Copyright (c) 2010-2023, Delft University of Technology
 All rigths reserved
@@ -30,6 +30,7 @@ The required import statements are made here, starting with standard imports (`o
 # General imports
 import os
 import pickle
+from matplotlib import pyplot as plt
 
 # Tudat imports
 from tudatpy import constants
@@ -99,7 +100,7 @@ Generating a high-resolution plot may be time-consuming: reusing saved data migh
 
 
 # File
-data_file = 'porkchop.pkl'
+data_file = 'porkchop_lambert.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
 RECALCULATE_delta_v = input(
@@ -108,7 +109,7 @@ RECALCULATE_delta_v = input(
 print()
 
 
-"""
+r"""
 Lastly, we call the `porkchop` function, which will calculate the $\Delta V$ required at each departure-arrival coordinate and display the plot, giving us
 
 - The optimal departure-arrival date combination
@@ -130,15 +131,12 @@ if not os.path.isfile(data_file) or RECALCULATE_delta_v:
         time_resolution
     )
     # Save data
-    pickle.dump(
-        [departure_epochs, arrival_epochs, ΔV],
-        open(data_file, 'wb')
-    )
+    with open(data_file, 'wb') as output_file:
+        pickle.dump([departure_epochs, arrival_epochs, ΔV], output_file)
 else:
     # Read saved data
-    [departure_epochs, arrival_epochs, ΔV] = pickle.load(
-        open(data_file, 'rb')
-    )
+    with open(data_file, 'rb') as input_file:
+        [departure_epochs, arrival_epochs, ΔV] = pickle.load(input_file)
     # Plot saved data
     plot_porkchop(
         departure_body   = departure_body,
@@ -150,7 +148,7 @@ else:
     )
 
 
-"""
+r"""
 ### Variations
 The Tudat `porkchop` module allows us to
 

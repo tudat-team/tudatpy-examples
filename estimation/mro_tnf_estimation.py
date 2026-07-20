@@ -1,3 +1,4 @@
+
 # %%
 import os
 import pickle
@@ -6,6 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import multiprocessing
 from matplotlib import pyplot as plt
+from pathlib import Path
 
 
 from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
@@ -13,7 +15,10 @@ from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
 from tudatpy.util import redirect_std
 from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
-from tudatpy.data_input.tracking_data.tnf import TnfTrackingDataProcessor
+from tudatpy.data_input.tracking_data.tnf import (
+    OpenRampHandling,
+    TnfTrackingDataProcessor,
+)
 
 from tudatpy.dynamics import (
     environment_setup,
@@ -96,7 +101,11 @@ def process_arc(inputs):
 
     # Data for arc 4 is in the previous day TNF file
     if arc_index == 4:
-        tnf_files.append("mro_kernels/mromagr2012_016_0520xmmmv1.tnf")
+        previous_day_tnf = Path(clock_files[0]).with_name(
+            "mromagr2012_016_0520xmmmv1.tnf"
+        )
+        if str(previous_day_tnf) not in tnf_files:
+            tnf_files.append(str(previous_day_tnf))
 
     # Load TNF tracking data. Conversion to an ObservationCollection is done
     # after the bodies are created, because the new tracking-data workflow
@@ -106,7 +115,12 @@ def process_arc(inputs):
         ["doppler"],
         spacecraft_name="MRO",
     )
-    tracking_data, supplementary_data = tnfProcessor.process()
+    # TNF files can end while a frequency ramp is still active. The following
+    # file continues that ramp, so explicitly accept the processor's documented
+    # one-second extrapolation at the edge instead of emitting a warning.
+    tracking_data, supplementary_data = tnfProcessor.process(
+        OpenRampHandling.close_silently
+    )
 
     # Define arc time interval
     arcStart = time_representation.DateTime.from_python_datetime(
@@ -126,9 +140,26 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # Buffer model/propagation start and end times
-    prop_start_time = arcStart - 3600.0
-    prop_end_time = arcEnd + 3600.0
+    # TrackingData is available before the simulation bodies are created. Use
+    # its epochs to retain the original example's propagation interval: one
+    # hour before/after the actual observations in this arc, rather than the
+    # wider nominal arc boundaries.
+    arc_observation_epochs = [
+        epoch
+        for current_tracking_data in tracking_data
+        for epoch in current_tracking_data.epochs
+        if arcStart.to_float() <= epoch.to_float() <= arcEnd.to_float()
+    ]
+    if not arc_observation_epochs:
+        raise RuntimeError(f"No TNF observations found for arc {arc_index}")
+    first_observation_epoch = min(
+        arc_observation_epochs, key=lambda epoch: epoch.to_float()
+    )
+    last_observation_epoch = max(
+        arc_observation_epochs, key=lambda epoch: epoch.to_float()
+    )
+    prop_start_time = first_observation_epoch - 3600.0
+    prop_end_time = last_observation_epoch + 3600.0
 
     # ====================
     # Create default body settings for celestial bodies
@@ -290,7 +321,7 @@ def process_arc(inputs):
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
     tnfProcessor.set_transponder_turnaround_ratio(bodies)
 
-    original_observations = observations.create_observation_collection(
+    original_observations = observations.create_observation_collection_from_tracking_data(
         tracking_data, bodies
     )
 
@@ -310,13 +341,10 @@ def process_arc(inputs):
 
     # Compress Doppler observations from 1.0 s integration time to 60.0 s
     compressed_observations = (
-        observations_setup.observations_wrapper.create_compressed_doppler_collection(
+        observations.create_compressed_doppler_collection(
             original_observations, 60, 10
         )
     )
-
-    # Add transponder delay
-    compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
 
     # ===================================================================================================
     # SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
@@ -594,19 +622,18 @@ def process_arc(inputs):
         ],
     }
     extra_parameters.append(
+        parameters_setup.drag_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
+        parameters_setup.lift_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
         parameters_setup.arcwise_empirical_accelerations(
             spacecraft_name,
             "Mars",
             acceleration_components_to_estimate,
             arc_start_times,
         )
-    )
-
-    extra_parameters.append(
-        parameters_setup.drag_component_scaling(spacecraft_name),
-    )
-    extra_parameters.append(
-        parameters_setup.lift_component_scaling(spacecraft_name),
     )
 
     # Add additional parameters settings
@@ -761,6 +788,18 @@ if __name__ == "__main__":
     if not os.path.exists(output_folder_base):
         os.makedirs(output_folder_base)
 
+    existing_mro_archive = (
+        Path.home() / "Tudat" / "tudatpy-examples" / "estimation" / "mro_kernels"
+    )
+    default_mro_archive = (
+        existing_mro_archive
+        if existing_mro_archive.is_dir()
+        else Path(__file__).resolve().parent / "mro_kernels"
+    )
+    mro_kernel_path = Path(os.environ.get("MRO_KERNELS_DIR", default_mro_archive))
+    mro_kernel_path.mkdir(parents=True, exist_ok=True)
+    mro_kernel_path_string = str(mro_kernel_path) + os.sep
+
     arcs = [
         (
             datetime.fromisoformat("2012-01-01 03:18:01.965"),
@@ -793,7 +832,7 @@ if __name__ == "__main__":
     ]
 
     # Set up multiprocessing pool
-    num_processes = len(arcs)
+    num_processes = min(6, len(arcs))
 
     inputs = []
     for i, arc in enumerate(arcs):
@@ -814,7 +853,9 @@ if __name__ == "__main__":
             trajectory_files,
             frames_def_file,
             structure_file,
-        ) = get_mro_files("mro_kernels/", startEpochWithBuffer, endEpochWithBuffer)
+        ) = get_mro_files(
+            mro_kernel_path_string, startEpochWithBuffer, endEpochWithBuffer
+        )
         print("\n")
 
         # Construct a list of input arguments containing the arguments needed this specific parallel run.

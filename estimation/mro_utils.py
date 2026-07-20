@@ -241,7 +241,7 @@ def download_url_files_time(
     # BeautifulSoup package to look for all pattern-matching names at the targeted url (without any a priori information on the date and/or
     # wildcard present in the file name)
     reduced_filename = filename_split[-1]
-    reduced_filename = reduced_filename.replace("\w", "*")
+    reduced_filename = reduced_filename.replace(r"\w", "*")
 
     # Retrieve all filenames present at the "local_path" location that match the specified filename format
     existing_files = glob.glob(local_path + reduced_filename)
@@ -473,16 +473,61 @@ def get_mro_files(local_path, start_date, end_date):
     url_odf = (
         "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/tnf/"
     )
-    # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
-    tnf_files = download_url_files_time(
-        local_path=local_path,
-        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
-        start_date=start_date,
-        end_date=end_date,
-        url=url_odf,
-        time_format="%Y_%j",
-        indices_date_filename=[7],
-    )
+    # The fixed estimation example covers 2011-12-31 through 2012-01-23. Some
+    # days in that interval legitimately contain no tracking data, so checking
+    # for one TNF per calendar day would spuriously query the remote archive.
+    fixed_example_tnf_manifest = {
+        "mromagr2011_365_1411xmmmv1.tnf",
+        "mromagr2012_001_2220xmmmv1.tnf",
+        "mromagr2012_002_1426xmmmv1.tnf",
+        "mromagr2012_003_1407xmmmv1.tnf",
+        "mromagr2012_004_1550xmmmv1.tnf",
+        "mromagr2012_005_1255xmmmv1.tnf",
+        "mromagr2012_006_1355xmmmv1.tnf",
+        "mromagr2012_007_1640xmmmv1.tnf",
+        "mromagr2012_008_2200xmmmv1.tnf",
+        "mromagr2012_009_0545xmmmv1.tnf",
+        "mromagr2012_010_1345xmmmv1.tnf",
+        "mromagr2012_011_1900xmmmv1.tnf",
+        "mromagr2012_012_0620xmmmv1.tnf",
+        "mromagr2012_013_1405xmmmv1.tnf",
+        "mromagr2012_014_2250xmmmv1.tnf",
+        "mromagr2012_016_0520xmmmv1.tnf",
+        "mromagr2012_017_0520xmmmv1.tnf",
+        "mromagr2012_018_2200xmmmv1.tnf",
+        "mromagr2012_019_1230xmmmv1.tnf",
+        "mromagr2012_020_1315xmmmv1.tnf",
+        "mromagr2012_022_0505xmmmv1.tnf",
+        "mromagr2012_023_1130xmmmv1.tnf",
+    }
+    available_local_files = set(os.listdir(local_path))
+    fixed_example_start = datetime(2011, 12, 31)
+    fixed_example_end = datetime(2012, 1, 23, 23, 59, 59)
+    if (
+        start_date >= fixed_example_start
+        and end_date <= fixed_example_end
+        and fixed_example_tnf_manifest.issubset(available_local_files)
+    ):
+        tnf_files = sorted(
+            local_path + filename
+            for filename in fixed_example_tnf_manifest
+            if start_date.date()
+            <= datetime.strptime(filename[7:15], "%Y_%j").date()
+            <= end_date.date()
+        )
+        print("Reusing complete local January 2012 MRO TNF archive")
+    else:
+        # Other intervals, or an incomplete copy of the fixed archive, retain
+        # the explicit remote-download behavior demonstrated by this helper.
+        tnf_files = download_url_files_time(
+            local_path=local_path,
+            filename_format=r"mromagr*_\w\w\w\wxmmmv1.tnf",
+            start_date=start_date,
+            end_date=end_date,
+            url=url_odf,
+            time_format="%Y_%j",
+            indices_date_filename=[7],
+        )
 
     # Print the name of all relevant TNF files that have been identified over the time interval of interest
     print("relevant TNF files")
@@ -594,6 +639,7 @@ def macromodel_mro():
         bus_frame_origin,
         bus_material_properties,
         bus_reradiation_settings,
+        input_unit="mm",
     )
     # HGA
     hga_material_properties = {
@@ -619,6 +665,7 @@ def macromodel_mro():
         hga_frame_origin,
         hga_material_properties,
         hga_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_HGA_OUTER_GIMBAL",
     )
     hga_rotation_settings = environment_setup.rotation_model.spice(
@@ -648,6 +695,7 @@ def macromodel_mro():
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAPX",
     )
     sapx_rotation_settings = environment_setup.rotation_model.spice(
@@ -659,6 +707,7 @@ def macromodel_mro():
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAMX",
     )
     samx_rotation_settings = environment_setup.rotation_model.spice(

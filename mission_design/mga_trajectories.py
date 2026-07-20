@@ -1,4 +1,4 @@
-"""
+r"""
 # Multiple Gravity Assist trajectories
 ## Objectives
 
@@ -41,11 +41,11 @@ from tudatpy.util import result2array
 from tudatpy import constants
 
 
-"""
+r"""
 First, let's explore an MGA transfer trajectory with no thrust applied during the transfer legs. In this case, the impulsive $\Delta V$ maneuvers are only applied during the gravity assists.
 """
 
-"""
+r"""
 ### Setup and inputs
 
 A simplified system of bodies suffices for this application, with the Sun as central body. The planets that are visited for a gravity assist are defined in the list `transfer_body_order`. The first body in the list is the departure body and the last one is the arrival body.
@@ -143,7 +143,7 @@ for i in transfer_node_settings:
 ### Evaluate transfer
 """
 
-"""
+r"""
 The transfer parameters are now used to evaluate the transfer trajectory, which means that the semi-analytical methods used to determine the $\Delta V$ of each leg are now applied.
 """
 
@@ -157,7 +157,7 @@ transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_
 Last but not least, with the transfer trajectory computed, we can now analyse it.
 """
 
-"""
+r"""
 #### Print results
 Having evaluated the transfer trajectory, it is possible to extract various transfer characteristics, such as the $\Delta V$ and time of flight.
 """
@@ -326,7 +326,7 @@ print("Transfer parameter definitions:")
 transfer_trajectory.print_parameter_definitions(transfer_leg_settings, transfer_node_settings)
 
 
-"""
+r"""
 The legs with velocity-based DSMs require more transfer parameters than the unpowered legs. In particular, for legs with DSMs it is necessary to specify the leg free and node free parameters. 
 
 There is a free parameter for each leg, representing the leg's time-of-flight fraction at which the DSM takes place. There are three free parameters for the departure node and each swingby node. The node free parameters represent the following:
@@ -382,7 +382,7 @@ The same approach is used to evaluate the transfer trajectory with the transfer 
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters)
 
 
-"""
+r"""
 ### Extract results and plot trajectory
 Finally, the results are extracted and used to visualize the transfer trajectory. 
 
@@ -467,7 +467,7 @@ arrival_semi_major_axis = np.inf
 arrival_eccentricity = 0.0
 
 
-"""
+r"""
 ### Create transfer settings and transfer object
 
 The creation of the transfer settings for a hodographic shaping leg requires, in particular, selecting the shaping functions. Each hodographic shaping leg is defined by a series of shaping functions, which determine the evolution of the velocity profile (in cylindrical coordinates) as a function of time throughout the transfer. Hence, it is necessary to select the terms constituting the shaping functions for the radial, normal, and axial velocity. Each shaping function has the form $\sum_i c_i \cdot f_i(t), \ i \geq 3$, with $c_i$ a constant and $f_i(t)$ a function of time (e.g. sine, cosine, exponential, power, etc.). In order to meet the boundary constraints, each shaping function requires a minimum of three terms; the coefficients of these terms (i.e. $c_1$, $c_2$, and $c_3$) are determined automatically. Additional shaping terms may be specified, which will further influence the evolution of the transfer; the coefficients of these terms (i.e. $c_i, \ i > 3$) are leg free parameters, and have to be specified by the user. 
@@ -616,7 +616,7 @@ Having selected the transfer parameters, it is now possible to evaluate the tran
 transfer_trajectory_object.evaluate( node_times, leg_free_parameters, node_free_parameters)
 
 
-"""
+r"""
 ### Extract results and plot trajectory
 Finally, the results are extracted and used to analyze the transfer trajectory. 
 

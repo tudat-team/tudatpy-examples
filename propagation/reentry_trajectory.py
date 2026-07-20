@@ -43,7 +43,7 @@ from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
 
 
-"""
+r"""
 ## Aerodynamic guidance class
 
 First of all, let's  create a class that contains the aerodynamic guidance. This class needs to be inherited from `propagation.AerodynamicGuidance`.

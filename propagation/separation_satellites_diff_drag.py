@@ -204,7 +204,7 @@ dependent_variables_to_save = [
 ]
 
 
-"""
+r"""
 ### Define termination settings
 
 The simulation terminates when one of the two occurs:

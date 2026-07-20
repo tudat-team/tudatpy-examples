@@ -188,7 +188,7 @@ Now that our system of bodies is ready, we can convert the observations batch to
 # Transform the MPC observations into a Tudat-compatible format.
 tracking_data, supplementary_data = batch.to_tracking_dataset()
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-observation_collection = observations.create_observation_collection(tracking_data, bodies)
+observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
@@ -503,7 +503,7 @@ ax.set_ylabel("Estimated Parameter")
 
 fig.suptitle(f"Correlations for estimated parameters for {target_name}")
 
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 
 
 """
@@ -581,7 +581,7 @@ ax.set_ylabel("Cartesian Error [km]")
 ax.set_xlabel("Year")
 
 fig.suptitle(f"Error vs SPICE over time for {target_name}")
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 
 plt.show()
 
@@ -699,7 +699,7 @@ axs[0].set_title("Right Ascension")
 axs[1].set_title("Declination")
 
 fig.suptitle(f"Final Iteration residuals for {target_name}")
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 
 plt.show()
 
@@ -752,7 +752,7 @@ DEC_color = "tab:orange"
 # boxes for RA and DEC
 RAplots = ax.boxplot(
     x=data_per_observatory_list_RA,
-    vert=False,
+    orientation="horizontal",
     positions=pos + offset,
     widths=widths,
     patch_artist=False,
@@ -763,7 +763,7 @@ RAplots = ax.boxplot(
 )
 DECplots = ax.boxplot(
     x=data_per_observatory_list_DEC,
-    vert=False,
+    orientation="horizontal",
     positions=pos - offset,
     widths=widths,
     patch_artist=False,
@@ -792,7 +792,7 @@ fig.suptitle(
 # reducing whitespace
 ax.set_ylim(10 - 4, int(len(top_observatories_box) * 10) + 4)
 
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 plt.show()
 
 
@@ -860,7 +860,7 @@ axs[0].legend()
 fig.suptitle(
     f"Final residual histograms of the {num_observatories} observatories with the most observations for {target_name}"
 )
-fig.set_tight_layout(True)
+fig.set_layout_engine("tight")
 plt.show()
 
 
