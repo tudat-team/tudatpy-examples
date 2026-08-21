@@ -25,6 +25,7 @@ from tudatpy.astro.close_encounters.opik_encounters import OpikEncounter
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D 
 from tudatpy import constants
 
 # %% [markdown]
@@ -88,9 +89,12 @@ for a, e, i_deg in orbits_list:
 
     results.append((a, e, i_deg, delta_a, delta_e, delta_i))
 
+
 # %% [markdown]
 # # Plot the Surface of Variations
-# We can now plot the Surface of Variations. These represent all encounter possibilities in the domains we spanned, but in reality, for each asteroid, the encounter will only have one $[\psi, \gamma]$ pair.
+# We can now plot the Surface of Variations. These represent all encounter possibilities in the domains we spanned, but in reality, for each asteroid, the actual encounter will only have one $[\psi, \gamma]$ pair.
+#
+# Not only that: the Surface of Variations was computed using Keplerian elements instead of an actual ephemeris. When using actual ephemeris, as we can see in the `real_close_encounters.ipynb` example, the relative velocity vector between the asteroid and the Earth differs from the one retrieved in this simplified Keplerian case. Since the post-encounter values depend on this velocity, they will in general lie outside of the Surface of Variations.
 
 # %%
 fig = plt.figure(figsize=(16, 5 * len(orbits_list)))
