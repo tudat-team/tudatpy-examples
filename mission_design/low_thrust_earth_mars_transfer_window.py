@@ -892,7 +892,7 @@ def inspect_low_thrust_trajectory(
         top=0.95,
         bottom=0.127,
         left=0.043,
-        right=0.99,
+        right=0.94,
         hspace=0.335,
         wspace=0.0
     )
