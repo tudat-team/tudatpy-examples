@@ -500,7 +500,7 @@ First, we define a fixed seed that PyGMO will use to generate random numbers. Th
 
 Then, the optimization problem is defined using the `AsteroidOrbitProblem` class initiated with the values that have already been defined. This User Defined Problem (UDP) is then given to PyGMO trough the `pg.problem()` method.
 
-Finally, the optimizer is selected to be the Multi-objective EA with Decomposition (MOAD) algorithm that is implemented in PyGMO. See [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.moead) for its documentation.
+Finally, we select the NSGA-II multi-objective algorithm implemented in PyGMO. See [here](https://esa.github.io/pygmo2/algorithms.html#pygmo.nsga2) for its documentation.
 """
 
 
@@ -518,7 +518,7 @@ orbitProblem = AsteroidOrbitProblem(bodies,
 # Create pygmo problem using the UDP instantiated above
 prob = pg.problem(orbitProblem)
 
-# Select Moead algorithm from pygmo, with one generation
+# Select NSGA-II from PyGMO, with one generation
 algo = pg.algorithm(pg.nsga2(gen=1, seed=fixed_seed))
 
 
@@ -684,6 +684,9 @@ for population_index in simulation_output.keys():
             linewidth=2,
             alpha=0.75)
 
+    # Apply layout to each generation figure, including the first one.
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+
 # Show the figure
 plt.tight_layout()
 plt.show()
@@ -753,7 +756,8 @@ for ax_index, population_index in enumerate(simulation_output.keys()):
     current_ax.set_title(title[ax_index], y=1.0, pad=15)
 
 # Show the figure
-plt.tight_layout()
+fig.tight_layout(rect=(0, 0, 0.92, 0.93))
+fig.subplots_adjust(wspace=0.35)
 plt.show()
 
 
@@ -766,7 +770,7 @@ This plot one again shows that the orbits from the final population can be sub-c
 
 
 # Plot orbits of final generation divided by parameters
-fig = plt.figure(figsize=(9, 5))
+fig = plt.figure(figsize=(12, 10))
 fig.suptitle('Final orbit bundle by design variable', fontweight='bold', y=0.95)
 
 # Retrieve current population
@@ -820,7 +824,8 @@ for var in range(4):
     current_ax.legend(handles, design_variable_legend, loc='lower right', bbox_to_anchor=(0.3, 0.6))
 
 # Show the figure
-plt.tight_layout()
+fig.tight_layout(rect=(0, 0, 0.94, 0.93))
+fig.subplots_adjust(hspace=0.45, wspace=0.35)
 plt.show()
 
 
