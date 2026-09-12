@@ -507,8 +507,8 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         [ifms_file],
         SPACECRAFT_NAME,
         [transmitting_station_name],
-        frequency_bands=[1.0, 1.0],
-        reception_reference_frequency_band=1.0,
+        frequency_bands=["X-band", "X-band"],
+        reception_reference_frequency_band="X-band",
         doppler_reference_frequency=0.0,
     )
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
