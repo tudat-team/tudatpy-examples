@@ -114,29 +114,9 @@ batch.filter(
 )
 
 """
-Other than **Earth-based telescopes**, our batch also includes observations from **space telescopes**.
-Let's check that out. 
-"""
-
-
-print("Summary of space telescopes in batch:")
-print("Space-based observations are dropped by the default MPC reader settings.")
-
-
-"""
-As we can see, observations by WISE, TESS and Yangwang, as well as some non-geocentric Occulation Observations are found. We can exemplary plot the initial and final observations of both TESS and WISE.
-"""
-
-
-wise_observations = batch.table.query("observatory == 'C51'")
-if not wise_observations.empty:
-    obs_by_WISE = wise_observations.loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
-
-    print("\nInitial and Final Observations by WISE:")
-    print(obs_by_WISE)
-
-"""
-While the observations from space telescopes appear to be useful, including them requires setting up the dynamics for the spacecraft, which is too advanced for this tutorial. Space-based observations will therefore be excluded later on in this example. 
+The default MPC reader excludes space-based observations. This example uses
+Earth-based telescopes only; space telescopes require their own ephemerides and
+observation links.
 
 Also note that if, for any reason, you would like to filter out some other observations, you can do so with the `BatchMPC.filter()` method. Note that all observations give Right Ascension (RA) and Declination (DEC) in **radians**.
 """
@@ -145,7 +125,7 @@ Also note that if, for any reason, you would like to filter out some other obser
 ### Set up the environment
 We now set up the environment, including the bodies to use, the reference frame and frame origin. The ephemerides for all major planets as well as the Earth's Moon are retrieved using spice. 
 
-BatchMPC will automatically generate the body object for Eros, but we still need to specify the bodies to propagate and their central bodies. We can retrieve the list from the BatchMPC object.
+We explicitly add a body for Eros and the optical telescope stations on Earth. The BatchMPC object supplies the target names used to select the bodies to propagate and their central bodies.
 """
 
 
@@ -185,10 +165,16 @@ Now that our system of bodies is ready, we can convert the observations batch to
 """
 
 
-# Transform the MPC observations into a Tudat-compatible format.
-tracking_data, supplementary_data = batch.to_tracking_dataset()
+# Preserve the weighting and catalog corrections enabled by the old reader's defaults.
+tracking_data, supplementary_data = batch.to_tracking_dataset(
+    add_weights=True,
+    add_star_catalog_corrections=True,
+)
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
+# Apply the catalogue corrections stored in TrackingData, matching legacy to_tudat().
+observation_collection = observations.create_observation_collection_from_tracking_data(
+    tracking_data, bodies, apply_corrections=True
+)
 
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
@@ -865,7 +851,7 @@ plt.show()
 
 
 """
-That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the **dynamical model** and the **estimation settings**. Consider for example adding weights and biases on observations and links, as well as improved integrator settings and perturbations. 
+That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the **dynamical model** and the **estimation settings**. Consider for example custom observation weights and link biases, as well as improved integrator settings and perturbations.
 
 If you wanna get more hands-on experience, consider rerunning the script for some other object by changing the `target_mpc_code` variable and seeing how the results change.
 """
