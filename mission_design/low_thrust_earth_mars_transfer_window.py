@@ -789,8 +789,8 @@ def inspect_low_thrust_trajectory(
     y_analytical = analytical_trajectory(len(t_analytical))[:, 1]
     z_analytical = analytical_trajectory(len(t_analytical))[:, 2]
 
-    # Retrieve thrust magnitude
-    thrust_magnitude = dv_dict.asarray('Single acceleration norm of type thrust , acting on Vehicle')
+    # This dependent variable is already an acceleration in m/s².
+    thrust_acceleration = dv_dict.asarray('Single acceleration norm of type thrust , acting on Vehicle')
 
     ###########################################################################
     # RETRIEVE EPHEMERIS OF ASTRONOMICAL BODIES ###############################
@@ -834,21 +834,21 @@ def inspect_low_thrust_trajectory(
     ax1.plot(t, x, label='Numerical')
     ax1.plot(t_analytical, earth_x, label='Earth', color='#78c4ff', zorder=1, alpha=0.6)
     ax1.plot(t_analytical, mars_x, label='Mars', color='#f04848', zorder=1, alpha=0.6)
-    ax1.set_ylabel('X [km]')
+    ax1.set_ylabel('X [m]')
 
     ax2.plot(t_analytical, y_analytical)
     ax2.plot(t, y)
     ax2.plot(t_analytical, earth_y, color='#78c4ff', zorder=1, alpha=0.6)
     ax2.plot(t_analytical, mars_y, color='#f04848', zorder=1, alpha=0.6)
-    ax2.set_ylabel('Y [km]')
+    ax2.set_ylabel('Y [m]')
 
     ax3.plot(t_analytical, z_analytical)
     ax3.plot(t, z)
     ax3.plot(t_analytical, earth_z, color='#78c4ff', zorder=1, alpha=0.6)
     ax3.plot(t_analytical, mars_z, color='#f04848', zorder=1, alpha=0.6)
-    ax3.set_ylabel('Z [km]')
+    ax3.set_ylabel('Z [m]')
 
-    ax4.plot(t, thrust_magnitude / vehicle_mass, color='green', label='Thrust acceleration')
+    ax4.plot(t, thrust_acceleration, color='green', label='Thrust acceleration')
     ax4.set_ylabel('$||a_T||$ [$m/s^2$]')
     ax4.set_xlabel('Time [days]')
 
@@ -872,9 +872,9 @@ def inspect_low_thrust_trajectory(
     ax5.plot(x, y, z)
 
     # Set labels
-    ax5.set_xlabel('X')
-    ax5.set_ylabel('Y')
-    ax5.set_zlabel('Z')
+    ax5.set_xlabel('X [m]')
+    ax5.set_ylabel('Y [m]')
+    ax5.set_zlabel('Z [m]')
 
     # Show the legend
     ax5.legend()

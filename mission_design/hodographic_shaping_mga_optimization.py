@@ -575,7 +575,10 @@ algorithm = pg.algorithm(pg.sga(gen=1))
 algorithm.set_seed(seed)
 
 # Create island
-island = pg.island(algo=algorithm, prob=problem, size=pop_size, seed=seed)
+if __name__ == "__main__":
+    # Spawned workers import definitions without starting another island.
+    mp.freeze_support()
+    island = pg.island(algo=algorithm, prob=problem, size=pop_size, seed=seed)
 
 
 """
@@ -599,26 +602,27 @@ Finally, the optimization can be executed by successively evolving the island. T
 # Run optimization
 ###########################################################################
 
-num_gen = 40
+if __name__ == "__main__":
+    num_gen = 40
 
-# Initialize lists with the best individual per generation
-list_of_champion_f = [island.get_population().champion_f]
-list_of_champion_x = [island.get_population().champion_x]
+    # Initialize lists with the best individual per generation
+    list_of_champion_f = [island.get_population().champion_f]
+    list_of_champion_x = [island.get_population().champion_x]
 
-# freeze_support needs to be called when using multiprocessing on windows
-# If called from other operating systems, freeze_support doesn't have any effect
-mp.freeze_support()
+    # freeze_support needs to be called when using multiprocessing on windows
+    # If called from other operating systems, freeze_support doesn't have any effect
+    mp.freeze_support()
 
-for i in range(num_gen):
-    print('Evolution: %i / %i' % (i+1, num_gen))
+    for i in range(num_gen):
+        print('Evolution: %i / %i' % (i+1, num_gen))
 
-    island.evolve() # Evolve island
-    island.wait_check() # Wait until all evolution tasks in the island finish
+        island.evolve() # Evolve island
+        island.wait_check() # Wait until all evolution tasks in the island finish
 
-    # Save current champion
-    list_of_champion_x.append(island.get_population().champion_x)
-    list_of_champion_f.append(island.get_population().champion_f)
-print('Evolution finished')
+        # Save current champion
+        list_of_champion_x.append(island.get_population().champion_x)
+        list_of_champion_f.append(island.get_population().champion_f)
+    print('Evolution finished')
 
 
 """
@@ -634,20 +638,21 @@ Having finished the optimisation, it is now possible to analyse the results. An 
 # Extract the best individual and plot fitness evolution
 ###########################################################################
 
-print('\n########### CHAMPION INDIVIDUAL ###########\n')
-print('Total Delta V [m/s]: ', island.get_population().champion_f[0])
-print("Parameters vector [various]: ", island.get_population().champion_x)
+if __name__ == "__main__":
+    print('\n########### CHAMPION INDIVIDUAL ###########\n')
+    print('Total Delta V [m/s]: ', island.get_population().champion_f[0])
+    print("Parameters vector [various]: ", island.get_population().champion_x)
 
-# Plot fitness over generations
-fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-ax.plot(np.arange(0, num_gen+1), np.float64(list_of_champion_f) / 1000)
+    # Plot fitness over generations
+    fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
+    ax.plot(np.arange(0, num_gen+1), np.float64(list_of_champion_f) / 1000)
 
-# Prettify
-ax.set_xlim((0, num_gen))
-ax.grid('major')
-ax.set_title('Best individual over generations')
-ax.set_xlabel('Number of generation')
-ax.set_ylabel(r'$\Delta V$ [km/s]')
+    # Prettify
+    ax.set_xlim((0, num_gen))
+    ax.grid('major')
+    ax.set_title('Best individual over generations')
+    ax.set_xlabel('Number of generation')
+    ax.set_ylabel(r'$\Delta V$ [km/s]')
 
 
 """
@@ -661,33 +666,34 @@ The transfer trajectory object associated with a given design parameter vector c
 # Extract the champion trajectory object and plot trajectory
 ###########################################################################
 
-design_parameters = island.get_population().champion_x
-champion_transfer_trajectory_object = transfer_optimization_problem.get_transfer_trajectory_object(design_parameters)
-champion_node_times = transfer_optimization_problem.get_node_times(design_parameters)
+if __name__ == "__main__":
+    design_parameters = island.get_population().champion_x
+    champion_transfer_trajectory_object = transfer_optimization_problem.get_transfer_trajectory_object(design_parameters)
+    champion_node_times = transfer_optimization_problem.get_node_times(design_parameters)
 
-# Extract the state history
-state_history = champion_transfer_trajectory_object.states_along_trajectory(100)
-fly_by_states = np.array([state_history[champion_node_times[i]] for i in range(len(champion_node_times))])
-state_history = result2array(state_history)
-acceleration_history = champion_transfer_trajectory_object.inertial_thrust_accelerations_along_trajectory(100)
-acceleration_history = result2array(acceleration_history)
-au = 1.5e11
+    # Extract the state history
+    state_history = champion_transfer_trajectory_object.states_along_trajectory(100)
+    fly_by_states = np.array([state_history[champion_node_times[i]] for i in range(len(champion_node_times))])
+    state_history = result2array(state_history)
+    acceleration_history = champion_transfer_trajectory_object.inertial_thrust_accelerations_along_trajectory(100)
+    acceleration_history = result2array(acceleration_history)
+    au = 1.5e11
 
-# Plot the state history
-fig, ax = plt.subplots(figsize=(8,5), constrained_layout=True)
-ax.plot(state_history[:, 1] / au, state_history[:, 2] / au)
-ax.quiver(state_history[:, 1] / au, state_history[:, 2] / au,
-            acceleration_history[:, 1], acceleration_history[:, 2], label="Thrust acceleration", zorder=10, alpha=0.6)
-ax.grid()
-ax.scatter(fly_by_states[0, 0] / au, fly_by_states[0, 1] / au, color='blue', label='Earth departure')
-ax.scatter(fly_by_states[1, 0] / au, fly_by_states[1, 1] / au, color='green', label='Mars fly-by')
-ax.scatter(fly_by_states[2, 0] / au, fly_by_states[2, 1] / au, color='brown', label='Earth fly-by')
-ax.scatter(fly_by_states[3, 0] / au, fly_by_states[3, 1] / au, color='red', label='Jupiter arrival')
-ax.scatter([0], [0], color='orange', label='Sun')
-ax.set_xlabel('x [AU]')
-ax.set_ylabel('y [AU]')
-ax.set_aspect('equal')
-ax.legend(bbox_to_anchor=[1, 1])
+    # Plot the state history
+    fig, ax = plt.subplots(figsize=(8,5), constrained_layout=True)
+    ax.plot(state_history[:, 1] / au, state_history[:, 2] / au)
+    ax.quiver(state_history[:, 1] / au, state_history[:, 2] / au,
+                acceleration_history[:, 1], acceleration_history[:, 2], label="Thrust acceleration", zorder=10, alpha=0.6)
+    ax.grid()
+    ax.scatter(fly_by_states[0, 0] / au, fly_by_states[0, 1] / au, color='blue', label='Earth departure')
+    ax.scatter(fly_by_states[1, 0] / au, fly_by_states[1, 1] / au, color='green', label='Mars fly-by')
+    ax.scatter(fly_by_states[2, 0] / au, fly_by_states[2, 1] / au, color='brown', label='Earth fly-by')
+    ax.scatter(fly_by_states[3, 0] / au, fly_by_states[3, 1] / au, color='red', label='Jupiter arrival')
+    ax.scatter([0], [0], color='orange', label='Sun')
+    ax.set_xlabel('x [AU]')
+    ax.set_ylabel('y [AU]')
+    ax.set_aspect('equal')
+    ax.legend(bbox_to_anchor=[1, 1])
 
 
-plt.show()
+    plt.show()

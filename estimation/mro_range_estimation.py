@@ -1,5 +1,3 @@
-import sys
-sys.path.insert(0, "/home/dominic/Tudat/tudat-monorepo/tudatpy/cmake-build-release/src")
 """
 # Loading and Using Tracking Observations
 
