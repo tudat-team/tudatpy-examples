@@ -97,7 +97,7 @@ print(obs_by_WISE.iloc[[0, -1]] if not obs_by_WISE.empty else "No WISE observati
 """
 
 """
-From the summary we can see that even the first observations from the 1890s are included. This is not ideal. We might want to exclude some observatories. To fix this we can use the `.filter()` method. Dates can be filtered using the standard seconds since J2000 TDB format or through python's datetime standard library in UTC for simplicity. Additionally, specific bands can be selected and observatories can explicitly be included or excluded. The `.filter()` method alters the original batch in place, an alternative is shown in the Additional Features section.
+From the summary we can see that even the first observations from the 1890s are included. This is not ideal. We might want to exclude some observatories. To fix this we can use the `.filter()` method. Dates can be filtered using seconds since J2000 UTC or Python datetime objects in UTC. Additionally, specific bands can be selected and observatories can explicitly be included or excluded. The `.filter()` method alters the original batch in place, an alternative is shown in the Additional Features section.
 """
 
 
@@ -141,17 +141,9 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 Now that our batch is ready, we can transform it to Tudat tracking-data objects and then create an `ObservationCollection`.
 
-This does the following for us:
+The minor-planet bodies were created above. The calls below convert the batch into tracking data, add the terrestrial observatory metadata to the environment, and construct the observation sets and collection for each observatory/minor-planet link.
 
-1. Creates an empty body for each minor planet with their MPC code as a name.
-2. Adds this body to the system of bodies inputted to the method.
-3. Retrieves the global position of the terrestrial observatories in the batch and adds these stations to the Tudat environment.
-4. Creates link definitions between each unique terrestrial observatory/ minor planet combination in the batch.
-5. (Optionally) creates a link definition between each space telescope / minor planet combination in the batch. This requires the corresponding spacecraft bodies to be present in the environment.
-6. Creates a `SingleObservationSet` object for each unique link that includes all observations for that link.
-7. Returns an `ObservationCollection` object.
-
-If our batch includes space telescopes like WISE and TESS, their Tudat bodies must be available when the observation collection is created. The additional features section shows an example of how to add a spacecraft body.
+The current reader drops satellite records by default. This example therefore uses Earth-based observations; adding a spacecraft body alone does not enable space-based observations.
 """
 
 
@@ -198,7 +190,7 @@ With the `observation_collection` and `observation_settings_list` ready, we have
 ### Comparing to JPL Horizons Interpolated RA and DEC
 The **Horizons Ephemeris API** provides interpolated RA and DEC values for many objects in the solar system. Tudat includes an interface for the JPL Horizons system. Please note that **these are not real observations**, but are instead based on ephemerides. 
 
-As validation, let's compare these interpolated RA and DEC to MPC's values for **329 Svea**:
+As validation, let's compare these interpolated RA and DEC to MPC's values for **329 Svea**. The Horizons query below uses the geocenter, whereas the MPC observations are topocentric, so the differences include diurnal parallax as well as observational errors.
 """
 
 
@@ -241,12 +233,16 @@ print(f"Declination: {np.round(max_diff_DEC, 10)} rad")
 # create plot
 fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
 
-ax_ra.scatter(batch_times_utc, (jpl_RA - batch_RA), marker="+")
-ax_dec.scatter(batch_times_utc, (jpl_DEC - batch_DEC), marker="+")
+plot_dates_utc = [
+    time_representation.DateTime.from_epoch(epoch).to_python_datetime()
+    for epoch in batch_times_utc
+]
+ax_ra.scatter(plot_dates_utc, (jpl_RA - batch_RA), marker="+")
+ax_dec.scatter(plot_dates_utc, (jpl_DEC - batch_DEC), marker="+")
 
 ax_ra.set_ylabel("Error [rad]")
 ax_dec.set_ylabel("Error [rad]")
-ax_dec.set_xlabel("Date")
+ax_dec.set_xlabel("Date (UTC)")
 
 ax_ra.grid()
 ax_dec.grid()
@@ -266,8 +262,8 @@ That's it! Next, check out the [Estimation with MPC](estimation_with_mpc.ipynb) 
 """
 
 """
-### Using satellite observations.
-Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. The body must then be available in the system of bodies when the observation collection is created. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Bellow is an example using a spice kernel.
+### Optional spacecraft environment setup
+Space telescopes are represented as bodies instead of ground stations. The code below illustrates defining a TESS ephemeris from a local SPICE kernel. It only constructs the environment: satellite-observation conversion through the new MPC reader requires a separate correction and is not demonstrated here.
 """
 
 
@@ -286,9 +282,6 @@ if os.path.exists("tess_20_year_long_predictive.bsp"):
 
     # Create system of bodies
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    tracking_data, supplementary_data = batch1.to_tracking_dataset()
-    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-    observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
 else:
     print("Skipping optional TESS SPICE example because tess_20_year_long_predictive.bsp is not available.")
 
@@ -341,35 +334,44 @@ batch1_copy2.summary()
 
 """
 ### Plotting observations
-The `.plot_observations_sky()` method can be used to view a projection of the observations. Similarly, `.plot_observations_temporal()` shows the declination and right ascension of a batch's bodies over time.
+The observation table can be plotted directly with Matplotlib. Group by minor planet to distinguish objects, and convert UTC epochs to dates for the time histories.
 """
 
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="aitoff")
-ax.scatter(batch1.table.RA - np.pi, batch1.table.DEC, marker="+")
+for object_code, object_observations in batch1.table.groupby("number"):
+    # The reader already wraps right ascension to [-pi, pi], as Aitoff requires.
+    ax.scatter(object_observations.RA, object_observations.DEC, marker="+", label=f"MPC: {object_code}")
+ax.set_xlabel("Right ascension [deg]", labelpad=20)
+ax.set_ylabel("Declination [deg]")
 ax.grid()
-
-fig = plt.figure()
-ax = fig.add_subplot(111)
-object_329 = batch1.table.query("number == '329' or number == 329")
-ax.scatter(object_329.RA, object_329.DEC, marker="+")
-ax.set_xlabel("Right ascension [rad]")
-ax.set_ylabel("Declination [rad]")
-
-plt.show()
-
-
-
-# Similar to the sky plot, specific bodies can be chosen to be plotted with the objects argument
-fig, ax = plt.subplots()
-ax.scatter(batch1.table.epoch_seconds_UTC, batch1.table.RA, marker="+", label="Right ascension")
-ax.scatter(batch1.table.epoch_seconds_UTC, batch1.table.DEC, marker="+", label="Declination")
-ax.set_xlabel("Epoch [s since J2000 UTC]")
-ax.set_ylabel("Angle [rad]")
 ax.legend()
 
+fig, ax = plt.subplots()
+object_329 = batch1.table.query("number == '329' or number == 329")
+ax.scatter(object_329.RA, object_329.DEC, marker="+", label="MPC: 329")
+ax.set_xlabel("Right ascension [rad]")
+ax.set_ylabel("Declination [rad]")
+ax.grid()
+ax.legend()
 plt.show()
 
 
+# Separate panels show each angular coordinate for the same set of objects.
+fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
+for object_code, object_observations in batch1.table.groupby("number"):
+    dates_utc = [
+        time_representation.DateTime.from_epoch(epoch).to_python_datetime()
+        for epoch in object_observations.epoch_seconds_UTC
+    ]
+    ax_ra.scatter(dates_utc, object_observations.RA, marker="+", label=f"MPC: {object_code}")
+    ax_dec.scatter(dates_utc, object_observations.DEC, marker="+", label=f"MPC: {object_code}")
+ax_ra.set_ylabel("Right ascension [rad]")
+ax_dec.set_ylabel("Declination [rad]")
+ax_dec.set_xlabel("Date (UTC)")
+for ax in (ax_ra, ax_dec):
+    ax.grid()
+    ax.legend()
+fig.tight_layout()
 plt.show()
