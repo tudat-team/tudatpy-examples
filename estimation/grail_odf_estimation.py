@@ -3,17 +3,18 @@
 
 ## Objectives
 
-Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
+Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. The script demonstrates the following estimation workflow:
 1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
-2.  **Environment Setup:** Constructing a precise lunar environment, incorporating the `gggrx1200` gravity field (truncated to order 500) and solid body tides from the Earth and Sun.
+2.  **Environment Setup:** Constructing a precise lunar environment, loading the `gggrx1200` gravity field through degree 500, using degree and order 256 in propagation, and including solid body tides from the Earth and Sun.
 3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
 4.  **Estimation:** Performing a least-squares fit to estimate the spacecraft initial state, radiation pressure coefficients, and maneuvers.
 5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
 
 ## Important Remarks
+- The fit uses two iterations and unconstrained radiation-pressure scale factors. These can become large or negative; small residuals alone do not establish a physically reliable force model.
 - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
 - Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-(trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+(trajectory and orientation kernels for the GRAIL spacecraft, atmospheric corrections files, ODF files containing the Doppler
 measurements, etc.). Note that this step needs only be performed once, since the script checks whether
 each relevant file is already present locally and only proceeds to the download if it is not.
 - This example performs 7 parallel orbit estimations (over 7 different days), which can slow down your machine and take quite some time (~ 20-30 minutes)
@@ -25,7 +26,7 @@ import multiprocessing as mp
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Load required tudatpy modules
 from tudatpy.data_input.environment_data.missions.grail import (
@@ -665,6 +666,17 @@ def run_odf_estimation(inputs):
         # Perform estimation
         estimation_output = estimator.perform_estimation(estimation_input)
 
+        # A failed propagation or inversion must not be presented as a completed fit.
+        if (
+            estimation_output.exception_during_propagation
+            or estimation_output.exception_during_inversion
+            or any(
+                not iteration.dynamics_results.integration_completed_successfully
+                for iteration in estimation_output.simulation_results_per_iteration
+            )
+        ):
+            raise RuntimeError(f"GRAIL ODF estimation failed for {inputs[1]}")
+
         # Save pre- and post-fit residuals
         np.savetxt(
             output_folder + "prefit_residuals_" + filename_suffix + ".dat",
@@ -713,7 +725,7 @@ if __name__ == "__main__":
     # Specify the number of parallel runs to use for this example
     nb_parallel_runs = 7
 
-    # Define dates for the five arcs to be analysed in parallel (we only include dates for which an ODF file is available).
+    # Define dates for the seven arcs to be analysed in parallel (we only include dates for which an ODF file is available).
     # Each parallel run will therefore parse a single day-long arc.
     dates = [
         datetime(2012, 4, 6),
@@ -740,7 +752,15 @@ if __name__ == "__main__":
             grail_frames_def_file,
             moon_orientation_file,
             lunar_frame_file,
-        ) = get_grail_files("grail_kernels/", dates[i], dates[i])
+        ) = get_grail_files(
+            "grail_kernels/",
+            dates[i],
+            dates[i],
+            # Propagation extends one hour beyond the observation arc. Include
+            # adjacent calendar days for attitude kernels, retaining one day of ODF data.
+            orientation_start_date=dates[i] - timedelta(days=1),
+            orientation_end_date=dates[i] + timedelta(days=1),
+        )
         print(dates[i])
         print(manoeuvres_file)
 
@@ -829,7 +849,7 @@ if __name__ == "__main__":
         )
         axs[0, 1].grid()
         axs[0, 1].set_xlim([0, 24])
-        axs[0, 1].set_xlabel("Time [days]")
+        axs[0, 1].set_xlabel("Time [hours]")
         axs[0, 1].set_ylabel("Residuals [Hz]")
         axs[0, 1].set_title("Pre-fit residuals")
 
@@ -840,7 +860,7 @@ if __name__ == "__main__":
         axs[1, 0].grid()
         axs[1, 0].set_ylim([-0.006, 0.006])
         axs[1, 0].set_xlim([0, 24])
-        axs[1, 0].set_xlabel("Time [days]")
+        axs[1, 0].set_xlabel("Time [hours]")
         axs[1, 0].set_ylabel("Residuals [Hz]")
         axs[1, 0].set_title("Post-fit residuals")
 

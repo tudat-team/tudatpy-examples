@@ -396,8 +396,8 @@ for i in range(num_plots):
     ax.plot(times[:-1], time_steps, label='Step Size')
     ax.axvline(flyby_time, color='r', linestyle='--', label='Flyby Time')
     ax.set_title(f"Step Size Evolution, {flyby_moon} Flyby n.{i+1}")
-    ax.set_xlabel("Cumulative Computation Time (s)")
-    ax.set_ylabel("Step Size")
+    ax.set_xlabel("Time since J2000 [s]")
+    ax.set_ylabel("Step size [s]")
     ax.legend()
 
 # Hide any unused subplots if num_plots is odd

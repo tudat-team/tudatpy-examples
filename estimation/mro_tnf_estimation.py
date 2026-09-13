@@ -1,4 +1,3 @@
-
 # %%
 import os
 import pickle
@@ -140,26 +139,11 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # TrackingData is available before the simulation bodies are created. Use
-    # its epochs to retain the original example's propagation interval: one
-    # hour before/after the actual observations in this arc, rather than the
-    # wider nominal arc boundaries.
-    arc_observation_epochs = [
-        epoch
-        for current_tracking_data in tracking_data
-        for epoch in current_tracking_data.epochs
-        if arcStart.to_float() <= epoch.to_float() <= arcEnd.to_float()
-    ]
-    if not arc_observation_epochs:
-        raise RuntimeError(f"No TNF observations found for arc {arc_index}")
-    first_observation_epoch = min(
-        arc_observation_epochs, key=lambda epoch: epoch.to_float()
-    )
-    last_observation_epoch = max(
-        arc_observation_epochs, key=lambda epoch: epoch.to_float()
-    )
-    prop_start_time = first_observation_epoch - 3600.0
-    prop_end_time = last_observation_epoch + 3600.0
+    # The TrackingData epochs still carry their source UTC scale at this point.
+    # Use the nominal TDB arc bounds for the environment; the narrower
+    # propagation interval is set from the converted observations below.
+    environment_start_time = arcStart - 3600.0
+    environment_end_time = arcEnd + 3600.0
 
     # ====================
     # Create default body settings for celestial bodies
@@ -178,8 +162,8 @@ def process_arc(inputs):
     global_frame_orientation = "J2000"
     body_settings = environment_setup.get_default_body_settings_time_limited(
         bodies_to_create,
-        prop_start_time.to_float(),
-        prop_end_time.to_float(),
+        environment_start_time.to_float(),
+        environment_end_time.to_float(),
         global_frame_origin,
         global_frame_orientation,
     )
@@ -196,20 +180,20 @@ def process_arc(inputs):
             global_frame_orientation,
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 3600.0,
             ),
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 3600.0,
             ),
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 60.0,
             ),
         )
@@ -270,8 +254,8 @@ def process_arc(inputs):
     # Retrieve translational ephemeris from SPICE
     body_settings.get(spacecraft_name).ephemeris_settings = (
         environment_setup.ephemeris.interpolated_spice(
-            prop_start_time.to_float(),
-            prop_end_time.to_float(),
+            environment_start_time.to_float(),
+            environment_end_time.to_float(),
             10.0,
             spacecraft_central_body,
             global_frame_orientation,
@@ -318,11 +302,24 @@ def process_arc(inputs):
         bodies, spacecraft_name, radiation_pressure_settings
     )
 
+    # Retain the station delays from each TNF record and update only the MRO
+    # retransmission delay before converting the tracking data.
+    for data_set in tracking_data:
+        link_delays = data_set.get_ancillary_settings_double_vector()[
+            "link ends time delays"
+        ]
+        link_delays[1] = 1.4149e-6
+        data_set.add_double_vector_ancillary_setting(
+            "link ends time delays", link_delays
+        )
+
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
     tnfProcessor.set_transponder_turnaround_ratio(bodies)
 
-    original_observations = observations.create_observation_collection_from_tracking_data(
-        tracking_data, bodies
+    original_observations = (
+        observations.create_observation_collection_from_tracking_data(
+            tracking_data, bodies
+        )
     )
 
     # Filter observations to the arc time interval
@@ -339,11 +336,14 @@ def process_arc(inputs):
     obs_start_time = observation_time_limits[0]
     obs_end_time = observation_time_limits[1]
 
+    # Match the original dynamics interval using epochs after their conversion
+    # to TDB, rather than interpreting the source UTC TrackingData epochs as TDB.
+    prop_start_time = obs_start_time - 3600.0
+    prop_end_time = obs_end_time + 3600.0
+
     # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    compressed_observations = (
-        observations.create_compressed_doppler_collection(
-            original_observations, 60, 10
-        )
+    compressed_observations = observations.create_compressed_doppler_collection(
+        original_observations, 60, 10
     )
 
     # ===================================================================================================
@@ -504,7 +504,7 @@ def process_arc(inputs):
     # =========================================================================================
     # DEFINE PROPAGATION SETTINGS
 
-    # Define list of accelerations acting on GRAIL
+    # Define list of accelerations acting on MRO
     accelerations_settings_spacecraft = dict(
         Sun=[
             propagation_setup.acceleration.point_mass_gravity(),
@@ -677,6 +677,7 @@ def process_arc(inputs):
     # DEFINE ESTIMATION SETTINGS AND PERFORM THE FIT
 
     # Create estimator
+    print(f"Arc {arc_index}: starting initial propagation and estimation", flush=True)
     estimator = estimation_analysis.Estimator(
         bodies, parameters_to_estimate, observation_model_settings, propagator_settings
     )
@@ -723,6 +724,16 @@ def process_arc(inputs):
             print(f"{value:.6e} +- {sigma:.6e}")
         print("\n")
         estimation_output = estimator.perform_estimation(estimation_input)
+        # Do not save or plot a fit whose propagation or inversion failed.
+        if (
+            estimation_output.exception_during_propagation
+            or estimation_output.exception_during_inversion
+            or any(
+                not iteration.dynamics_results.integration_completed_successfully
+                for iteration in estimation_output.simulation_results_per_iteration
+            )
+        ):
+            raise RuntimeError(f"MRO TNF estimation failed for arc {arc_index}")
         print("\n")
         print("Corrected values +- uncertainty:")
         for value, sigma in zip(
@@ -900,7 +911,8 @@ if __name__ == "__main__":
             all_residuals.append(residDf)
 
             # Load arc times
-            arc_times = pickle.load(open(f"{arc_dir}/arc_start_times.pkl", "rb"))
+            with open(f"{arc_dir}/arc_start_times.pkl", "rb") as stream:
+                arc_times = pickle.load(stream)
             for time in arc_times:
                 all_arc_times.append(time)
         except FileNotFoundError as e:
@@ -971,9 +983,6 @@ if __name__ == "__main__":
         arc_index = os.path.basename(arc_dir).split("_")[1]
         print(f"Processing state differences from {arc_dir}")
 
-        if int(arc_index) > 4:
-            continue
-
         try:
             # Load prefit state differences
             prefit_df = pd.read_pickle(f"{arc_dir}/rsw_state_difference_prefit.pkl")
@@ -1027,7 +1036,7 @@ if __name__ == "__main__":
 
             # Plot each component in its own panel
             for col, component in enumerate(components):
-                # axes[0, col].set_title(f"Prefit RMS = {overall_rms[component]:.2f} m")
+                axes[0, col].set_title(f"Prefit {component} difference")
                 axes[0, col].plot(
                     time_days,
                     df[component],

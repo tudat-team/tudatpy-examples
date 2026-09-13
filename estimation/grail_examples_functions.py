@@ -23,7 +23,15 @@ from urllib.request import urlretrieve
 # (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
 # relevant clock file, orientation kernels, tropospheric correction files, ionospheric correction files, manoeuvre file,
 # antenna switch files and odf files that should be loaded.
-def get_grail_files(local_path, start_date, end_date):
+# Optional orientation dates extend attitude coverage without changing observation-file selection.
+def get_grail_files(
+    local_path,
+    start_date,
+    end_date,
+    *,
+    orientation_start_date=None,
+    orientation_end_date=None
+):
 
     # Check if local_path designates an existing directory and creates the directory is not
     if not os.path.isdir(local_path):
@@ -58,8 +66,10 @@ def get_grail_files(local_path, start_date, end_date):
     grail_orientation_files = download_url_files_time_interval(
         local_path=local_path,
         filename_format="gra_rec_*.bc",
-        start_date=start_date,
-        end_date=end_date,
+        start_date=(
+            start_date if orientation_start_date is None else orientation_start_date
+        ),
+        end_date=end_date if orientation_end_date is None else orientation_end_date,
         url=url_orientation_files,
         time_interval_format="%y%m%d_%y%m%d",
     )
