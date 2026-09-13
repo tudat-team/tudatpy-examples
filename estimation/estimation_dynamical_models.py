@@ -314,7 +314,7 @@ state_history_simulated_observations = dynamics_simulator.propagation_results.st
 observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
     observation_settings_list, bodies)
 # Get MEX simulated observations as ObservationCollection
-mex_simulated_observations = observations.simulate_observations(
+mex_simulated_observations = observations.simulate_observation_dataset(
     observation_simulation_settings,
     observation_simulators,
     bodies)
@@ -380,16 +380,20 @@ estimator = estimation_analysis.Estimator(
 truth_parameters = parameters_to_estimate.parameter_vector
 
 # Define weighting of the observations in the inversion
-weights_per_observable = {observations.observations_processing.observation_parser(
-    observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level_doppler ** -2,
-                          observations.observations_processing.observation_parser(
-                              observable_models_setup.model_settings.one_way_range_type ): noise_level_range ** -2}
-mex_simulated_observations.set_constant_weight_per_observation_parser(weights_per_observable)
+for observable_type, weight in (
+    (observable_models_setup.model_settings.one_way_instantaneous_doppler_type,
+     noise_level_doppler ** -2),
+    (observable_models_setup.model_settings.one_way_range_type,
+     noise_level_range ** -2),
+):
+    mex_simulated_observations.set_constant_single_observation_scalar_weight(
+        observations.observation_query.observable_type == observable_type,
+        weight)
 
 
 # Create input object for the estimation
 estimation_input = estimation_analysis.EstimationInput(
-    mex_simulated_observations)
+    observation_dataset=mex_simulated_observations)
 
 # Set methodological options
 estimation_input.define_estimation_settings(
@@ -422,7 +426,8 @@ Finally, to further illustrate the impact certain differences between the applie
 
 
 final_residuals = estimation_output.final_residuals
-observation_times = np.array(mex_simulated_observations.concatenated_times)
+observation_vector_data = mex_simulated_observations.observation_vector_data()
+observation_times = np.array([float(time) for time in observation_vector_data.times])
 
 fig, ax1 = plt.subplots(1, 1, figsize=(9, 6))
 

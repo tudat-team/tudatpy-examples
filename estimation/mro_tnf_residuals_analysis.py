@@ -331,6 +331,15 @@ The `inputs` variable is a list with eleven entries:
 """
 
 
+def get_dependent_variable_vector(observation_dataset, settings, set_ids):
+    return np.vstack(
+        [
+            observation_dataset.single_dependent_variable_for_set(set_id, settings)
+            for set_id in set_ids
+        ]
+    ).reshape(-1)
+
+
 def perform_residuals_analysis(inputs):
     """
     Perform residuals analysis for MRO Doppler and range observations.
@@ -526,49 +535,26 @@ def perform_residuals_analysis(inputs):
             bodies, supplementary_data
         )
         tnfProcessor.set_transponder_turnaround_ratio(bodies)
-        original_odf_observations = observations.create_observation_collection_from_tracking_data(
+        original_odf_observations = observations.create_observation_dataset_from_tracking_data(
             tracking_data, bodies
         )
 
         # Filter out observations on dates when orientation kernels are incomplete
-        dates_to_filter_float = []
         for date in dates_to_filter:
-            dates_to_filter_float.append(date.to_epoch())
-            # Create filter object for specific date
-            date_filter = observations.observations_processing.observation_filter(
-                observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-                date.to_epoch() - 3600.0,
-                date.add_days(1.0).to_epoch(),
+            original_odf_observations.remove_observations(
+                observations.observation_query.time.between(
+                    date.to_epoch() - 3600.0, date.add_days(1.0).to_epoch()
+                )
             )
-            # Filter out observations from observation collection
-            original_odf_observations.filter_observations(date_filter)
 
-        # Remove empty observation sets, if there is any once the filtering is completed
-        original_odf_observations.remove_empty_observation_sets()
-
-        # Split observation sets at dates when orientation kernels are incomplete.
-        # While all problematic observation epochs have already been filtered out in the previous step, the splitting is still necessary
-        # to ensure that the time span of each observation set is fully covered by the available kernels. Without this additional step,
-        # one could not parse from the lower to upper time bounds of a given observation set without risking accessing unavailable information from spice.
-        # This step only becomes relevant when retrieving the position of the MRO antenna over the observation time intervals, as will be done later in the example.
-        date_splitter = observations.observations_processing.observation_set_splitter(
-            observations.observations_processing.ObservationSetSplitterType.time_tags_splitter,
-            dates_to_filter_float,
-        )
-        original_odf_observations.split_observation_sets(date_splitter)
-
-        # Remove empty observation sets, if there is any once both the splitting is completed
-        original_odf_observations.remove_empty_observation_sets()
-
-        print("original_odf_observations")
-        original_odf_observations.print_observation_sets_start_and_size()
+        print("Original observations:", original_odf_observations.total_scalar_size)
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = observations.create_compressed_doppler_collection(
+        compressed_observations = observations.create_compressed_doppler_dataset(
             original_odf_observations, 60, 10
         )
         print("Compressed observations: ")
-        print(compressed_observations.concatenated_observations.size)
+        print(compressed_observations.total_scalar_size)
 
         ### ------------------------------------------------------------------------------------------
         ### SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
@@ -586,14 +572,23 @@ def perform_residuals_analysis(inputs):
         # would only provide the antenna position w.r.t. the origin of the MRO-fixed frame (no information on the COM position).
         antenna_position_history = dict()
 
-        # Parsing the observation times in all observation sets.
-        # Note: we use a time buffer of one hour with respect to the start and end times of each observation set.
-        # This is to ensure that the antenna position history spans over a slightly extended time interval than the observation epochs
-        # of the given set. When simulating Doppler data to compute the MRO residuals, we might indeed need to access the antenna position
-        # slightly outside the exact time bounds defined by the observation epochs because of the light-time delay.
-        for obs_times in compressed_observations.get_observation_times_objects():
-            time = obs_times[0].to_float() - 3600.0
-            while time <= obs_times[-1].to_float() + 3600.0:
+        observation_times = sorted(
+            observation_time.to_float()
+            for observation_time in compressed_observations.get_times()
+        )
+        antenna_intervals = []
+        interval_start = observation_times[0] - 3600.0
+        interval_end = observation_times[0] + 3600.0
+        for observation_time in observation_times[1:]:
+            if observation_time > interval_end + 60.0:
+                antenna_intervals.append((interval_start, interval_end))
+                interval_start = observation_time - 3600.0
+            interval_end = observation_time + 3600.0
+        antenna_intervals.append((interval_start, interval_end))
+
+        for interval_start, interval_end in antenna_intervals:
+            time = interval_start
+            while time <= interval_end:
                 state = np.zeros((6, 1))
 
                 # For each observation epoch, retrieve the antenna position (spice ID "-74214") w.r.t. the origin of the MRO-fixed frame (spice ID "-74000")
@@ -619,11 +614,12 @@ def perform_residuals_analysis(inputs):
         )
 
         # Set the spacecraft's reference point position to that of the antenna (in the MRO-fixed frame)
-        compressed_observations.set_reference_point(
-            bodies,
-            antenna_ephemeris,
-            "Antenna",
+        bodies.get_body("MRO").system_models.set_reference_point(
+            "Antenna", antenna_ephemeris
+        )
+        compressed_observations.set_link_end_reference_point(
             "MRO",
+            "Antenna",
             observable_models_setup.links.LinkEndType.reflector1,
         )
 
@@ -658,9 +654,9 @@ def perform_residuals_analysis(inputs):
         # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
         # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
         # added to each of these link ends.
-        doppler_link_ends = compressed_observations.link_definitions_per_observable[
+        doppler_link_ends = compressed_observations.link_definitions_for_observable(
             estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-        ]
+        )
 
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
@@ -680,9 +676,9 @@ def perform_residuals_analysis(inputs):
         )
 
         # Create observation model settings for the range observables (similar to the Doppler observables).
-        range_link_ends = compressed_observations.link_definitions_per_observable[
+        range_link_ends = compressed_observations.link_definitions_for_observable(
             estimation.observable_models_setup.model_settings.dsn_n_way_range_type
-        ]
+        )
 
         for current_link_definition in range_link_ends:
             observation_model_settings.append(
@@ -700,17 +696,13 @@ def perform_residuals_analysis(inputs):
         elevation_angle_settings = observations_setup.observations_dependent_variables.elevation_angle_dependent_variable(
             observable_models_setup.links.LinkEndType.receiver
         )
-        elevation_angle_parser = compressed_observations.add_dependent_variable(
-            elevation_angle_settings
-        )
+        compressed_observations.add_dependent_variable(elevation_angle_settings)
         sep_angle_settings = observations_setup.observations_dependent_variables.avoidance_angle_dependent_variable(
             "Sun",
             observable_models_setup.links.LinkEndType.retransmitter,
             observable_models_setup.links.LinkEndType.receiver,
         )
-        sep_angle_parser = compressed_observations.add_dependent_variable(
-            sep_angle_settings
-        )
+        compressed_observations.add_dependent_variable(sep_angle_settings)
 
         # Compute and set residuals in the compressed observation collection
         observations.compute_residuals_and_dependent_variables(
@@ -721,24 +713,29 @@ def perform_residuals_analysis(inputs):
         ### RETRIEVE AND SAVE VARIOUS OBSERVATION OUTPUTS
         ### ------------------------------------------------------------------------------------------
 
-        for obsType, obsName in zip(
-            [
+        for obsType, obsName in (
+            (
                 estimation.observable_models_setup.model_settings.dsn_n_way_range_type,
+                "range",
+            ),
+            (
                 estimation.observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type,
-            ],
-            ["range", "doppler"],
+                "doppler",
+            ),
         ):
-            obsType_parser = observations.observations_processing.observation_parser(
-                obsType
+            parsed_observations = compressed_observations.create_new_and_keep(
+                observations.observation_query.observable_type == obsType
             )
-
-            parsed_observations = observations.create_new_observation_collection(
-                compressed_observations, obsType_parser
-            )
+            observation_vector_data = parsed_observations.observation_vector_data()
+            set_ids = observation_vector_data.set_ids_in_row_order
 
             # Retrieve RMS and mean of the residuals, sorted per observation set
-            rms_residuals = parsed_observations.get_rms_residuals()
-            mean_residuals = parsed_observations.get_mean_residuals()
+            rms_residuals = [
+                parsed_observations.rms_residuals_for_set(set_id) for set_id in set_ids
+            ]
+            mean_residuals = [
+                parsed_observations.mean_residuals_for_set(set_id) for set_id in set_ids
+            ]
 
             np.savetxt(
                 "outputs/mro_{}_unfiltered_residuals_rms_".format(obsName)
@@ -756,9 +753,9 @@ def perform_residuals_analysis(inputs):
             )
 
             # Retrieve the time bounds of each observation set within the observation collection
-            time_bounds_per_set = (
-                parsed_observations.get_time_bounds_per_set_time_object(obsType_parser)
-            )
+            time_bounds_per_set = [
+                parsed_observations.time_bounds_for_set(set_id) for set_id in set_ids
+            ]
             time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
             for j in range(len(time_bounds_per_set)):
                 time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()
@@ -779,34 +776,35 @@ def perform_residuals_analysis(inputs):
             elif obsName == "range":
                 threshold = 40  # residuals > 40 RU
 
-            filter_residuals = observations.observations_processing.observation_filter(
-                observations.observations_processing.ObservationFilterType.residual_filtering,
-                threshold,
+            parsed_observations.remove_observations(
+                observations.observation_query.residual.abs_greater_than(threshold)
             )
-            parsed_observations.filter_observations(filter_residuals, obsType_parser)
-
-            # Remove empty observation sets, if there is any once the filtering is performed
-            parsed_observations.remove_empty_observation_sets()
+            observation_vector_data = parsed_observations.observation_vector_data()
+            set_ids = observation_vector_data.set_ids_in_row_order
 
             # Save unfiltered residuals, observation times and link end IDs.
             np.savetxt(
                 "outputs/mro_{}_filtered_residuals_".format(obsName)
                 + filename_suffix
                 + ".dat",
-                parsed_observations.get_concatenated_residuals(),
+                observation_vector_data.residual_vector,
                 delimiter=",",
             )
             np.savetxt(
                 "outputs/mro_{}_filtered_time_".format(obsName)
                 + filename_suffix
                 + ".dat",
-                parsed_observations.concatenated_times,
+                observation_vector_data.times,
                 delimiter=",",
             )
 
             # Retrieve RMS and mean residuals after outliers filtering
-            rms_filtered_residuals = parsed_observations.get_rms_residuals()
-            mean_filtered_residuals = parsed_observations.get_mean_residuals()
+            rms_filtered_residuals = [
+                parsed_observations.rms_residuals_for_set(set_id) for set_id in set_ids
+            ]
+            mean_filtered_residuals = [
+                parsed_observations.mean_residuals_for_set(set_id) for set_id in set_ids
+            ]
 
             # Save RMS and mean residuals
             np.savetxt(
@@ -825,9 +823,9 @@ def perform_residuals_analysis(inputs):
             )
 
             # Retrieve time bounds per observation set
-            time_bounds_per_filtered_set = (
-                parsed_observations.get_time_bounds_per_set_time_object()
-            )
+            time_bounds_per_filtered_set = [
+                parsed_observations.time_bounds_for_set(set_id) for set_id in set_ids
+            ]
             time_bounds_filtered_array = np.zeros(
                 (len(time_bounds_per_filtered_set), 2)
             )
@@ -849,17 +847,13 @@ def perform_residuals_analysis(inputs):
             )
 
             # Retrieve concatenated elevation angle dependent variables
-            concatenated_elevation_angles = (
-                parsed_observations.concatenated_dependent_variable(
-                    elevation_angle_settings
-                )[0]
+            elevation_angles = get_dependent_variable_vector(
+                parsed_observations, elevation_angle_settings, set_ids
             )
 
             # Retrieve concatenated SEP angle dependent variables
-            concatenated_sep_angles = (
-                parsed_observations.concatenated_dependent_variable(sep_angle_settings)[
-                    0
-                ]
+            sep_angles = get_dependent_variable_vector(
+                parsed_observations, sep_angle_settings, set_ids
             )
 
             # Save elevation and SEP angles
@@ -867,30 +861,25 @@ def perform_residuals_analysis(inputs):
                 "outputs/mro_{}_elevation_angles_".format(obsName)
                 + filename_suffix
                 + ".dat",
-                concatenated_elevation_angles,
+                elevation_angles,
                 delimiter=",",
             )
             np.savetxt(
                 "outputs/mro_{}_sep_angles_".format(obsName) + filename_suffix + ".dat",
-                concatenated_sep_angles,
+                sep_angles,
                 delimiter=",",
             )
 
             # Retrieve range conversion factors (from RU to m) from observation ancillary settings
             if obsName == "range":
-                single_obs_sets = parsed_observations.get_single_observation_sets()
-                rangeConversionFactors = []
-
-                for obs_set in single_obs_sets:
-                    rangeConversionFactor = obs_set.ancillary_settings.get_float_settings(
+                rangeConversionFactors = [
+                    parsed_observations.ancillary_settings_for_set(
+                        set_id
+                    ).get_float_settings(
                         observations_setup.ancillary_settings.range_conversion_factor,
                     )
-                    rangeConversionFactors.append(rangeConversionFactor)
-
-                    # This is needed because there are multiple range observation with the same
-                    # time tag.
-                    if obs_set.total_observation_set_size > 1:
-                        rangeConversionFactors.append(rangeConversionFactor)
+                    for set_id in observation_vector_data.set_ids
+                ]
 
                 np.savetxt(
                     "outputs/mro_range_conversion_factors_" + filename_suffix + ".dat",
@@ -903,31 +892,22 @@ def perform_residuals_analysis(inputs):
                 # (starting from the first observation epoch)
                 # first_day_parser = estimation.observation_parser((start_time + 2.0 * 86400.0, start_time + 3.0 * 86400.0))
                 start_obs_times = time_bounds_per_filtered_set[0][0].to_float()
-                first_day_parser = (
-                    observations.observations_processing.observation_parser(
-                        (start_obs_times, start_obs_times + 86400.0)
+                first_day_observations = parsed_observations.create_new_and_keep(
+                    observations.observation_query.time.between(
+                        start_obs_times, start_obs_times + 86400.0
                     )
                 )
+                first_day_vector_data = first_day_observations.observation_vector_data()
 
                 # Retrieve residuals, observation times and dependent variables over the first day
-                first_day_observation_times = (
-                    parsed_observations.get_concatenated_observation_times(
-                        first_day_parser
-                    )
+                first_day_observation_times = first_day_vector_data.times
+                first_day_residuals = first_day_vector_data.residual_vector
+                first_day_elevation_angles = get_dependent_variable_vector(
+                    first_day_observations,
+                    elevation_angle_settings,
+                    first_day_vector_data.set_ids_in_row_order,
                 )
-                first_day_residuals = parsed_observations.get_concatenated_residuals(
-                    first_day_parser
-                )
-                first_day_elevation_angles = (
-                    parsed_observations.concatenated_dependent_variable(
-                        elevation_angle_settings, observation_parser=first_day_parser
-                    )[0]
-                )
-                first_day_link_ends_ids = (
-                    parsed_observations.get_concatenated_link_definition_ids(
-                        first_day_parser
-                    )
-                )
+                first_day_link_ends_ids = first_day_vector_data.link_definition_ids
 
                 # Save first day results
                 np.savetxt(
@@ -952,13 +932,14 @@ def perform_residuals_analysis(inputs):
                 )
 
                 if obsName == "range":
-                    first_day_range_conversion_factors = []
-
-                    for obs_set in single_obs_sets:
-                        rangeConversionFactor = obs_set.ancillary_settings.get_float_settings(
+                    first_day_range_conversion_factors = [
+                        first_day_observations.ancillary_settings_for_set(
+                            set_id
+                        ).get_float_settings(
                             observations_setup.ancillary_settings.range_conversion_factor,
                         )
-                        first_day_range_conversion_factors.append(rangeConversionFactor)
+                        for set_id in first_day_vector_data.set_ids
+                    ]
 
                     np.savetxt(
                         "outputs/mro_range_conversion_factors_first_day.dat",

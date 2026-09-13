@@ -149,7 +149,8 @@ The current reader drops satellite records by default. This example therefore us
 
 tracking_data, supplementary_data = batch1.to_tracking_dataset()
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-observation_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
+observation_dataset = observations.create_observation_dataset_from_tracking_data(
+    tracking_data, bodies)
 
 
 """
@@ -169,11 +170,12 @@ We can now retrieve the links from the `ObservationCollection` and create settin
 
 observation_settings_list = list()
 
-link_list = list(
-    observation_collection.get_link_definitions_for_observables(
-        observable_type=observable_models_setup.model_settings.angular_position_type
-    )
-)
+link_list = [
+    metadata["link_definition"]
+    for metadata in observation_dataset.get_metadata().values()
+    if metadata["observable_type"]
+    == observable_models_setup.model_settings.angular_position_type
+]
 
 for link in link_list:
     # add optional bias settings
