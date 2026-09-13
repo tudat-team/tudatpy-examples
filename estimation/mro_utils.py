@@ -473,9 +473,6 @@ def get_mro_files(local_path, start_date, end_date):
     url_odf = (
         "https://pds-geosciences.wustl.edu/mro/mro-m-rss-1-magr-v1/mrors_0xxx/tnf/"
     )
-    # The fixed estimation example covers 2011-12-31 through 2012-01-23. Some
-    # days in that interval legitimately contain no tracking data, so checking
-    # for one TNF per calendar day would spuriously query the remote archive.
     fixed_example_tnf_manifest = {
         "mromagr2011_365_1411xmmmv1.tnf",
         "mromagr2012_001_2220xmmmv1.tnf",
@@ -517,8 +514,7 @@ def get_mro_files(local_path, start_date, end_date):
         )
         print("Reusing complete local January 2012 MRO TNF archive")
     else:
-        # Other intervals, or an incomplete copy of the fixed archive, retain
-        # the explicit remote-download behavior demonstrated by this helper.
+        # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
         tnf_files = download_url_files_time(
             local_path=local_path,
             filename_format=r"mromagr*_\w\w\w\wxmmmv1.tnf",

@@ -146,8 +146,7 @@ An `ObservationCollection` is the useful type for Tudat to perform all its estim
 """
 
 
-# Create ancillary settings. The two entries define the uplink and downlink
-# frequency bands, which are also needed by frequency-dependent corrections.
+# Create ancillary settings
 ancillary_settings = observations_setup.ancillary_settings.n_way_range_ancillary_settings(
     frequency_bands=[
         observations_setup.ancillary_settings.FrequencyBands.x_band,
@@ -260,6 +259,7 @@ def create_mars_barycenter_link_ends(raw_data, idx):
     }
 
 
+# Create the observation collection
 def create_range_observation_collection(tracking_dataset):
     raw_data = read_range_data_file(tracking_dataset)
 
@@ -367,6 +367,7 @@ def create_observation_model_settings(
     light_time_corrections=None,
     time_scale_for_observable=None,
 ):
+    # Extract the relevant information from the real observations to mimic
     current_distinct_linkdefs = source_observation_collection.get_link_definitions_for_observables(
         observable_models_setup.model_settings.n_way_range_type
     )
@@ -375,6 +376,7 @@ def create_observation_model_settings(
     else:
         current_link_definitions = current_distinct_linkdefs
 
+    # Create the observation model settings to match those of the real observations
     observation_settings = []
     for link_definition in current_link_definitions:
         if time_scale_for_observable is None:
@@ -426,7 +428,7 @@ The signal also passes through the **solar corona**, where plasma causes an addi
 """
 
 
-# Create light time corrections
+#  Create light time corrections
 light_time_correction_list = [
     observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
 ]
@@ -566,6 +568,7 @@ mission_color_by_name = {
 }
 run_case_results_by_name = {}
 
+# Plot the residuals
 for run_case in MULTI_DATASET_RUN_CASES:
     run_case_results = [
         result

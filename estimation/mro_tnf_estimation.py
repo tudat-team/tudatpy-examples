@@ -106,17 +106,12 @@ def process_arc(inputs):
         if str(previous_day_tnf) not in tnf_files:
             tnf_files.append(str(previous_day_tnf))
 
-    # Load TNF tracking data. Conversion to an ObservationCollection is done
-    # after the bodies are created, because the new tracking-data workflow
-    # resolves link ends against the simulation environment.
+    # LOAD TNF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
     tnfProcessor = TnfTrackingDataProcessor(
         tnf_files,
         ["doppler"],
         spacecraft_name="MRO",
     )
-    # TNF files can end while a frequency ramp is still active. The following
-    # file continues that ramp, so explicitly accept the processor's documented
-    # one-second extrapolation at the edge instead of emitting a warning.
     tracking_data, supplementary_data = tnfProcessor.process(
         OpenRampHandling.close_silently
     )
@@ -139,9 +134,6 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # The TrackingData epochs still carry their source UTC scale at this point.
-    # Use the nominal TDB arc bounds for the environment; the narrower
-    # propagation interval is set from the converted observations below.
     environment_start_time = arcStart - 3600.0
     environment_end_time = arcEnd + 3600.0
 
@@ -336,8 +328,7 @@ def process_arc(inputs):
     obs_start_time = observation_time_limits[0]
     obs_end_time = observation_time_limits[1]
 
-    # Match the original dynamics interval using epochs after their conversion
-    # to TDB, rather than interpreting the source UTC TrackingData epochs as TDB.
+    # Buffer model/propagation start and end times
     prop_start_time = obs_start_time - 3600.0
     prop_end_time = obs_end_time + 3600.0
 
@@ -724,7 +715,6 @@ def process_arc(inputs):
             print(f"{value:.6e} +- {sigma:.6e}")
         print("\n")
         estimation_output = estimator.perform_estimation(estimation_input)
-        # Do not save or plot a fit whose propagation or inversion failed.
         if (
             estimation_output.exception_during_propagation
             or estimation_output.exception_during_inversion
@@ -1036,6 +1026,7 @@ if __name__ == "__main__":
 
             # Plot each component in its own panel
             for col, component in enumerate(components):
+                # axes[0, col].set_title(f"Prefit RMS = {overall_rms[component]:.2f} m")
                 axes[0, col].set_title(f"Prefit {component} difference")
                 axes[0, col].plot(
                     time_days,

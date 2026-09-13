@@ -165,13 +165,12 @@ Now that our system of bodies is ready, we can convert the observations batch to
 """
 
 
-# Preserve the weighting and catalog corrections enabled by the old reader's defaults.
+# Transform the MPC observations into a tudat compatible format.
 tracking_data, supplementary_data = batch.to_tracking_dataset(
     add_weights=True,
     add_star_catalog_corrections=True,
 )
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-# Apply the catalogue corrections stored in TrackingData, matching legacy to_tudat().
 observation_collection = observations.create_observation_collection_from_tracking_data(
     tracking_data, bodies, apply_corrections=True
 )

@@ -684,7 +684,6 @@ for population_index in simulation_output.keys():
             linewidth=2,
             alpha=0.75)
 
-    # Apply layout to each generation figure, including the first one.
     fig.tight_layout(rect=(0, 0, 1, 0.93))
 
 # Show the figure

@@ -150,9 +150,6 @@ def run_odf_estimation(inputs):
             odf_files, "GRAIL-A", verbose_output=True
         )
 
-        # Define a 1h time buffer around the day-long arc under consideration. This is used to construct the
-        # dynamical environment below, before the actual observation time bounds are known (the environment is
-        # itself required to create the observation collection from the loaded ODF tracking data).
         obs_time_buffer = 3600.0
         env_start_time = date - obs_time_buffer
         env_end_time = date + 86400.0 + obs_time_buffer
@@ -666,7 +663,6 @@ def run_odf_estimation(inputs):
         # Perform estimation
         estimation_output = estimator.perform_estimation(estimation_input)
 
-        # A failed propagation or inversion must not be presented as a completed fit.
         if (
             estimation_output.exception_during_propagation
             or estimation_output.exception_during_inversion
@@ -756,8 +752,6 @@ if __name__ == "__main__":
             "grail_kernels/",
             dates[i],
             dates[i],
-            # Propagation extends one hour beyond the observation arc. Include
-            # adjacent calendar days for attitude kernels, retaining one day of ODF data.
             orientation_start_date=dates[i] - timedelta(days=1),
             orientation_end_date=dates[i] + timedelta(days=1),
         )

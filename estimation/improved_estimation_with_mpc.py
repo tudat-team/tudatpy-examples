@@ -1088,7 +1088,7 @@ def plot_cartesian_single(
 
     ax.set_title(f"Error vs {comparison_reference.upper()} over time for {target_name}")
     fig.suptitle(f"Setup: {setup_name}")
-    # fig.set_layout_engine("tight")
+    # fig.set_tight_layout(True)
 
     return fig, ax
 
@@ -1115,6 +1115,7 @@ def plot_star_catalog_corrections(
         Figure, RA axis, Dec axis, RA histogram, Dec histogram
     """
 
+    # Extract data
     epochsUTC = np.concatenate(
         [
             np.asarray([float(epoch) for epoch in data.epochs])

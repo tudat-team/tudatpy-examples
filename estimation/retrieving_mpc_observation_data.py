@@ -338,10 +338,10 @@ The observation table can be plotted directly with Matplotlib. Group by minor pl
 """
 
 
+# Try some of the other projections: 'hammer', 'mollweide' and 'lambert'
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="aitoff")
 for object_code, object_observations in batch1.table.groupby("number"):
-    # The reader already wraps right ascension to [-pi, pi], as Aitoff requires.
     ax.scatter(object_observations.RA, object_observations.DEC, marker="+", label=f"MPC: {object_code}")
 ax.set_xlabel("Right ascension [deg]", labelpad=20)
 ax.set_ylabel("Declination [deg]")
@@ -349,6 +349,7 @@ ax.grid()
 ax.legend()
 
 fig, ax = plt.subplots()
+# specific objects can be selected for large batches:
 object_329 = batch1.table.query("number == '329' or number == 329")
 ax.scatter(object_329.RA, object_329.DEC, marker="+", label="MPC: 329")
 ax.set_xlabel("Right ascension [rad]")
@@ -358,7 +359,6 @@ ax.legend()
 plt.show()
 
 
-# Separate panels show each angular coordinate for the same set of objects.
 fig, (ax_ra, ax_dec) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
 for object_code, object_observations in batch1.table.groupby("number"):
     dates_utc = [

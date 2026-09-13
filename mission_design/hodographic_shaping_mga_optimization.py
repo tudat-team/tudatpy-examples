@@ -576,7 +576,6 @@ algorithm.set_seed(seed)
 
 # Create island
 if __name__ == "__main__":
-    # Spawned workers import definitions without starting another island.
     mp.freeze_support()
     island = pg.island(algo=algorithm, prob=problem, size=pop_size, seed=seed)
 

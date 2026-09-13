@@ -23,7 +23,6 @@ from urllib.request import urlretrieve
 # (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
 # relevant clock file, orientation kernels, tropospheric correction files, ionospheric correction files, manoeuvre file,
 # antenna switch files and odf files that should be loaded.
-# Optional orientation dates extend attitude coverage without changing observation-file selection.
 def get_grail_files(
     local_path,
     start_date,
@@ -171,9 +170,6 @@ def get_grail_files(
     url_odf = (
         "https://pds-geosciences.wustl.edu/grail/grail-l-rss-2-edr-v1/grail_0201/odf/"
     )
-    # The fixed April 2012 examples use the published ODF manifest below. There
-    # are legitimate no-tracking days, so the absence of a daily file must not
-    # by itself trigger a remote directory query.
     april_2012_odf_manifest = {
         "gralugf2012_093_0400smmmv1.odf",
         "gralugf2012_094_0931smmmv1.odf",
@@ -212,8 +208,7 @@ def get_grail_files(
         )
         print("Reusing complete local April 2012 GRAIL ODF archive")
     else:
-        # Retrieve missing files explicitly for other intervals or an incomplete
-        # copy of the fixed example archive.
+        # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
         odf_files = download_url_files_time(
             local_path=local_path,
             filename_format=r"gralugf*_\w\w\w\wsmmmv1.odf",

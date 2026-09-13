@@ -175,7 +175,7 @@ print("✓ Data download complete!")
 # Set ``MEX_KERNELS_DIR`` to select a different local kernel folder explicitly.
 
 # %%
-# Local data folders
+# Subdirectories
 FDETS_FOLDER = str(mex_archive_directory / 'fdets')
 IFMS_FOLDER = str(local_ifms_directory)
 OUTPUT_DIR = str(mex_archive_directory / 'output')
@@ -388,7 +388,7 @@ body_settings.get(SPACECRAFT_NAME).rotation_model_settings = environment_setup.r
 # Add ground stations
 body_settings.get("Earth").ground_station_settings = environment_setup.ground_station.radio_telescope_stations()
 
-# Load weather data into ground station settings before creating the bodies
+# Load weather data into ground stations
 weather_dict = get_weather_files_by_station(WEATHER_DATA_DIR)
 for station_code, weather_files in weather_dict.items():
     environment_setup.ground_station.set_estrack_weather_data_in_ground_station_settings(
@@ -503,6 +503,7 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     print(f"[{ifms_idx}/{len(ifms_files)}] Processing {transmitting_station_name}...")
 
     # Load IFMS observations
+    # Frequency bands used
     tracking_data, supplementary_data = read_ifms_data(
         [ifms_file],
         SPACECRAFT_NAME,
@@ -537,6 +538,7 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     light_time_corrections = [
         observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(["Sun"])
     ]
+    # Configure troposphere corrections
     if use_troposphere_corrections:
         observable_models_setup.light_time_corrections.set_vmf_troposphere_data(
             [VMF_FILE], True, False, bodies, False, True

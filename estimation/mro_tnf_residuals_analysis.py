@@ -177,8 +177,6 @@ def get_mro_files(local_path, start_date, end_date):
         indices_date_filename=[7],
     )
 
-    # Rebuild the list from the populated cache so that multiple tracking sessions
-    # on the same day are retained consistently on both first and cached runs.
     tnf_files = sorted(
         str(file)
         for file in Path(local_path).glob("mromagr*.tnf")
