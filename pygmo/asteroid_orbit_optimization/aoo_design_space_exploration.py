@@ -42,9 +42,9 @@ from itertools import combinations as comb
 
 
 # Load tudatpy modules
-from tudatpy.data import save2txt
+from tudatpy.util import save2txt
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import element_conversion
 from tudatpy.astro import frame_conversion
 from tudatpy.dynamics import environment_setup
@@ -636,10 +636,10 @@ for obj in range(2): #number of objectives
         plt.subplots_adjust(wspace=0.5, hspace=0.5)
         fig.suptitle('Monte Carlo - one-by-one - Objective: %s - Scaling: Constrained Distance'%(objective_names[obj]))
         for ax_index, ax in enumerate(axs.flatten()):
-            cs = ax.scatter(parameters[:, ax_index], obj_arrays[obj][:, ax_index], s=2, c=constraint_values[:,i])
+            cs = ax.scatter(parameters[:, ax_index], obj_arrays[obj][:, ax_index], s=2, c=constraint_values[:, ax_index])
             cbar = fig.colorbar(cs, ax=ax)
-            cbar.ax.set_ylabel('Distance constraint value')
-            ax.set_ylabel('%s [rad]'%(objective_names[obj]))
+            cbar.ax.set_ylabel('Distance constraint value [m]')
+            ax.set_ylabel('%s [%s]' % (objective_names[obj], 'rad' if obj == 0 else 'm'))
             ax.set_xlabel(design_variable_names[ax_index])
 
         #For more verbose results, remove the 'break' below.
@@ -834,8 +834,8 @@ A few lists are created for labelling, and the iterators for each response surfa
 
 it1, it2, it3, it4, it5, it6 = 0, 0, 0, 0, 0, 0
 combi_list = ['sma_ecc', 'sma_inc', 'sma_lon', 'ecc_inc', 'ecc_lon', 'inc_lon']
-xlabel_list = ['Semi-major Axis [m]','Semi-major Axis [m]', 'Semi-major Axis [m]', 'Eccentricity [-]', 'Eccentricity [-]', 'Inclination [rad]']
-ylabel_list = ['Eccentricity [-]', 'Inclination [rad]', 'Longitude of the Node [rad]', 'Inclination [rad]', 'Longitude of the Node [rad]', 'Longitude of the Node [rad]']
+xlabel_list = ['Semi-major Axis [m]','Semi-major Axis [m]', 'Semi-major Axis [m]', 'Eccentricity [-]', 'Eccentricity [-]', 'Inclination [deg]']
+ylabel_list = ['Eccentricity [-]', 'Inclination [deg]', 'Longitude of the Node [deg]', 'Inclination [deg]', 'Longitude of the Node [deg]', 'Longitude of the Node [deg]']
 title_list = ['inc = 0 & lon = 0', 'ecc = 0 & lon = 0', 'ecc = 0 & inc = 0', 'sma = 300 & lon = 0', 'sma = 300 & inc = 0', 'sma = 300 & ecc = 0']
 
 objectives = {}
@@ -866,7 +866,7 @@ for i in range(len(param_arr)):
         it5 += 1
     if param_arr[i, 0] == 300 and param_arr[i, 1] == 0:
         objectives['inc_lon'][it6, :] = objective_arr[i, :] 
-        params['inc_lon'][it6, :] = param_arr[i, [1, 3]]
+        params['inc_lon'][it6, :] = param_arr[i, [2, 3]]
         it6 += 1
 
 fig = plt.figure(figsize=(18, 10))

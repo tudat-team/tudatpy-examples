@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
@@ -291,7 +291,7 @@ The observation simulation settings:
 For this example estimation, we decided to estimate the initial state of `Starlink-32101`, its drag coefficient, and the gravitational parameter of Earth. A comprehensive list of parameters available for estimation is provided at [this link (TudatPy API Reference)](https://py.api.tudat.space/en/latest/parameter.html).
 
 #### 3 - Perform the observations simulation
-Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation/observations_setup/observations_wrapper.html#tudatpy.estimation.observations_setup.observations_wrapper.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
+Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation/observations.html#tudatpy.estimation.observations.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 
 #### 4 - Define the Input Covariance
 We collect all relevant inputs in the form of a covariance input, with the variance represented by the noise levels we chose earlier. This will be given as an input to the estimation process, to obtain `covariance_output = estimator.compute_covariance(covariance_input)`. The `covariance_output` will then become the initial covariance to be propagated by subsequent applications of the **state transition matrix**, initialized by the function `state_transition_interface` of the `estimator` object. 
@@ -371,7 +371,7 @@ for n_scenario in [1,2,3]:
 # 3 - Perform the observations simulation
 
     # Simulate required observations
-    simulated_observations = observations_setup.observations_wrapper.simulate_observations(
+    simulated_observations = observations.simulate_observations(
         [observation_simulation_settings],
         estimator.observation_simulators,
         bodies)
@@ -491,7 +491,7 @@ for j in [0, 1, 2]:
         state_est = bodies.get('Starlink-32101').ephemeris.cartesian_state(time)
         rot_matrix = frame_conversion.inertial_to_rsw_rotation_matrix(state_est)
         full_rot_matrix = np.block([[rot_matrix, np.zeros([3,3])], [np.zeros([3,3]), rot_matrix]])
-        cov = np.matrix(covariances_list[j][i])
+        cov = np.asarray(covariances_list[j][i])
         converted_formal_errors_matrix = full_rot_matrix @ cov @ full_rot_matrix.T
         converted_formal_errors_matrix_list[j, i] = converted_formal_errors_matrix
 

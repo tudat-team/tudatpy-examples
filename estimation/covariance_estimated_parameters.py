@@ -30,7 +30,7 @@ from matplotlib import pyplot as plt
 
 # Load required tudatpy modules
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup
 from tudatpy.dynamics import propagation_setup, parameters_setup, simulator
@@ -350,12 +350,12 @@ estimator = estimation_analysis.Estimator(
 
 """
 ### Perform the observations simulation
-Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation/observations_setup/observations_wrapper.html#tudatpy.estimation.observations_setup.observations_wrapper.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
+Using the created `Estimator` object, we can perform the simulation of observations by calling its `simulate_observations()` method, see the [API reference](https://py.api.tudat.space/en/latest/estimation/observations.html#tudatpy.estimation.observations.simulate_observations). Note that to know about the time settings for the individual types of observations, this function makes use of the earlier defined observation simulation settings.
 """
 
 
 # Simulate required observations
-simulated_observations = observations_setup.observations_wrapper.simulate_observations(
+simulated_observations = observations.simulate_observations(
     [observation_simulation_settings],
     estimator.observation_simulators,
     bodies)

@@ -14,7 +14,22 @@ boost-numpy-eigen-*-Linux.tar.Z
 boost-numpy-eigen-*-Linux.tar.gz
 *.o
 *.so
-data/
+# Root-level cache populated by examples that explicitly retrieve data.
+/data/
+
+# Local artifacts produced while validating examples.
+.validation/
+.example_validation/
+
+# Downloaded caches used by tracking-data examples.  Curated inputs in
+# estimation/mex_archive remain versioned below.
+/grail_kernels/
+/mex_archive/
+estimation/mex_archive/met/
+estimation/mex_archive/output/
+estimation/mex_archive/ifms/*
+!estimation/mex_archive/ifms/M32ICL2L02_D2X_133621904_00.TAB
+!estimation/mex_archive/ifms/M32ICL2L02_D2X_133632301_00.TAB
 mro_kernels/
 outputs/
 

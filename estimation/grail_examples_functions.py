@@ -5,11 +5,12 @@ Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. Th
 
 # Load required standard modules
 import os
+from datetime import datetime
 import numpy as np
 import pandas as pd
 
 # Load required tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 from tudatpy.dynamics import environment_setup
 
@@ -22,7 +23,14 @@ from urllib.request import urlretrieve
 # (and automatically downloads them if they cannot be found locally). It returns a tuple containing the lists of
 # relevant clock file, orientation kernels, tropospheric correction files, ionospheric correction files, manoeuvre file,
 # antenna switch files and odf files that should be loaded.
-def get_grail_files(local_path, start_date, end_date):
+def get_grail_files(
+    local_path,
+    start_date,
+    end_date,
+    *,
+    orientation_start_date=None,
+    orientation_end_date=None
+):
 
     # Check if local_path designates an existing directory and creates the directory is not
     if not os.path.isdir(local_path):
@@ -57,8 +65,10 @@ def get_grail_files(local_path, start_date, end_date):
     grail_orientation_files = download_url_files_time_interval(
         local_path=local_path,
         filename_format="gra_rec_*.bc",
-        start_date=start_date,
-        end_date=end_date,
+        start_date=(
+            start_date if orientation_start_date is None else orientation_start_date
+        ),
+        end_date=end_date if orientation_end_date is None else orientation_end_date,
         url=url_orientation_files,
         time_interval_format="%y%m%d_%y%m%d",
     )
@@ -163,7 +173,7 @@ def get_grail_files(local_path, start_date, end_date):
     # Retrieve the names of all existing ODF files within the time interval of interest, and download them if they do not exist locally yet
     odf_files = download_url_files_time(
         local_path=local_path,
-        filename_format="gralugf*_\w\w\w\wsmmmv1.odf",
+        filename_format=r"gralugf*_\w\w\w\wsmmmv1.odf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,

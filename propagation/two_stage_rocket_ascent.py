@@ -29,7 +29,7 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 
 # Load tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment,environment_setup, propagation, propagation_setup, simulator
 from tudatpy.astro import element_conversion, time_representation
 from tudatpy import constants
@@ -171,7 +171,7 @@ bodies_to_propagate = ["Section 1"]
 central_bodies = ["Mars"]
 
 
-"""
+r"""
 #### Thrust model
 Let's now define a thrust class, which will contain all of the functions needed to fully define a custom thrust model.
 

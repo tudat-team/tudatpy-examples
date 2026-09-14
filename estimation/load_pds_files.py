@@ -114,7 +114,8 @@ def download_url_files_time_interval(local_path, filename_format, start_date, en
         files_url_dict = dict()
 
         # Parse all files contained at the targeted url
-        reqs = requests.get(url)
+        reqs = requests.get(url, timeout=(10, 60))
+        reqs.raise_for_status()
         for link in BeautifulSoup(reqs.text, 'html.parser').find_all('a'):
 
             # Retrieve full url link for each of these files
@@ -202,7 +203,7 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
     # BeautifulSoup package to look for all pattern-matching names at the targeted url (without any a priori information on the date and/or
     # wildcard present in the file name)
     reduced_filename = filename_split[-1]
-    reduced_filename = reduced_filename.replace('\w', '*')
+    reduced_filename = reduced_filename.replace(r'\w', '*')
 
     # Retrieve all filenames present at the "local_path" location that match the specified filename format
     existing_files = glob.glob(local_path + reduced_filename)
@@ -227,8 +228,7 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
         current_files = [x for x in existing_files if re.match(local_path + current_filename.split('/')[-1], x)]
         # If so, add the identified file to the list of relevant files to be loaded
         if len(current_files) > 0:
-            for file in current_files:
-                relevant_files.append(current_files[0])
+            relevant_files.extend(current_files)
         # If not, mark the current date as non-covered by any file yet (i.e., date for which a file is missing)
         else:
             dates_without_file.append(date)
@@ -240,7 +240,8 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
         files_url = []
 
         # Parse all files contained at the targeted url
-        reqs = requests.get(url)
+        reqs = requests.get(url, timeout=(10, 60))
+        reqs.raise_for_status()
         for link in BeautifulSoup(reqs.text, 'html.parser').find_all('a'):
 
             # Retrieve full url link for each of these files
@@ -281,7 +282,8 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
 
         # Otherwise, explore additional folder layer
         if (len(folder)>0 and len(file_to_download)>0):
-            reqs2 = requests.get(url + file_to_download[0])
+            reqs2 = requests.get(url + file_to_download[0], timeout=(10, 60))
+            reqs2.raise_for_status()
 
             # Parse all files within the current folder
             for nested_link in BeautifulSoup(reqs2.text, 'html.parser').find_all('a'):
@@ -303,7 +305,5 @@ def download_url_files_time(local_path, filename_format, start_date, end_date, u
 
     # Return the list of all relevant files that should be loaded to cover the time interval of interest
     return relevant_files
-
-
 
 

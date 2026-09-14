@@ -6,7 +6,7 @@
 Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
 """
 
-"""
+r"""
 ## Objectives 
 
 This example illustrates the usage of PyGMO to optimize an interplanetary transfer trajectory simulated using the multiple gravity assist (MGA) module of Tudat. The trajectory optimization of the Cassini 1 problem, which corresponds to a simplified version of the real Cassini mission, is here solved. The Cassini 1 problem departs from the edge of Earth's SOI, executes gravity assists at Venus, Venus, Earth, and Jupiter, and finally is inserted into an orbit around Saturn with eccentricity $e = 0.98$ and semi-major axis $a = 1.0895e8 / 0.02$ km. Each transfer leg (i.e. between each two planets) is considered to be unpowered, with $\Delta V$ s applied only during the gravity assists. Hence, the transfer is modeled as an [MGA with unpowered unperturbed legs](https://py.api.tudat.space/en/latest/transfer_trajectory.html#tudatpy.trajectory_design.transfer_trajectory.mga_settings_unpowered_unperturbed_legs).
@@ -99,7 +99,7 @@ def convert_trajectory_parameters(
 ## Optimisation problem
 """
 
-"""
+r"""
 The core of the optimization process is realized by PyGMO, which requires the definition of a problem class.
 This definition has to be done in a class that is compatible with what the PyGMO library expects from a User Defined Problem (UDP). See [this page](https://esa.github.io/pygmo2/tutorials/coding_udp_simple.html) from the PyGMO's documentation as a reference. In this example, this class is called `TransferTrajectoryProblem`.
 
@@ -375,7 +375,7 @@ print("The optimization has finished")
 ## Results Analysis
 """
 
-"""
+r"""
 Having finished the optimisation, it is now possible to analyse the results.
 
 According to [Vinkó et al (2007)](https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2007-BenchmarkingDifferentGlobalOptimisationTechniques.pdf), the best known solution for the Cassini 1 problem has a final objective function value of 4.93 km/s.

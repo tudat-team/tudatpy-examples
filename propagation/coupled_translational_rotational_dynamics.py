@@ -6,7 +6,7 @@
 The present example will demonstrate the use of a multi-type propagator in Tudat. For that, we will consider the problem of simulating the coupled translational-rotational dynamics of Phobos around Mars, including the definition of a realistic initial state. Let's begin by talking about the forces and torques that we'll be considering as part of our dynamical problem.
 """
 
-"""
+r"""
 ## Phobos' dynamics in the Martian system
 Due to the relative complexity of this example, it is useful to provide the explicit equations of motion. More details can be found in the [Tudat mathematical model description](https://github.com/tudat-team/tudat-space/raw/master/Tudat_mathematical_model_definition.pdf), and a number of sources in literature, most notably:
 
@@ -71,7 +71,7 @@ from numpy import pi as PI
 from numpy.fft import rfft, rfftfreq
 from numpy.polynomial.polynomial import polyfit
 from tudatpy.util import result2array
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import constants, dynamics
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup, propagation_setup, simulator, propagation
@@ -168,7 +168,7 @@ def get_initial_rotational_state_at_epoch(epoch: float, rotational_rate_around_z
     return np.concatenate((phobos_rotation_quaternion, angular_velocity))
 
 
-"""
+r"""
 ### Generic logistic functions
 There are two functions that will be required in this example but have no direct native implementation (yet):
 
@@ -641,7 +641,7 @@ translational_propagator_settings = propagation_setup.propagator.translational( 
                                                                                 termination_condition )
 
 
-"""
+r"""
 ### Rotational dynamics
 An explanation on how tudat defines rotational dynamics can be found in the corresponding [Tudat documentation](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/propagation_setup/rotational.html), and follows the structure of translational dynamics closely. One difference, and potential complication, is defining an initial state. If you think that the _orientation_ of Phobos always has to be referred to some (preferably inertial) reference frame, you might be wondering where in our code we have to tell Tudat what this reference frame is. And the answer is, nowhere. Tudat will assume that **all orientations are given as referred to the `global_frame_orientation` defined at the beginning** (at the moment, the only options are J2000 and ECLIPJ2000). Thus, an appropriate rotation quaternion $\mathbf q$ (inertial to body-fixed) and angular velocity vector $\vec\omega$ (w.r.t. the inertial frame, expressed in the  body-fixed frame) has to be defined.
 
@@ -704,7 +704,7 @@ state_history = dynamics_simulator.state_history
 dependent_variable_history = dynamics_simulator.dependent_variable_history
 
 
-"""
+r"""
 ## Let's look at plots
 We are now ready to do some post-processing, and look at our results! Here, we will be looking at how Phobos moves and rotates. In order to better interpret the results, it is good to gather some facts about its situation in the Martian system. Useful information on Phobos is:
 
@@ -802,7 +802,7 @@ plt.legend()
 plt.show()
 
 
-"""
+r"""
 **Note:** The third Euler angle of Phobos, $\varphi$, is omitted from plot. This is because it represents Phobos' rotation about its $z$ axis, and therefore it will increase secularly and overlap with $\Psi$.
 
 Here, there are two things that immediately stand out: Mars' coordinates in Phobos' sky are a mess (i.e. Phobos' orientation is not what we expected) and the inclination of Phobos is nowhere near 0. We will start by addressing the latter. Notice that "the inclination of Phobos" is usually thought of as measured from the Martian equator. Here, however, the angles of the orbit are computed with respect to global frame orientation, which is here set to J2000. The Martian equator is inclined by about $35.5º$ with respect to that of the Earth, and that is why we see Phobos' inclination oscillate around that value rather than $0º$.
