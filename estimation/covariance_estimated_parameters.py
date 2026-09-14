@@ -355,7 +355,7 @@ Using the created `Estimator` object, we can perform the simulation of observati
 
 
 # Simulate required observations
-simulated_observations = observations.simulate_observations(
+simulated_observations = observations.simulate_observation_dataset(
     [observation_simulation_settings],
     estimator.observation_simulators,
     bodies)
@@ -375,13 +375,12 @@ To set up the inversion of the problem, we collect all relevant inputs in the fo
 
 
 # Define weighting of the observations in the inversion
-weights_per_observable = { observations.observations_processing.observation_parser(
-    observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
-simulated_observations.set_constant_weight_per_observation_parser(weights_per_observable)
+simulated_observations.set_constant_single_observation_scalar_weight(
+    observations.ObservationSelectionCondition.all(), noise_level ** -2)
 
 # Create input object for covariance analysis
 covariance_input = estimation_analysis.CovarianceAnalysisInput(
-    simulated_observations)
+    observation_dataset=simulated_observations)
 
 # Set methodological options
 covariance_input.define_covariance_settings(
@@ -447,7 +446,7 @@ In practice, the "formal error matrix" is a covariance matrix where all the **of
 x_star = parameters_to_estimate.parameter_vector # Nominal solution (center of the ellipsoid)
 # Create input object for covariance analysis
 covariance_input = estimation_analysis.CovarianceAnalysisInput(
-      simulated_observations)
+      observation_dataset=simulated_observations)
 
 # # Set methodological options
 covariance_input.define_covariance_settings(

@@ -512,25 +512,25 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         doppler_reference_frequency=0.0,
     )
     observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-    ifms_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
+    ifms_observations = observations.create_observation_dataset_from_tracking_data(
+        tracking_data, bodies)
 
     # Filter by time window
-    time_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        start_time, end_time, use_opposite_condition=True
+    ifms_observations.remove_observations(
+        ~observations.observation_query.time.between(start_time, end_time)
     )
 
-    ifms_collection.filter_observations(time_filter)
-    ifms_collection.remove_empty_observation_sets()
-
-    if len(ifms_collection.get_concatenated_observations()) == 0:
+    if ifms_observations.number_of_observations == 0:
         print(f"  No observations in time window, skipping")
         continue
 
     # Set reference point to antenna
     ifms_antenna_name = f"Antenna_IFMS_{ifms_idx}"
-    ifms_collection.set_reference_point(
-        bodies, antenna_ephemeris, ifms_antenna_name, "MEX", links.retransmitter
+    bodies.get_body("MEX").system_models.set_reference_point(
+        ifms_antenna_name, antenna_ephemeris
+    )
+    ifms_observations.set_link_end_reference_point(
+        "MEX", ifms_antenna_name, links.retransmitter
     )
 
     # Define light-time corrections
@@ -546,9 +546,9 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         )
 
     # Create observation models
-    doppler_link_ends = ifms_collection.link_definitions_per_observable[
+    doppler_link_ends = ifms_observations.link_definitions_for_observable(
         observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-    ]
+    )
 
     observation_model_settings = []
     for link_definition in doppler_link_ends:
@@ -565,21 +565,20 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
 
     # Compute residuals
     observations.compute_residuals_and_dependent_variables(
-        ifms_collection, observation_simulators, bodies
+        ifms_observations, observation_simulators, bodies
     )
     # Filter outliers
-    residual_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.residual_filtering, 0.1
+    ifms_observations.remove_observations(
+        observations.observation_query.residual.abs_greater_than(0.1)
     )
-    ifms_collection.filter_observations(residual_filter)
-    ifms_collection.remove_empty_observation_sets()
 
-    if len(ifms_collection.get_concatenated_observations()) == 0:
+    if ifms_observations.number_of_observations == 0:
         print(f"  All observations filtered out, skipping")
         continue
 
     # Extract results
-    times = ifms_collection.get_concatenated_observation_times()
+    ifms_vector_data = ifms_observations.observation_vector_data()
+    times = ifms_vector_data.times
     times_utc = [time_scale_converter.convert_time(
         input_scale=time_representation.tdb_scale,
         output_scale=time_representation.utc_scale,
@@ -587,9 +586,15 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     utc_times = [time_representation.DateTime.to_python_datetime(
         time_representation.DateTime.from_epoch(t)) for t in times_utc]
 
-    residuals = ifms_collection.get_concatenated_residuals()
-    mean_residuals = ifms_collection.get_mean_residuals()
-    rms_residuals = ifms_collection.get_rms_residuals()
+    residuals = ifms_vector_data.residual_vector
+    mean_residuals = [
+        ifms_observations.mean_residuals_for_set(set_id)
+        for set_id in ifms_vector_data.set_ids_in_row_order
+    ]
+    rms_residuals = [
+        ifms_observations.rms_residuals_for_set(set_id)
+        for set_id in ifms_vector_data.set_ids_in_row_order
+    ]
 
     # Store IFMS results
     if transmitting_station_name not in ifms_station_residuals:
@@ -606,12 +611,8 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     processed_ifms_count += 1
 
     # Define time filter based on IFMS coverage
-    start_time_ifms = time_representation.Time(times[0])
-    end_time_ifms = time_representation.Time(times[-1])
-    time_filter_based_on_ifms = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        start_time_ifms, end_time_ifms, use_opposite_condition=True
-    )
+    start_time_ifms = min(times)
+    end_time_ifms = max(times)
 
     # Process corresponding FDETS files
     for fdets_filename in FDETS_FILES_TO_PROCESS:
@@ -643,12 +644,14 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
         for tracking_data_set in tracking_data:
             tracking_data_set.add_double_vector_ancillary_setting("frequency bands", [1.0, 1.0])
-        fdets_collection = observations.create_observation_collection_from_tracking_data(tracking_data, bodies)
+        fdets_observations = observations.create_observation_dataset_from_tracking_data(
+            tracking_data, bodies)
 
-        fdets_collection.filter_observations(time_filter_based_on_ifms)
-        fdets_collection.remove_empty_observation_sets()
+        fdets_observations.remove_observations(
+            ~observations.observation_query.time.between(start_time_ifms, end_time_ifms)
+        )
 
-        if len(fdets_collection.get_concatenated_observations()) == 0:
+        if fdets_observations.number_of_observations == 0:
             continue
 
         # Define link
@@ -660,8 +663,11 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         }
         link_definition_fdets = links.LinkDefinition(link_ends_fdets)
 
-        fdets_collection.set_reference_point(
-            bodies, antenna_ephemeris, fdets_antenna_name, "MEX", links.retransmitter
+        bodies.get_body("MEX").system_models.set_reference_point(
+            fdets_antenna_name, antenna_ephemeris
+        )
+        fdets_observations.set_link_end_reference_point(
+            "MEX", fdets_antenna_name, links.retransmitter
         )
 
         # Create observation model
@@ -677,17 +683,19 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
 
         # Compute residuals
         observations.compute_residuals_and_dependent_variables(
-            fdets_collection, observation_simulators_fdets, bodies
+            fdets_observations, observation_simulators_fdets, bodies
         )
 
-        fdets_collection.filter_observations(residual_filter)
-        fdets_collection.remove_empty_observation_sets()
+        fdets_observations.remove_observations(
+            observations.observation_query.residual.abs_greater_than(0.1)
+        )
 
-        if len(fdets_collection.get_concatenated_observations()) == 0:
+        if fdets_observations.number_of_observations == 0:
             continue
 
         # Extract FDETS results
-        times_fdets = fdets_collection.get_concatenated_observation_times()
+        fdets_vector_data = fdets_observations.observation_vector_data()
+        times_fdets = fdets_vector_data.times
         times_utc_fdets = [time_scale_converter.convert_time(
             input_scale=time_representation.tdb_scale,
             output_scale=time_representation.utc_scale,
@@ -695,9 +703,15 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         utc_times_fdets = [time_representation.DateTime.to_python_datetime(
             time_representation.DateTime.from_epoch(t)) for t in times_utc_fdets]
 
-        residuals_fdets = fdets_collection.get_concatenated_residuals()
-        mean_residuals_fdets = fdets_collection.get_mean_residuals()
-        rms_residuals_fdets = fdets_collection.get_rms_residuals()
+        residuals_fdets = fdets_vector_data.residual_vector
+        mean_residuals_fdets = [
+            fdets_observations.mean_residuals_for_set(set_id)
+            for set_id in fdets_vector_data.set_ids_in_row_order
+        ]
+        rms_residuals_fdets = [
+            fdets_observations.rms_residuals_for_set(set_id)
+            for set_id in fdets_vector_data.set_ids_in_row_order
+        ]
 
         # Store FDETS results
         if site_name not in fdets_station_residuals:
