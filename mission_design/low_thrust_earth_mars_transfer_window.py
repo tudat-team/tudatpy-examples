@@ -475,9 +475,9 @@ Generating a high-resolution plot may be time-consuming: reusing saved data migh
 data_file = 'porkchop_low_thrust.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
-RECALCULATE_delta_v = input(
-    '\n    Recalculate Delta V for porkchop plot? [y/N] '
-).strip().lower() == 'y'
+RECALCULATE_delta_v = True  # input(
+#     '\n    Recalculate Delta V for porkchop plot? [y/N] '
+# ).strip().lower() == 'y'
 print()
 
 
@@ -789,7 +789,7 @@ def inspect_low_thrust_trajectory(
     y_analytical = analytical_trajectory(len(t_analytical))[:, 1]
     z_analytical = analytical_trajectory(len(t_analytical))[:, 2]
 
-    # This dependent variable is already an acceleration in m/s².
+    # Thrust acceleration norm [m/s^2].
     thrust_acceleration = dv_dict.asarray('Single acceleration norm of type thrust , acting on Vehicle')
 
     ###########################################################################

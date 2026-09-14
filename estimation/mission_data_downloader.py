@@ -5,7 +5,7 @@
 """
 ## Objectives
 
-- This script shows how to use the TudatPy mission data retrieval functionality to download:
+- This script shows how to use the TudatPy `mission_data_downloader` functionality to download:
     1) **SPICE** (clock, frame, orientation, planetary) **Kernels**
     2) **Closed Loop Doppler Data** (DSN and IFMS)
     3) **Ancillary** Ionospheric and Tropospheric **Data**
@@ -26,7 +26,7 @@ The following spice kernels can be loaded automatically at the end of a run, if 
 
 1) **existing spice kernels** in the mission folder
 2) (new) **downloaded spice kernels**
-3) **standard TUDAT kernels** with `spice.load_standard_kernels()`
+3) **standard TUDAT kernels** from [`spice.load_standard_kernels()`](https://py.api.tudat.space/en/latest/data_input/environment_data/spice.html#tudatpy.data_input.environment_data.spice.load_standard_kernels)
 
 List of currently supported input_missions:
 - **Mars Reconnnaissance Orbiter (MRO)** [Available: Spice Kernels, Doppler Data, Ancillary]

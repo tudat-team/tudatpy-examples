@@ -37,7 +37,7 @@ from tudatpy.util import result2array
 We define **two auxiliary functions** to be used throughout the code:
 1) `get_juice_position_wrt_moon`
 
-   This function takes a time instant as input, and gives the **cartesian position of JUICE (body -28) with respect to the flyby moon**, in the J2000 reference frame as output. It is just a call to `spice.get_body_cartesian_position_at_epoch` from `tudatpy.data_input.environment_data.spice`.
+   This function takes a time instant as input, and gives the **cartesian position of JUICE (body -28) with respect to the flyby moon**, in the J2000 reference frame as output. It is just a call to [`spice.get_body_cartesian_position_at_epoch`](https://py.api.tudat.space/en/latest/data_input/environment_data/spice.html#tudatpy.data_input.environment_data.spice.get_body_cartesian_position_at_epoch).
 
 3) `find_closest_approaches`
 This function takes as inputs:
@@ -168,8 +168,6 @@ body_settings = environment_setup.get_default_body_settings(bodies_to_create, gl
 We hereby define **additional body settings** for the **JUICE ephemeris**, via:
 [`environment_setup.ephemeris.tabulated`](https://py.api.tudat.space/en/latest/ephemeris.html#tudatpy.dynamics.environment_setup.ephemeris.tabulated).
 
-The default IAU rotational model of the flyby moon is retained. It provides the
-rotation-matrix derivative required when propagating relative to the moon.
 """
 
 
