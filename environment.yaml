@@ -7,6 +7,10 @@ channels:
 dependencies:
   - tudatpy
   - numpy<2.0
+  - scipy
+  - requests
+  - astropy
+  - matplotlib>=3.9
   - pygmo
   - ipython
   - ipykernel

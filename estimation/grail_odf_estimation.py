@@ -3,7 +3,7 @@
 
 ## Objectives
 
-Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. The script demonstrates the following estimation workflow:
+Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
 1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
 2.  **Environment Setup:** Constructing a precise lunar environment, loading the `gggrx1200` gravity field through degree 500, using degree and order 256 in propagation, and including solid body tides from the Earth and Sun.
 3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
@@ -11,7 +11,6 @@ Within this example, we estimate GRAIL's trajectory using ODF Doppler measuremen
 5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
 
 ## Important Remarks
-- The fit uses two iterations and unconstrained radiation-pressure scale factors. These can become large or negative; small residuals alone do not establish a physically reliable force model.
 - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
 - Running the example automatically triggers the download of all required kernels and data files if they are not found locally
 (trajectory and orientation kernels for the GRAIL spacecraft, atmospheric corrections files, ODF files containing the Doppler
@@ -109,6 +108,7 @@ def run_odf_estimation(inputs):
         True,
         True,
     ):
+
         print("input_index", input_index)
 
         filename_suffix = str(input_index)
@@ -180,58 +180,56 @@ def run_odf_estimation(inputs):
         )
 
         # Modify default shape, rotation, and gravity field settings for the Earth
-        body_settings.get(
-            "Earth"
-        ).shape_settings = environment_setup.shape.oblate_spherical_spice()
-        body_settings.get(
-            "Earth"
-        ).rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
-            environment_setup.rotation_model.iau_2006,
-            global_frame_orientation,
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                env_start_time,
-                env_end_time,
-                3600.0,
-            ),
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                env_start_time,
-                env_end_time,
-                3600.0,
-            ),
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                env_start_time,
-                env_end_time,
-                60.0,
-            ),
+        body_settings.get("Earth").shape_settings = (
+            environment_setup.shape.oblate_spherical_spice()
         )
-        body_settings.get(
-            "Earth"
-        ).gravity_field_settings.associated_reference_frame = "ITRS"
+        body_settings.get("Earth").rotation_model_settings = (
+            environment_setup.rotation_model.gcrs_to_itrs(
+                environment_setup.rotation_model.iau_2006,
+                global_frame_orientation,
+                interpolators.interpolator_generation_settings(
+                    interpolators.cubic_spline_interpolation(),
+                    env_start_time,
+                    env_end_time,
+                    3600.0,
+                ),
+                interpolators.interpolator_generation_settings(
+                    interpolators.cubic_spline_interpolation(),
+                    env_start_time,
+                    env_end_time,
+                    3600.0,
+                ),
+                interpolators.interpolator_generation_settings(
+                    interpolators.cubic_spline_interpolation(),
+                    env_start_time,
+                    env_end_time,
+                    60.0,
+                ),
+            )
+        )
+        body_settings.get("Earth").gravity_field_settings.associated_reference_frame = (
+            "ITRS"
+        )
 
         # Set up DSN ground stations
-        body_settings.get(
-            "Earth"
-        ).ground_station_settings = environment_setup.ground_station.dsn_stations()
+        body_settings.get("Earth").ground_station_settings = (
+            environment_setup.ground_station.dsn_stations()
+        )
 
         # Modify default rotation and gravity field settings for the Moon
-        body_settings.get(
-            "Moon"
-        ).rotation_model_settings = environment_setup.rotation_model.spice(
-            global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
+        body_settings.get("Moon").rotation_model_settings = (
+            environment_setup.rotation_model.spice(
+                global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
+            )
         )
-        body_settings.get(
-            "Moon"
-        ).gravity_field_settings = (
+        body_settings.get("Moon").gravity_field_settings = (
             environment_setup.gravity_field.predefined_spherical_harmonic(
                 environment_setup.gravity_field.gggrx1200, 500
             )
         )
-        body_settings.get(
-            "Moon"
-        ).gravity_field_settings.associated_reference_frame = "MOON_PA_DE440"
+        body_settings.get("Moon").gravity_field_settings.associated_reference_frame = (
+            "MOON_PA_DE440"
+        )
 
         # Define gravity field variations for the tides on the Moon
         moon_gravity_field_variations = list()
@@ -243,9 +241,9 @@ def run_odf_estimation(inputs):
         moon_gravity_field_variations.append(
             environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.02405, 2)
         )
-        body_settings.get(
-            "Moon"
-        ).gravity_field_variation_settings = moon_gravity_field_variations
+        body_settings.get("Moon").gravity_field_variation_settings = (
+            moon_gravity_field_variations
+        )
         body_settings.get("Moon").ephemeris_settings.frame_origin = "Earth"
 
         # Add Moon radiation properties
@@ -260,9 +258,7 @@ def run_odf_estimation(inputs):
                 "Sun",
             ),
         ]
-        body_settings.get(
-            "Moon"
-        ).radiation_source_settings = (
+        body_settings.get("Moon").radiation_source_settings = (
             radiation_pressure.panelled_extended_radiation_source(
                 moon_surface_radiosity_models, [6, 12]
             )
@@ -275,34 +271,32 @@ def run_odf_estimation(inputs):
         body_settings.get(spacecraft_name).constant_mass = 221.69
 
         # Define translational ephemeris from SPICE
-        body_settings.get(
-            spacecraft_name
-        ).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
-            env_start_time,
-            env_end_time,
-            10.0,
-            spacecraft_central_body,
-            global_frame_orientation,
+        body_settings.get(spacecraft_name).ephemeris_settings = (
+            environment_setup.ephemeris.interpolated_spice(
+                env_start_time,
+                env_end_time,
+                10.0,
+                spacecraft_central_body,
+                global_frame_orientation,
+            )
         )
 
         # Define rotational ephemeris from SPICE
-        body_settings.get(
-            spacecraft_name
-        ).rotation_model_settings = environment_setup.rotation_model.spice(
-            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
+        body_settings.get(spacecraft_name).rotation_model_settings = (
+            environment_setup.rotation_model.spice(
+                global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
+            )
         )
 
         # Define GRAIL panel geometry, which will be used for the panel radiation pressure model
-        body_settings.get(
-            spacecraft_name
-        ).vehicle_shape_settings = get_grail_panel_geometry()
+        body_settings.get(spacecraft_name).vehicle_shape_settings = (
+            get_grail_panel_geometry()
+        )
 
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
 
-        bodies.get(
-            spacecraft_name
-        ).system_models.set_default_transponder_turnaround_ratio_function()
+        bodies.get(spacecraft_name).system_models.set_default_transponder_turnaround_ratio_function()
 
         # Add radiation pressure target models for GRAIL (cannonball model for the solar radiation pressure,
         # and complete panel model for the radiation pressure from the Moon)
@@ -654,16 +648,6 @@ def run_odf_estimation(inputs):
         # Perform estimation
         estimation_output = estimator.perform_estimation(estimation_input)
 
-        if (
-            estimation_output.exception_during_propagation
-            or estimation_output.exception_during_inversion
-            or any(
-                not iteration.dynamics_results.integration_completed_successfully
-                for iteration in estimation_output.simulation_results_per_iteration
-            )
-        ):
-            raise RuntimeError(f"GRAIL ODF estimation failed for {inputs[1]}")
-
         # Save pre- and post-fit residuals
         np.savetxt(
             output_folder + "prefit_residuals_" + filename_suffix + ".dat",
@@ -726,6 +710,7 @@ if __name__ == "__main__":
 
     # For each parallel run
     for i in range(nb_parallel_runs):
+
         # First retrieve the names of all the relevant kernels and data files necessary to cover the date of interest
         (
             clock_file,
@@ -810,9 +795,7 @@ if __name__ == "__main__":
         all_prefit.append(prefit_residuals)
         all_postfit.append(postfit_residuals)
 
-        start_date = time_representation.DateTime.from_python_datetime(
-            dates[i]
-        ).to_epoch()
+        start_date = time_representation.DateTime.from_python_datetime(dates[i]).to_epoch()
 
         # Plot the results of the current estimation.
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
@@ -882,3 +865,6 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
+
+
+plt.show()

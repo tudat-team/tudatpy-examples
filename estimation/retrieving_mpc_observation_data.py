@@ -34,7 +34,6 @@ from tudatpy.estimation import observable_models_setup, observable_models, obser
 from tudatpy.data_input.environment_data.horizons import HorizonsQuery
 
 from datetime import datetime
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -83,13 +82,13 @@ We can also directly have a look at the the observations themselves. For example
 """
 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
-obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
+obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
 
 print("Initial and Final Observations by TESS")
-print(obs_by_TESS.iloc[[0, -1]] if not obs_by_TESS.empty else "No TESS observations in this batch.")
+print(obs_by_TESS)
 print("Initial and Final Observations by WISE")
-print(obs_by_WISE.iloc[[0, -1]] if not obs_by_WISE.empty else "No WISE observations in this batch.")
+print(obs_by_WISE)
 
 
 """
@@ -141,9 +140,17 @@ bodies = environment_setup.create_system_of_bodies(body_settings)
 """
 Now that our batch is ready, we can transform it to Tudat tracking-data objects and then create an `ObservationCollection`.
 
-The minor-planet bodies were created above. The calls below convert the batch into tracking data, add the terrestrial observatory metadata to the environment, and construct the observation sets and collection for each observatory/minor-planet link.
+The new conversion path performs the following steps:
 
-The current reader drops satellite records by default. This example therefore uses Earth-based observations; adding a spacecraft body alone does not enable space-based observations.
+1. The minor-planet bodies are added to the body settings above using their MPC codes as names.
+2. The terrestrial optical observatories are added to the Earth body settings.
+3. `to_tracking_dataset()` groups the batch into tracking-data objects for each observatory/minor-planet link.
+4. Each tracking-data object stores the angular observations, epochs, reference link end, and link definition.
+5. `to_tracking_dataset()` also returns the supplementary tracking information needed by the environment.
+6. `set_tracking_supplementary_data_in_bodies()` adds that supplementary information to the system of bodies.
+7. `create_observation_collection_from_tracking_data()` creates a `SingleObservationSet` for each tracking-data object and returns their `ObservationCollection`.
+
+The current reader excludes satellite records, so this conversion uses Earth-based observations.
 """
 
 
@@ -158,8 +165,8 @@ The names of the bodies added to the system of bodies object as well as the date
 """
 
 
-epoch_start = min(utc_seconds_to_tdb(batch1.table.epoch_seconds_UTC)) # in seconds since J2000 TDB (Tudat default)
-epoch_end = max(utc_seconds_to_tdb(batch1.table.epoch_seconds_UTC))
+epoch_start = batch1.epoch_start # in seconds since J2000 TDB (Tudat default)
+epoch_end = batch1.epoch_end
 object_names = batch1.MPC_objects
 
 
@@ -264,8 +271,10 @@ That's it! Next, check out the [Estimation with MPC](estimation_with_mpc.ipynb) 
 """
 
 """
-### Optional spacecraft environment setup
-Space telescopes are represented as bodies instead of ground stations. The code below illustrates defining a TESS ephemeris from a local SPICE kernel. It only constructs the environment: satellite-observation conversion through the new MPC reader requires a separate correction and is not demonstrated here.
+### Using satellite observations.
+Space Telescopes in Tudat are treated as bodies instead of stations. To use their observations, their motion should be known to Tudat. A user may for example retrieve their ephemerides from a SPICE kernel or propagate the satellite. The MPC code for TESS can be obtained using the `observatories_table()` method as used previously. Below is an example using a SPICE kernel.
+
+The current MPC reader does not convert space-based observations.
 """
 
 
@@ -273,24 +282,26 @@ Space telescopes are represented as bodies instead of ground stations. The code 
 # This allows us to add ephemeris settings, 
 # which tudat uses to create an ephemeris which is consistent with the rest of the environment.
 TESS_code = "-95"
-if os.path.exists("tess_20_year_long_predictive.bsp"):
-    body_settings.add_empty_settings("TESS")
+body_settings.add_empty_settings("TESS")
 
-    # Set up the space telescope's dynamics, TESS orbits earth
-    # the spice kernel can be retrieved from: https://archive.stsci.edu/missions/tess/models/
-    spice.load_kernel(r"tess_20_year_long_predictive.bsp")
-    body_settings.get("TESS").ephemeris_settings =  environment_setup.ephemeris.direct_spice(
-         "Earth", global_frame_orientation, TESS_code)
+# Set up the space telescope's dynamics, TESS orbits earth
+# the spice kernel can be retrieved from: https://archive.stsci.edu/missions/tess/models/
+spice.load_kernel(r"tess_20_year_long_predictive.bsp")
+body_settings.get("TESS").ephemeris_settings =  environment_setup.ephemeris.direct_spice(
+     "Earth", global_frame_orientation, TESS_code)
 
-    # Create system of bodies
-    bodies = environment_setup.create_system_of_bodies(body_settings)
-else:
-    print("Skipping optional TESS SPICE example because tess_20_year_long_predictive.bsp is not available.")
+# NOTE this is incorrect, here we are trying to set the ephemeris directly:
+# Setting the ephemeris settings allows tudat to complete the relevant setup for the body.
+# bodies.create_empty_body("TESS")
+# bodies.get("TESS").ephemeris = environment_setup.ephemeris.direct_spice(
+#      global_frame_origin, global_frame_orientation, TESS_code)
 
+# Create system of bodies
+bodies = environment_setup.create_system_of_bodies(body_settings)
 
 """
-### Manual retrieval from existing tables
-Those with existing filtering or retrieval processes may use the `from_astropy()` and `from_pandas()` methods to import tabular observations before converting the batch to Tudat tracking data. The input must meet the requirements described in the API documentation.
+### Retrieving another batch
+We retrieve observations of 238 Hypatia in a second batch for the batch-combination example below.
 """
 
 

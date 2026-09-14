@@ -522,19 +522,11 @@ def perform_residuals_analysis(inputs):
             tnf_files, ["doppler", "range"], spacecraft_name="MRO"
         )
         tracking_data, supplementary_data = tnfProcessor.process()
-        # Set MRO's transponder delay while preserving the TNF station delays.
-        for data_set in tracking_data:
-            link_delays = data_set.get_ancillary_settings_double_vector()[
-                "link ends time delays"
-            ]
-            link_delays[1] = 1.4149e-6
-            data_set.add_double_vector_ancillary_setting(
-                "link ends time delays", link_delays
-            )
         observations.set_tracking_supplementary_data_in_bodies(
             bodies, supplementary_data
         )
         tnfProcessor.set_transponder_turnaround_ratio(bodies)
+        bodies.get(spacecraft_name).system_models.transponder_delay = 1.4149e-6
         original_odf_observations = observations.create_observation_dataset_from_tracking_data(
             tracking_data, bodies
         )

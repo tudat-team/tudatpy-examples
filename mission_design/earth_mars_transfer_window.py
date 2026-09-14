@@ -103,9 +103,9 @@ Generating a high-resolution plot may be time-consuming: reusing saved data migh
 data_file = 'porkchop_lambert.pkl'
 
 # Whether to recalculate the porkchop plot or use saved data
-RECALCULATE_delta_v = input(
-    '\n    Recalculate Delta V for porkchop plot? [y/N] '
-).strip().lower() == 'y'
+RECALCULATE_delta_v = True  # input(
+#     '\n    Recalculate Delta V for porkchop plot? [y/N] '
+# ).strip().lower() == 'y'
 print()
 
 

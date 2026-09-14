@@ -118,7 +118,7 @@ The default MPC reader excludes space-based observations. This example uses
 Earth-based telescopes only; space telescopes require their own ephemerides and
 observation links.
 
-Also note that if, for any reason, you would like to filter out some other observations, you can do so with the `BatchMPC.filter()` method. Note that all observations give Right Ascension (RA) and Declination (DEC) in **radians**.
+Also note that if, for any reason, you would like to filter out some other observations, you can do so by excluding the observatories with the `.filter()` method, specifying their codes (for instance, use `.filter('C59')` will filter out observations from Yangwang-1). Note that all observations give Right Ascension (RA) and Declination (DEC) in **radians**.
 """
 
 """
@@ -851,7 +851,7 @@ plt.show()
 
 
 """
-That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the **dynamical model** and the **estimation settings**. Consider for example custom observation weights and link biases, as well as improved integrator settings and perturbations.
+That's it for this tutorial! The final estimation result is quite close to spice at times, but there is clearly plenty of room for improvement in both the **dynamical model** and the **estimation settings**. Consider for example adding weights and biases on observations and links, as well as improved integrator settings and perturbations.
 
 If you wanna get more hands-on experience, consider rerunning the script for some other object by changing the `target_mpc_code` variable and seeing how the results change.
 """
