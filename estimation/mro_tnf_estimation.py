@@ -1,8 +1,6 @@
 # %%
 import os
 import pickle
-import contextlib
-import io
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -10,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
+from mro_utils import macromodel_mro, get_rsw_state_difference
 
 from tudatpy.util import redirect_std
 from tudatpy.data_input.environment_data import spice
@@ -316,27 +314,46 @@ def create_propagator_settings(
 def prepare_arc_inputs(arc_index, start_epoch, end_epoch):
     """Select the local kernels and tracking files needed by the first arc."""
     print("Selecting input files for the arc...")
-    with contextlib.redirect_stdout(io.StringIO()):
-        (
-            clock_files,
-            orientation_files,
-            tro_files,
-            ion_files,
-            _,
-            trajectory_files,
-            frames_def_file,
-            structure_file,
-        ) = get_mro_files("mro_kernels/", start_epoch, end_epoch)
-
-    # This TNF file starts on the preceding UTC day and contains the observations
-    # in the first 12 hours of the requested interval.
-    tnf_files = ["mro_kernels/mromagr2011_365_1411xmmmv1.tnf"]
-    # PSP22 covers this interval; PSP21 ends shortly before the arc begins.
-    trajectory_files = [
-        trajectory_file
-        for trajectory_file in trajectory_files
-        if os.path.basename(trajectory_file) == "mro_psp22.bsp"
+    kernel_directory = os.path.join(os.path.dirname(__file__), "mro_kernels")
+    clock_files = [os.path.join(kernel_directory, "mro_sclkscet_00112_65536.tsc")]
+    orientation_files = [
+        os.path.join(kernel_directory, file_name)
+        for file_name in [
+            "mro_sc_psp_111227_120102.bc",
+            "mro_hga_psp_111227_120102.bc",
+            "mro_sa_psp_111227_120102.bc",
+        ]
     ]
+    tro_files = [
+        os.path.join(kernel_directory, "mromagr2011_335_2012_001.tro"),
+        os.path.join(kernel_directory, "mromagr2012_001_2012_032.tro"),
+    ]
+    ion_files = [
+        os.path.join(kernel_directory, "mromagr2011_335_2012_001.ion"),
+        os.path.join(kernel_directory, "mromagr2012_001_2012_032.ion"),
+    ]
+    # This file starts on the preceding UTC day and contains the observations
+    # in the requested 12-hour interval.
+    tnf_files = [os.path.join(kernel_directory, "mromagr2011_365_1411xmmmv1.tnf")]
+    trajectory_files = [os.path.join(kernel_directory, "mro_psp22.bsp")]
+    frames_def_file = os.path.join(kernel_directory, "mro_v16.tf")
+    structure_file = os.path.join(kernel_directory, "mro_struct_v10.bsp")
+
+    required_files = (
+        clock_files
+        + orientation_files
+        + tro_files
+        + ion_files
+        + tnf_files
+        + trajectory_files
+        + [frames_def_file, structure_file]
+    )
+    missing_files = [file_name for file_name in required_files if not os.path.isfile(file_name)]
+    if missing_files:
+        raise FileNotFoundError(
+            "Missing required MRO input files: " + ", ".join(missing_files)
+        )
+
     return [
         arc_index,
         start_epoch,
@@ -872,6 +889,12 @@ if __name__ == "__main__":
     output_folder_base = os.environ.get("MRO_OUTPUT_DIRECTORY", "mro_outputs")
     if not os.path.exists(output_folder_base):
         os.makedirs(output_folder_base)
+    run_description = os.environ.get(
+        "MRO_RUN_DESCRIPTION",
+        "Current MRO TNF example configuration.",
+    )
+    with open(os.path.join(output_folder_base, "settings.txt"), "w") as settings_file:
+        settings_file.write(run_description.strip() + "\n")
 
     first_arc_start = datetime.fromisoformat("2012-01-01 03:18:01.965")
     first_arc_end = first_arc_start + timedelta(hours=12)
