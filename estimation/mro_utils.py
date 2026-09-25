@@ -12,7 +12,7 @@ from urllib.parse import urljoin
 import glob
 import re
 import pandas as pd
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 
 
@@ -594,6 +594,7 @@ def macromodel_mro():
         bus_frame_origin,
         bus_material_properties,
         bus_reradiation_settings,
+        input_unit="mm",
     )
     # HGA
     hga_material_properties = {
@@ -619,6 +620,7 @@ def macromodel_mro():
         hga_frame_origin,
         hga_material_properties,
         hga_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_HGA_OUTER_GIMBAL",
     )
     hga_rotation_settings = environment_setup.rotation_model.spice(
@@ -648,6 +650,7 @@ def macromodel_mro():
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAPX",
     )
     sapx_rotation_settings = environment_setup.rotation_model.spice(
@@ -659,6 +662,7 @@ def macromodel_mro():
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAMX",
     )
     samx_rotation_settings = environment_setup.rotation_model.spice(

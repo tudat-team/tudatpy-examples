@@ -1,26 +1,30 @@
 # %%
 import os
 import pickle
+import contextlib
+import io
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import multiprocessing
 from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
 
 from tudatpy.util import redirect_std
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
-from tudatpy.data import processTrk234
+from tudatpy.data_input.tracking_data.tnf import (
+    OpenRampHandling,
+    read_tnf_data,
+)
 
 from tudatpy.dynamics import (
     environment_setup,
     propagation_setup,
     parameters_setup,
     propagation,
-    parameters,
 )
 from tudatpy import estimation
 from tudatpy.estimation import (
@@ -33,6 +37,365 @@ from tudatpy.estimation import (
 from tudatpy.math import interpolators
 
 import time as t
+
+
+def load_spice_kernels(
+    clock_files,
+    orientation_files,
+    trajectory_files,
+    frames_def_file,
+    structure_file,
+):
+    """Load the standard and MRO-specific SPICE kernels."""
+    print("Loading SPICE kernels...")
+    spice.load_standard_kernels()
+
+    for orientation_file in orientation_files:
+        spice.load_kernel(orientation_file)
+    for clock_file in clock_files:
+        spice.load_kernel(clock_file)
+    spice.load_kernel(frames_def_file)
+    for trajectory_file in trajectory_files:
+        spice.load_kernel(trajectory_file)
+    spice.load_kernel(structure_file)
+
+
+def load_tracking_data(tnf_files):
+    """Load MRO Doppler observations and their supplementary data."""
+    print("Loading TNF tracking data...")
+    return read_tnf_data(
+        tnf_files,
+        ["doppler"],
+        spacecraft_name="MRO",
+        open_ramp_handling=OpenRampHandling.close_silently,
+    )
+
+
+def create_environment(environment_start_time, environment_end_time):
+    """Create the celestial-body and MRO environment for one estimation arc."""
+    print("Setting up simulation environment...")
+    bodies_to_create = [
+        "Earth",
+        "Sun",
+        "Mercury",
+        "Venus",
+        "Mars",
+        "Jupiter",
+        "Saturn",
+        "Phobos",
+        "Deimos",
+    ]
+    global_frame_origin = "SSB"
+    global_frame_orientation = "J2000"
+    body_settings = environment_setup.get_default_body_settings_time_limited(
+        bodies_to_create,
+        environment_start_time.to_float(),
+        environment_end_time.to_float(),
+        global_frame_origin,
+        global_frame_orientation,
+    )
+
+    body_settings.get("Earth").shape_settings = (
+        environment_setup.shape.oblate_spherical_spice()
+    )
+    body_settings.get("Earth").rotation_model_settings = (
+        environment_setup.rotation_model.gcrs_to_itrs(
+            environment_setup.rotation_model.iau_2006,
+            global_frame_orientation,
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
+                60.0,
+            ),
+        )
+    )
+    body_settings.get("Earth").gravity_field_settings.associated_reference_frame = (
+        "ITRS"
+    )
+    body_settings.get("Earth").ground_station_settings = (
+        environment_setup.ground_station.dsn_stations()
+    )
+
+    body_settings.get("Mars").rotation_model_settings = (
+        environment_setup.rotation_model.mars_high_accuracy(
+            base_frame=global_frame_orientation
+        )
+    )
+    body_settings.get("Mars").gravity_field_settings = (
+        environment_setup.gravity_field.predefined_spherical_harmonic(
+            environment_setup.gravity_field.jgmro120d, 120
+        )
+    )
+    body_settings.get("Mars").gravity_field_settings.associated_reference_frame = (
+        "Mars_Fixed"
+    )
+    body_settings.get("Mars").gravity_field_variation_settings = [
+        environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.1697, 2),
+        environment_setup.gravity_field_variation.solid_body_tide("Phobos", 0.1697, 2),
+    ]
+    body_settings.get("Mars").atmosphere_settings = (
+        environment_setup.atmosphere.mars_dtm()
+    )
+
+    # The mean Martian Bond albedo is approximately 0.25 (NASA Mars Fact Sheet).
+    mars_surface_radiosity = [
+        environment_setup.radiation_pressure.constant_radiosity(250.0),
+        environment_setup.radiation_pressure.constant_albedo_surface_radiosity(
+            0.25, "Sun"
+        ),
+    ]
+    body_settings.get("Mars").radiation_source_settings = (
+        environment_setup.radiation_pressure.panelled_extended_radiation_source(
+            mars_surface_radiosity,
+            [6, 12],
+        )
+    )
+
+    spacecraft_name = "MRO"
+    spacecraft_central_body = "Mars"
+    body_settings.add_empty_settings(spacecraft_name)
+    body_settings.get(spacecraft_name).ephemeris_settings = (
+        environment_setup.ephemeris.interpolated_spice(
+            environment_start_time.to_float(),
+            environment_end_time.to_float(),
+            10.0,
+            spacecraft_central_body,
+            global_frame_orientation,
+        )
+    )
+    body_settings.get(spacecraft_name).rotation_model_settings = (
+        environment_setup.rotation_model.spice(
+            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
+        )
+    )
+    body_settings.get(spacecraft_name).constant_mass = 1262.39
+    body_settings.get(spacecraft_name).vehicle_shape_settings = macromodel_mro()
+
+    drag_coefficient = 2.0
+    lift_coefficient = 0.01
+    self_shadowing_pixels = 20
+    body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
+        environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
+            [drag_coefficient, 0, lift_coefficient], self_shadowing_pixels
+        )
+    )
+    body_settings.get(spacecraft_name).radiation_pressure_target_settings = (
+        environment_setup.radiation_pressure.panelled_radiation_target(
+            {"Sun": ["Mars"]},
+            {"Sun": self_shadowing_pixels},
+        )
+    )
+
+    bodies = environment_setup.create_system_of_bodies(body_settings)
+    spacecraft_systems = bodies.get(spacecraft_name).system_models
+    spacecraft_systems.transponder_delay = 1.4149e-6
+    spacecraft_systems.set_default_transponder_turnaround_ratio_function()
+
+    # BodySettings currently accepts one target model. Add the cannonball model
+    # used for Mars radiation pressure after body creation as a workaround.
+    environment_setup.add_radiation_pressure_target_model(
+        bodies,
+        spacecraft_name,
+        environment_setup.radiation_pressure.cannonball_radiation_target(
+            5.0,
+            1.5,
+            {"Mars": []},
+        ),
+    )
+    return (
+        bodies,
+        spacecraft_name,
+        spacecraft_central_body,
+        global_frame_orientation,
+    )
+
+
+def create_observations(tracking_data, supplementary_data, bodies, arc_start, arc_end):
+    """Apply supplementary data, select the arc, and compress its Doppler data."""
+    print("Preparing and compressing observations...")
+    observations.set_tracking_supplementary_data_in_bodies(
+        bodies, supplementary_data
+    )
+    original_observations = (
+        observations.create_observation_collection_from_tracking_data(
+            tracking_data, bodies
+        )
+    )
+
+    arc_filter = observations.observations_processing.observation_filter(
+        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+        arc_start.to_float(),
+        arc_end.to_float(),
+        use_opposite_condition=True,
+    )
+    original_observations.filter_observations(arc_filter)
+    original_observations.remove_empty_observation_sets()
+
+    observation_time_limits = original_observations.time_bounds_time_object
+    obs_start_time = observation_time_limits[0]
+    obs_end_time = observation_time_limits[1]
+    compressed_observations = observations.create_compressed_doppler_collection(
+        original_observations, 60, 10
+    )
+    return compressed_observations, obs_start_time, obs_end_time
+
+
+def create_propagator_settings(
+    bodies,
+    spacecraft_name,
+    spacecraft_central_body,
+    prop_start_time,
+    obs_end_time,
+):
+    """Create MRO acceleration models and translational propagator settings."""
+    print("Setting up accelerations and propagation...")
+    accelerations_settings_spacecraft = dict(
+        Sun=[
+            propagation_setup.acceleration.point_mass_gravity(),
+            propagation_setup.acceleration.radiation_pressure(
+                environment_setup.radiation_pressure.paneled_target
+            ),
+        ],
+        Mars=[
+            propagation_setup.acceleration.spherical_harmonic_gravity(120, 120),
+            propagation_setup.acceleration.aerodynamic(),
+            propagation_setup.acceleration.radiation_pressure(
+                environment_setup.radiation_pressure.cannonball_target
+            ),
+            propagation_setup.acceleration.empirical(),
+        ],
+        Jupiter=[propagation_setup.acceleration.point_mass_gravity()],
+        Saturn=[propagation_setup.acceleration.point_mass_gravity()],
+        Earth=[propagation_setup.acceleration.point_mass_gravity()],
+        Phobos=[propagation_setup.acceleration.point_mass_gravity()],
+        Deimos=[propagation_setup.acceleration.point_mass_gravity()],
+    )
+    acceleration_settings = {spacecraft_name: accelerations_settings_spacecraft}
+    bodies_to_propagate = [spacecraft_name]
+    central_bodies = [spacecraft_central_body]
+    acceleration_models = propagation_setup.create_acceleration_models(
+        bodies, acceleration_settings, bodies_to_propagate, central_bodies
+    )
+    integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+        time_representation.Time(0, 30.0),
+        propagation_setup.integrator.rkf_78,
+    )
+    initial_state = propagation.get_state_of_bodies(
+        bodies_to_propagate, central_bodies, bodies, prop_start_time
+    )
+    propagator_settings = propagation_setup.propagator.translational(
+        central_bodies,
+        acceleration_models,
+        bodies_to_propagate,
+        initial_state,
+        prop_start_time,
+        integrator_settings,
+        propagation_setup.propagator.time_termination(obs_end_time.to_float()),
+    )
+    # This interval is measured in propagation time and is retained by the
+    # variational-equations solver used during estimation. Giving both triggers
+    # the same value also initializes the first simulated-time interval.
+    propagator_settings.print_settings.results_print_frequency_in_seconds = 900.0
+    propagator_settings.print_settings.results_print_frequency_in_steps = 900
+    return propagator_settings, initial_state
+
+
+def prepare_arc_inputs(arc_index, start_epoch, end_epoch):
+    """Select the local kernels and tracking files needed by the first arc."""
+    print("Selecting input files for the arc...")
+    with contextlib.redirect_stdout(io.StringIO()):
+        (
+            clock_files,
+            orientation_files,
+            tro_files,
+            ion_files,
+            _,
+            trajectory_files,
+            frames_def_file,
+            structure_file,
+        ) = get_mro_files("mro_kernels/", start_epoch, end_epoch)
+
+    # This TNF file starts on the preceding UTC day and contains the observations
+    # in the first 12 hours of the requested interval.
+    tnf_files = ["mro_kernels/mromagr2011_365_1411xmmmv1.tnf"]
+    # PSP22 covers this interval; PSP21 ends shortly before the arc begins.
+    trajectory_files = [
+        trajectory_file
+        for trajectory_file in trajectory_files
+        if os.path.basename(trajectory_file) == "mro_psp22.bsp"
+    ]
+    return [
+        arc_index,
+        start_epoch,
+        end_epoch,
+        tnf_files,
+        clock_files,
+        orientation_files,
+        tro_files,
+        ion_files,
+        trajectory_files,
+        frames_def_file,
+        structure_file,
+    ]
+
+
+def save_spice_residual_diagnostics(residuals, output_path):
+    """Save Doppler residuals computed directly from the reconstructed trajectory."""
+    residual_rms = np.sqrt(np.mean(np.square(residuals["spice"])))
+    residual_maximum = np.max(np.abs(residuals["spice"]))
+    reference_epoch = residuals["time"].min()
+    relative_time = (residuals["time"] - reference_epoch) / 86400.0
+    reference_date = time_representation.DateTime.from_epoch(
+        time_representation.Time(reference_epoch)
+    ).to_python_datetime()
+
+    figure, axis = plt.subplots(figsize=(14, 6))
+    for link_ends, link_residuals in residuals.groupby("link_ends"):
+        link_time = (link_residuals["time"] - reference_epoch) / 86400.0
+        axis.scatter(
+            link_time,
+            link_residuals["spice"],
+            s=20,
+            alpha=0.7,
+            label=link_ends,
+        )
+    axis.axhline(0.0, color="black", linewidth=0.8)
+    axis.set_title(
+        "Residuals computed with the reconstructed SPICE trajectory\n"
+        f"RMS = {residual_rms * 1.0e3:.3f} mHz, "
+        f"maximum absolute residual = {residual_maximum * 1.0e3:.3f} mHz"
+    )
+    axis.set_xlabel(
+        f"Time [days since {reference_date.strftime('%Y-%m-%d %H:%M:%S')}]"
+    )
+    axis.set_ylabel("DSN averaged Doppler residual [Hz]")
+    axis.grid(which="both", linestyle="--", linewidth=1.0)
+    if residuals["link_ends"].nunique() > 1:
+        axis.legend(title="Tracking link")
+    figure.suptitle("MRO pre-propagation observation-model diagnostic")
+    figure.tight_layout(rect=(0, 0, 1, 0.95))
+    figure.savefig(output_path, bbox_inches="tight")
+    plt.close(figure)
+
+    print(
+        f"SPICE residual RMS: {residual_rms * 1.0e3:.3f} mHz; "
+        f"maximum: {residual_maximum * 1.0e3:.3f} mHz; "
+        f"observations: {len(relative_time)}"
+    )
+    print(f"Saved pre-propagation diagnostic to {output_path}")
 
 
 def process_arc(inputs):
@@ -71,42 +434,16 @@ def process_arc(inputs):
 
     print(f"Processing arc {arc_index}: {startDateTime} to {endDateTime}")
 
-    spice.load_standard_kernels()
-
-    # Load MRO orientation kernels (over the entire relevant time period).
-    for orientation_file in orientation_files:
-        spice.load_kernel(orientation_file)
-
-    # Load MRO clock files
-    for clock_file in clock_files:
-        spice.load_kernel(clock_file)
-
-    # Load MRO frame definition file (useful for HGA and spacecraft-fixed frames definition)
-    spice.load_kernel(frames_def_file)
-
-    # Load MRO trajectory kernels
-    for trajectory_file in trajectory_files:
-        spice.load_kernel(trajectory_file)
-
-    # Load MRO spacecraft structure file (for antenna position in spacecraft-fixed frame)
-    spice.load_kernel(structure_file)
-
-    # Remove first TNF file to avoid issues with time coverage
-    tnf_files = tnf_files[1:]
-
-    # Data for arc 4 is in the previous day TNF file
-    if arc_index == 4:
-        tnf_files.append("mro_kernels/mromagr2012_016_0520xmmmv1.tnf")
-
-    # LOAD TNF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
-    tnfProcessor = processTrk234.Trk234Processor(
-        tnf_files,
-        ["doppler"],
-        spacecraft_name="MRO",
+    load_spice_kernels(
+        clock_files,
+        orientation_files,
+        trajectory_files,
+        frames_def_file,
+        structure_file,
     )
-    original_observations = tnfProcessor.process()
+    tracking_data, supplementary_data = load_tracking_data(tnf_files)
 
-    # Remove observation outside the arc time interval
+    # Define arc time interval
     arcStart = time_representation.DateTime.from_python_datetime(
         startDateTime
     ).to_epoch()
@@ -124,195 +461,33 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # Filter observations to the arc time interval
-    arc_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        arcStart.to_float(),
-        arcEnd.to_float(),
-        use_opposite_condition=True,
-    )
-    original_observations.filter_observations(arc_filter)
-    original_observations.remove_empty_observation_sets()
+    # TrackingData epochs still carry their source UTC scale. Use the nominal
+    # TDB arc bounds while creating the environment; the propagation bounds are
+    # refined from the converted observations below.
+    environment_start_time = arcStart - 3600.0
+    environment_end_time = arcEnd + 3600.0
 
-    # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    compressed_observations = (
-        observations_setup.observations_wrapper.create_compressed_doppler_collection(
-            original_observations, 60, 10
-        )
-    )
-
-    # Add transpondr delay
-    compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
-
-    # Buffer model/propagation start and end times
-    observation_time_limits = original_observations.time_bounds_time_object
-    obs_start_time = observation_time_limits[0]
-    obs_end_time = observation_time_limits[1]
-
-    prop_start_time = observation_time_limits[0] - 3600.0
-    prop_end_time = observation_time_limits[1] + 3600.0
-
-    # ====================
-    # Create default body settings for celestial bodies
-    bodies_to_create = [
-        "Earth",
-        "Sun",
-        "Mercury",
-        "Venus",
-        "Mars",
-        "Jupiter",
-        "Saturn",
-        "Phobos",
-        "Deimos",
-    ]
-    global_frame_origin = "SSB"
-    global_frame_orientation = "J2000"
-    body_settings = environment_setup.get_default_body_settings_time_limited(
-        bodies_to_create,
-        prop_start_time.to_float(),
-        prop_end_time.to_float(),
-        global_frame_origin,
+    (
+        bodies,
+        spacecraft_name,
+        spacecraft_central_body,
         global_frame_orientation,
+    ) = create_environment(
+        environment_start_time,
+        environment_end_time,
     )
-
-    # ====================
-    # Earth
-    # Modify default shape, rotation, and gravity field settings for the Earth
-    body_settings.get("Earth").shape_settings = (
-        environment_setup.shape.oblate_spherical_spice()
+    compressed_observations, obs_start_time, obs_end_time = create_observations(
+        tracking_data,
+        supplementary_data,
+        bodies,
+        arcStart,
+        arcEnd,
     )
-    body_settings.get("Earth").rotation_model_settings = (
-        environment_setup.rotation_model.gcrs_to_itrs(
-            environment_setup.rotation_model.iau_2006,
-            global_frame_orientation,
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
-                3600.0,
-            ),
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
-                3600.0,
-            ),
-            interpolators.interpolator_generation_settings(
-                interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
-                60.0,
-            ),
-        )
-    )
-    body_settings.get("Earth").gravity_field_settings.associated_reference_frame = (
-        "ITRS"
-    )
-
-    # Set up DSN ground stations
-    body_settings.get("Earth").ground_station_settings = (
-        environment_setup.ground_station.dsn_stations()
-    )
-
-    # ====================
-    # Mars
-    body_settings.get("Mars").rotation_model_settings = (
-        environment_setup.rotation_model.mars_high_accuracy(
-            base_frame=global_frame_orientation
-        )
-    )
-    body_settings.get("Mars").gravity_field_settings = (
-        environment_setup.gravity_field.predefined_spherical_harmonic(
-            environment_setup.gravity_field.jgmro120d, 120
-        )
-    )
-    body_settings.get("Mars").gravity_field_settings.associated_reference_frame = (
-        "Mars_Fixed"
-    )
-
-    # Define gravity field variations for the tides on Mars
-    body_settings.get("Mars").gravity_field_variation_settings = [
-        environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.1697, 2),
-        environment_setup.gravity_field_variation.solid_body_tide("Phobos", 0.1697, 2),
-    ]
-
-    # Define Mars atmosphere settings
-    body_settings.get("Mars").atmosphere_settings = (
-        environment_setup.atmosphere.mars_dtm()
-    )
-
-    # Define Mars irradiance-based radiation pressure settings
-    luminosity_settings = (
-        environment_setup.radiation_pressure.irradiance_based_constant_luminosity(
-            250, 3.4e6
-        )
-    )
-    body_settings.get("Mars").radiation_source_settings = (
-        environment_setup.radiation_pressure.isotropic_radiation_source(
-            luminosity_settings
-        )
-    )
-
-    # MRO
-    spacecraft_name = "MRO"
-    spacecraft_central_body = "Mars"
-    body_settings.add_empty_settings(spacecraft_name)
-
-    # Retrieve translational ephemeris from SPICE
-    body_settings.get(spacecraft_name).ephemeris_settings = (
-        environment_setup.ephemeris.interpolated_spice(
-            prop_start_time.to_float(),
-            prop_end_time.to_float(),
-            10.0,
-            spacecraft_central_body,
-            global_frame_orientation,
-        )
-    )
-
-    # Retrieve rotational ephemeris from SPICE
-    body_settings.get(spacecraft_name).rotation_model_settings = (
-        environment_setup.rotation_model.spice(
-            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
-        )
-    )
-
-    body_settings.get(spacecraft_name).constant_mass = 1262.39  # [kg]
-    body_settings.get(spacecraft_name).vehicle_shape_settings = macromodel_mro()
-
-    # Create environment
-    bodies = environment_setup.create_system_of_bodies(body_settings)
-
-    # Set MRO aerodynamics settings using spacecraft macromodel, variable cross-section and constant coefficients
-    drag_coefficient = 2.0  # from Mazarico et al.
-    lift_coefficient = 0.01  # set different to zero to estimate lift
-    # lift_coefficient = 0  # set different to zero to estimate lift
-    ssh = 0
-    aero_coefficient_settings = (
-        environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
-            [drag_coefficient, 0, lift_coefficient], ssh
-        )
-    )
-    environment_setup.add_aerodynamic_coefficient_interface(
-        bodies, spacecraft_name, aero_coefficient_settings
-    )
-
-    # Set MRO radiation pressure settings using spacecraft macromodel and variable cross-section
-    ssh = 100
-    occulting_bodies_dict = dict(Sun=["Mars"])
-    pixel_source_dict = dict(Sun=ssh)
-    radiation_pressure_settings = (
-        environment_setup.radiation_pressure.panelled_radiation_target(
-            occulting_bodies_dict, pixel_source_dict
-        )
-    )
-    environment_setup.add_radiation_pressure_target_model(
-        bodies, spacecraft_name, radiation_pressure_settings
-    )
-
-    tnfProcessor.set_tnf_information_in_bodies(bodies)
+    prop_start_time = obs_start_time - 3600.0
 
     # ===================================================================================================
     # SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
+    print("Setting the MRO antenna reference point...")
 
     # Define MRO center-of-mass (COM) position w.r.t. the origin of the MRO-fixed reference frame
     com_position = [-0.001235, -1.14978, -0.001288]
@@ -353,6 +528,8 @@ def process_arc(inputs):
         "MRO",
         observable_models_setup.links.LinkEndType.reflector1,
     )
+
+    print("Setting up Doppler observation models...")
 
     #  Create light-time corrections list
     light_time_correction_list = list()
@@ -397,6 +574,8 @@ def process_arc(inputs):
     observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
         observation_model_settings, bodies
     )
+
+    print("Computing and filtering prefit residuals...")
 
     # Compute and set residuals in the compressed observation collection
     observations.compute_residuals_and_dependent_variables(
@@ -465,68 +644,27 @@ def process_arc(inputs):
             "msrType": all_type_ids,
         }
     )
-
-    # =========================================================================================
-    # DEFINE PROPAGATION SETTINGS
-
-    # Define list of accelerations acting on GRAIL
-    accelerations_settings_spacecraft = dict(
-        Sun=[
-            propagation_setup.acceleration.point_mass_gravity(),
-            propagation_setup.acceleration.radiation_pressure(
-                environment_setup.radiation_pressure.paneled_target
-            ),
-        ],
-        Mars=[
-            propagation_setup.acceleration.spherical_harmonic_gravity(120, 120),
-            propagation_setup.acceleration.aerodynamic(),
-            propagation_setup.acceleration.radiation_pressure(
-                environment_setup.radiation_pressure.paneled_target
-            ),
-            propagation_setup.acceleration.empirical(),
-        ],
-        Jupiter=[propagation_setup.acceleration.point_mass_gravity()],
-        Saturn=[propagation_setup.acceleration.point_mass_gravity()],
-        Earth=[propagation_setup.acceleration.point_mass_gravity()],
-        Phobos=[propagation_setup.acceleration.point_mass_gravity()],
-        Deimos=[propagation_setup.acceleration.point_mass_gravity()],
+    residDf.to_pickle(arc_output_folder + "spice_residuals.pkl")
+    save_spice_residual_diagnostics(
+        residDf,
+        os.path.join(output_folder_base, "mro_estimation_results.pdf"),
     )
+    if os.environ.get("MRO_PREFIT_ONLY", "0").lower() in {"1", "true", "yes"}:
+        print("Prefit-only run complete; numerical propagation was not started.")
+        return arc_index
 
-    # Create accelerations settings dictionary
-    acceleration_settings = {spacecraft_name: accelerations_settings_spacecraft}
-
-    # Create acceleration models from settings
-    bodies_to_propagate = [spacecraft_name]
-    central_bodies = [spacecraft_central_body]
-    acceleration_models = propagation_setup.create_acceleration_models(
-        bodies, acceleration_settings, bodies_to_propagate, central_bodies
-    )
-
-    # Define integrator settings
-    integration_step = 30.0
-    integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step_size(
-        time_representation.Time(0, integration_step),
-        propagation_setup.integrator.rkf_78,
-    )
-
-    # Retrieve initial state from SPICE
-    initial_state = propagation.get_state_of_bodies(
-        bodies_to_propagate, central_bodies, bodies, prop_start_time
-    )
-
-    # Define propagator settings
-    propagator_settings = propagation_setup.propagator.translational(
-        central_bodies,
-        acceleration_models,
-        bodies_to_propagate,
-        initial_state,
+    propagator_settings, initial_state = create_propagator_settings(
+        bodies,
+        spacecraft_name,
+        spacecraft_central_body,
         prop_start_time,
-        integrator_settings,
-        propagation_setup.propagator.time_termination(obs_end_time.to_float()),
+        obs_end_time,
     )
 
     # =========================================================================================
     # DEFINE SET OF PARAMETERS TO BE ESTIMATED
+
+    print("Setting up estimated parameters...")
 
     # Define parameters to estimate
     parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
@@ -560,7 +698,7 @@ def process_arc(inputs):
 
     # Save arc start times
     arc_start_times = []
-    current_arc_start_time = obs_start_time.to_float()
+    current_arc_start_time = prop_start_time.to_float()
     while current_arc_start_time < obs_end_time.to_float():
         arc_start_times.append(current_arc_start_time)
         current_arc_start_time += orbital_period
@@ -587,6 +725,12 @@ def process_arc(inputs):
         ],
     }
     extra_parameters.append(
+        parameters_setup.drag_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
+        parameters_setup.lift_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
         parameters_setup.arcwise_empirical_accelerations(
             spacecraft_name,
             "Mars",
@@ -595,20 +739,15 @@ def process_arc(inputs):
         )
     )
 
-    extra_parameters.append(
-        parameters_setup.drag_component_scaling(spacecraft_name),
-    )
-    extra_parameters.append(
-        parameters_setup.lift_component_scaling(spacecraft_name),
-    )
-
     # Add additional parameters settings
     parameter_settings += extra_parameters
 
     # Create set of parameters to estimate
-    parameters_to_estimate = parameters_setup.create_parameter_set(
-        parameter_settings, bodies, propagator_settings
-    )
+    # Suppress the parameter-ordering warning repeated once for every arc.
+    with redirect_std():
+        parameters_to_estimate = parameters_setup.create_parameter_set(
+            parameter_settings, bodies, propagator_settings
+        )
 
     nominal_parameters = parameters_to_estimate.parameter_vector
 
@@ -642,10 +781,7 @@ def process_arc(inputs):
     # ==========================================================================================
     # DEFINE ESTIMATION SETTINGS AND PERFORM THE FIT
 
-    # Create estimator
-    estimator = estimation_analysis.Estimator(
-        bodies, parameters_to_estimate, observation_model_settings, propagator_settings
-    )
+    print("Running estimation...")
 
     # Define estimation settings
     estimation_input = estimation_analysis.EstimationInput(
@@ -656,46 +792,29 @@ def process_arc(inputs):
     estimation_input.define_estimation_settings(
         reintegrate_equations_on_first_iteration=False,
         reintegrate_variational_equations=True,
-        print_output_to_terminal=True,
+        print_output_to_terminal=False,
         save_state_history_per_iteration=True,
     )
 
-    # Perform estimation
-    with redirect_std(arc_log_file, True, True):
-        print(f"Arc {arc_index} interval:")
-        print(
-            time_representation.DateTime.from_epoch(arcStart),
-            time_representation.DateTime.from_epoch(arcEnd),
-        )
-        print(
-            "Observation time bounds:",
-            time_representation.DateTime.from_epoch(obs_start_time),
-            " - ",
-            time_representation.DateTime.from_epoch(obs_end_time),
-        )
+    estimator = estimation_analysis.Estimator(
+        bodies,
+        parameters_to_estimate,
+        observation_model_settings,
+        propagator_settings,
+    )
+    estimation_output = estimator.perform_estimation(estimation_input)
 
-        print(f"Propagation time limits:")
-        print(
-            time_representation.DateTime.from_epoch(prop_start_time),
-            time_representation.DateTime.from_epoch(prop_end_time),
+    if (
+        estimation_output.exception_during_propagation
+        or estimation_output.exception_during_inversion
+        or any(
+            not iteration.dynamics_results.integration_completed_successfully
+            for iteration in estimation_output.simulation_results_per_iteration
         )
-        parameters.print_parameter_names(parameters_to_estimate)
-        print(
-            "Number of parameters to estimate:",
-            len(nominal_parameters),
-        )
-        print("Nominal values +- apriori:")
-        for value, sigma in zip(nominal_parameters, all_sigmas):
-            print(f"{value:.6e} +- {sigma:.6e}")
-        print("\n")
-        estimation_output = estimator.perform_estimation(estimation_input)
-        print("\n")
-        print("Corrected values +- uncertainty:")
-        for value, sigma in zip(
-            estimation_output.final_parameters, estimation_output.formal_errors
-        ):
-            print(f"{value:.6e} +- {sigma:.6e}")
+    ):
+        raise RuntimeError(f"MRO TNF estimation failed for arc {arc_index}")
 
+    print("Saving estimation results...")
     outputDict = {}
     outputDict["nominal"] = nominal_parameters
     outputDict["correted"] = estimation_output.final_parameters
@@ -750,88 +869,19 @@ if __name__ == "__main__":
     exec_start_time = t.time()
 
     # Set up the output folder
-    output_folder_base = "mro_outputs"
+    output_folder_base = os.environ.get("MRO_OUTPUT_DIRECTORY", "mro_outputs")
     if not os.path.exists(output_folder_base):
         os.makedirs(output_folder_base)
 
-    arcs = [
-        (
-            datetime.fromisoformat("2012-01-01 03:18:01.965"),
-            datetime.fromisoformat("2012-01-04 01:58:15.132"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-04 02:25:09.706"),
-            datetime.fromisoformat("2012-01-07 02:55:23.122"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-07 03:23:14.407"),
-            datetime.fromisoformat("2012-01-10 02:03:27.113"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-10 02:22:44.539"),
-            datetime.fromisoformat("2012-01-13 02:52:58.104"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-13 03:15:38.112"),
-            datetime.fromisoformat("2012-01-16 02:05:51.095"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-16 02:22:44.352"),
-            datetime.fromisoformat("2012-01-19 02:52:57.085"),
-        ),
-        (
-            datetime.fromisoformat("2012-01-19 03:17:17.831"),
-            datetime.fromisoformat("2012-01-22 01:57:31.076"),
-        ),
-    ]
+    first_arc_start = datetime.fromisoformat("2012-01-01 03:18:01.965")
+    first_arc_end = first_arc_start + timedelta(hours=12)
+    inputs = prepare_arc_inputs(0, first_arc_start, first_arc_end)
+    process_arc(inputs)
 
-    # Set up multiprocessing pool
-    num_processes = len(arcs)
+    if os.environ.get("MRO_PREFIT_ONLY", "0").lower() in {"1", "true", "yes"}:
+        raise SystemExit(0)
 
-    inputs = []
-    for i, arc in enumerate(arcs):
-
-        startEpoch = arc[0]
-        endEpoch = arc[1]
-        startEpochWithBuffer = startEpoch - timedelta(days=1)
-        endEpochWithBuffer = endEpoch + timedelta(days=1)
-
-        print("Files for arc {}".format(i))
-        # First retrieve the names of all the relevant kernels and data files necessary to cover the specified time interval
-        (
-            clock_files,
-            orientation_files,
-            tro_files,
-            ion_files,
-            tnf_files,
-            trajectory_files,
-            frames_def_file,
-            structure_file,
-        ) = get_mro_files("mro_kernels/", startEpochWithBuffer, endEpochWithBuffer)
-        print("\n")
-
-        # Construct a list of input arguments containing the arguments needed this specific parallel run.
-        # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
-        inputs.append(
-            [
-                i,
-                startEpoch,
-                endEpoch,
-                tnf_files,
-                clock_files,
-                orientation_files,
-                tro_files,
-                ion_files,
-                trajectory_files,
-                frames_def_file,
-                structure_file,
-            ]
-        )
-
-    # Process arcs in parallel using enumerate to get index
-    with multiprocessing.get_context("fork").Pool(num_processes) as pool:
-        pool.map(process_arc, inputs)
-
+    print("Post-processing results...")
     arcDirs = [
         os.path.join(output_folder_base, d)
         for d in os.listdir(output_folder_base)
@@ -858,6 +908,8 @@ if __name__ == "__main__":
         except FileNotFoundError as e:
             print(f"Warning: Could not load data from {arc_dir}: {e}")
 
+    figures_to_save = []
+
     # Combine all residual dataframes
     if all_residuals:
         combined_residDf = pd.concat(all_residuals, ignore_index=True)
@@ -871,8 +923,12 @@ if __name__ == "__main__":
 
         # Plot residuals
         fig, axes = plt.subplots(3, 1, sharex=True, figsize=(20, 10))
+        fig.suptitle("MRO DSN Doppler residuals")
 
-        axes[0].set_title(f"w.r.t. SPK, RMS = {spiceRMS*1e3:.2e} mHz")
+        axes[0].set_title(
+            f"Residuals with respect to reconstructed SPICE trajectory "
+            f"(RMS = {spiceRMS*1e3:.2e} mHz)"
+        )
         axes[0].scatter(
             (combined_residDf["time"] - combined_residDf["time"].min()) / 86400,
             combined_residDf["spice"],
@@ -881,7 +937,7 @@ if __name__ == "__main__":
             alpha=0.7,
         )
 
-        axes[1].set_title(f"Prefit RMS = {prefitRMS*1e3:.2e} mHz")
+        axes[1].set_title(f"Prefit residuals (RMS = {prefitRMS*1e3:.2e} mHz)")
         axes[1].scatter(
             (combined_residDf["time"] - combined_residDf["time"].min()) / 86400,
             combined_residDf["prefit"],
@@ -890,7 +946,7 @@ if __name__ == "__main__":
             alpha=0.7,
         )
 
-        axes[2].set_title(f"Postfit RMS = {(posfitRMS*1e3):.2f} mHz")
+        axes[2].set_title(f"Postfit residuals (RMS = {(posfitRMS*1e3):.2f} mHz)")
         axes[2].scatter(
             (combined_residDf["time"] - combined_residDf["time"].min()) / 86400,
             combined_residDf["postfit"],
@@ -900,7 +956,7 @@ if __name__ == "__main__":
         )
 
         for ax in axes:
-            ax.set_ylabel("Residuals [Hz]")
+            ax.set_ylabel("Doppler residual [Hz]")
             ax.grid(which="both", linestyle="--", linewidth=1.5)
 
         axes[0].set_ylim([-0.03, 0.03])
@@ -911,6 +967,8 @@ if __name__ == "__main__":
         ).to_python_datetime()
         formatted_date = date_time_obj.strftime("%Y-%m-%d %H:%M:%S")
         axes[2].set_xlabel(f"Time [days since {formatted_date}]")
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        figures_to_save.append(fig)
 
     else:
         print("No residual data found!")
@@ -971,6 +1029,11 @@ if __name__ == "__main__":
         # Components to plot
         components = ["R", "T", "N"]
         component_colors = {"R": "tab:blue", "T": "tab:orange", "N": "tab:green"}
+        component_labels = {
+            "R": "Radial",
+            "T": "Along-track",
+            "N": "Cross-track",
+        }
 
         # Plot prefit state differences by arc (first row)
         for i, (arc_index, df) in enumerate(all_prefit_diff):
@@ -979,7 +1042,9 @@ if __name__ == "__main__":
 
             # Plot each component in its own panel
             for col, component in enumerate(components):
-                # axes[0, col].set_title(f"Prefit RMS = {overall_rms[component]:.2f} m")
+                axes[0, col].set_title(
+                    f"Prefit {component_labels[component]} difference"
+                )
                 axes[0, col].plot(
                     time_days,
                     df[component],
@@ -1004,7 +1069,10 @@ if __name__ == "__main__":
 
             # Plot each component in its own panel
             for col, component in enumerate(components):
-                axes[1, col].set_title(f"Postfit RMS = {overall_rms[component]:.2f} m")
+                axes[1, col].set_title(
+                    f"Postfit {component_labels[component]} difference "
+                    f"(RMS = {overall_rms[component]:.2f} m)"
+                )
                 axes[1, col].plot(
                     time_days,
                     df[component],
@@ -1025,15 +1093,33 @@ if __name__ == "__main__":
         # Set titles and labels
         for col, component in enumerate(components):
             # Add y-axis labels
-            axes[0, col].set_ylabel(f"{component} Difference [m]")
-            axes[1, col].set_ylabel(f"{component} Difference [m]")
+            axes[0, col].set_ylabel(f"{component_labels[component]} difference [m]")
+            axes[1, col].set_ylabel(f"{component_labels[component]} difference [m]")
 
             # Add grid to all subplots
             axes[0, col].grid(which="both", linestyle="--", linewidth=1.5)
             axes[1, col].grid(which="both", linestyle="--", linewidth=1.5)
 
+        date_time_obj = time_representation.DateTime.from_epoch(
+            time_representation.Time(global_t_min)
+        ).to_python_datetime()
+        formatted_date = date_time_obj.strftime("%Y-%m-%d %H:%M:%S")
+
         # Add x-axis labels to bottom row
         for col in range(3):
-            axes[1, col].set_xlabel("Time [days]")
+            axes[1, col].set_xlabel(f"Time [days since {formatted_date}]")
 
-        plt.show()
+        fig.suptitle(
+            "MRO trajectory differences with respect to reconstructed SPICE trajectory"
+        )
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        figures_to_save.append(fig)
+
+    if figures_to_save:
+        figure_path = os.path.join(output_folder_base, "mro_estimation_results.pdf")
+        with PdfPages(figure_path) as pdf:
+            for figure in figures_to_save:
+                pdf.savefig(figure, bbox_inches="tight")
+        print(f"Saved result figures to {figure_path}")
+
+    plt.show()
