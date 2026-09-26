@@ -222,14 +222,15 @@ def create_environment(environment_start_time, environment_end_time):
                 aerodynamic_self_shadowing_pixels,
             )
         )
-    elif aerodynamic_model == "sentman":
+    elif aerodynamic_model == "storch":
         # MRO DSMC analyses used fully diffuse reflection with full accommodation.
-        sentman_model = (
-            environment_setup.aerodynamic_coefficients.GasSurfaceInteractionModelType.sentman
+        # Storch avoids the terrestrial-air gas constant fixed in the Sentman model.
+        storch_model = (
+            environment_setup.aerodynamic_coefficients.GasSurfaceInteractionModelType.storch
         )
         body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
             environment_setup.aerodynamic_coefficients.panelled(
-                sentman_model,
+                storch_model,
                 reference_area=5.0,
                 maximum_number_of_pixels=aerodynamic_self_shadowing_pixels,
             )
