@@ -198,16 +198,25 @@ def create_environment(environment_start_time, environment_end_time):
 
     drag_coefficient = 2.0
     lift_coefficient = 0.01
-    self_shadowing_pixels = int(os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"))
+    self_shadowing_pixels = os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0")
+    aerodynamic_self_shadowing_pixels = int(
+        os.environ.get(
+            "MRO_AERODYNAMIC_SELF_SHADOWING_PIXELS", self_shadowing_pixels
+        )
+    )
+    radiation_self_shadowing_pixels = int(
+        os.environ.get("MRO_RADIATION_SELF_SHADOWING_PIXELS", self_shadowing_pixels)
+    )
     body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
         environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
-            [drag_coefficient, 0, lift_coefficient], self_shadowing_pixels
+            [drag_coefficient, 0, lift_coefficient],
+            aerodynamic_self_shadowing_pixels,
         )
     )
     body_settings.get(spacecraft_name).radiation_pressure_target_settings = (
         environment_setup.radiation_pressure.panelled_radiation_target(
             {"Sun": ["Mars"]},
-            {"Sun": self_shadowing_pixels},
+            {"Sun": radiation_self_shadowing_pixels},
         )
     )
 
@@ -953,6 +962,14 @@ if __name__ == "__main__":
         "atmosphere_model": os.environ.get("MRO_ATMOSPHERE_MODEL", "mcd"),
         "mcd_dust_scenario": os.environ.get("MRO_MCD_DUST_SCENARIO", "1"),
         "self_shadowing_pixels": os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
+        "aerodynamic_self_shadowing_pixels": os.environ.get(
+            "MRO_AERODYNAMIC_SELF_SHADOWING_PIXELS",
+            os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
+        ),
+        "radiation_self_shadowing_pixels": os.environ.get(
+            "MRO_RADIATION_SELF_SHADOWING_PIXELS",
+            os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
+        ),
         "prefit_residual_cutoff_hz": os.environ.get(
             "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1"
         ),
