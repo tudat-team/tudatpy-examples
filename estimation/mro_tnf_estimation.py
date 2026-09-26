@@ -194,7 +194,12 @@ def create_environment(environment_start_time, environment_end_time):
         )
     )
     body_settings.get(spacecraft_name).constant_mass = 1262.39
-    body_settings.get(spacecraft_name).vehicle_shape_settings = macromodel_mro()
+    use_reduced_macromodel = os.environ.get(
+        "MRO_REDUCED_SOLAR_ARRAY_MACROMODEL", "0"
+    ).lower() in {"1", "true", "yes"}
+    body_settings.get(spacecraft_name).vehicle_shape_settings = macromodel_mro(
+        reduced_solar_arrays=use_reduced_macromodel
+    )
 
     drag_coefficient = 2.0
     lift_coefficient = 0.01
@@ -975,6 +980,9 @@ if __name__ == "__main__":
         "radiation_self_shadowing_pixels": os.environ.get(
             "MRO_RADIATION_SELF_SHADOWING_PIXELS",
             os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
+        ),
+        "reduced_solar_array_macromodel": os.environ.get(
+            "MRO_REDUCED_SOLAR_ARRAY_MACROMODEL", "0"
         ),
         "prefit_residual_cutoff_hz": os.environ.get(
             "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1"

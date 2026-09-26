@@ -566,7 +566,8 @@ def get_mro_files(local_path, start_date, end_date):
     )
 
 
-def macromodel_mro():
+def macromodel_mro(reduced_solar_arrays=False):
+    """Create the MRO panel model, optionally using three triangles per array side."""
 
     dae_path = Path(__file__).parent / "mro_macromodel"
 
@@ -627,6 +628,9 @@ def macromodel_mro():
         "MRO_SPACECRAFT", "MRO_HGA_OUTER_GIMBAL", ""
     )
     # SAPX/SAMX
+    solar_array_mesh = (
+        "MRO_sa_reduced.dae" if reduced_solar_arrays else "MRO_sa.dae"
+    )
     sa_material_properties = {
         "SA_front": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.03,
@@ -646,7 +650,7 @@ def macromodel_mro():
     sa_reradiation_settings = {"SA_front": True, "SA_back": True}
     sapx_frame_origin = np.array([1.144, -2.5354, 0.113])
     sapx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        (dae_path / "MRO_sa.dae").as_posix(),
+        (dae_path / solar_array_mesh).as_posix(),
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
@@ -658,7 +662,7 @@ def macromodel_mro():
     )
     samx_frame_origin = np.array([-1.144, -2.5354, 0.113])
     samx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        (dae_path / "MRO_sa.dae").as_posix(),
+        (dae_path / solar_array_mesh).as_posix(),
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
