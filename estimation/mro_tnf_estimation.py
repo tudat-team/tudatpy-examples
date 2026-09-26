@@ -715,7 +715,7 @@ def process_arc(inputs):
     # Filter residuals based on the observation type
     filter_settings = {
         observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type: float(
-            os.environ.get("MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1")
+            os.environ.get("MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.008")
         ),
     }
 
@@ -897,13 +897,13 @@ def process_arc(inputs):
         compressed_observations,
         inverse_apriori_covariance=inverse_apriori_covariance,
         convergence_checker=estimation_analysis.estimation_convergence_checker(
-            int(os.environ.get("MRO_MAXIMUM_ITERATIONS", "6"))
+            int(os.environ.get("MRO_MAXIMUM_ITERATIONS", "5"))
         ),
     )
     estimation_input.define_estimation_settings(
         reintegrate_equations_on_first_iteration=False,
         reintegrate_variational_equations=os.environ.get(
-            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "1"
+            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "0"
         ).lower()
         in {"1", "true", "yes"},
         print_output_to_terminal=True,
@@ -1009,12 +1009,12 @@ if __name__ == "__main__":
             "MRO_REDUCED_SOLAR_ARRAY_MACROMODEL", "0"
         ),
         "prefit_residual_cutoff_hz": os.environ.get(
-            "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1"
+            "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.008"
         ),
         "reintegrate_variational_equations": os.environ.get(
-            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "1"
+            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "0"
         ),
-        "maximum_iterations": os.environ.get("MRO_MAXIMUM_ITERATIONS", "6"),
+        "maximum_iterations": os.environ.get("MRO_MAXIMUM_ITERATIONS", "5"),
         "mars_gravity_degree": os.environ.get("MRO_MARS_GRAVITY_DEGREE", "120"),
         "integration_step_size_seconds": os.environ.get(
             "MRO_INTEGRATION_STEP_SIZE", "30.0"
