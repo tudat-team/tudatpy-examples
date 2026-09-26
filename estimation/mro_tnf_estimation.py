@@ -148,7 +148,7 @@ def create_environment(environment_start_time, environment_end_time):
     if atmosphere_model == "mcd":
         body_settings.get("Mars").climate_model_settings = (
             environment_setup.atmosphere.mars_climate_database_climate_model(
-                dust_scenario=int(os.environ.get("MRO_MCD_DUST_SCENARIO", "30")),
+                dust_scenario=int(os.environ.get("MRO_MCD_DUST_SCENARIO", "1")),
                 perturbation_key=0,
             )
         )
@@ -951,7 +951,7 @@ if __name__ == "__main__":
     )
     runtime_settings = {
         "atmosphere_model": os.environ.get("MRO_ATMOSPHERE_MODEL", "mcd"),
-        "mcd_dust_scenario": os.environ.get("MRO_MCD_DUST_SCENARIO", "30"),
+        "mcd_dust_scenario": os.environ.get("MRO_MCD_DUST_SCENARIO", "1"),
         "self_shadowing_pixels": os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
         "prefit_residual_cutoff_hz": os.environ.get(
             "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1"
@@ -1218,4 +1218,4 @@ if __name__ == "__main__":
                 pdf.savefig(figure, bbox_inches="tight")
         print(f"Saved result figures to {figure_path}")
 
-    plt.show()
+    plt.close("all")
