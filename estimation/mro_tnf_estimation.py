@@ -906,7 +906,10 @@ def process_arc(inputs):
             "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "0"
         ).lower()
         in {"1", "true", "yes"},
-        print_output_to_terminal=True,
+        print_output_to_terminal=os.environ.get(
+            "MRO_PRINT_ESTIMATION_OUTPUT", "0"
+        ).lower()
+        in {"1", "true", "yes"},
         save_state_history_per_iteration=True,
     )
 
@@ -1015,6 +1018,9 @@ if __name__ == "__main__":
             "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "0"
         ),
         "maximum_iterations": os.environ.get("MRO_MAXIMUM_ITERATIONS", "5"),
+        "print_estimation_output": os.environ.get(
+            "MRO_PRINT_ESTIMATION_OUTPUT", "0"
+        ),
         "mars_gravity_degree": os.environ.get("MRO_MARS_GRAVITY_DEGREE", "120"),
         "integration_step_size_seconds": os.environ.get(
             "MRO_INTEGRATION_STEP_SIZE", "30.0"
