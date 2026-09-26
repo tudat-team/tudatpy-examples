@@ -283,6 +283,10 @@ def create_propagator_settings(
 ):
     """Create MRO acceleration models and translational propagator settings."""
     print("Setting up accelerations and propagation...")
+    mars_gravity_degree = int(os.environ.get("MRO_MARS_GRAVITY_DEGREE", "120"))
+    integration_step_size = float(
+        os.environ.get("MRO_INTEGRATION_STEP_SIZE", "30.0")
+    )
     accelerations_settings_spacecraft = dict(
         Sun=[
             propagation_setup.acceleration.point_mass_gravity(),
@@ -291,7 +295,9 @@ def create_propagator_settings(
             ),
         ],
         Mars=[
-            propagation_setup.acceleration.spherical_harmonic_gravity(120, 120),
+            propagation_setup.acceleration.spherical_harmonic_gravity(
+                mars_gravity_degree, mars_gravity_degree
+            ),
             propagation_setup.acceleration.aerodynamic(),
             propagation_setup.acceleration.radiation_pressure(
                 environment_setup.radiation_pressure.cannonball_target
@@ -311,7 +317,7 @@ def create_propagator_settings(
         bodies, acceleration_settings, bodies_to_propagate, central_bodies
     )
     integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
-        time_representation.Time(0, 30.0),
+        time_representation.Time(0, integration_step_size),
         propagation_setup.integrator.rkf_78,
     )
     initial_state = propagation.get_state_of_bodies(
@@ -977,6 +983,10 @@ if __name__ == "__main__":
             "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "1"
         ),
         "maximum_iterations": os.environ.get("MRO_MAXIMUM_ITERATIONS", "6"),
+        "mars_gravity_degree": os.environ.get("MRO_MARS_GRAVITY_DEGREE", "120"),
+        "integration_step_size_seconds": os.environ.get(
+            "MRO_INTEGRATION_STEP_SIZE", "30.0"
+        ),
         "propagation_print_interval_seconds": os.environ.get(
             "MRO_PROPAGATION_PRINT_INTERVAL", "7200.0"
         ),
