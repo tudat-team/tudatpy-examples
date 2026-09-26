@@ -144,9 +144,23 @@ def create_environment(environment_start_time, environment_end_time):
         environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.1697, 2),
         environment_setup.gravity_field_variation.solid_body_tide("Phobos", 0.1697, 2),
     ]
-    body_settings.get("Mars").atmosphere_settings = (
-        environment_setup.atmosphere.mars_dtm()
-    )
+    atmosphere_model = os.environ.get("MRO_ATMOSPHERE_MODEL", "mcd").lower()
+    if atmosphere_model == "mcd":
+        body_settings.get("Mars").climate_model_settings = (
+            environment_setup.atmosphere.mars_climate_database_climate_model(
+                dust_scenario=int(os.environ.get("MRO_MCD_DUST_SCENARIO", "30")),
+                perturbation_key=0,
+            )
+        )
+        body_settings.get("Mars").atmosphere_settings = (
+            environment_setup.atmosphere.mars_climate_database_atmosphere_model()
+        )
+    elif atmosphere_model == "dtm":
+        body_settings.get("Mars").atmosphere_settings = (
+            environment_setup.atmosphere.mars_dtm()
+        )
+    else:
+        raise ValueError(f"Unsupported Mars atmosphere model: {atmosphere_model}")
 
     # The mean Martian Bond albedo is approximately 0.25 (NASA Mars Fact Sheet).
     mars_surface_radiosity = [
@@ -184,7 +198,7 @@ def create_environment(environment_start_time, environment_end_time):
 
     drag_coefficient = 2.0
     lift_coefficient = 0.01
-    self_shadowing_pixels = 20
+    self_shadowing_pixels = int(os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"))
     body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
         environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
             [drag_coefficient, 0, lift_coefficient], self_shadowing_pixels
@@ -304,10 +318,11 @@ def create_propagator_settings(
         propagation_setup.propagator.time_termination(obs_end_time.to_float()),
     )
     # This interval is measured in propagation time and is retained by the
-    # variational-equations solver used during estimation. Giving both triggers
-    # the same value also initializes the first simulated-time interval.
-    propagator_settings.print_settings.results_print_frequency_in_seconds = 900.0
-    propagator_settings.print_settings.results_print_frequency_in_steps = 900
+    # variational-equations solver used during estimation.
+    propagator_settings.print_settings.results_print_frequency_in_seconds = float(
+        os.environ.get("MRO_PROPAGATION_PRINT_INTERVAL", "7200.0")
+    )
+    propagator_settings.print_settings.results_print_frequency_in_steps = 0
     return propagator_settings, initial_state
 
 
@@ -415,6 +430,68 @@ def save_spice_residual_diagnostics(residuals, output_path):
     print(f"Saved pre-propagation diagnostic to {output_path}")
 
 
+def create_inverse_apriori_covariance(parameter_set):
+    """Create checked parameter priors from Tudat's parameter block metadata."""
+    parameter_types = parameters_setup.EstimatableParameterTypes
+    prior_sigmas = np.full(parameter_set.parameter_set_size, np.nan)
+
+    def set_prior(parameter_type, sigma_factory):
+        identifier = (parameter_type, ("", ""))
+        index_blocks = parameter_set.indices_for_parameter_type(identifier)
+        parameters = parameter_set.parameters_for_parameter_type(identifier)
+        if len(index_blocks) != len(parameters):
+            raise ValueError(f"Inconsistent parameter metadata for {parameter_type}.")
+
+        for (start_index, block_size), parameter in zip(index_blocks, parameters):
+            block_sigmas = np.asarray(sigma_factory(block_size), dtype=float)
+            if block_sigmas.size != block_size:
+                raise ValueError(
+                    f"Prior for {parameter.parameter_description} has size "
+                    f"{block_sigmas.size}; expected {block_size}."
+                )
+            block_slice = slice(start_index, start_index + block_size)
+            if np.isfinite(prior_sigmas[block_slice]).any():
+                raise ValueError(
+                    f"Overlapping a priori parameter block: "
+                    f"{parameter.parameter_description}."
+                )
+            prior_sigmas[block_slice] = block_sigmas
+            sigma_summary = ", ".join(
+                f"{value:.1e}" for value in np.unique(block_sigmas)
+            )
+            print(
+                f"Prior block [{start_index}:{start_index + block_size}]: "
+                f"{parameter.parameter_description}; sigma = {sigma_summary}"
+            )
+
+    def initial_state_sigmas(block_size):
+        if block_size % 6:
+            raise ValueError(
+                f"Initial-state parameter block has unexpected size {block_size}."
+            )
+        return np.tile([1.0e3] * 3 + [1.0e-1] * 3, block_size // 6)
+
+    set_prior(
+        parameter_types.initial_body_state_type,
+        initial_state_sigmas,
+    )
+    for parameter_type in [
+        parameter_types.radiation_pressure_target_direction_scaling_factor_type,
+        parameter_types.drag_component_scaling_factor_type,
+        parameter_types.lift_component_scaling_factor_type,
+    ]:
+        set_prior(parameter_type, lambda block_size: np.full(block_size, 2.0))
+    set_prior(
+        parameter_types.arc_wise_empirical_acceleration_coefficients_type,
+        lambda block_size: np.full(block_size, 1.0e-6),
+    )
+
+    if not np.isfinite(prior_sigmas).all():
+        missing_indices = np.flatnonzero(~np.isfinite(prior_sigmas))
+        raise ValueError(f"Missing a priori uncertainties at indices {missing_indices}.")
+    return np.diag(np.reciprocal(np.square(prior_sigmas)))
+
+
 def process_arc(inputs):
     """Process a single arc and save results"""
 
@@ -443,11 +520,6 @@ def process_arc(inputs):
     arc_output_folder = f"{output_folder_base}/arc_{arc_index}/"
     if not os.path.exists(arc_output_folder):
         os.makedirs(arc_output_folder)
-
-    # Create log file for this arc
-    arc_log_file = arc_output_folder + f"fitLog.txt"
-    with open(arc_log_file, "w") as f:
-        f.write(f"Arc: {arc_index}\n")
 
     print(f"Processing arc {arc_index}: {startDateTime} to {endDateTime}")
 
@@ -601,7 +673,9 @@ def process_arc(inputs):
 
     # Filter residuals based on the observation type
     filter_settings = {
-        observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type: 0.1,
+        observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type: float(
+            os.environ.get("MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1")
+        ),
     }
 
     observation_filters = dict()
@@ -768,32 +842,9 @@ def process_arc(inputs):
 
     nominal_parameters = parameters_to_estimate.parameter_vector
 
-    # define a priori
-    posSigma = [1e3] * 3  # m
-    velSigma = [1e-1] * 3  # m/s
-    srpScaleSigma = [2]  # dimensionless
-    dragSigma = [2]  # dimensionless
-    liftSigma = [2]  # dimensionless
-    # liftSigma = []  # dimensionless
-    # radialAcc = [1e-6] * 1 * len(arc_start_times)  # m/s^2
-    radialAcc = []  # m/s^2
-    alongAcc = [1e-6] * 3 * len(arc_start_times)  # m/s^2
-    acrossAcc = [1e-6] * 3 * len(arc_start_times)  # m/s^2
-    # alongAcc = []  # m/s^2
-    # acrossAcc = []  # m/s^2
-    all_sigmas = (
-        posSigma
-        + velSigma
-        + srpScaleSigma
-        + dragSigma
-        + liftSigma
-        + radialAcc
-        + alongAcc
-        + acrossAcc
+    inverse_apriori_covariance = create_inverse_apriori_covariance(
+        parameters_to_estimate
     )
-
-    # Create the a priori covariance matrix (diagonal) from the sigmas.
-    apriori_covariance = np.diag(1 / np.square(all_sigmas))
 
     # ==========================================================================================
     # DEFINE ESTIMATION SETTINGS AND PERFORM THE FIT
@@ -803,13 +854,18 @@ def process_arc(inputs):
     # Define estimation settings
     estimation_input = estimation_analysis.EstimationInput(
         compressed_observations,
-        inverse_apriori_covariance=apriori_covariance,
-        convergence_checker=estimation_analysis.estimation_convergence_checker(6),
+        inverse_apriori_covariance=inverse_apriori_covariance,
+        convergence_checker=estimation_analysis.estimation_convergence_checker(
+            int(os.environ.get("MRO_MAXIMUM_ITERATIONS", "6"))
+        ),
     )
     estimation_input.define_estimation_settings(
         reintegrate_equations_on_first_iteration=False,
-        reintegrate_variational_equations=True,
-        print_output_to_terminal=False,
+        reintegrate_variational_equations=os.environ.get(
+            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "1"
+        ).lower()
+        in {"1", "true", "yes"},
+        print_output_to_terminal=True,
         save_state_history_per_iteration=True,
     )
 
@@ -893,8 +949,25 @@ if __name__ == "__main__":
         "MRO_RUN_DESCRIPTION",
         "Current MRO TNF example configuration.",
     )
+    runtime_settings = {
+        "atmosphere_model": os.environ.get("MRO_ATMOSPHERE_MODEL", "mcd"),
+        "mcd_dust_scenario": os.environ.get("MRO_MCD_DUST_SCENARIO", "30"),
+        "self_shadowing_pixels": os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
+        "prefit_residual_cutoff_hz": os.environ.get(
+            "MRO_PREFIT_RESIDUAL_CUTOFF_HZ", "0.1"
+        ),
+        "reintegrate_variational_equations": os.environ.get(
+            "MRO_REINTEGRATE_VARIATIONAL_EQUATIONS", "1"
+        ),
+        "maximum_iterations": os.environ.get("MRO_MAXIMUM_ITERATIONS", "6"),
+        "propagation_print_interval_seconds": os.environ.get(
+            "MRO_PROPAGATION_PRINT_INTERVAL", "7200.0"
+        ),
+    }
     with open(os.path.join(output_folder_base, "settings.txt"), "w") as settings_file:
         settings_file.write(run_description.strip() + "\n")
+        for name, value in runtime_settings.items():
+            settings_file.write(f"{name}: {value}\n")
 
     first_arc_start = datetime.fromisoformat("2012-01-01 03:18:01.965")
     first_arc_end = first_arc_start + timedelta(hours=12)
