@@ -203,6 +203,9 @@ def create_environment(environment_start_time, environment_end_time):
 
     drag_coefficient = 2.0
     lift_coefficient = 0.01
+    aerodynamic_model = os.environ.get(
+        "MRO_AERODYNAMIC_COEFFICIENT_MODEL", "variable_cross_section"
+    ).lower()
     self_shadowing_pixels = os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0")
     aerodynamic_self_shadowing_pixels = int(
         os.environ.get(
@@ -212,12 +215,29 @@ def create_environment(environment_start_time, environment_end_time):
     radiation_self_shadowing_pixels = int(
         os.environ.get("MRO_RADIATION_SELF_SHADOWING_PIXELS", self_shadowing_pixels)
     )
-    body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
-        environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
-            [drag_coefficient, 0, lift_coefficient],
-            aerodynamic_self_shadowing_pixels,
+    if aerodynamic_model == "variable_cross_section":
+        body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
+            environment_setup.aerodynamic_coefficients.constant_variable_cross_section(
+                [drag_coefficient, 0, lift_coefficient],
+                aerodynamic_self_shadowing_pixels,
+            )
         )
-    )
+    elif aerodynamic_model == "sentman":
+        # MRO DSMC analyses used fully diffuse reflection with full accommodation.
+        sentman_model = (
+            environment_setup.aerodynamic_coefficients.GasSurfaceInteractionModelType.sentman
+        )
+        body_settings.get(spacecraft_name).aerodynamic_coefficient_settings = (
+            environment_setup.aerodynamic_coefficients.panelled(
+                sentman_model,
+                reference_area=5.0,
+                maximum_number_of_pixels=aerodynamic_self_shadowing_pixels,
+            )
+        )
+    else:
+        raise ValueError(
+            f"Unsupported aerodynamic coefficient model: {aerodynamic_model}"
+        )
     body_settings.get(spacecraft_name).radiation_pressure_target_settings = (
         environment_setup.radiation_pressure.panelled_radiation_target(
             {"Sun": ["Mars"]},
@@ -971,6 +991,9 @@ if __name__ == "__main__":
     )
     runtime_settings = {
         "atmosphere_model": os.environ.get("MRO_ATMOSPHERE_MODEL", "mcd"),
+        "aerodynamic_coefficient_model": os.environ.get(
+            "MRO_AERODYNAMIC_COEFFICIENT_MODEL", "variable_cross_section"
+        ),
         "mcd_dust_scenario": os.environ.get("MRO_MCD_DUST_SCENARIO", "1"),
         "self_shadowing_pixels": os.environ.get("MRO_SELF_SHADOWING_PIXELS", "0"),
         "aerodynamic_self_shadowing_pixels": os.environ.get(

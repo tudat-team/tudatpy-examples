@@ -576,6 +576,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "INS": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.03,
             diffuse_reflectivity=0.12,
+            energy_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -583,6 +584,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "BUS": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.05,
             diffuse_reflectivity=0.21,
+            energy_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -602,6 +604,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "HGA_front": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.55,
             diffuse_reflectivity=0.25,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -609,6 +612,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "HGA_back": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.05,
             diffuse_reflectivity=0.8,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -635,6 +639,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "SA_front": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.03,
             diffuse_reflectivity=0.07,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -642,6 +647,7 @@ def macromodel_mro(reduced_solar_arrays=False):
         "SA_back": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.02,
             diffuse_reflectivity=0.2,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
