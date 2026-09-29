@@ -567,7 +567,11 @@ def get_mro_files(local_path, start_date, end_date):
 
 
 def macromodel_mro(reduced_solar_arrays=False):
-    """Create the MRO panel model, optionally using three triangles per array side."""
+    """Create the MRO panel model, optionally omitting thin solar-array edges.
+
+    Four triangles on each front/back face retain the original hexagonal footprint,
+    area, material and orientation. The reduced model omits the 30-mm-thick edges.
+    """
 
     dae_path = Path(__file__).parent / "mro_macromodel"
 
