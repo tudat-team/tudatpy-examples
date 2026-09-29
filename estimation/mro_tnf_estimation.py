@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
 
-from mro_utils import macromodel_mro
+from mro_utils import get_mro_files, macromodel_mro
 
 from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
@@ -254,7 +254,6 @@ def create_environment(
     ]
     body_settings.get("Mars").climate_model_settings = (
         environment_setup.atmosphere.mars_climate_database_climate_model(
-            mcd_data_path=str(HERE.parents[2] / "third_parties" / "mcd" / "data"),
             dust_scenario=1,
             perturbation_key=0,
             high_resolution_mode=0,
@@ -1404,6 +1403,13 @@ def run_estimation() -> None:
     print(
         "Running seven MRO arcs in isolated processes: RKF56/30 s, "
         "anchored priors, two-orbit edge-merged TN empiricals, fixed drag/lift scales."
+    )
+    first_epoch = datetime.fromisoformat(ESTIMATION_ARCS[0][0])
+    last_epoch = datetime.fromisoformat(ESTIMATION_ARCS[-1][1])
+    get_mro_files(
+        str(HERE / "mro_kernels") + os.sep,
+        first_epoch - timedelta(days=1),
+        last_epoch,
     )
     results = []
     context = multiprocessing.get_context("spawn")
