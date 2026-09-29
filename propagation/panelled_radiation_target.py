@@ -22,7 +22,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Load tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment
 from tudatpy.dynamics import environment_setup, propagation_setup, simulator
@@ -460,7 +460,7 @@ ax2.plot(relative_time_hours, pos_norm, label="norm", color="tab:green")
 ax.legend()
 
 ax.set_xlabel("Relative time [hr]")
-ax.set_ylabel("Acceleration Magnitude [$\mathrm{m}/\mathrm{s}^2$]")
+ax.set_ylabel(r"Acceleration Magnitude [$\mathrm{m}/\mathrm{s}^2$]")
 ax2.set_ylabel("Position Difference Magnitude [m]", color="tab:green")
 ax2.tick_params(axis="y", labelcolor="tab:green")
 
@@ -506,7 +506,7 @@ axs[1].scatter(
 
 axs[0].set_ylabel("Position\n Difference [m]")
 axs[1].set_xlabel("Relative time [hr]")
-axs[1].set_ylabel("Acceleration\n Difference [$\mathrm{m}/\mathrm{s}^2$]")
+axs[1].set_ylabel("Acceleration\n" r" Difference [$\mathrm{m}/\mathrm{s}^2$]")
 
 axs[0].legend()
 

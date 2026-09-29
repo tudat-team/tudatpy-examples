@@ -40,7 +40,7 @@ from matplotlib import pyplot as plt
 
 from tudatpy.util import result2array
 from tudatpy import constants
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment, environment_setup, propagation_setup, simulator
 from tudatpy.astro import element_conversion, time_representation

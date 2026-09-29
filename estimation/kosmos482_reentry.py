@@ -24,13 +24,14 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.collections import LineCollection
 import numpy as np
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment_setup, environment, propagation_setup, propagation, simulator
 from tudatpy.astro import time_representation
 from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
-from tudatpy.data.spacetrack import SpaceTrackQuery, OMMUtils
+from tudatpy.data_input.environment_data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
+import sys
 from numpy import savetxt
 
 
@@ -51,7 +52,7 @@ objname = "KOSMOS 482 DESCENT CRAFT"
 cospar = "1972-023E"
 norad_id = str(6073)
 
-answer = input('Do you have a Space-Track.org account? (Y/N): ')
+answer = input("Do you have a Space-Track.org account? (Y/N): ") if sys.stdin.isatty() else "N"
 if answer.upper() == 'Y':
     print("Great! You'll be able to download data directly. Please enter you SpaceTrack credentials.")
 
@@ -100,7 +101,7 @@ In the following, we define the object info, the most important of which is the 
 > when initializing SpaceTrackQuery to retrieve TLE, an interactive output will ask you to enter your login credentials to SpaceTrack.org. If you are not registered to the website, you can just use the commented lines below as tle lines. Although all TLEs get updated every few hours, Kosmos 482 has decayed, hence its TLEs will remain the same.
 """
 
-"""
+r"""
 ## Define Object Properties and Simulation Epochs
 
 We empirically assume a **mass of 480 kg** for `{Kosmos 482}, and a **reference area** (used for both atmospheric drag and solar radiation pressure) of **0.7854 m²**, corresponding to the average projected area of the spacecraft.
@@ -141,7 +142,7 @@ simulation_end_epoch_tdb = time_scale_converter.convert_time(
     input_value = float_observations_end_utc)
 
 
-"""
+r"""
 ## Output Options
 
 To give users more control over the level of output detail, we define several **output modes**:
@@ -171,7 +172,7 @@ area_string = str(reference_area_drag)
 altitude_limit_string = str(altitude_limit)
 
 
-"""
+r"""
 ## Set Body Settings and Create System of Bodies (as commonly done in Tudatpy)
 
 We use **Earth** as the **global frame origin**, with the **ECI formulation** being `J2000`.
@@ -395,7 +396,7 @@ dependent_variables = dynamics_simulator.propagation_results.dependent_variable_
 dependent_variables_array = result2array(dependent_variables)
 
 
-"""
+r"""
 ## Write Results to Screen and to Text Files
 
 We are now ready to **write out and save the results** of our propagation.

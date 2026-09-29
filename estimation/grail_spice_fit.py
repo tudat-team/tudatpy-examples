@@ -39,8 +39,8 @@ from matplotlib import pyplot as plt
 
 
 # Load required tudatpy modules
-from tudatpy.data import grail_mass_level_0_file_reader
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data.missions.grail import grail_mass_level_0_file_reader
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation
 from tudatpy import util
 
@@ -609,6 +609,3 @@ if __name__ == "__main__":
         fig.tight_layout()
 
         plt.show()
-
-
-plt.show()

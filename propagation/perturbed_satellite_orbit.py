@@ -25,7 +25,7 @@ import matplotlib
 from matplotlib import pyplot as plt
 
 # Load tudatpy modules
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy import dynamics
 from tudatpy.dynamics import environment
 from tudatpy.dynamics import environment_setup, propagation_setup, simulator

@@ -5,7 +5,7 @@
 
 Within this example, we estimate GRAIL's trajectory using ODF Doppler measurements as the data source. To achieve a high-fidelity estimation suitable for research analysis, the script follows this methodology:
 1.  **Data Loading & Pre-processing:** Loading raw ODF files, filtering for the specific arc, and compressing Doppler data to 60s intervals to optimize computational load.
-2.  **Environment Setup:** Constructing a precise lunar environment, incorporating the `gggrx1200` gravity field (truncated to order 500) and solid body tides from the Earth and Sun.
+2.  **Environment Setup:** Constructing a precise lunar environment, loading the `gggrx1200` gravity field through degree 500, using degree and order 256 in propagation, and including solid body tides from the Earth and Sun.
 3.  **Dynamical Modelling:** Configuring the propagation with high-precision accelerations, including panelled radiation pressure models for both Solar and Lunar sources (thermal emission and albedo).
 4.  **Estimation:** Performing a least-squares fit to estimate the spacecraft initial state, radiation pressure coefficients, and maneuvers.
 5.  **Validation:** Computing pre- and post-fit residuals and analyzing the trajectory difference w.r.t. the SPICE reference ephemeris.
@@ -13,7 +13,7 @@ Within this example, we estimate GRAIL's trajectory using ODF Doppler measuremen
 ## Important Remarks
 - Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
 - Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-(trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
+(trajectory and orientation kernels for the GRAIL spacecraft, atmospheric corrections files, ODF files containing the Doppler
 measurements, etc.). Note that this step needs only be performed once, since the script checks whether
 each relevant file is already present locally and only proceeds to the download if it is not.
 - This example performs 7 parallel orbit estimations (over 7 different days), which can slow down your machine and take quite some time (~ 20-30 minutes)
@@ -25,12 +25,15 @@ import multiprocessing as mp
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Load required tudatpy modules
-from tudatpy.data import grail_mass_level_0_file_reader
-from tudatpy.data import grail_antenna_file_reader
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data.missions.grail import (
+    grail_antenna_file_reader,
+    grail_mass_level_0_file_reader,
+)
+from tudatpy.data_input.tracking_data import odf
+from tudatpy.data_input.environment_data import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
@@ -143,59 +146,13 @@ def run_odf_estimation(inputs):
             odf_files = ["grail_kernels/gralugf2012_097_0235smmmv1.odf"]
 
         # Load ODF files
-        multi_odf_file_contents = (
-            observations_setup.observations_wrapper.process_odf_data_multiple_files(
-                odf_files, "GRAIL-A", True
-            )
+        tracking_data, supplementary_data = odf.read_odf_data(
+            odf_files, "GRAIL-A", verbose_output=True
         )
 
-        # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
-        # multiple "observation sets". Within a given observation set, the observables are of the same type (here Doppler) and
-        # defined from the same link ends. However, within the "global" observation collection, multiple observation sets can
-        # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
-        # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
-        # set match those of the corresponding ODF file).
-        original_odf_observations = observations_setup.observations_wrapper.create_odf_observed_observation_collection(
-            multi_odf_file_contents,
-            [observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type],
-            [
-                time_representation.Time(0, np.nan),
-                time_representation.Time(0, np.nan),
-            ],
-        )
-
-        # Filter all ODF observations that exceed the arc duration of one day
-        day_arc_filter = observations.observations_processing.observation_filter(
-            observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-            date,
-            date + 86400.0,
-            use_opposite_condition=True,
-        )
-        original_odf_observations.filter_observations(day_arc_filter)
-        original_odf_observations.remove_empty_observation_sets()
-
-        # Retrieve time bounds of the ODF observations. A time buffer of 1h is subtracted/added to the observation
-        # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
-        # loaded ODF observations, without interpolation errors at the arc boundaries.
-        observation_time_limits = original_odf_observations.time_bounds_time_object
-        obs_start_time = observation_time_limits[0] - 3600.0
-        obs_end_time = observation_time_limits[1] + 3600.0
-
-        print(
-            "Original observations: ",
-            original_odf_observations.concatenated_observations.size,
-        )
-        original_odf_observations.print_observation_sets_start_and_size()
-
-        # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = observations_setup.observations_wrapper.create_compressed_doppler_collection(
-            original_odf_observations, 60, 10
-        )
-        print(
-            "Compressed observations: ",
-            compressed_observations.concatenated_observations.size,
-        )
-        compressed_observations.print_observation_sets_start_and_size()
+        obs_time_buffer = 3600.0
+        env_start_time = date - obs_time_buffer
+        env_end_time = date + 86400.0 + obs_time_buffer
 
         ### ------------------------------------------------------------------------------------------
         ### CREATE DYNAMICAL ENVIRONMENT
@@ -216,8 +173,8 @@ def run_odf_estimation(inputs):
         global_frame_orientation = "J2000"
         body_settings = environment_setup.get_default_body_settings_time_limited(
             bodies_to_create,
-            obs_start_time.to_float(),
-            obs_end_time.to_float(),
+            env_start_time,
+            env_end_time,
             global_frame_origin,
             global_frame_orientation,
         )
@@ -232,20 +189,20 @@ def run_odf_estimation(inputs):
                 global_frame_orientation,
                 interpolators.interpolator_generation_settings(
                     interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
+                    env_start_time,
+                    env_end_time,
                     3600.0,
                 ),
                 interpolators.interpolator_generation_settings(
                     interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
+                    env_start_time,
+                    env_end_time,
                     3600.0,
                 ),
                 interpolators.interpolator_generation_settings(
                     interpolators.cubic_spline_interpolation(),
-                    obs_start_time.to_float(),
-                    obs_end_time.to_float(),
+                    env_start_time,
+                    env_end_time,
                     60.0,
                 ),
             )
@@ -316,8 +273,8 @@ def run_odf_estimation(inputs):
         # Define translational ephemeris from SPICE
         body_settings.get(spacecraft_name).ephemeris_settings = (
             environment_setup.ephemeris.interpolated_spice(
-                obs_start_time.to_float(),
-                obs_end_time.to_float(),
+                env_start_time,
+                env_end_time,
                 10.0,
                 spacecraft_central_body,
                 global_frame_orientation,
@@ -339,6 +296,8 @@ def run_odf_estimation(inputs):
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
 
+        bodies.get(spacecraft_name).system_models.set_default_transponder_turnaround_ratio_function()
+
         # Add radiation pressure target models for GRAIL (cannonball model for the solar radiation pressure,
         # and complete panel model for the radiation pressure from the Moon)
         occulting_bodies = dict()
@@ -352,9 +311,52 @@ def run_odf_estimation(inputs):
             ),
         )
 
+        # Create observation collection from ODF files, only retaining Doppler observations. An observation collection contains
+        # multiple "observation sets". Within a given observation set, the observables are of the same type (here Doppler) and
+        # defined from the same link ends. However, within the "global" observation collection, multiple observation sets can
+        # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
+        # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
+        # set match those of the corresponding ODF file).
+        original_odf_observations = observations.create_observation_collection_from_tracking_data(
+            tracking_data, bodies
+        )
+
+        # Filter all ODF observations that exceed the arc duration of one day
+        day_arc_filter = observations.observations_processing.observation_filter(
+            observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+            date,
+            date + 86400.0,
+            use_opposite_condition=True,
+        )
+        original_odf_observations.filter_observations(day_arc_filter)
+        original_odf_observations.remove_empty_observation_sets()
+
+        # Retrieve time bounds of the ODF observations. A time buffer of 1h is subtracted/added to the observation
+        # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
+        # loaded ODF observations, without interpolation errors at the arc boundaries.
+        observation_time_limits = original_odf_observations.time_bounds_time_object
+        obs_start_time = observation_time_limits[0] - 3600.0
+        obs_end_time = observation_time_limits[1] + 3600.0
+
+        print(
+            "Original observations: ",
+            original_odf_observations.concatenated_observations.size,
+        )
+        original_odf_observations.print_observation_sets_start_and_size()
+
+        # Compress Doppler observations from 1.0 s integration time to 60.0 s
+        compressed_observations = observations.create_compressed_doppler_collection(
+            original_odf_observations, 60, 10
+        )
+        print(
+            "Compressed observations: ",
+            compressed_observations.concatenated_observations.size,
+        )
+        compressed_observations.print_observation_sets_start_and_size()
+
         # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the GRAIL spacecraft
-        observations_setup.observations_wrapper.set_odf_information_in_bodies(
-            multi_odf_file_contents, bodies
+        observations.set_tracking_supplementary_data_in_bodies(
+            bodies, supplementary_data
         )
 
         ### ------------------------------------------------------------------------------------------
@@ -703,7 +705,7 @@ if __name__ == "__main__":
     # Specify the number of parallel runs to use for this example
     nb_parallel_runs = 7
 
-    # Define dates for the five arcs to be analysed in parallel (we only include dates for which an ODF file is available).
+    # Define dates for the seven arcs to be analysed in parallel (we only include dates for which an ODF file is available).
     # Each parallel run will therefore parse a single day-long arc.
     dates = [
         datetime(2012, 4, 6),
@@ -731,7 +733,13 @@ if __name__ == "__main__":
             grail_frames_def_file,
             moon_orientation_file,
             lunar_frame_file,
-        ) = get_grail_files("grail_kernels/", dates[i], dates[i])
+        ) = get_grail_files(
+            "grail_kernels/",
+            dates[i],
+            dates[i],
+            orientation_start_date=dates[i] - timedelta(days=1),
+            orientation_end_date=dates[i] + timedelta(days=1),
+        )
         print(dates[i])
         print(manoeuvres_file)
 
@@ -818,7 +826,7 @@ if __name__ == "__main__":
         )
         axs[0, 1].grid()
         axs[0, 1].set_xlim([0, 24])
-        axs[0, 1].set_xlabel("Time [days]")
+        axs[0, 1].set_xlabel("Time [hours]")
         axs[0, 1].set_ylabel("Residuals [Hz]")
         axs[0, 1].set_title("Pre-fit residuals")
 
@@ -829,7 +837,7 @@ if __name__ == "__main__":
         axs[1, 0].grid()
         axs[1, 0].set_ylim([-0.006, 0.006])
         axs[1, 0].set_xlim([0, 24])
-        axs[1, 0].set_xlabel("Time [days]")
+        axs[1, 0].set_xlabel("Time [hours]")
         axs[1, 0].set_ylabel("Residuals [Hz]")
         axs[1, 0].set_title("Post-fit residuals")
 

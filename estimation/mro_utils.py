@@ -12,7 +12,7 @@ from urllib.parse import urljoin
 import glob
 import re
 import pandas as pd
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import frame_conversion
 
 
@@ -241,7 +241,7 @@ def download_url_files_time(
     # BeautifulSoup package to look for all pattern-matching names at the targeted url (without any a priori information on the date and/or
     # wildcard present in the file name)
     reduced_filename = filename_split[-1]
-    reduced_filename = reduced_filename.replace("\w", "*")
+    reduced_filename = reduced_filename.replace(r"\w", "*")
 
     # Retrieve all filenames present at the "local_path" location that match the specified filename format
     existing_files = glob.glob(local_path + reduced_filename)
@@ -476,7 +476,7 @@ def get_mro_files(local_path, start_date, end_date):
     # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
     tnf_files = download_url_files_time(
         local_path=local_path,
-        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
+        filename_format=r"mromagr*_\w\w\w\wxmmmv1.tnf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,
@@ -594,6 +594,7 @@ def macromodel_mro():
         bus_frame_origin,
         bus_material_properties,
         bus_reradiation_settings,
+        input_unit="mm",
     )
     # HGA
     hga_material_properties = {
@@ -619,6 +620,7 @@ def macromodel_mro():
         hga_frame_origin,
         hga_material_properties,
         hga_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_HGA_OUTER_GIMBAL",
     )
     hga_rotation_settings = environment_setup.rotation_model.spice(
@@ -648,6 +650,7 @@ def macromodel_mro():
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAPX",
     )
     sapx_rotation_settings = environment_setup.rotation_model.spice(
@@ -659,6 +662,7 @@ def macromodel_mro():
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
+        input_unit="mm",
         frame_orientation="MRO_SAMX",
     )
     samx_rotation_settings = environment_setup.rotation_model.spice(

@@ -30,7 +30,7 @@ from scipy import interpolate
 from tudatpy import constants
 from tudatpy import dynamics
 from tudatpy.astro import element_conversion
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.dynamics import environment_setup, propagation_setup, propagation, simulator
 from tudatpy.astro.time_representation import DateTime
 
@@ -204,7 +204,7 @@ dependent_variables_to_save = [
 ]
 
 
-"""
+r"""
 ### Define termination settings
 
 The simulation terminates when one of the two occurs:

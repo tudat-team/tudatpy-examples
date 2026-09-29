@@ -6,14 +6,18 @@ import numpy as np
 from datetime import datetime, timedelta
 import multiprocessing
 from matplotlib import pyplot as plt
+from pathlib import Path
 
 
 from mro_utils import get_mro_files, macromodel_mro, get_rsw_state_difference
 
 from tudatpy.util import redirect_std
-from tudatpy.interface import spice
+from tudatpy.data_input.environment_data import spice
 from tudatpy.astro import time_representation, element_conversion
-from tudatpy.data import processTrk234
+from tudatpy.data_input.tracking_data.tnf import (
+    OpenRampHandling,
+    TnfTrackingDataProcessor,
+)
 
 from tudatpy.dynamics import (
     environment_setup,
@@ -96,15 +100,21 @@ def process_arc(inputs):
 
     # Data for arc 4 is in the previous day TNF file
     if arc_index == 4:
-        tnf_files.append("mro_kernels/mromagr2012_016_0520xmmmv1.tnf")
+        previous_day_tnf = Path(clock_files[0]).with_name(
+            "mromagr2012_016_0520xmmmv1.tnf"
+        )
+        if str(previous_day_tnf) not in tnf_files:
+            tnf_files.append(str(previous_day_tnf))
 
     # LOAD TNF OBSERVATIONS AND PERFORM PRE-PROCESSING STEPS
-    tnfProcessor = processTrk234.Trk234Processor(
+    tnfProcessor = TnfTrackingDataProcessor(
         tnf_files,
         ["doppler"],
         spacecraft_name="MRO",
     )
-    original_observations = tnfProcessor.process()
+    tracking_data, supplementary_data = tnfProcessor.process(
+        OpenRampHandling.close_silently
+    )
 
     # Remove observation outside the arc time interval
     arcStart = time_representation.DateTime.from_python_datetime(
@@ -124,33 +134,8 @@ def process_arc(inputs):
         input_value=time_representation.Time(arcEnd),
     )
 
-    # Filter observations to the arc time interval
-    arc_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        arcStart.to_float(),
-        arcEnd.to_float(),
-        use_opposite_condition=True,
-    )
-    original_observations.filter_observations(arc_filter)
-    original_observations.remove_empty_observation_sets()
-
-    # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    compressed_observations = (
-        observations_setup.observations_wrapper.create_compressed_doppler_collection(
-            original_observations, 60, 10
-        )
-    )
-
-    # Add transpondr delay
-    compressed_observations.set_transponder_delay("MRO", 1.4149e-6)
-
-    # Buffer model/propagation start and end times
-    observation_time_limits = original_observations.time_bounds_time_object
-    obs_start_time = observation_time_limits[0]
-    obs_end_time = observation_time_limits[1]
-
-    prop_start_time = observation_time_limits[0] - 3600.0
-    prop_end_time = observation_time_limits[1] + 3600.0
+    environment_start_time = arcStart - 3600.0
+    environment_end_time = arcEnd + 3600.0
 
     # ====================
     # Create default body settings for celestial bodies
@@ -169,8 +154,8 @@ def process_arc(inputs):
     global_frame_orientation = "J2000"
     body_settings = environment_setup.get_default_body_settings_time_limited(
         bodies_to_create,
-        prop_start_time.to_float(),
-        prop_end_time.to_float(),
+        environment_start_time.to_float(),
+        environment_end_time.to_float(),
         global_frame_origin,
         global_frame_orientation,
     )
@@ -187,20 +172,20 @@ def process_arc(inputs):
             global_frame_orientation,
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 3600.0,
             ),
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 3600.0,
             ),
             interpolators.interpolator_generation_settings(
                 interpolators.cubic_spline_interpolation(),
-                prop_start_time.to_float(),
-                prop_end_time.to_float(),
+                environment_start_time.to_float(),
+                environment_end_time.to_float(),
                 60.0,
             ),
         )
@@ -261,8 +246,8 @@ def process_arc(inputs):
     # Retrieve translational ephemeris from SPICE
     body_settings.get(spacecraft_name).ephemeris_settings = (
         environment_setup.ephemeris.interpolated_spice(
-            prop_start_time.to_float(),
-            prop_end_time.to_float(),
+            environment_start_time.to_float(),
+            environment_end_time.to_float(),
             10.0,
             spacecraft_central_body,
             global_frame_orientation,
@@ -309,7 +294,38 @@ def process_arc(inputs):
         bodies, spacecraft_name, radiation_pressure_settings
     )
 
-    tnfProcessor.set_tnf_information_in_bodies(bodies)
+    observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
+    tnfProcessor.set_transponder_turnaround_ratio(bodies)
+    bodies.get(spacecraft_name).system_models.transponder_delay = 1.4149e-6
+
+    original_observations = (
+        observations.create_observation_collection_from_tracking_data(
+            tracking_data, bodies
+        )
+    )
+
+    # Filter observations to the arc time interval
+    arc_filter = observations.observations_processing.observation_filter(
+        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
+        arcStart.to_float(),
+        arcEnd.to_float(),
+        use_opposite_condition=True,
+    )
+    original_observations.filter_observations(arc_filter)
+    original_observations.remove_empty_observation_sets()
+
+    observation_time_limits = original_observations.time_bounds_time_object
+    obs_start_time = observation_time_limits[0]
+    obs_end_time = observation_time_limits[1]
+
+    # Buffer model/propagation start and end times
+    prop_start_time = obs_start_time - 3600.0
+    prop_end_time = obs_end_time + 3600.0
+
+    # Compress Doppler observations from 1.0 s integration time to 60.0 s
+    compressed_observations = observations.create_compressed_doppler_collection(
+        original_observations, 60, 10
+    )
 
     # ===================================================================================================
     # SET ANTENNA AS REFERENCE POINT FOR DOPPLER OBSERVATIONS
@@ -469,7 +485,7 @@ def process_arc(inputs):
     # =========================================================================================
     # DEFINE PROPAGATION SETTINGS
 
-    # Define list of accelerations acting on GRAIL
+    # Define list of accelerations acting on MRO
     accelerations_settings_spacecraft = dict(
         Sun=[
             propagation_setup.acceleration.point_mass_gravity(),
@@ -587,19 +603,18 @@ def process_arc(inputs):
         ],
     }
     extra_parameters.append(
+        parameters_setup.drag_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
+        parameters_setup.lift_component_scaling(spacecraft_name),
+    )
+    extra_parameters.append(
         parameters_setup.arcwise_empirical_accelerations(
             spacecraft_name,
             "Mars",
             acceleration_components_to_estimate,
             arc_start_times,
         )
-    )
-
-    extra_parameters.append(
-        parameters_setup.drag_component_scaling(spacecraft_name),
-    )
-    extra_parameters.append(
-        parameters_setup.lift_component_scaling(spacecraft_name),
     )
 
     # Add additional parameters settings
@@ -643,6 +658,7 @@ def process_arc(inputs):
     # DEFINE ESTIMATION SETTINGS AND PERFORM THE FIT
 
     # Create estimator
+    print(f"Arc {arc_index}: starting initial propagation and estimation", flush=True)
     estimator = estimation_analysis.Estimator(
         bodies, parameters_to_estimate, observation_model_settings, propagator_settings
     )
@@ -689,6 +705,15 @@ def process_arc(inputs):
             print(f"{value:.6e} +- {sigma:.6e}")
         print("\n")
         estimation_output = estimator.perform_estimation(estimation_input)
+        if (
+            estimation_output.exception_during_propagation
+            or estimation_output.exception_during_inversion
+            or any(
+                not iteration.dynamics_results.integration_completed_successfully
+                for iteration in estimation_output.simulation_results_per_iteration
+            )
+        ):
+            raise RuntimeError(f"MRO TNF estimation failed for arc {arc_index}")
         print("\n")
         print("Corrected values +- uncertainty:")
         for value, sigma in zip(
@@ -754,6 +779,18 @@ if __name__ == "__main__":
     if not os.path.exists(output_folder_base):
         os.makedirs(output_folder_base)
 
+    existing_mro_archive = (
+        Path.home() / "Tudat" / "tudatpy-examples" / "estimation" / "mro_kernels"
+    )
+    default_mro_archive = (
+        existing_mro_archive
+        if existing_mro_archive.is_dir()
+        else Path(__file__).resolve().parent / "mro_kernels"
+    )
+    mro_kernel_path = Path(os.environ.get("MRO_KERNELS_DIR", default_mro_archive))
+    mro_kernel_path.mkdir(parents=True, exist_ok=True)
+    mro_kernel_path_string = str(mro_kernel_path) + os.sep
+
     arcs = [
         (
             datetime.fromisoformat("2012-01-01 03:18:01.965"),
@@ -786,7 +823,7 @@ if __name__ == "__main__":
     ]
 
     # Set up multiprocessing pool
-    num_processes = len(arcs)
+    num_processes = min(6, len(arcs))
 
     inputs = []
     for i, arc in enumerate(arcs):
@@ -807,7 +844,9 @@ if __name__ == "__main__":
             trajectory_files,
             frames_def_file,
             structure_file,
-        ) = get_mro_files("mro_kernels/", startEpochWithBuffer, endEpochWithBuffer)
+        ) = get_mro_files(
+            mro_kernel_path_string, startEpochWithBuffer, endEpochWithBuffer
+        )
         print("\n")
 
         # Construct a list of input arguments containing the arguments needed this specific parallel run.
@@ -852,7 +891,8 @@ if __name__ == "__main__":
             all_residuals.append(residDf)
 
             # Load arc times
-            arc_times = pickle.load(open(f"{arc_dir}/arc_start_times.pkl", "rb"))
+            with open(f"{arc_dir}/arc_start_times.pkl", "rb") as stream:
+                arc_times = pickle.load(stream)
             for time in arc_times:
                 all_arc_times.append(time)
         except FileNotFoundError as e:
@@ -923,9 +963,6 @@ if __name__ == "__main__":
         arc_index = os.path.basename(arc_dir).split("_")[1]
         print(f"Processing state differences from {arc_dir}")
 
-        if int(arc_index) > 4:
-            continue
-
         try:
             # Load prefit state differences
             prefit_df = pd.read_pickle(f"{arc_dir}/rsw_state_difference_prefit.pkl")
@@ -980,6 +1017,7 @@ if __name__ == "__main__":
             # Plot each component in its own panel
             for col, component in enumerate(components):
                 # axes[0, col].set_title(f"Prefit RMS = {overall_rms[component]:.2f} m")
+                axes[0, col].set_title(f"Prefit {component} difference")
                 axes[0, col].plot(
                     time_days,
                     df[component],
