@@ -31,6 +31,7 @@ from tudatpy.util import result2array
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.data_input.environment_data.spacetrack import SpaceTrackQuery, OMMUtils
 import datetime
+import sys
 from numpy import savetxt
 
 
@@ -51,7 +52,7 @@ objname = "KOSMOS 482 DESCENT CRAFT"
 cospar = "1972-023E"
 norad_id = str(6073)
 
-answer = input('Do you have a Space-Track.org account? (Y/N): ')
+answer = input("Do you have a Space-Track.org account? (Y/N): ") if sys.stdin.isatty() else "N"
 if answer.upper() == 'Y':
     print("Great! You'll be able to download data directly. Please enter you SpaceTrack credentials.")
 

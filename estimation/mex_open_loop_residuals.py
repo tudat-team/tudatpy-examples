@@ -54,7 +54,7 @@ print("Downloading Mars Express mission data from ESA archives...")
 spice.clear_kernels()
 
 # Mission configuration
-script_directory = Path(__file__).resolve().parent
+script_directory = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
 mex_archive_directory = script_directory / 'mex_archive'
 local_met_directory = mex_archive_directory / 'met'
 local_ifms_directory = mex_archive_directory / 'ifms'

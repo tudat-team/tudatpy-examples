@@ -78,17 +78,19 @@ print(batch1.observatories_table(only_in_batch=True, only_space_telescopes=True,
 
 
 """
-We can also directly have a look at the the observations themselves. For example, lets take a look at the first and final observations from TESS and WISE. The table property allows for read only access to the observations in pandas dataframe format. 
+We can also directly inspect the observations themselves. For example, let us
+look at the first and final observations from the two observatories with the
+most entries in this batch. The ``table`` property provides read-only access to
+the observations as a pandas dataframe.
 """
 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
-obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
-
-print("Initial and Final Observations by TESS")
-print(obs_by_TESS)
-print("Initial and Final Observations by WISE")
-print(obs_by_WISE)
+for observatory_code in batch1.table["observatory"].value_counts().index[:2]:
+    observations_by_observatory = batch1.table.query(
+        "observatory == @observatory_code"
+    ).loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
+    print(f"Initial and final observations by {observatory_code}")
+    print(observations_by_observatory.iloc[[0, -1]])
 
 
 """
