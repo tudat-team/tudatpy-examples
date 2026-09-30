@@ -371,7 +371,7 @@ for n_scenario in [1,2,3]:
 # 3 - Perform the observations simulation
 
     # Simulate required observations
-    simulated_observations = observations.simulate_observations(
+    simulated_observations = observations.simulate_observation_dataset(
         [observation_simulation_settings],
         estimator.observation_simulators,
         bodies)
@@ -379,13 +379,12 @@ for n_scenario in [1,2,3]:
 # 4 - Define the Input Covariance
 
     # Define weighting of the observations in the inversion
-    weights_per_observable = {observations.observations_processing.observation_parser(
-        observable_models_setup.model_settings.one_way_instantaneous_doppler_type ): noise_level ** -2}
-    simulated_observations.set_constant_weight_per_observation_parser( weights_per_observable )
+    simulated_observations.set_constant_single_observation_scalar_weight(
+        observations.ObservationSelectionCondition.all(), noise_level ** -2)
 
     # Create input object for covariance analysis
     covariance_input = estimation_analysis.CovarianceAnalysisInput(
-        simulated_observations)
+        observation_dataset=simulated_observations)
 
     # Set methodological options
     covariance_input.define_covariance_settings(

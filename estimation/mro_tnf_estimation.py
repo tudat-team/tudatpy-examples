@@ -298,23 +298,18 @@ def process_arc(inputs):
     tnfProcessor.set_transponder_turnaround_ratio(bodies)
     bodies.get(spacecraft_name).system_models.transponder_delay = 1.4149e-6
 
-    original_observations = (
-        observations.create_observation_collection_from_tracking_data(
-            tracking_data, bodies
-        )
+    original_observations = observations.create_observation_dataset_from_tracking_data(
+        tracking_data, bodies
     )
 
     # Filter observations to the arc time interval
-    arc_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        arcStart.to_float(),
-        arcEnd.to_float(),
-        use_opposite_condition=True,
+    original_observations.remove_observations(
+        ~observations.observation_query.time.between(
+            arcStart.to_float(), arcEnd.to_float()
+        )
     )
-    original_observations.filter_observations(arc_filter)
-    original_observations.remove_empty_observation_sets()
 
-    observation_time_limits = original_observations.time_bounds_time_object
+    observation_time_limits = original_observations.observation_time_bounds
     obs_start_time = observation_time_limits[0]
     obs_end_time = observation_time_limits[1]
 
@@ -323,7 +318,7 @@ def process_arc(inputs):
     prop_end_time = obs_end_time + 3600.0
 
     # Compress Doppler observations from 1.0 s integration time to 60.0 s
-    compressed_observations = observations.create_compressed_doppler_collection(
+    compressed_observations = observations.create_compressed_doppler_dataset(
         original_observations, 60, 10
     )
 
@@ -334,7 +329,11 @@ def process_arc(inputs):
     com_position = [-0.001235, -1.14978, -0.001288]
     antenna_position_history = dict()
 
-    for obs_times in compressed_observations.get_observation_times_objects():
+    compressed_vector_data = compressed_observations.observation_vector_data(
+        include_rejected=True
+    )
+    for set_id in compressed_vector_data.set_ids_in_row_order:
+        obs_times = compressed_observations.observation_times_for_set(set_id)
         time = obs_times[0].to_float() - 3600.0
         while time <= obs_times[-1].to_float() + 3600.0:
             state = np.zeros((6, 1))
@@ -362,11 +361,12 @@ def process_arc(inputs):
     )
 
     # Set the spacecraft's reference point position to that of the antenna (in the MRO-fixed frame)
-    compressed_observations.set_reference_point(
-        bodies,
-        antenna_ephemeris,
-        "Antenna",
+    bodies.get_body("MRO").system_models.set_reference_point(
+        "Antenna", antenna_ephemeris
+    )
+    compressed_observations.set_link_end_reference_point(
         "MRO",
+        "Antenna",
         observable_models_setup.links.LinkEndType.reflector1,
     )
 
@@ -397,9 +397,9 @@ def process_arc(inputs):
     # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
     # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
     # added to each of these link ends.
-    doppler_link_ends = compressed_observations.link_definitions_per_observable[
+    doppler_link_ends = compressed_observations.link_definitions_for_observable(
         observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-    ]
+    )
 
     observation_model_settings = list()
     for current_link_definition in doppler_link_ends:
@@ -419,66 +419,28 @@ def process_arc(inputs):
         compressed_observations, observation_simulators, bodies
     )
 
-    # Filter residuals based on the observation type
-    filter_settings = {
-        observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type: 0.1,
-    }
-
-    observation_filters = dict()
-    for obs_type, threshold in filter_settings.items():
-        parser = observations.observations_processing.observation_parser(obs_type)
-        residual_filter = observations.observations_processing.observation_filter(
-            observations.observations_processing.ObservationFilterType.residual_filtering,
-            threshold,
-        )
-        observation_filters[parser] = residual_filter
-
-    compressed_observations.filter_observations(observation_filters)
-    linkEndsDict = compressed_observations.link_definition_ids
-
-    # Initialize lists to store data from all observable types
-    all_residuals = []
-    all_times = []
-    all_type_ids = []
-    all_link_ends = []
-
-    # Loop through each observable type to get its data
-    for obs_type, typeName in zip(filter_settings.keys(), ["doppler"]):
-        parser = observations.observations_processing.observation_parser(obs_type)
-
-        # Get residuals, times, and link ends for the current observable type
-        residuals = compressed_observations.get_concatenated_residuals(parser)
-        times = compressed_observations.get_concatenated_observation_times(parser)
-        link_ends_ids = compressed_observations.get_concatenated_link_definition_ids(
-            parser
-        )
-        link_ends = [
-            linkEndsDict[linkId][
-                observable_models_setup.links.LinkEndType.transmitter
-            ].reference_point
-            + " - "
-            + linkEndsDict[linkId][
-                observable_models_setup.links.LinkEndType.receiver
-            ].reference_point
-            for linkId in link_ends_ids
-        ]
-
-        # Create a list of type identifiers
-        type_ids = [typeName] * len(residuals)
-
-        # Append the data to the main lists
-        all_residuals.extend(residuals)
-        all_times.extend(times)
-        all_link_ends.extend(link_ends)
-        all_type_ids.extend(type_ids)
+    compressed_observations.remove_observations(
+        observations.observation_query.residual.abs_greater_than(0.1)
+    )
+    observation_vector_data = compressed_observations.observation_vector_data()
+    link_ends = []
+    for link_id in observation_vector_data.link_definition_ids:
+        link_definition = compressed_observations.link_definition(link_id)
+        transmitter = link_definition.link_end_id(
+            observable_models_setup.links.LinkEndType.transmitter
+        ).reference_point
+        receiver = link_definition.link_end_id(
+            observable_models_setup.links.LinkEndType.receiver
+        ).reference_point
+        link_ends.append(transmitter + " - " + receiver)
 
     # Create a single DataFrame with all the data
     residDf = pd.DataFrame(
         {
-            "spice": all_residuals,
-            "time": all_times,
-            "link_ends": all_link_ends,
-            "msrType": all_type_ids,
+            "spice": observation_vector_data.residual_vector,
+            "time": observation_vector_data.times,
+            "link_ends": link_ends,
+            "msrType": "doppler",
         }
     )
 
@@ -665,7 +627,7 @@ def process_arc(inputs):
 
     # Define estimation settings
     estimation_input = estimation_analysis.EstimationInput(
-        compressed_observations,
+        observation_dataset=compressed_observations,
         inverse_apriori_covariance=apriori_covariance,
         convergence_checker=estimation_analysis.estimation_convergence_checker(6),
     )
