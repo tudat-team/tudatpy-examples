@@ -17,7 +17,7 @@ been left out.  The example follows the current data path directly:
 
 1. MPC and JPL records are converted to ``TrackingData``.
 2. Their supplementary data are applied to the system of bodies.
-3. The tracking data are converted to an ``ObservationCollection``.
+3. The tracking data are converted to an ``ObservationDataset``.
 4. One orbit determination is run without radar and one with radar.
 
 The MPC and JPL queries require an internet connection.
@@ -26,9 +26,11 @@ The MPC and JPL queries require an internet connection.
 import datetime
 from collections import Counter
 import json
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 from tudatpy import constants
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
@@ -284,8 +286,8 @@ def acceleration_settings(estimate_yarkovsky):
     return {TARGET: target_accelerations}
 
 
-def observation_model_settings(observation_collection):
-    """Create observation models for every link present in the collection."""
+def observation_model_settings(observation_dataset):
+    """Create observation models for every link present in the dataset."""
     settings = []
     corrections = [
         observable_models_setup.light_time_corrections.first_order_relativistic_light_time_correction(
@@ -320,10 +322,16 @@ def observation_model_settings(observation_collection):
     }
 
     for observable_type, factory in model_factories.items():
-        links = observation_collection.get_link_definitions_for_observables(
-            observable_type=observable_type
+        link_ids = sorted(
+            {
+                metadata.link_definition_id
+                for metadata in observation_dataset.observation_set_metadata
+                if metadata.observable_type == observable_type
+            }
         )
-        settings.extend(factory(link) for link in links)
+        settings.extend(
+            factory(observation_dataset.link_definition(link_id)) for link_id in link_ids
+        )
     return settings
 
 
@@ -345,8 +353,8 @@ def perform_estimation(
         bodies,
         supplementary_data,
     )
-    observation_collection = (
-        observations.create_observation_collection_from_tracking_data(
+    observation_dataset = (
+        observations.create_observation_dataset_from_tracking_data(
             tracking_data,
             bodies,
             apply_corrections=True,
@@ -391,12 +399,12 @@ def perform_estimation(
     estimator = estimation_analysis.Estimator(
         bodies=bodies,
         estimated_parameters=parameters_to_estimate,
-        observation_settings=observation_model_settings(observation_collection),
+        observation_settings=observation_model_settings(observation_dataset),
         propagator_settings=propagator_settings,
         integrate_on_creation=True,
     )
     estimation_input = estimation_analysis.EstimationInput(
-        observations_and_times=observation_collection,
+        observation_dataset=observation_dataset,
         convergence_checker=estimation_analysis.estimation_convergence_checker(
             maximum_iterations=NUMBER_OF_ESTIMATION_ITERATIONS,
         ),
@@ -405,9 +413,12 @@ def perform_estimation(
         reintegrate_variational_equations=True,
         print_output_to_terminal=True,
         save_state_history_per_iteration=True,
+        # The mixed-unit normalized normal matrix has a condition number near 3e9.
+        # Its SVD solution is stable; retain a finite warning threshold above that.
+        limit_condition_number_for_warning=1.0e10,
     )
     output = estimator.perform_estimation(estimation_input)
-    return output, observation_collection, estimator
+    return output, observation_dataset, estimator
 
 
 def print_yarkovsky_result(output):
@@ -423,7 +434,7 @@ def print_yarkovsky_result(output):
     )
 
 
-def print_residual_summary(label, output, observation_collection):
+def print_residual_summary(label, output, observation_dataset):
     """Print final residual RMS values for each observable family."""
     residuals = np.asarray(output.final_residuals)
     observable_units = {
@@ -432,10 +443,9 @@ def print_residual_summary(label, output, observation_collection):
         observable_models_setup.model_settings.doppler_measured_frequency_type: "Hz",
     }
     print(f"\n{label}")
-    for observable_type, (start, size) in (
-        observation_collection.observable_type_start_index_and_size.items()
-    ):
-        values = residuals[start : start + size]
+    data = observation_scalar_data(observation_dataset)
+    for observable_type in dict.fromkeys(data["observable_types"]):
+        values = residuals[data["observable_types"] == observable_type]
         rms = np.sqrt(np.mean(values**2))
         unit = observable_units.get(observable_type, "")
         print(f"  {observable_type}: {len(values)} scalar residuals, RMS = {rms:.6g} {unit}")
@@ -496,10 +506,27 @@ def print_orbit_difference_rsw(reference_output, comparison_output, estimation_e
 #####################################################################
 
 
-def observation_labels_and_space_mask(observation_collection):
-    """Return observer labels and a space-receiver mask for scalar observations."""
+def observation_scalar_data(observation_dataset):
+    """Align dataset metadata with the scalar order used by the estimator."""
+    data = observation_dataset.get_data(
+        observations.observation_query.active,
+        fields=(
+            "times", "observation_ids", "set_ids", "metadata", "scalar_components", "weight_diagonal"
+        ),
+        ordering="estimation",
+    )
+    event_indices = {
+        observation_id: index for index, observation_id in enumerate(data["observation_ids"])
+    }
+    scalar_events = np.array(
+        [event_indices[observation_id] for observation_id, _ in data["scalar_components"]],
+        dtype=int,
+    )
+    scalar_set_ids = [data["set_ids"][index] for index in scalar_events]
+
     link_data = {}
-    for link_id, link_ends in observation_collection.link_definition_ids.items():
+    for set_id, metadata in data["metadata"].items():
+        link_ends = metadata["link_definition"].link_ends
         receiver = link_ends[observable_models_setup.links.receiver]
         stations = [
             link_ends[role].reference_point
@@ -511,15 +538,21 @@ def observation_labels_and_space_mask(observation_collection):
             and link_ends[role].body_name == "Earth"
             and link_ends[role].reference_point
         ]
-        link_data[link_id] = (
+        link_data[set_id] = (
             " → ".join(dict.fromkeys(stations)) or receiver.body_name,
             receiver.body_name != "Earth",
         )
-    rows = np.array(
-        [link_data[int(link_id)] for link_id in observation_collection.concatenated_link_definition_ids],
-        dtype=object,
-    )
-    return rows[:, 0], rows[:, 1].astype(bool)
+    return {
+        "times": np.array([float(epoch) for epoch in data["times"]])[scalar_events],
+        "weights": np.asarray(data["weight_diagonal"]).reshape(-1),
+        "observable_types": np.array(
+            [data["metadata"][set_id]["observable_type"] for set_id in scalar_set_ids],
+            dtype=object,
+        ),
+        "components": np.array([component for _, component in data["scalar_components"]]),
+        "station_labels": np.array([link_data[set_id][0] for set_id in scalar_set_ids]),
+        "space_astrometry": np.array([link_data[set_id][1] for set_id in scalar_set_ids]),
+    }
 
 
 def add_grouped_scatter(ax, times, values, station_labels):
@@ -553,16 +586,14 @@ def add_grouped_scatter(ax, times, values, station_labels):
         )
 
 
-def plot_residuals(setup_label, output, observation_collection):
+def plot_residuals(setup_label, output, observation_dataset):
     """Plot residuals by observable, separating ground and space astrometry."""
     residuals = np.asarray(output.final_residuals).reshape(-1)
-    weights = np.asarray(observation_collection.concatenated_weights).reshape(-1)
-    normalized_residuals = residuals * np.sqrt(weights)
-    times = np.asarray(observation_collection.concatenated_times, dtype=float)
-    years = 2000.0 + times / (365.25 * constants.JULIAN_DAY)
-    station_labels, space_astrometry = observation_labels_and_space_mask(
-        observation_collection
-    )
+    data = observation_scalar_data(observation_dataset)
+    normalized_residuals = residuals * np.sqrt(data["weights"])
+    years = 2000.0 + data["times"] / (365.25 * constants.JULIAN_DAY)
+    station_labels = data["station_labels"]
+    space_astrometry = data["space_astrometry"]
 
     angular_type = observable_models_setup.model_settings.angular_position_type
     arcseconds_per_radian = 180.0 / np.pi * 3600.0
@@ -577,13 +608,11 @@ def plot_residuals(setup_label, output, observation_collection):
         ],
     }
 
-    observable_slices = observation_collection.observable_type_start_index_and_size
     for observable_type, components in component_settings.items():
-        if observable_type not in observable_slices:
-            continue
-        start, size = observable_slices[observable_type]
         for offset, (component_name, scale, unit) in enumerate(components):
-            indices = np.arange(start + offset, start + size, len(components))
+            indices = np.flatnonzero(
+                (data["observable_types"] == observable_type) & (data["components"] == offset)
+            )
             is_space = (observable_type == angular_type) & space_astrometry[indices]
             ground_indices = indices[~is_space]
             groups = [
@@ -697,12 +726,20 @@ def plot_diagnostics(results):
         extended_query=True,
     ).cartesian(frame_orientation=FRAME_ORIENTATION)[:, 1:]
 
-    for setup_label, (output, observation_collection, estimator) in results.items():
-        plot_residuals(setup_label, output, observation_collection)
+    for setup_label, (output, observation_dataset, estimator) in results.items():
+        plot_residuals(setup_label, output, observation_dataset)
         plot_orbit_difference(
             setup_label, output, estimator, plot_epochs, horizons_states
         )
-    plt.show()
+    if plt.get_backend().lower() == "agg":
+        plot_file = Path(__file__).with_suffix(".pdf")
+        with PdfPages(plot_file) as pdf:
+            for number in plt.get_fignums():
+                pdf.savefig(plt.figure(number))
+        plt.close("all")
+        print(f"Saved diagnostics to {plot_file}")
+    else:
+        plt.show()
 
 #####################################################################
 #################   MAIN LOOP  ######################################
@@ -761,7 +798,7 @@ def main(estimate_yarkovsky):
 
     results = {}
     for label, (tracking_data, supplementary_data) in setups.items():
-        output, observation_collection, estimator = perform_estimation(
+        output, observation_dataset, estimator = perform_estimation(
             tracking_data,
             supplementary_data,
             initial_epoch,
@@ -770,10 +807,10 @@ def main(estimate_yarkovsky):
             final_epoch,
             estimate_yarkovsky,
         )
-        print_residual_summary(label, output, observation_collection)
+        print_residual_summary(label, output, observation_dataset)
         if estimate_yarkovsky:
             print_yarkovsky_result(output)
-        results[label] = (output, observation_collection, estimator)
+        results[label] = (output, observation_dataset, estimator)
 
     if "MPC astrometry and JPL radar" in results:
         print_orbit_difference_rsw(
