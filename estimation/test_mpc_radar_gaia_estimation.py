@@ -108,7 +108,12 @@ def test_residual_alignment_uses_event_ids_not_scalar_adjacency():
         }
     )
     result = example.gaia_residual_data(
-        SimpleNamespace(final_residuals=[4, 999, 1, 3, 999, 2]),
+        SimpleNamespace(
+            best_iteration=0,
+            final_residuals=np.zeros(6),
+            residual_history=np.column_stack((np.zeros(6), [4, 999, 1, 3, 999, 2])),
+            active_flags_per_iteration=np.ones((6, 2), dtype=bool),
+        ),
         Dataset(),
         SimpleNamespace(table=table),
     )
@@ -133,3 +138,112 @@ def test_bennu_cannot_silently_run_without_gaia(monkeypatch):
     monkeypatch.setattr(example.GaiaAstrometry, "load_from_astroquery", missing_data)
     with pytest.raises(RuntimeError, match="No observations found"):
         example.load_gaia_astrometry()
+
+
+@pytest.mark.parametrize("apply_final_correction", [False, True])
+def test_reported_parameters_match_evaluated_residuals(apply_final_correction):
+    parameters = np.array([[1.0, 2.0, 99.0], [3.0, 4.0, 99.0]])
+    output = SimpleNamespace(
+        best_iteration=0,
+        final_parameters=parameters[:, 0],
+        parameter_history=parameters if apply_final_correction else parameters[:, :2],
+        residual_history=np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]),
+        active_flags_per_iteration=np.array([[True, True], [True, False], [True, True]]),
+    )
+    # Exclude inactive observations and the optional, unevaluated final update.
+    np.testing.assert_allclose(example.last_iteration_residuals(output), [0.2, 0.6])
+    np.testing.assert_allclose(example.last_iteration_parameters(output), [2.0, 4.0])
+
+
+def test_residual_and_orbit_plots_use_last_iteration(monkeypatch):
+    example.plt.close("all")
+    reference = np.array([1.0e8, 0.0, 0.0, 0.0, 1000.0, 0.0])
+    last_state = reference + [1000.0, 2000.0, 3000.0, 0.0, 0.0, 0.0]
+    output = SimpleNamespace(
+        best_iteration=0,
+        final_residuals=np.array([0.1, 0.1]),
+        residual_history=np.array([[0.1, 2.0], [0.1, 3.0]]),
+        active_flags_per_iteration=np.ones((2, 2), dtype=bool),
+        covariance=np.eye(6),
+        simulation_results_per_iteration=[
+            SimpleNamespace(dynamics_results=SimpleNamespace(state_history_float={0.0: state}))
+            for state in (reference, last_state)
+        ],
+    )
+    range_type = example.observable_models_setup.model_settings.n_way_range_type
+    monkeypatch.setattr(example, "observation_scalar_data", lambda dataset: {
+        "times": np.array([0.0, 1.0]),
+        "weights": np.array([4.0, 9.0]),
+        "observable_types": np.array([range_type, range_type], dtype=object),
+        "components": np.zeros(2, dtype=int),
+        "station_labels": np.array(["Test", "Test"]),
+        "space_astrometry": np.zeros(2, dtype=bool),
+    })
+    covariance_calls = []
+
+    def propagate_covariance(covariance, interface, epochs):
+        covariance_calls.append(covariance)
+        return {epoch: covariance for epoch in epochs}
+
+    monkeypatch.setattr(example.estimation_analysis, "propagate_covariance", propagate_covariance)
+    try:
+        example.plot_residuals("test", output, None)
+        figures = [example.plt.figure(n) for n in example.plt.get_fignums()]
+        np.testing.assert_allclose(figures[0].axes[0].collections[0].get_offsets()[:, 1], [2, 3])
+        np.testing.assert_allclose(figures[1].axes[0].collections[0].get_offsets()[:, 1], [4, 9])
+        example.plt.close("all")
+
+        example.plot_orbit_difference(
+            "test", output, SimpleNamespace(state_transition_interface=None),
+            np.array([0.0]), np.array([reference]),
+        )
+        figures = [example.plt.figure(n) for n in example.plt.get_fignums()]
+        for axis, expected in zip(figures[0].axes, [1, 2, 3]):
+            np.testing.assert_allclose(axis.lines[0].get_ydata(), [expected])
+        assert covariance_calls[0] is output.covariance
+    finally:
+        example.plt.close("all")
+
+
+def test_mpc_prefit_rejection_uses_each_components_weight(monkeypatch):
+    obs = example.observations
+    dataset = obs.ObservationDataset()
+    residuals = [
+        np.array([[5., 0.], [2.5, 0.], [2.50001, 0.], [0., -1.67], [0., 1.6], [100., 0.]]),
+        np.array([[0., 6.]]),  # MPC space-based astrometry is also screened.
+        np.array([[100., 100.]]),  # Gaia is excluded.
+        np.array([[100.]]),  # Radar is excluded.
+    ]
+    for i, (receiver, observable) in enumerate([
+        ("Earth", obs.angular_position_type), ("WISE", obs.angular_position_type),
+        ("Gaia", obs.angular_position_type), ("Earth", obs.one_way_range_type),
+    ]):
+        link = obs.LinkDefinition({
+            obs.transmitter: obs.LinkEndId(example.TARGET, ""),
+            obs.receiver: obs.LinkEndId(receiver, ""),
+        })
+        dataset.add_observation_set(
+            observable, link, np.zeros_like(residuals[i]),
+            [1., 1., 2., 3., 4., 5.] if i == 0 else [1.], obs.receiver,
+        )
+    dataset.set_weight_vector_for_set(0, np.array([1., 1., 4., 9., 4., 9., 4., 9., 4., 9., 1., 1.]))
+    q = obs.observation_query
+    dataset.reject_observations((q.set_id == 0) & (q.time == 5.), "previous rejection")
+    weights = dataset.get_weight_diagonal().copy()
+    sentinel_bodies = object()
+
+    def compute_prefit(data, simulators, bodies):
+        assert data is dataset and bodies is sentinel_bodies
+        for set_id, values in enumerate(residuals):
+            data.set_residuals_for_set(set_id, values)
+
+    monkeypatch.setattr(example.observations_simulation_settings, "create_observation_simulators", lambda *args: [])
+    monkeypatch.setattr(obs, "compute_residuals_and_dependent_variables", compute_prefit)
+    example.reject_mpc_prefit_outliers(dataset, sentinel_bodies)
+    assert dataset.get_observation_ids(q.active & (q.set_id == 0)) == [0, 1, 4]
+    assert not dataset.get_observation_ids(q.active & (q.set_id == 1))
+    assert len(dataset.get_observation_ids(q.active & (q.set_id == 2))) == 1
+    assert len(dataset.get_observation_ids(q.active & (q.set_id == 3))) == 1
+    np.testing.assert_array_equal(dataset.get_weight_diagonal(), weights)
+    for set_id, values in enumerate(residuals):
+        np.testing.assert_array_equal(dataset.residuals_for_set(set_id), values)
