@@ -59,7 +59,7 @@ The required modules and dependencies are taken from the `mission_data_downloade
 
 from datetime import datetime
 
-from tudatpy.data.mission_data_downloader import *
+from tudatpy.data.mission_data_downloader import LoadPDS
 from tudatpy.interface import spice
 
 
@@ -294,7 +294,7 @@ The steps to be performed are:
 
 **NOTE 8. About Start and End Dates** 
 
-As it will be shown later in the example, you can also **[download all files of a certain type](#Download_all_Files_of_a_Certain_Type)** (ck, spk, fk, odf, etc...) present at a given url, **regardless of the start and end date**.
+As it will be shown later in the example, you can also **[download all files of a certain type](#download-all-files-of-a-certain-type)** (ck, spk, fk, odf, etc...) present at a given url, **regardless of the start and end date**.
 """
 
 

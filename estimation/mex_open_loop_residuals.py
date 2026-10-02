@@ -1,19 +1,21 @@
-# %% [markdown]
-# # Mars Express Tracking Data Residuals Analysis
-#
-# This notebook analyzes tracking data residuals from Mars Express during the December 2013 Phobos flyby. We'll compare two tracking systems:
-#
-# - **IFMS (Closed-loop)**: Traditional ground station tracking from New Norcia
-# - **FDETS (Open-loop)**: Advanced Doppler observations from HARTRAO and URUMQI
-#
-# By the end, you'll have computed residuals, visualized the results, and exported the data for further analysis.
+"""
+# Mars Express Tracking Data Residuals Analysis
 
-# %% [markdown]
-# ## Part 1: Setting Up the Environment
-#
-# Let's start by importing the tools we need and downloading the mission data from ESA's archives.
+This notebook analyzes tracking data residuals from Mars Express during the December 2013 Phobos flyby. We'll compare two tracking systems:
 
-# %%
+- **IFMS (Closed-loop)**: Traditional ground station tracking from New Norcia
+- **FDETS (Open-loop)**: Advanced Doppler observations from HARTRAO and URUMQI
+
+By the end, you'll have computed residuals, visualized the results, and exported the data for further analysis.
+"""
+
+"""
+## Part 1: Setting Up the Environment
+
+Let's start by importing the tools we need and downloading the mission data from ESA's archives.
+"""
+
+
 import csv
 import numpy as np
 import random
@@ -33,19 +35,21 @@ from tudatpy.estimation.observations_setup.ancillary_settings import FrequencyBa
 from tudatpy.estimation.observable_models_setup import links
 from tudatpy.estimation import observable_models_setup, observations_setup, observations
 import tudatpy.data as data
-from tudatpy.data.mission_data_downloader import *
+from tudatpy.data.mission_data_downloader import LoadPDS
 from tudatpy.interface import spice
 
 print("✓ Libraries imported successfully")
 
-# %% [markdown]
-# ### Downloading Mars Express Data
-#
-# We'll download tracking data from ESA's Planetary Science Archive for the period around the Phobos flyby (December 27-31, 2013). This includes:
-# - **Meteorological data** for atmospheric corrections
-# - **IFMS tracking files** with closed-loop Doppler measurements
 
-# %%
+"""
+### Downloading Mars Express Data
+
+We'll download tracking data from ESA's Planetary Science Archive for the period around the Phobos flyby (December 27-31, 2013). This includes:
+- **Meteorological data** for atmospheric corrections
+- **IFMS tracking files** with closed-loop Doppler measurements
+"""
+
+
 print("Downloading Mars Express mission data from ESA archives...")
 
 # Initialize data loader
@@ -87,12 +91,14 @@ for custom_ifms_url in custom_ifms_urls:
 
 print("✓ Data download complete!")
 
-# %% [markdown]
-# ### Configure Your Analysis
-#
-# **Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
 
-# %%
+"""
+### Configure Your Analysis
+
+**Important:** Update `BASE_DIR` to match your local directory structure. This is where your SPICE kernels, FDETS data, and other reference files are stored.
+"""
+
+
 # =============================================================================
 # USER CONFIGURATION - UPDATE THESE PATHS
 # =============================================================================
@@ -126,12 +132,14 @@ FDETS_FILES_TO_PROCESS = [
 print(f"✓ Configuration complete")
 print(f"  Analysis period: {ANALYSIS_START.date()} to {ANALYSIS_END.date()}")
 
-# %% [markdown]
-# ### Helper Functions
-#
-# These utility functions help us organize data by ground station and map station codes to readable names.
 
-# %%
+"""
+### Helper Functions
+
+These utility functions help us organize data by ground station and map station codes to readable names.
+"""
+
+
 def get_weather_files_by_station(weather_data_dir):
     """Group weather files by station code"""
     if not os.path.exists(weather_data_dir):
@@ -205,17 +213,20 @@ def generate_random_color():
 
 print("✓ Helper functions defined")
 
-# %% [markdown]
-# ## Part 2: Creating the Solar System Environment
-#
-# Now we'll set up the physical environment needed for our analysis. This includes loading SPICE kernels (which contain precise ephemerides) and configuring the celestial bodies.
 
-# %% [markdown]
-# ### Loading SPICE Kernels
-#
-# SPICE kernels provide precise position and orientation data for spacecraft and celestial bodies. We'll load both standard kernels and Mars Express mission-specific kernels.
+"""
+## Part 2: Creating the Solar System Environment
 
-# %%
+Now we'll set up the physical environment needed for our analysis. This includes loading SPICE kernels (which contain precise ephemerides) and configuring the celestial bodies.
+"""
+
+"""
+### Loading SPICE Kernels
+
+SPICE kernels provide precise position and orientation data for spacecraft and celestial bodies. We'll load both standard kernels and Mars Express mission-specific kernels.
+"""
+
+
 print("Loading SPICE kernels...")
 
 # Load standard planetary ephemerides
@@ -231,12 +242,14 @@ for kernel in os.listdir(KERNELS_FOLDER):
 
 print(f"✓ Loaded {kernel_count} mission-specific kernels")
 
-# %% [markdown]
-# ### Defining the Time Window
-#
-# We'll convert our analysis dates into TudatPy's time format (seconds since J2000 epoch).
 
-# %%
+"""
+### Defining the Time Window
+
+We'll convert our analysis dates into TudatPy's time format (seconds since J2000 epoch).
+"""
+
+
 start_time = time_representation.Time(
     time_representation.DateTime.to_epoch(
         time_representation.DateTime.from_python_datetime(ANALYSIS_START)
@@ -259,12 +272,14 @@ print(f"✓ Time window established:")
 print(f"  Start: {start_time_seconds:.1f} seconds since J2000")
 print(f"  End: {end_time_seconds:.1f} seconds since J2000")
 
-# %% [markdown]
-# ### Building the Celestial Bodies System
-#
-# We'll create a system of bodies including the planets needed for accurate gravitational modeling and light-time corrections. We'll also configure Mars Express and the ground stations.
 
-# %%
+"""
+### Building the Celestial Bodies System
+
+We'll create a system of bodies including the planets needed for accurate gravitational modeling and light-time corrections. We'll also configure Mars Express and the ground stations.
+"""
+
+
 print("Building solar system environment...")
 
 # Define which celestial bodies to include
@@ -292,12 +307,14 @@ body_settings.get('Earth').gravity_field_settings.associated_reference_frame = "
 
 print("✓ Earth configured with IAU 2006 rotation model")
 
-# %% [markdown]
-# ### Adding Mars Express Spacecraft
-#
-# We'll add Mars Express to our system with its ephemeris interpolated from SPICE data.
 
-# %%
+"""
+### Adding Mars Express Spacecraft
+
+We'll add Mars Express to our system with its ephemeris interpolated from SPICE data.
+"""
+
+
 # Add spacecraft with interpolated ephemeris
 body_settings.add_empty_settings(SPACECRAFT_NAME)
 body_settings.get(SPACECRAFT_NAME).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
@@ -321,17 +338,20 @@ bodies.get_body(SPACECRAFT_NAME).system_models = vehicle_sys
 print("✓ Mars Express spacecraft configured")
 print("✓ Ground stations added to Earth")
 
-# %% [markdown]
-# ## Part 3: Processing Tracking Data
-#
-# Now comes the core analysis. We'll process both IFMS (closed-loop) and FDETS (open-loop) observations, computing residuals between observed and predicted Doppler measurements.
 
-# %% [markdown]
-# ### Setting Up for IFMS Processing
-#
-# Before processing, we need to configure the antenna position on Mars Express and load weather data for tropospheric corrections.
+"""
+## Part 3: Processing Tracking Data
 
-# %%
+Now comes the core analysis. We'll process both IFMS (closed-loop) and FDETS (open-loop) observations, computing residuals between observed and predicted Doppler measurements.
+"""
+
+"""
+### Setting Up for IFMS Processing
+
+Before processing, we need to configure the antenna position on Mars Express and load weather data for tropospheric corrections.
+"""
+
+
 print("Preparing for IFMS data processing...")
 
 # Initialize results storage
@@ -377,19 +397,21 @@ for station_code in weather_dict.keys():
 print("✓ Antenna ephemeris configured")
 print("✓ Weather data loaded into ground stations")
 
-# %% [markdown]
-# ### Processing IFMS and FDETS Files
-#
-# This is where the heavy lifting happens. For each IFMS file:
-# 1. Load the observations
-# 2. Create observation models with tropospheric corrections
-# 3. Simulate expected observations
-# 4. Compute residuals (observed - simulated)
-# 5. Process corresponding FDETS files if available
-#
-# This may take a few minutes depending on data volume.
 
-# %%
+"""
+### Processing IFMS and FDETS Files
+
+This is where the heavy lifting happens. For each IFMS file:
+1. Load the observations
+2. Create observation models with tropospheric corrections
+3. Simulate expected observations
+4. Compute residuals (observed - simulated)
+5. Process corresponding FDETS files if available
+
+This may take a few minutes depending on data volume.
+"""
+
+
 print("Processing IFMS and FDETS data...")
 print("This may take several minutes...\n")
 
@@ -627,19 +649,22 @@ print(f"\n✓ Processing complete!")
 print(f"  IFMS files processed: {processed_ifms_count}")
 print(f"  FDETS files processed: {processed_fdets_count}")
 
-# %% [markdown]
-# ## Part 4: Visualizing the Results
-#
-# Now let's see what the residuals look like! We'll create two visualizations:
-# 1. **Full timeline view** - All residuals across the entire analysis period
-# 2. **Detailed subset** - A closer look at a specific time window with distribution plots
 
-# %% [markdown]
-# ### Combined Residuals Plot
-#
-# This plot shows all IFMS and FDETS observations together. Different stations are color-coded, and you can see the RMS (root-mean-square) value for each station in the legend.
+"""
+## Part 4: Visualizing the Results
 
-# %%
+Now let's see what the residuals look like! We'll create two visualizations:
+1. **Full timeline view** - All residuals across the entire analysis period
+2. **Detailed subset** - A closer look at a specific time window with distribution plots
+"""
+
+"""
+### Combined Residuals Plot
+
+This plot shows all IFMS and FDETS observations together. Different stations are color-coded, and you can see the RMS (root-mean-square) value for each station in the legend.
+"""
+
+
 print("Creating combined residuals visualization...")
 
 plt.figure(figsize=(14, 8))
@@ -713,12 +738,14 @@ if all_residuals:
 else:
     print("⚠ No residual data available for plotting")
 
-# %% [markdown]
-# ### Focused Analysis: Subset with Distribution
-#
-# Let's zoom in on a specific time window to see the residuals in more detail. The left panel shows the time series, while the right panel shows the distribution of residuals for each station.
 
-# %%
+"""
+### Focused Analysis: Subset with Distribution
+
+Let's zoom in on a specific time window to see the residuals in more detail. The left panel shows the time series, while the right panel shows the distribution of residuals for each station.
+"""
+
+
 # Define a focused time window (adjust these as needed)
 ANALYSIS_TO_AVOID_START_SCAN = datetime(2013, 12, 28, 19, 0, 0)
 ANALYSIS_TO_AVOID_END_SCAN = datetime(2013, 12, 29, 0, 0)
@@ -828,12 +855,14 @@ if subset_all_residuals:
 else:
     print("⚠ No subset data available for plotting")
 
-# %% [markdown]
-# ## Part 5: Exporting Results
-#
-# Finally, let's save all our computed residuals to CSV files for further analysis or sharing with colleagues.
 
-# %%
+"""
+## Part 5: Exporting Results
+
+Finally, let's save all our computed residuals to CSV files for further analysis or sharing with colleagues.
+"""
+
+
 print("Exporting results to CSV files...")
 
 # Create output directories
@@ -911,3 +940,6 @@ print(f"Analysis Complete!")
 print(f"{'='*60}")
 print(f"Total output directory: {OUTPUT_DIR}")
 print(f"You can now use these CSV files for further analysis.")
+
+
+plt.show()
