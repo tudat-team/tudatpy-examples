@@ -59,7 +59,7 @@ The required modules and dependencies are taken from the `mission_data_downloade
 
 from datetime import datetime
 
-from tudatpy.data.mission_data_downloader import *
+from tudatpy.data.mission_data_downloader import LoadPDS
 from tudatpy.interface import spice
 
 
