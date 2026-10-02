@@ -30,13 +30,12 @@ reuse the estimator's returned covariance, effectively unchanged between iterati
 
 MPC and Horizons queries require an internet connection. Gaia uses
 ``gaia_<TARGET>_fpr.parquet`` beside this script when present; otherwise it
-queries ESA. Use ``--gaia-archive FILE.parquet`` to select another local archive. This copy uses Edda to
+queries ESA. Set ``GAIA_ARCHIVE_PATH`` to select another local archive. This copy uses Edda to
 demonstrate MPC/Gaia fusion: the Gaia FPR and DR3 queries for Bennu (101955)
 returned zero observations. The Gaia run is omitted if no Gaia data are
 available for TARGET. Radar is added when available.
 """
 
-import argparse
 import datetime
 from collections import Counter
 from functools import lru_cache
@@ -70,7 +69,7 @@ from tudatpy.math import interpolators
 
 TIME_SCALE_CONVERTER = time_representation.default_time_scale_converter()
 
-TARGET = "673"
+TARGET = "6733"
 HORIZONS_TARGET = f"{TARGET};"
 # Light-time geometry uses barycentric positions at emission and reception.
 GLOBAL_FRAME_ORIGIN = "SSB"
@@ -78,7 +77,7 @@ PROPAGATION_CENTRAL_BODY = "Sun"
 HORIZONS_ORIGIN = "500@10"
 FRAME_ORIENTATION = "J2000"
 
-OBSERVATION_START = datetime.datetime(1900, 1, 1)
+OBSERVATION_START = datetime.datetime(1990, 1, 1)
 OBSERVATION_END = datetime.datetime(2020, 7, 1)
 PROPAGATION_BUFFER = 2.0 * 31.0 * constants.JULIAN_DAY
 ASTEROID_EPHEMERIS_STEP = 14.0 * constants.JULIAN_DAY
@@ -127,13 +126,13 @@ def asteroid_body_name(number, name):
     """Return the Tudat environment name used for an asteroid perturber."""
     return f"{number} {name}"
 
-
 def asteroid_spice_id(number):
     """Return the NAIF name used by the standard 300-asteroid SPICE kernel."""
     return f"200{number:04d}"
 
 def asteroid_ephemeris_settings(number, first_epoch, final_epoch):
     """Tabulate a perturber from SPICE or a cached Horizons reference."""
+
     start = float(first_epoch) - ASTEROID_EPHEMERIS_BUFFER
     end = float(final_epoch) + ASTEROID_EPHEMERIS_BUFFER
     interpolation = interpolators.lagrange_interpolation(ASTEROID_EPHEMERIS_INTERPOLATION_POINTS)
@@ -142,18 +141,17 @@ def asteroid_ephemeris_settings(number, first_epoch, final_epoch):
             interpolation, asteroid_spice_id(number),
         )
 
-def load_tracking_data(target=None):
-    """Load and convert the MPC astrometry and JPL radar observations."""
-    target = TARGET if target is None else str(target)
-    print(f"Loading MPC astrometry for {target}...", flush=True)
+def load_tracking_data( ):
+    """Load MPC, JPL radar and Gaia observations for TARGET."""
+    print(f"Loading MPC astrometry for {TARGET}...", flush=True)
     batch = BatchMPC()
-    batch.get_observations([target], use_mpc80_format=True)
+    batch.get_observations([TARGET], use_mpc80_format=True)
     batch.filter(
         epoch_start=OBSERVATION_START,
         epoch_end=OBSERVATION_END,
         # Gaia CCDs are loaded separately with their full transit covariance;
         # exclude Gaia's MPC observatory code to avoid counting them twice.
-        observatories_exclude=["C57", "258"],
+        observatories_exclude=["C57", "258", "704"],
     )
     if batch.table.empty:
         raise RuntimeError("The selected interval contains no MPC astrometry.")
@@ -167,9 +165,9 @@ def load_tracking_data(target=None):
         add_ancillary_data=True,
     )
 
-    radar_query = JPLRadarQuery(target, timeout=60.0)
+    radar_query = JPLRadarQuery(TARGET, timeout=60.0)
     radar_table = radar_query.to_radar_data(
-        target_body=target,
+        target_body=TARGET,
         epoch_start=OBSERVATION_START,
         epoch_end=OBSERVATION_END,
         target_point="C",
@@ -183,27 +181,27 @@ def load_tracking_data(target=None):
         )
         print(f"Loaded {len(radar_table)} JPL center-of-mass radar observations.")
 
+    gaia_astrometry = load_gaia_astrometry()
     return (
         optical_tracking_data,
         optical_supplementary_data,
         radar_tracking_data,
         radar_supplementary_data,
+        gaia_astrometry,
     )
 
 
 def observation_epoch_bounds(tracking_data):
     """Return the earliest/latest UTC tracking-data epochs converted to TDB."""
-    first_epoch_utc = min(min(data.epochs) for data in tracking_data)
-    last_epoch_utc = max(max(data.epochs) for data in tracking_data)
     first_epoch_tdb = TIME_SCALE_CONVERTER.convert_time(
         input_scale=time_representation.utc_scale,
         output_scale=time_representation.tdb_scale,
-        input_value=float(first_epoch_utc),
+        input_value=float(min(min(data.epochs) for data in tracking_data)),
     )
     last_epoch_tdb = TIME_SCALE_CONVERTER.convert_time(
         input_scale=time_representation.utc_scale,
         output_scale=time_representation.tdb_scale,
-        input_value=float(last_epoch_utc),
+        input_value=float(max(max(data.epochs) for data in tracking_data)),
     )
     return first_epoch_tdb, last_epoch_tdb
 
@@ -398,43 +396,39 @@ def observation_model_settings(observation_dataset):
         )
     ]
 
-    model_factories = {
-        observable_models_setup.model_settings.angular_position_type: (
-            lambda link: observable_models_setup.model_settings.angular_position(
-                link,
-                bias_settings=None,
-            )
-        ),
-        observable_models_setup.model_settings.n_way_range_type: (
-            lambda link: observable_models_setup.model_settings.n_way_range(
-                link,
-                corrections,
-                bias_settings=None,
-                # Radar delays are station-clock measurements and must be
-                # modelled in UTC rather than with the default TDB time scale.
-                time_scale_for_observable=time_representation.utc_scale,
-            )
-        ),
-        observable_models_setup.model_settings.doppler_measured_frequency_type: (
-            lambda link: observable_models_setup.model_settings.doppler_measured_frequency(
-                link,
-                corrections,
-                bias_settings=None,
-            )
-        ),
-    }
+    added_links = set()
+    for metadata in observation_dataset.observation_set_metadata:
+        observable_type = metadata.observable_type
+        link_id = metadata.link_definition_id
+        if (observable_type, link_id) in added_links:
+            continue
+        link = observation_dataset.link_definition(link_id)
 
-    for observable_type, factory in model_factories.items():
-        link_ids = sorted(
-            {
-                metadata.link_definition_id
-                for metadata in observation_dataset.observation_set_metadata
-                if metadata.observable_type == observable_type
-            }
-        )
-        settings.extend(
-            factory(observation_dataset.link_definition(link_id)) for link_id in link_ids
-        )
+        if observable_type == observable_models_setup.model_settings.angular_position_type:
+            settings.append(
+                observable_models_setup.model_settings.angular_position(
+                    link,
+                    corrections,
+                )
+            )
+        elif observable_type == observable_models_setup.model_settings.n_way_range_type:
+            settings.append(
+                observable_models_setup.model_settings.n_way_range(
+                    link,
+                    corrections,
+                    time_scale_for_observable=time_representation.utc_scale,
+                )
+            )
+        elif observable_type == observable_models_setup.model_settings.doppler_measured_frequency_type:
+            settings.append(
+                observable_models_setup.model_settings.doppler_measured_frequency(
+                    link,
+                    corrections,
+                )
+            )
+        else:
+            continue
+        added_links.add((observable_type, link_id))
     return settings
 
 
@@ -444,22 +438,22 @@ def reject_mpc_prefit_outliers(dataset, bodies):
         observation_model_settings(dataset), bodies,
     )
     observations.compute_residuals_and_dependent_variables(dataset, simulators, bodies)
-    q = observations.observation_query
-    mpc = (q.observable_type == observations.angular_position_type) & ~(
-        q.receiver == observable_models_setup.links.body_origin_link_end_id("Gaia")
+    query = observations.observation_query
+    mpc = (query.observable_type == observations.angular_position_type) & ~(
+        query.receiver == observable_models_setup.links.body_origin_link_end_id("Gaia")
     )
-    before = len(dataset.get_observation_ids(q.active))
+    before = len(dataset.get_observation_ids(query.active))
     for set_id in set(dataset.get_set_ids(mpc)):
         residuals = np.asarray(dataset.residuals_for_set(set_id))
         # The query tests stored residuals; temporarily express MPC residuals in sigma units.
         try:
             dataset.set_residuals_for_set(set_id, residuals * np.sqrt(dataset.weights_for_set(set_id)))
             dataset.reject_observations(
-                (q.set_id == set_id) & q.active & q.residual.abs_greater_than(5.0), "MPC prefit > 5 sigma (Horizons)",
+                (query.set_id == set_id) & query.active & query.residual.abs_greater_than(5.0), "MPC prefit > 5 sigma (Horizons)",
             )
         finally:
             dataset.set_residuals_for_set(set_id, residuals)
-    print(f"Rejected {before - len(dataset.get_observation_ids(q.active))} MPC observations at prefit > 5 sigma.", flush=True)
+    print(f"Rejected {before - len(dataset.get_observation_ids(query.active))} MPC observations at prefit > 5 sigma.", flush=True)
 
 
 def parameter_layout(parameters):
@@ -510,43 +504,23 @@ def load_reference_state_history(target, first_epoch, final_epoch):
 def perform_estimation(
     tracking_data,
     supplementary_data,
-    initial_epoch,
-    initial_state,
-    first_epoch,
-    final_epoch,
-    estimate_yarkovsky,
+    observation_start_epoch,
+    observation_end_epoch,
     gaia_astrometry=None,
-    reference_state_history=None,
-    estimated_bodies=None,
-    estimate_psyche_gm=False,
-    photocenter_radii=None,
-    propagation_print_interval=None,
-    return_setup=False,
 ):
-    """Estimate one or several asteroid states, optionally jointly with Psyche GM."""
-    selected = [TARGET] if estimated_bodies is None else list(estimated_bodies)
-    if len(selected) != len(set(selected)) or not 1 <= len(selected) <= 10:
-        raise ValueError("Select one to ten distinct estimated bodies.")
-    if estimate_psyche_gm and ("16" not in selected or len(selected) < 2):
-        raise ValueError("Psyche mass estimation requires Psyche and at least one encounter body.")
-    if reference_state_history is None:
-        reference_state_history = {
-            body: load_reference_state_history(body, first_epoch, final_epoch)
-            for body in selected
-        }
-    if initial_state is None:
-        initial_state = np.concatenate([
-            environment_setup.create_body_ephemeris(
-                environment_setup.ephemeris.tabulated(
-                    reference_state_history[body], PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION,
-                ), body,
-            ).cartesian_state(float(initial_epoch))
-            for body in selected
-        ])
-    if np.asarray(initial_state).size != 6 * len(selected):
-        raise ValueError("Provide six initial-state components per estimated body.")
+    """Estimate TARGET using the common observation interval for all fits."""
+    initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
+    first_epoch = observation_start_epoch - PROPAGATION_BUFFER
+    final_epoch = observation_end_epoch + PROPAGATION_BUFFER
+    reference_state_history = load_reference_state_history(TARGET, first_epoch, final_epoch)
+    reference_ephemeris = environment_setup.create_body_ephemeris(
+        environment_setup.ephemeris.tabulated(
+            reference_state_history, PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION,
+        ), TARGET,
+    )
+    initial_state = reference_ephemeris.cartesian_state(float(initial_epoch))
     print("Creating bodies, stations and propagation settings...", flush=True)
-    bodies = create_bodies(first_epoch, final_epoch, gaia_astrometry, reference_state_history, selected)
+    bodies = create_bodies(first_epoch, final_epoch, gaia_astrometry, reference_state_history)
 
     # This installs transmitter-frequency histories, identifies the passive
     # radar reflector, and creates the space-telescope bodies and ephemerides.
@@ -573,9 +547,9 @@ def perform_estimation(
         )
     acceleration_models = propagation_setup.create_acceleration_models(
         bodies,
-        acceleration_settings(estimate_yarkovsky, selected),
-        selected,
-        [PROPAGATION_CENTRAL_BODY] * len(selected),
+        acceleration_settings(ESTIMATE_YARKOVSKY),
+        [TARGET],
+        [PROPAGATION_CENTRAL_BODY],
     )
     integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
         time_representation.Time(INTEGRATOR_STEP),
@@ -586,46 +560,27 @@ def perform_estimation(
         propagation_setup.propagator.time_termination(first_epoch),
     )
     propagator_settings = propagation_setup.propagator.translational(
-        central_bodies=[PROPAGATION_CENTRAL_BODY] * len(selected),
+        central_bodies=[PROPAGATION_CENTRAL_BODY],
         acceleration_models=acceleration_models,
-        bodies_to_integrate=selected,
+        bodies_to_integrate=[TARGET],
         initial_states=initial_state,
         initial_time=initial_epoch,
         integrator_settings=integrator_settings,
         termination_settings=termination_settings,
     )
-    if propagation_print_interval is not None:
-        print_settings = propagator_settings.processing_settings.print_settings
-        print_settings.results_print_frequency_in_seconds = propagation_print_interval
-        # Tudat initializes its elapsed-print timer when printing the initial state.
-        print_settings.print_initial_and_final_conditions = True
 
     corrected_gaia = None
     if gaia_astrometry is not None:
-        if gaia_astrometry.table.empty:
-            raise RuntimeError("Cannot run a Gaia-inclusive fit with zero Gaia observations.")
-        radii = {} if photocenter_radii is None else dict(photocenter_radii)
-        for number in gaia_astrometry.mpc_numbers_in_table:
-            default_radius = PHOTOCENTER_RADIUS if str(number) == TARGET else None
-            radius = radii.get(str(number), radii.get(int(number), default_radius))
-            if radius is None:
-                radius = sbdb_photocenter_radius(number)
-            if not np.isfinite(radius) or radius <= 0.0:
-                raise ValueError("The photocenter correction requires a positive radius [m].")
-            radii[int(number)] = float(radius)
-        print(
-            "Computing Gaia light-deflection and photocenter corrections "
-            "using the Horizons reference ephemeris...", flush=True,
-        )
         corrected_gaia = gaia_astrometry.copy()
+        radius = PHOTOCENTER_RADIUS
+        if radius is None:
+            radius = sbdb_photocenter_radius(TARGET)
         corrected_gaia.apply_corrections(
-            bodies,
-            light_deflection_bodies=("Sun", "Jupiter"),
-            photocenter_body_dimensions={int(number): radii[int(number)] for number in gaia_astrometry.mpc_numbers_in_table},
+            bodies, light_deflection_bodies=("Sun", "Jupiter"),
+            photocenter_body_dimensions={int(TARGET): radius},
         )
         gaia_tracking_data, _ = corrected_gaia.to_tracking_data()
         tracking_data = list(tracking_data) + gaia_tracking_data
-        print(f"Gaia photocenter corrections, spherical radii [m]: {radii}")
 
     print("Creating the observation dataset and applying weights...", flush=True)
     observation_dataset = observations.create_observation_dataset_from_tracking_data(
@@ -641,29 +596,13 @@ def perform_estimation(
         print(f"Estimation dataset contains {scalar_count // 2} Gaia CCD observations.")
 
     parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
-    if estimate_psyche_gm:
-        parameter_settings.append(parameters_setup.gravitational_parameter("16"))
-    if estimate_yarkovsky:
-        parameter_settings.extend(parameters_setup.yarkovsky_parameter(body, "Sun") for body in selected)
+    if ESTIMATE_YARKOVSKY:
+        parameter_settings.append(parameters_setup.yarkovsky_parameter(TARGET, "Sun"))
     parameters_to_estimate = parameters_setup.create_parameter_set(
         parameter_settings,
         bodies,
         propagator_settings,
     )
-    if estimated_bodies is not None:
-        identifiers = parameters_to_estimate.get_parameter_identifiers()
-        print("Joint estimated parameter order (zero-based indices):", flush=True)
-        for start, size, description in parameter_layout(parameters_to_estimate):
-            print(f"  [{start}:{start + size}]: {description}", flush=True)
-        for index, body in enumerate(selected):
-            match = [identifier for identifier in identifiers
-                     if identifier[0] == parameters_setup.initial_body_state_type and identifier[1][0] == body]
-            if len(match) != 1 or parameters_to_estimate.indices_for_parameter_type(match[0]) != [(6 * index, 6)]:
-                raise RuntimeError(f"Unexpected initial-state parameter ordering for {body}.")
-        if estimate_psyche_gm:
-            gm_identifier = (parameters_setup.gravitational_parameter_type, ("16", ""))
-            if parameters_to_estimate.indices_for_parameter_type(gm_identifier) != [(6 * len(selected), 1)]:
-                raise RuntimeError("Psyche GM is missing or has unexpected parameter ordering.")
 
     print("Initializing the estimator and propagating variational equations...", flush=True)
     estimator = estimation_analysis.Estimator(
@@ -685,8 +624,6 @@ def perform_estimation(
         print_output_to_terminal=True,
         save_residuals_and_parameters_per_iteration=True,
         save_state_history_per_iteration=True,
-        # Retain the finite warning threshold used by the MPC/radar example.
-        limit_condition_number_for_warning=1.0e10,
     )
     print("Starting estimation; iteration output follows.", flush=True)
     output = estimator.perform_estimation(estimation_input)
@@ -695,11 +632,12 @@ def perform_estimation(
         f"for diagnostics (best: {output.best_iteration}; zero-based indices).",
         flush=True,
     )
-    result = (output, observation_dataset, estimator, corrected_gaia)
-    if return_setup:
-        return result + ({"bodies": bodies, "parameters": parameters_to_estimate,
-                          "propagator": propagator_settings, "accelerations": acceleration_models},)
-    return result
+    return output, observation_dataset, estimator, corrected_gaia
+
+
+#####################################################################
+#################   OUTPUT SUMMARY   ################################
+#####################################################################
 
 
 def last_iteration_residuals(output):
@@ -989,13 +927,11 @@ def plot_gaia_residuals(setup_label, output, observation_dataset, gaia_astrometr
         values = data["scan_residuals"][:, component] * mas_per_radian
         sigmas = data["scan_sigmas"][:, component] * mas_per_radian
         normalized = values / sigmas
-        axes[component, 0].errorbar(years, values, yerr=sigmas, fmt=".", markersize=4, alpha=0.55)
+        axes[component, 0].scatter(years, values, s=9, alpha=0.7)
         axes[component, 1].scatter(years, normalized, s=9, alpha=0.7)
         for axis in axes[component]:
             axis.axhline(0.0, color="black", linewidth=0.8)
             axis.grid(alpha=0.3)
-        for threshold in (-3.0, 3.0):
-            axes[component, 1].axhline(threshold, color="black", linestyle="--", linewidth=0.8)
         axes[component, 0].set_ylabel(f"{name} residual [mas]")
         axes[component, 1].set_ylabel(f"{name} residual / marginal σ")
         axes[component, 0].set_title(f"RMS = {np.sqrt(np.mean(values**2)):.4g} mas")
@@ -1015,81 +951,71 @@ def plot_gaia_residuals(setup_label, output, observation_dataset, gaia_astrometr
 
 
 def plot_residuals(setup_label, output, observation_dataset, gaia_astrometry=None, target=None):
-    """Plot residuals by observable, separating ground and space astrometry."""
+    """Plot ground, space and radar residuals in separate four-panel figures."""
     residuals = last_iteration_residuals(output)
     data = observation_scalar_data(observation_dataset)
     normalized_residuals = residuals * np.sqrt(data["weights"])
-    if gaia_astrometry is not None:
-        gaia_data = gaia_residual_data(output, observation_dataset, gaia_astrometry, target)
-        sigmas = np.sqrt(np.diagonal(gaia_data["covariance"], axis1=1, axis2=2))
-        normalized_residuals[gaia_data["scalar_indices"]] = gaia_data["residuals"] / sigmas
-    years = 2000.0 + data["times"] / (365.25 * constants.JULIAN_DAY)
+    years = 2000.0 + data["times"] / constants.JULIAN_YEAR
     station_labels = data["station_labels"]
-    space_astrometry = data["space_astrometry"]
-
     angular_type = observable_models_setup.model_settings.angular_position_type
+    range_type = observable_models_setup.model_settings.n_way_range_type
+    doppler_type = observable_models_setup.model_settings.doppler_measured_frequency_type
     arcseconds_per_radian = 180.0 / np.pi * 3600.0
-    component_settings = {
-        angular_type: [
-            ("Right ascension", arcseconds_per_radian, "arcsec"),
-            ("Declination", arcseconds_per_radian, "arcsec"),
-        ],
-        observable_models_setup.model_settings.n_way_range_type: [("Range", 1.0, "m")],
-        observable_models_setup.model_settings.doppler_measured_frequency_type: [
-            ("Doppler", 1.0, "Hz")
-        ],
-    }
+    mpc_astrometry = (data["observable_types"] == angular_type) & (station_labels != "Gaia")
 
-    for observable_type, components in component_settings.items():
-        for offset, (component_name, scale, unit) in enumerate(components):
-            indices = np.flatnonzero(
-                (data["observable_types"] == observable_type) & (data["components"] == offset)
-            )
-            is_space = (observable_type == angular_type) & space_astrometry[indices]
-            ground_indices = indices[~is_space]
-            groups = [
-                (ground_indices, False, ""),
-                (ground_indices, True, "ground-based" if is_space.any() else ""),
+    for category in ("MPC ground astrometry", "MPC space astrometry", "Radar"):
+        if category == "Radar":
+            selected = (data["observable_types"] == range_type) | (data["observable_types"] == doppler_type)
+            components = [
+                (range_type, 0, "Range", 1.0, "m"),
+                (doppler_type, 0, "Doppler", 1.0, "Hz"),
             ]
-            if is_space.any():
-                groups.append((indices[is_space], True, "space-based"))
+        else:
+            if category == "MPC ground astrometry":
+                selected = mpc_astrometry & ~data["space_astrometry"]
+            else:
+                selected = mpc_astrometry & data["space_astrometry"]
+            components = [
+                (angular_type, 0, "Right ascension", arcseconds_per_radian, "arcsec"),
+                (angular_type, 1, "Declination", arcseconds_per_radian, "arcsec"),
+            ]
+        if not np.any(selected):
+            continue
 
-            for plot_indices, normalized, subset in groups:
-                if not plot_indices.size:
-                    continue
-                values = (
-                    normalized_residuals[plot_indices]
-                    if normalized else residuals[plot_indices] * scale
-                )
-                figure, axis = plt.subplots(figsize=(11.7, 7.5))
-                add_grouped_scatter(
-                    axis, years[plot_indices], values, station_labels[plot_indices]
-                )
+        figure, axes = plt.subplots(2, 2, figsize=(11.7, 8.5), sharex=True)
+        figure.suptitle(f"{setup_label}: {category}")
+        for row, (observable_type, component, name, scale, unit) in enumerate(components):
+            indices = np.flatnonzero(
+                selected & (data["observable_types"] == observable_type)
+                & (data["components"] == component)
+            )
+            values = residuals[indices] * scale
+            normalized = normalized_residuals[indices]
+            for column in (0, 1):
+                axis = axes[row, column]
+                plotted_values = values if column == 0 else normalized
+                if indices.size:
+                    add_grouped_scatter(axis, years[indices], plotted_values, station_labels[indices])
+                    rms = np.sqrt(np.mean(plotted_values**2))
+                    axis.set_title(f"RMS = {rms:.4g} {unit}" if column == 0 else f"Normalized RMS = {rms:.4g}")
+                    if column == 0:
+                        axis.legend(loc="best", fontsize=7)
+                else:
+                    axis.set_title(f"No {name.lower()} observations")
                 axis.axhline(0.0, color="black", linewidth=0.8)
-                if normalized:
+                axis.grid(alpha=0.3)
+                axis.set_ylabel(f"{name} residual [{unit}]" if column == 0 else f"{name} residual / 1σ uncertainty")
+                if column == 1 and category == "Radar":
                     axis.axhline(3.0, color="black", linestyle="--", linewidth=0.8)
                     axis.axhline(-3.0, color="black", linestyle="--", linewidth=0.8)
-                axis.grid(alpha=0.3)
-                axis.set_xlabel("Year")
-                axis.set_ylabel(
-                    "Residual / 1σ uncertainty"
-                    if normalized
-                    else f"Post-fit residual [{unit}]"
-                )
-                qualifier = f"{subset} " if subset else ""
-                kind = "normalized post-fit" if normalized else "post-fit"
-                rms_unit = "" if normalized else f" {unit}"
-                axis.set_title(
-                    f"{setup_label}\n{component_name} {qualifier}{kind} residuals "
-                    f"(RMS = {np.sqrt(np.mean(values**2)):.6g}{rms_unit})"
-                )
-                axis.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8)
-                figure.tight_layout()
+        for axis in axes[-1]:
+            axis.set_xlabel("Year")
+        figure.tight_layout()
 
 
 def plot_orbit_difference(setup_label, output, estimator, epochs, horizons_states,
                           state_slice=None, target=None, propagated_covariances=None):
-    """Plot the RSW orbit difference with ±3σ bands, and 1σ formal errors alone."""
+    """Plot R/S/W orbit differences and differences divided by formal uncertainty."""
     state_history = last_state_history(output)
     # Reuse the returned covariance: its iteration-to-iteration change is
     # negligible here. The orbit and residuals use the last iteration above.
@@ -1120,31 +1046,26 @@ def plot_orbit_difference(setup_label, output, estimator, epochs, horizons_state
     formal_errors_rsw /= 1000.0
     years = 2000.0 + np.asarray(epochs) / (365.25 * constants.JULIAN_DAY)
 
-    for formal_only in (False, True):
-        figure, axes = plt.subplots(3, 1, figsize=(11.7, 10.5), sharex=True)
-        for component, (axis, component_name) in enumerate(zip(axes, "RSW")):
-            sigma = formal_errors_rsw[:, component]
-            if formal_only:
-                axis.plot(years, sigma, color="tab:orange", label=f"σ{component_name}")
-                axis.set_ylim(bottom=0.0)
-            else:
-                difference = differences_rsw[:, component]
-                axis.plot(years, difference, color="tab:blue", label="Estimate − Horizons")
-                axis.fill_between(
-                    years, difference - 3.0 * sigma, difference + 3.0 * sigma,
-                    color="tab:blue", alpha=0.22, label="±3σ formal error",
-                )
-                axis.axhline(0.0, color="black", linewidth=0.8)
-            axis.grid(alpha=0.3)
-            axis.set_ylabel(f"{'σ' if formal_only else ''}{component_name} [km]")
-            axis.legend(loc="best")
-        axes[-1].set_xlabel("Year")
-        title = (
-            "Propagated formal position errors in heliocentric RSW"
-            if formal_only else f"{target} orbit difference with respect to JPL Horizons"
+    figure, axes = plt.subplots(3, 2, figsize=(11.7, 10.5), sharex=True)
+    for component, name in enumerate("RSW"):
+        difference = differences_rsw[:, component]
+        sigma = formal_errors_rsw[:, component]
+        normalized = np.divide(
+            difference, sigma, out=np.full_like(difference, np.nan), where=sigma > 0.0,
         )
-        figure.suptitle(f"{setup_label}\n{title}")
-        figure.tight_layout()
+        axes[component, 0].plot(years, difference, color="tab:blue")
+        axes[component, 1].plot(years, normalized, color="tab:orange")
+        axes[component, 0].set_ylabel(f"{name} [km]")
+        axes[component, 1].set_ylabel(f"{name} / σ{name}")
+        for axis in axes[component]:
+            axis.axhline(0.0, color="black", linewidth=0.8)
+            axis.grid(alpha=0.3)
+    axes[0, 0].set_title("Estimate − Horizons")
+    axes[0, 1].set_title("Orbit difference / formal uncertainty")
+    for axis in axes[-1]:
+        axis.set_xlabel("Year")
+    figure.suptitle(f"{setup_label}\n{target} orbit difference with respect to JPL Horizons")
+    figure.tight_layout()
 
 
 def plot_diagnostics(results):
@@ -1189,33 +1110,26 @@ def plot_diagnostics(results):
 #################   MAIN LOOP  ######################################
 #####################################################################
 
-def main(estimate_yarkovsky):
+def main():
     """Compare MPC and MPC/Gaia estimation, including any available radar."""
     print(f"Starting estimation of {TARGET}", flush=True)
     spice.load_standard_kernels()
 
-    # Load non-Gaia tracking data
     (
         optical_tracking_data,
         optical_supplementary_data,
         radar_tracking_data,
         radar_supplementary_data,
+        gaia_astrometry,
     ) = load_tracking_data()
     observation_start_epoch, observation_end_epoch = observation_epoch_bounds(
         optical_tracking_data + radar_tracking_data
     )
 
     # GaiaAstrometry epochs are already TDB; do not convert them from UTC again.
-    gaia_astrometry = load_gaia_astrometry()
     if gaia_astrometry is not None:
         observation_start_epoch = min(observation_start_epoch, gaia_astrometry.table.epoch.min())
         observation_end_epoch = max(observation_end_epoch, gaia_astrometry.table.epoch.max())
-    initial_epoch = max(
-        0.0,
-        0.5 * (observation_start_epoch + observation_end_epoch),
-    )
-    first_epoch = observation_start_epoch - PROPAGATION_BUFFER
-    final_epoch = observation_end_epoch + PROPAGATION_BUFFER
 
     setups = {
         "MPC astrometry": (
@@ -1249,19 +1163,17 @@ def main(estimate_yarkovsky):
         output, observation_dataset, estimator, corrected_gaia = perform_estimation(
             tracking_data,
             supplementary_data,
-            initial_epoch,
-            None,
-            first_epoch,
-            final_epoch,
-            estimate_yarkovsky,
+            observation_start_epoch,
+            observation_end_epoch,
             gaia,
         )
         print_residual_summary(label, output, observation_dataset)
-        if estimate_yarkovsky:
+        if ESTIMATE_YARKOVSKY:
             print_yarkovsky_result(output)
         results[label] = (output, observation_dataset, estimator, corrected_gaia)
 
     if "MPC astrometry and JPL radar" in results:
+        initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
         print_orbit_difference_rsw(
             results["MPC astrometry"][0],
             results["MPC astrometry and JPL radar"][0],
@@ -1275,10 +1187,4 @@ if __name__ == "__main__":
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(line_buffering=True)
-    parser = argparse.ArgumentParser(description="Fit MPC and Gaia astrometry of 673 Edda.")
-    parser.add_argument(
-        "--gaia-archive", type=Path, default=GAIA_ARCHIVE_PATH,
-        help="Use a local Gaia FPR parquet archive instead of querying the ESA archive.",
-    )
-    GAIA_ARCHIVE_PATH = parser.parse_args().gaia_archive
-    main(ESTIMATE_YARKOVSKY)
+    main()
