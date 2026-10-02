@@ -129,15 +129,96 @@ def test_missing_gaia_ccds_are_rejected():
         )
 
 
-def test_bennu_cannot_silently_run_without_gaia(monkeypatch):
+def test_missing_gaia_allows_non_gaia_runs(monkeypatch):
     def missing_data(*args, **kwargs):
         raise RuntimeError("No observations found for [101955]")
 
     monkeypatch.setattr(example, "TARGET", "101955")
     monkeypatch.setattr(example, "GAIA_ARCHIVE_PATH", None)
     monkeypatch.setattr(example.GaiaAstrometry, "load_from_astroquery", missing_data)
-    with pytest.raises(RuntimeError, match="No observations found"):
-        example.load_gaia_astrometry()
+    assert example.load_gaia_astrometry() is None
+
+
+@pytest.mark.parametrize("filter_error", [None, "No observations left after applying filters"])
+def test_empty_filtered_gaia_is_allowed(monkeypatch, filter_error):
+    def apply_filters(**kwargs):
+        if filter_error:
+            raise RuntimeError(filter_error)
+
+    gaia = SimpleNamespace(table=pd.DataFrame(), apply_filters=apply_filters)
+    monkeypatch.setattr(example.GaiaAstrometry, "load_from_local_archive", lambda *args: gaia)
+    assert example.load_gaia_astrometry(archive_path="unused.parquet") is None
+
+
+def test_gaia_retrieval_failure_is_not_treated_as_empty(monkeypatch):
+    def failed_query(*args):
+        raise RuntimeError("Archive query failed")
+
+    monkeypatch.setattr(example.GaiaAstrometry, "load_from_local_archive", failed_query)
+    with pytest.raises(RuntimeError, match="Archive query failed"):
+        example.load_gaia_astrometry(archive_path="unused.parquet")
+
+
+@pytest.mark.parametrize("with_radar", [False, True])
+def test_main_omits_gaia_fit_and_leaves_reference_loading_to_estimation(monkeypatch, with_radar):
+    monkeypatch.setattr(example.spice, "load_standard_kernels", lambda: None)
+    monkeypatch.setattr(example, "load_gaia_astrometry", lambda: None)
+    optical, radar = [object()], [object()] if with_radar else []
+    monkeypatch.setattr(example, "load_tracking_data", lambda: (optical, [], radar, []))
+    monkeypatch.setattr(example, "observation_epoch_bounds", lambda tracks: (0., 10.))
+
+    def unexpected_horizons_query(**kwargs):
+        pytest.fail("main must leave reference loading to perform_estimation")
+
+    monkeypatch.setattr(example, "HorizonsQuery", unexpected_horizons_query)
+    calls, plotted = [], []
+
+    def estimate(*args, **kwargs):
+        assert args[3] is None  # Initial state is constructed in perform_estimation.
+        assert args[7] is None  # No Gaia observations.
+        assert "reference_state_history" not in kwargs
+        calls.append(args[0])
+        return None, None, None, None
+
+    monkeypatch.setattr(example, "perform_estimation", estimate)
+    monkeypatch.setattr(example, "print_residual_summary", lambda *args: None)
+    monkeypatch.setattr(example, "print_orbit_difference_rsw", lambda *args: None)
+    monkeypatch.setattr(example, "plot_diagnostics", lambda results: plotted.extend(results))
+    example.main(False)
+    expected = ["MPC astrometry"] + (["MPC astrometry and JPL radar"] if with_radar else [])
+    assert plotted == expected
+    assert calls == [optical] + ([optical + radar] if with_radar else [])
+
+
+def test_estimation_loads_and_reuses_horizons_reference_for_initialization(monkeypatch):
+    queries, environments = [], []
+    epochs = np.arange(-10., 11.)
+    states = np.tile([1.e11, 0., 0., 0., 30000., 0.], (len(epochs), 1))
+
+    def query(**kwargs):
+        queries.append(kwargs)
+        return SimpleNamespace(cartesian=lambda **kwargs: np.column_stack((epochs, states)))
+
+    class StopAfterEnvironment(Exception):
+        pass
+
+    def create_environment(first, final, gaia, histories, selected):
+        environments.append(histories)
+        raise StopAfterEnvironment
+
+    monkeypatch.setattr(example, "HorizonsQuery", query)
+    monkeypatch.setattr(example, "create_bodies", create_environment)
+    example.load_reference_state_history.cache_clear()
+    try:
+        for _ in range(2):
+            with pytest.raises(StopAfterEnvironment):
+                example.perform_estimation([], [], 0., None, -10., 10., False)
+        assert len(queries) == 1
+        assert queries[0]["query_id"] == f"{example.TARGET};"
+        assert queries[0]["location"] == example.HORIZONS_ORIGIN
+        assert environments[0][example.TARGET] is environments[1][example.TARGET]
+    finally:
+        example.load_reference_state_history.cache_clear()
 
 
 @pytest.mark.parametrize("apply_final_correction", [False, True])
