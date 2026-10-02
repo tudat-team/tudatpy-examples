@@ -6,7 +6,7 @@ This file is part of Tudat. Redistribution and use in source and binary forms,
 with or without modification, are permitted exclusively under the terms of the
 Modified BSD license. See https://tudat.tudelft.nl/LICENSE.
 
-This example estimates the state of 673 Edda from MPC optical astrometry,
+This example estimates the state of the small body selected by TARGET from MPC optical astrometry,
 then from MPC and Gaia astrometry together. JPL radar is included when
 available. It is a copy of ``mpc_and_radar_estimation.py`` with Gaia added.
 The example follows the current data path directly:
@@ -29,10 +29,9 @@ Residual and orbit diagnostics use the last evaluated iteration. Formal errors
 reuse the estimator's returned covariance, effectively unchanged between iterations.
 
 MPC and Horizons queries require an internet connection. Gaia uses
-``gaia_<TARGET>_fpr.parquet`` beside this script when present; otherwise it
-queries ESA. Set ``GAIA_ARCHIVE_PATH`` to select another local archive. This copy uses Edda to
-demonstrate MPC/Gaia fusion: the Gaia FPR and DR3 queries for Bennu (101955)
-returned zero observations. The Gaia run is omitted if no Gaia data are
+``gaia_<TARGET>_fpr.parquet`` next to this script, configured by
+``GAIA_ARCHIVE_PATH``. If the file is missing, it queries the AIP mirror and saves the
+full response there for subsequent runs. The Gaia run is omitted if no Gaia data are
 available for TARGET. Radar is added when available.
 """
 
@@ -43,6 +42,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -52,7 +52,8 @@ from tudatpy.astro import time_representation
 from tudatpy.data_input.environment_data import spice
 from tudatpy.data_input.environment_data.horizons import HorizonsQuery
 from tudatpy.data_input.environment_data.sbdb import SBDBquery
-from tudatpy.data_input.tracking_data.gaia import GaiaAstrometry
+from tudatpy.data_input.tracking_data import get_tracking_data_epoch_bounds
+from tudatpy.data_input.tracking_data.gaia import load_gaia_astrometry
 from tudatpy.data_input.tracking_data.jpl_radar import JPLRadarQuery
 from tudatpy.data_input.tracking_data.mpc import BatchMPC
 from tudatpy.data_input.tracking_data.optical_utilities import optical_table_to_tracking_data
@@ -67,9 +68,7 @@ from tudatpy.estimation.observations_setup import observations_simulation_settin
 from tudatpy.math import interpolators
 
 
-TIME_SCALE_CONVERTER = time_representation.default_time_scale_converter()
-
-TARGET = "6733"
+TARGET = "99942"
 HORIZONS_TARGET = f"{TARGET};"
 # Light-time geometry uses barycentric positions at emission and reception.
 GLOBAL_FRAME_ORIGIN = "SSB"
@@ -77,20 +76,19 @@ PROPAGATION_CENTRAL_BODY = "Sun"
 HORIZONS_ORIGIN = "500@10"
 FRAME_ORIENTATION = "J2000"
 
-OBSERVATION_START = datetime.datetime(1990, 1, 1)
-OBSERVATION_END = datetime.datetime(2020, 7, 1)
+OBSERVATION_START = datetime.datetime(1900, 1, 1)
+OBSERVATION_END = datetime.datetime(2026, 7, 1)
 PROPAGATION_BUFFER = 2.0 * 31.0 * constants.JULIAN_DAY
 ASTEROID_EPHEMERIS_STEP = 14.0 * constants.JULIAN_DAY
 ASTEROID_EPHEMERIS_BUFFER = constants.JULIAN_YEAR
 ASTEROID_EPHEMERIS_INTERPOLATION_POINTS = 10
-INTEGRATOR_STEP = 12.0 * 3600.0
-NUMBER_OF_ESTIMATION_ITERATIONS = 2
-ESTIMATE_YARKOVSKY = False
+INTEGRATOR_STEP = 6.0 * 3600.0
+NUMBER_OF_ESTIMATION_ITERATIONS = 6
+ESTIMATE_YARKOVSKY = True
 
-# Optional FPR archive override; otherwise use a gaia_<TARGET>_fpr.parquet
-# file beside this script when present, or query ESA. For the spherical radius
-# [m], use half the JPL SBDB diameter unless PHOTOCENTER_RADIUS is specified.
-GAIA_ARCHIVE_PATH = None
+# Read the target's FPR archive, or query AIP and save it for subsequent runs.
+GAIA_ARCHIVE_PATH = Path(__file__).with_name(f"gaia_{TARGET}_fpr.parquet")
+# Radius [m]: half the JPL SBDB diameter unless specified here.
 PHOTOCENTER_RADIUS = None
 
 # The 21 most massive main-belt asteroids in the SiMDA data set distributed
@@ -122,13 +120,99 @@ ASTEROID_PERTURBERS = [
     (324, "Bamberga"),
 ]
 
-def asteroid_body_name(number, name):
-    """Return the Tudat environment name used for an asteroid perturber."""
-    return f"{number} {name}"
 
-def asteroid_spice_id(number):
-    """Return the NAIF name used by the standard 300-asteroid SPICE kernel."""
-    return f"200{number:04d}"
+#####################################################################
+#################   RETRIEVE/PROCESS DATA    ########################
+#####################################################################
+
+
+def load_tracking_data():
+    """Load observations and assemble comparison fits with a common TDB interval."""
+
+    # Load MPC data
+    batch = BatchMPC()
+    batch.get_observations([TARGET], use_mpc80_format=True)
+    batch.filter(
+        epoch_start=OBSERVATION_START,
+        epoch_end=OBSERVATION_END,
+        observatories_exclude=["C57", "258", "704", "S04"],
+    )
+    if batch.table.empty:
+        raise RuntimeError("The selected interval contains no MPC astrometry.")
+
+    print(f"Loaded {len(batch.table)} MPC optical observations.", flush=True)
+    tracking_data, supplementary_data = optical_table_to_tracking_data(
+        batch.table,
+        add_weights=True,
+        add_star_catalog_corrections=True,
+        add_ancillary_data=True,
+    )
+    setups = {"MPC astrometry": (tracking_data, supplementary_data)}
+
+    # Load JPL radar data
+    radar_query = JPLRadarQuery(TARGET, timeout=60.0)
+    radar_table = radar_query.to_radar_data(
+        target_body=TARGET,
+        epoch_start=OBSERVATION_START,
+        epoch_end=OBSERVATION_END,
+        target_point="C",
+    )
+    if radar_table.empty:
+        print("No JPL radar observations found.")
+    else:
+        radar_tracking_data, radar_supplementary_data = radar_data_to_tracking_data(
+            radar_table
+        )
+        print(f"Loaded {len(radar_table)} JPL center-of-mass radar observations.")
+        tracking_data = tracking_data + radar_tracking_data
+        supplementary_data = supplementary_data + radar_supplementary_data
+        setups["MPC astrometry and JPL radar"] = (tracking_data, supplementary_data)
+
+    # Load Gaia data
+    gaia_astrometry = load_gaia_astrometry(
+        target=int(TARGET),
+        archive_path=GAIA_ARCHIVE_PATH,
+        epoch_start=OBSERVATION_START,
+        epoch_end=OBSERVATION_END,
+        time_scale=time_representation.utc_scale,
+    )
+    if gaia_astrometry is not None:
+        radius = sbdb_photocenter_radius(TARGET) if PHOTOCENTER_RADIUS is None else PHOTOCENTER_RADIUS
+        gaia_tracking_data, gaia_supplementary_data = gaia_astrometry.to_tracking_data(
+            light_deflection_bodies=("Sun", "Jupiter"),
+            photocenter_body_dimensions={int(TARGET): radius},
+        )
+        tracking_data = tracking_data + gaia_tracking_data
+        supplementary_data = supplementary_data + gaia_supplementary_data
+        label = "MPC astrometry and Gaia" if radar_table.empty else "MPC astrometry, JPL radar and Gaia"
+        setups[label] = (tracking_data, supplementary_data)
+    else:
+        print("No Gaia data available; skipping the Gaia-inclusive run.", flush=True)
+
+    # Get data bounds and return full tracking data and supplementary data
+    first_epoch, last_epoch = get_tracking_data_epoch_bounds(tracking_data)
+    return setups, float(first_epoch), float(last_epoch)
+
+
+def sbdb_photocenter_radius(target):
+    """Read the same SBDB diameter even when Astroquery drops its unit on asymmetric errors."""
+    query = SBDBquery(str(target))
+    try:
+        return 0.5 * query.diameter
+    except ValueError:
+        from astroquery.jplsbdb import SBDB
+        from astropy import units as u
+        parameters = SBDB.query_async(str(target), phys=True).json().get("phys_par", [])
+        diameter = next((p for p in parameters if p["name"] == "diameter"), None)
+        if diameter is None or diameter["value"] is None or not diameter["units"]:
+            raise ValueError(f"SBDB has no diameter for {target}; supply its photocenter radius [m].") from None
+        return 0.5 * (float(diameter["value"]) * u.Unit(diameter["units"])).to_value(u.m)
+
+
+#####################################################################
+#################   CREATE ENVIRONMENT   ############################
+#####################################################################
+
 
 def asteroid_ephemeris_settings(number, first_epoch, final_epoch):
     """Tabulate a perturber from SPICE or a cached Horizons reference."""
@@ -138,141 +222,25 @@ def asteroid_ephemeris_settings(number, first_epoch, final_epoch):
     interpolation = interpolators.lagrange_interpolation(ASTEROID_EPHEMERIS_INTERPOLATION_POINTS)
     return environment_setup.ephemeris.interpolated_spice(
             start, end, ASTEROID_EPHEMERIS_STEP, GLOBAL_FRAME_ORIGIN, FRAME_ORIENTATION,
-            interpolation, asteroid_spice_id(number),
-        )
-
-def load_tracking_data( ):
-    """Load MPC, JPL radar and Gaia observations for TARGET."""
-    print(f"Loading MPC astrometry for {TARGET}...", flush=True)
-    batch = BatchMPC()
-    batch.get_observations([TARGET], use_mpc80_format=True)
-    batch.filter(
-        epoch_start=OBSERVATION_START,
-        epoch_end=OBSERVATION_END,
-        # Gaia CCDs are loaded separately with their full transit covariance;
-        # exclude Gaia's MPC observatory code to avoid counting them twice.
-        observatories_exclude=["C57", "258", "704"],
-    )
-    if batch.table.empty:
-        raise RuntimeError("The selected interval contains no MPC astrometry.")
-
-    print(f"Loaded {len(batch.table)} MPC optical observations.", flush=True)
-
-    optical_tracking_data, optical_supplementary_data = optical_table_to_tracking_data(
-        batch.table,
-        add_weights=True,
-        add_star_catalog_corrections=True,
-        add_ancillary_data=True,
-    )
-
-    radar_query = JPLRadarQuery(TARGET, timeout=60.0)
-    radar_table = radar_query.to_radar_data(
-        target_body=TARGET,
-        epoch_start=OBSERVATION_START,
-        epoch_end=OBSERVATION_END,
-        target_point="C",
-    )
-    if radar_table.empty:
-        radar_tracking_data, radar_supplementary_data = [], []
-        print("No JPL radar observations found.")
-    else:
-        radar_tracking_data, radar_supplementary_data = radar_data_to_tracking_data(
-            radar_table
-        )
-        print(f"Loaded {len(radar_table)} JPL center-of-mass radar observations.")
-
-    gaia_astrometry = load_gaia_astrometry()
-    gaia_tracking_data, gaia_supplementary_data = [], []
-    if gaia_astrometry is not None:
-        radius = PHOTOCENTER_RADIUS
-        if radius is None:
-            radius = sbdb_photocenter_radius(TARGET)
-        gaia_tracking_data, gaia_supplementary_data = gaia_astrometry.to_tracking_data(
-            light_deflection_bodies=("Sun", "Jupiter"),
-            photocenter_body_dimensions={int(TARGET): radius},
-        )
-    return (
-        optical_tracking_data,
-        optical_supplementary_data,
-        radar_tracking_data,
-        radar_supplementary_data,
-        gaia_tracking_data,
-        gaia_supplementary_data,
-        gaia_astrometry,
-    )
+            interpolation, spice.asteroid_spice_id(number))
 
 
-def observation_epoch_bounds(tracking_data):
-    """Return the earliest/latest UTC tracking-data epochs converted to TDB."""
-    first_epoch_tdb = TIME_SCALE_CONVERTER.convert_time(
-        input_scale=time_representation.utc_scale,
-        output_scale=time_representation.tdb_scale,
-        input_value=float(min(min(data.epochs) for data in tracking_data)),
-    )
-    last_epoch_tdb = TIME_SCALE_CONVERTER.convert_time(
-        input_scale=time_representation.utc_scale,
-        output_scale=time_representation.tdb_scale,
-        input_value=float(max(max(data.epochs) for data in tracking_data)),
-    )
-    return first_epoch_tdb, last_epoch_tdb
+@lru_cache(maxsize=10)
+def load_reference_state_history(target, first_epoch, final_epoch):
+    """Reuse each target's Horizons reference across the comparison fits."""
+    states = HorizonsQuery(
+        query_id=f"{target};", location=HORIZONS_ORIGIN,
+        epoch_start=float(first_epoch), epoch_end=float(final_epoch),
+        epoch_step="1d", extended_query=True,
+    ).cartesian(frame_orientation=FRAME_ORIENTATION)
+    return dict(zip(states[:, 0], states[:, 1:]))
 
 
-def load_gaia_astrometry(target=None, archive_path=None):
-    """Load Gaia CCD observations, returning None if none are available."""
-    target = TARGET if target is None else str(target)
-    if archive_path is None and target == TARGET:
-        archive_path = GAIA_ARCHIVE_PATH
-    if archive_path is None:
-        cached_archive = Path(__file__).with_name(f"gaia_{target}_fpr.parquet")
-        if cached_archive.is_file():
-            archive_path = cached_archive
-    try:
-        if archive_path is None:
-            print(f"Querying the ESA Gaia archive for {target}; waiting for the response...", flush=True)
-            gaia = GaiaAstrometry.load_from_astroquery(int(target))
-        else:
-            print(f"Loading Gaia astrometry from {archive_path}", flush=True)
-            gaia = GaiaAstrometry.load_from_local_archive(archive_path, int(target))
-    except RuntimeError as error:
-        if str(error).startswith("No observations found"):
-            print(f"No Gaia observations for {target}.", flush=True)
-            return None
-        raise
-    bounds = [
-        TIME_SCALE_CONVERTER.convert_time(
-            input_scale=time_representation.utc_scale,
-            output_scale=time_representation.tdb_scale,
-            input_value=time_representation.DateTime.from_python_datetime(value).epoch(),
-        )
-        for value in (OBSERVATION_START, OBSERVATION_END)
-    ]
-    try:
-        gaia.apply_filters(epoch_start=bounds[0], epoch_end=bounds[1])
-    except RuntimeError as error:
-        if str(error) == "No observations left after applying filters":
-            print(f"No Gaia observations for {target} in the selected interval.", flush=True)
-            return None
-        raise
-    if gaia.table.empty:
-        print(f"No Gaia observations for {target} in the selected interval.", flush=True)
-        return None
-    if set(gaia.mpc_numbers_in_table) != {int(target)}:
-        raise RuntimeError(f"Gaia astrometry must contain only target {target}.")
-    print(
-        f"Loaded {len(gaia.table)} Gaia CCD observations in "
-        f"{gaia.table.transit_id.nunique()} transits for {target}.",
-        flush=True,
-    )
-    return gaia
 
-
-def create_bodies(first_epoch, final_epoch, reference_state_history=None,
-                  estimated_bodies=None):
+def create_bodies(first_epoch, final_epoch):
     """Create the estimation environment and Earth observing stations."""
-    estimated_bodies = [TARGET] if estimated_bodies is None else list(estimated_bodies)
-    joint = reference_state_history is not None and all(
-        body in reference_state_history for body in estimated_bodies
-    )
+    estimated_bodies = [TARGET]
+
     body_names = [
         "Sun",
         "Mercury",
@@ -325,16 +293,13 @@ def create_bodies(first_epoch, final_epoch, reference_state_history=None,
 
     for body in estimated_bodies:
         body_settings.add_empty_settings(body)
-        if reference_state_history is not None:
-            # Horizons states are Sun-relative; the global frame remains SSB.
-            history = reference_state_history[body] if joint else reference_state_history
-            body_settings.get(body).ephemeris_settings = environment_setup.ephemeris.tabulated(
-                history, PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION,
-            )
-    for number, name in ASTEROID_PERTURBERS:
-        selected = str(number) in estimated_bodies
-        body_name = str(number) if selected else asteroid_body_name(number, name)
-        spice_id = asteroid_spice_id(number)
+        body_settings.get(body).ephemeris_settings = environment_setup.ephemeris.tabulated(
+                load_reference_state_history(body, first_epoch, final_epoch),
+                PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION )
+    for number, _ in ASTEROID_PERTURBERS:
+        body_name = str(number)
+        selected = body_name in estimated_bodies
+        spice_id = spice.asteroid_spice_id(number)
         if not selected:
             body_settings.add_empty_settings(body_name)
         settings = body_settings.get(body_name)
@@ -350,6 +315,11 @@ def create_bodies(first_epoch, final_epoch, reference_state_history=None,
             )
 
     return environment_setup.create_system_of_bodies(body_settings)
+
+
+#####################################################################
+#################   ESTIMATION MODEL SETTINGS  ######################
+#####################################################################
 
 
 def acceleration_settings(estimate_yarkovsky, estimated_bodies=None):
@@ -382,13 +352,11 @@ def acceleration_settings(estimate_yarkovsky, estimated_bodies=None):
     for target in estimated_bodies:
         models[target] = dict(target_accelerations)
         models[target].update({
-            str(number) if str(number) in estimated_bodies else asteroid_body_name(number, name): [
+            str(number): [
                 propagation_setup.acceleration.point_mass_gravity()
             ]
-            for number, name in ASTEROID_PERTURBERS if str(number) != target
+            for number, _ in ASTEROID_PERTURBERS if str(number) != target
         })
-        if "16" in estimated_bodies and target != "16":
-            models[target]["16"] = [propagation_setup.acceleration.point_mass_gravity()]
     return models
 
 
@@ -436,74 +404,9 @@ def observation_model_settings(observation_dataset):
         added_links.add((observable_type, link_id))
     return settings
 
-
-def reject_mpc_prefit_outliers(dataset, bodies):
-    """Reject MPC RA/Dec pairs if either component exceeds 5 sigma against Horizons."""
-    simulators = observations_simulation_settings.create_observation_simulators(
-        observation_model_settings(dataset), bodies,
-    )
-    observations.compute_residuals_and_dependent_variables(dataset, simulators, bodies)
-    query = observations.observation_query
-    mpc = (query.observable_type == observations.angular_position_type) & ~(
-        query.receiver == observable_models_setup.links.body_origin_link_end_id("Gaia")
-    )
-    before = len(dataset.get_observation_ids(query.active))
-    for set_id in set(dataset.get_set_ids(mpc)):
-        residuals = np.asarray(dataset.residuals_for_set(set_id))
-        # The query tests stored residuals; temporarily express MPC residuals in sigma units.
-        try:
-            dataset.set_residuals_for_set(set_id, residuals * np.sqrt(dataset.weights_for_set(set_id)))
-            dataset.reject_observations(
-                (query.set_id == set_id) & query.active & query.residual.abs_greater_than(5.0), "MPC prefit > 5 sigma (Horizons)",
-            )
-        finally:
-            dataset.set_residuals_for_set(set_id, residuals)
-    print(f"Rejected {before - len(dataset.get_observation_ids(query.active))} MPC observations at prefit > 5 sigma.", flush=True)
-
-
-def parameter_layout(parameters):
-    """Describe parameters using their identifiers and actual vector indices."""
-    layout = []
-    for identifier in parameters.get_parameter_identifiers():
-        parameter_type, (body, reference) = identifier
-        if parameter_type == parameters_setup.initial_body_state_type:
-            name = "initial Cartesian state"
-        elif parameter_type == parameters_setup.gravitational_parameter_type:
-            name = "gravitational parameter"
-        elif parameter_type == parameters_setup.yarkovsky_parameter(body, reference or "Sun").parameter_identifier[0]:
-            name = "Yarkovsky A2"
-        else:
-            name = str(parameter_type)
-        layout.extend((start, size, f"{body}: {name}")
-                      for start, size in parameters.indices_for_parameter_type(identifier))
-    return sorted(layout)
-
-
-def sbdb_photocenter_radius(target):
-    """Read the same SBDB diameter even when Astroquery drops its unit on asymmetric errors."""
-    query = SBDBquery(str(target))
-    try:
-        return 0.5 * query.diameter
-    except ValueError:
-        from astroquery.jplsbdb import SBDB
-        from astropy import units as u
-        parameters = SBDB.query_async(str(target), phys=True).json().get("phys_par", [])
-        diameter = next((p for p in parameters if p["name"] == "diameter"), None)
-        if diameter is None or diameter["value"] is None or not diameter["units"]:
-            raise ValueError(f"SBDB has no diameter for {target}; supply its photocenter radius [m].") from None
-        return 0.5 * (float(diameter["value"]) * u.Unit(diameter["units"])).to_value(u.m)
-
-
-
-@lru_cache(maxsize=10)
-def load_reference_state_history(target, first_epoch, final_epoch):
-    """Reuse each target's Horizons reference across the comparison fits."""
-    states = HorizonsQuery(
-        query_id=f"{target};", location=HORIZONS_ORIGIN,
-        epoch_start=float(first_epoch), epoch_end=float(final_epoch),
-        epoch_step="1d", extended_query=True,
-    ).cartesian(frame_orientation=FRAME_ORIENTATION)
-    return dict(zip(states[:, 0], states[:, 1:]))
+#####################################################################
+#################   CORE ESTIMATION FUNCTION   ######################
+#####################################################################
 
 
 def perform_estimation(
@@ -512,19 +415,18 @@ def perform_estimation(
     observation_start_epoch,
     observation_end_epoch,
 ):
-    """Estimate TARGET using the common observation interval for all fits."""
-    initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
+    """Estimate state of target asteroid."""
+
+    # Use the observation-interval midpoint or J2000, whichever is later.
+    estimation_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
+
+    # Extend both ends by the configured propagation buffer.
     first_epoch = observation_start_epoch - PROPAGATION_BUFFER
     final_epoch = observation_end_epoch + PROPAGATION_BUFFER
-    reference_state_history = load_reference_state_history(TARGET, first_epoch, final_epoch)
-    reference_ephemeris = environment_setup.create_body_ephemeris(
-        environment_setup.ephemeris.tabulated(
-            reference_state_history, PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION,
-        ), TARGET,
-    )
-    initial_state = reference_ephemeris.cartesian_state(float(initial_epoch))
-    print("Creating bodies, stations and propagation settings...", flush=True)
-    bodies = create_bodies(first_epoch, final_epoch, reference_state_history)
+
+    # Create bodies
+    bodies = create_bodies(first_epoch, final_epoch)
+    initial_state = bodies.get(TARGET).ephemeris.cartesian_state(float(estimation_epoch))
 
     # This installs transmitter-frequency histories, identifies the passive
     # radar reflector, and creates the space-telescope bodies and ephemerides.
@@ -532,23 +434,6 @@ def perform_estimation(
         bodies,
         supplementary_data,
     )
-    for data in supplementary_data:
-        state_data = data.translational_state_supplementary_data
-        if not state_data.state_history:
-            continue
-        # Supplementary receiver states have double-precision epoch keys.
-        # Round queries to that same precision: an extended-precision UTC/TDB
-        # conversion can otherwise fall a fraction of an ulp below the first
-        # key and spuriously report out-of-range interpolation (e.g. C51).
-        ephemeris = bodies.get(data.body_name).ephemeris
-        bodies.get(data.body_name).ephemeris = environment_setup.create_body_ephemeris(
-            environment_setup.ephemeris.custom_ephemeris(
-                ephemeris.cartesian_state,
-                state_data.frame_origin,
-                state_data.frame_orientation,
-            ),
-            data.body_name,
-        )
     acceleration_models = propagation_setup.create_acceleration_models(
         bodies,
         acceleration_settings(ESTIMATE_YARKOVSKY),
@@ -568,17 +453,16 @@ def perform_estimation(
         acceleration_models=acceleration_models,
         bodies_to_integrate=[TARGET],
         initial_states=initial_state,
-        initial_time=initial_epoch,
+        initial_time=estimation_epoch,
         integrator_settings=integrator_settings,
         termination_settings=termination_settings,
     )
 
-    print("Creating the observation dataset and applying weights...", flush=True)
+    print("Creating and populating observation dataset.", flush=True)
     observation_dataset = observations.create_observation_dataset_from_tracking_data(
-        tracking_data, bodies, apply_corrections=True,
-    )
-    print("Computing prefit residuals against Horizons and rejecting MPC outliers...", flush=True)
-    reject_mpc_prefit_outliers(observation_dataset, bodies)
+        tracking_data, bodies, apply_corrections=True)
+
+    print("Initializing the estimator and propagating variational equations.", flush=True)
     parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
     if ESTIMATE_YARKOVSKY:
         parameter_settings.append(parameters_setup.yarkovsky_parameter(TARGET, "Sun"))
@@ -587,8 +471,6 @@ def perform_estimation(
         bodies,
         propagator_settings,
     )
-
-    print("Initializing the estimator and propagating variational equations...", flush=True)
     estimator = estimation_analysis.Estimator(
         bodies=bodies,
         estimated_parameters=parameters_to_estimate,
@@ -598,6 +480,12 @@ def perform_estimation(
     )
     estimation_input = estimation_analysis.EstimationInput(
         observation_dataset=observation_dataset,
+        outlier_rejection_settings=estimation_analysis.carpino_outlier_rejection_settings(
+            chi2_rejection_threshold=5.0,
+            chi2_recovery_threshold=4.0,
+            maximum_rejected_fraction=1.0,
+            first_iteration_with_rejection=0,
+        ),
         convergence_checker=estimation_analysis.estimation_convergence_checker(
             maximum_iterations=NUMBER_OF_ESTIMATION_ITERATIONS,
         ),
@@ -609,6 +497,7 @@ def perform_estimation(
         save_residuals_and_parameters_per_iteration=True,
         save_state_history_per_iteration=True,
     )
+
     print("Starting estimation; iteration output follows.", flush=True)
     output = estimator.perform_estimation(estimation_input)
     print(
@@ -624,11 +513,17 @@ def perform_estimation(
 #####################################################################
 
 
-def last_iteration_residuals(output):
-    """Select active residuals from the last evaluated iteration, in estimation order."""
+def last_iteration_residuals(output, observation_dataset):
+    """Select last-iteration residuals for observations that remain unrejected."""
     residuals = np.asarray(output.residual_history)[:, -1]
-    active = np.asarray(output.active_flags_per_iteration, dtype=bool)[:, -1]
-    return residuals[active]
+    vector_data = observation_dataset.observation_vector_data(include_rejected=True)
+    indices = [
+        vector_data.vector_row(observation_id, component)
+        for observation_id, component in observation_dataset.get_scalar_components(
+            observations.observation_query.active, ordering="estimation",
+        )
+    ]
+    return residuals[indices]
 
 
 def last_iteration_parameters(output):
@@ -654,7 +549,7 @@ def print_yarkovsky_result(output):
 
 def print_residual_summary(label, output, observation_dataset):
     """Print last-iteration residual RMS values for each observable family."""
-    residuals = last_iteration_residuals(output)
+    residuals = last_iteration_residuals(output, observation_dataset)
     observable_units = {
         observable_models_setup.model_settings.angular_position_type: "rad",
         observable_models_setup.model_settings.n_way_range_type: "m",
@@ -807,24 +702,6 @@ def add_grouped_scatter(ax, times, values, station_labels):
         )
 
 
-def gaia_marginal_covariance(table):
-    """Return each CCD's random covariance plus its shared transit covariance."""
-    covariance = np.zeros((len(table), 2, 2))
-    for kind in ("random", "systematic"):
-        columns = [f"ra_error_{kind}", f"dec_error_{kind}", f"ra_dec_correlation_{kind}"]
-        values = table[columns]
-        if kind == "systematic":
-            # Match GaiaAstrometry.to_tracking_data: one systematic block,
-            # taken from the first CCD, is shared by the entire transit.
-            values = table.groupby("transit_id", sort=False)[columns].transform("first")
-        sigma_ra, sigma_dec, correlation = values.to_numpy().T
-        covariance[:, 0, 0] += sigma_ra**2
-        covariance[:, 1, 1] += sigma_dec**2
-        covariance[:, 0, 1] += sigma_ra * sigma_dec * correlation
-    covariance[:, 1, 0] = covariance[:, 0, 1]
-    return covariance
-
-
 def project_gaia_residuals(residuals, covariance, declinations, scan_angles):
     """Project unstarred RA/Dec into AL and perpendicular tangent-plane AC.
 
@@ -851,57 +728,56 @@ def project_gaia_residuals(residuals, covariance, declinations, scan_angles):
     return projected, sigmas
 
 
-def gaia_residual_data(output, observation_dataset, gaia_astrometry, target=None):
-    """Match Gaia CCD epochs and event/component IDs to estimation residuals."""
+def gaia_residual_data(output, observation_dataset, target=None):
+    """Get Gaia residuals, covariance and scan angles using stable observation IDs."""
     target = TARGET if target is None else str(target)
-    table = gaia_astrometry.table.sort_values("epoch").reset_index(drop=True)
-    epochs = table["epoch"].to_numpy()
-    if not len(epochs) or np.any(np.diff(epochs) <= 0):
-        raise RuntimeError("Gaia residual plotting requires nonempty, unique CCD epochs.")
+    query = observations.observation_query
+    condition = (
+        query.active
+        & (query.receiver == observations.LinkEndId("Gaia", ""))
+        & (query.transmitter == observations.LinkEndId(target, ""))
+    )
     data = observation_dataset.get_data(
-        observations.observation_query.active,
-        fields=("times", "observation_ids", "set_ids", "metadata", "scalar_components"),
-        ordering="estimation",
+        condition, fields=("times", "observations", "observation_ids"), ordering="estimation",
     )
-    event_rows = {}
-    for epoch, observation_id, set_id in zip(data["times"], data["observation_ids"], data["set_ids"]):
-        metadata = data["metadata"][set_id]
-        link = metadata["link_definition"].link_ends
-        if link[observable_models_setup.links.receiver].body_name != "Gaia":
-            continue
-        if link[observable_models_setup.links.transmitter].body_name != target:
-            continue
-        epoch = float(epoch)
-        insertion = np.searchsorted(epochs, epoch)
-        candidates = [i for i in (insertion - 1, insertion) if 0 <= i < len(epochs)]
-        row = min(candidates, key=lambda i: abs(epochs[i] - epoch))
-        if abs(epochs[row] - epoch) > 1.0e-6:
-            raise RuntimeError("A Gaia residual epoch does not match the Gaia catalogue.")
-        event_rows[observation_id] = row
-    if len(event_rows) != len(table) or len(set(event_rows.values())) != len(table):
-        raise RuntimeError("Gaia CCD catalogue and active dataset observations differ.")
-    scalar_indices = np.full((len(table), 2), -1, dtype=int)
-    for index, (observation_id, component) in enumerate(data["scalar_components"]):
-        if observation_id in event_rows:
-            scalar_indices[event_rows[observation_id], component] = index
-    if np.any(scalar_indices < 0):
-        raise RuntimeError("A Gaia CCD residual is missing an angular component.")
-    residuals = last_iteration_residuals(output)[scalar_indices]
-    covariance = gaia_marginal_covariance(table)
+    observation_ids = data["observation_ids"]
+    if not observation_ids:
+        return None
+    vector_data = observation_dataset.observation_vector_data(include_rejected=False)
+    scalar_indices = np.array([
+        [vector_data.vector_row(observation_id, 0), vector_data.vector_row(observation_id, 1)]
+        for observation_id in observation_ids
+    ])
+    residuals = last_iteration_residuals(output, observation_dataset)[scalar_indices]
+    covariance = np.array([
+        vector_data.inverse_weight_matrix_for_observation(observation_id)
+        for observation_id in observation_ids
+    ])
+    scan_angles = observation_dataset.get_numerical_observation_metadata(
+        "along_scan_angle", observation_ids,
+    )
+    angles = np.asarray(data["observations"])
     scan_residuals, scan_sigmas = project_gaia_residuals(
-        residuals, covariance, table["dec"].to_numpy(), table["position_angle_scan"].to_numpy(),
+        residuals, covariance, angles[:, 1], scan_angles,
     )
+    table = pd.DataFrame({
+        "observation_id": observation_ids,
+        "epoch": [float(epoch) for epoch in data["times"]],
+        "ra": angles[:, 0], "dec": angles[:, 1], "along_scan_angle": scan_angles,
+    })
     return {
         "table": table, "scalar_indices": scalar_indices, "residuals": residuals,
         "covariance": covariance, "scan_residuals": scan_residuals, "scan_sigmas": scan_sigmas,
     }
 
 
-def plot_gaia_residuals(setup_label, output, observation_dataset, gaia_astrometry,
+def plot_gaia_residuals(setup_label, output, observation_dataset,
                         target=None, csv_path=None):
     """Plot actual Gaia CCD AL/AC residuals in mas and marginal sigma units."""
     target = TARGET if target is None else str(target)
-    data = gaia_residual_data(output, observation_dataset, gaia_astrometry, target)
+    data = gaia_residual_data(output, observation_dataset, target)
+    if data is None:
+        return
     mas_per_radian = 180.0 / np.pi * 3600.0 * 1000.0
     years = 2000.0 + data["table"]["epoch"].to_numpy() / constants.JULIAN_YEAR
     figure, axes = plt.subplots(2, 2, figsize=(11.7, 8.5), sharex=True)
@@ -934,9 +810,9 @@ def plot_gaia_residuals(setup_label, output, observation_dataset, gaia_astrometr
     table.to_csv(csv_path or Path(__file__).with_name(Path(__file__).stem + "_4_gaia_residuals.csv"), index=False)
 
 
-def plot_residuals(setup_label, output, observation_dataset, gaia_astrometry=None, target=None):
+def plot_residuals(setup_label, output, observation_dataset, target=None):
     """Plot ground, space and radar residuals in separate four-panel figures."""
-    residuals = last_iteration_residuals(output)
+    residuals = last_iteration_residuals(output, observation_dataset)
     data = observation_scalar_data(observation_dataset)
     normalized_residuals = residuals * np.sqrt(data["weights"])
     years = 2000.0 + data["times"] / constants.JULIAN_YEAR
@@ -1052,7 +928,7 @@ def plot_orbit_difference(setup_label, output, estimator, epochs, horizons_state
     figure.tight_layout()
 
 
-def plot_diagnostics(results):
+def plot_results(results):
     """Display each estimation setup's diagnostics as Matplotlib figures."""
     histories = [last_state_history(result[0]) for result in results.values()]
     common_epochs = sorted(set.intersection(*(set(history) for history in histories)))
@@ -1071,11 +947,10 @@ def plot_diagnostics(results):
         extended_query=True,
     ).cartesian(frame_orientation=FRAME_ORIENTATION)[:, 1:]
 
-    for setup_label, (output, observation_dataset, estimator, gaia_astrometry) in results.items():
+    for setup_label, (output, observation_dataset, estimator) in results.items():
         print(f"Creating residual and orbit-difference figures: {setup_label}...", flush=True)
-        plot_residuals(setup_label, output, observation_dataset, gaia_astrometry)
-        if gaia_astrometry is not None:
-            plot_gaia_residuals(setup_label, output, observation_dataset, gaia_astrometry)
+        plot_residuals(setup_label, output, observation_dataset)
+        plot_gaia_residuals(setup_label, output, observation_dataset)
         plot_orbit_difference(
             setup_label, output, estimator, plot_epochs, horizons_states
         )
@@ -1097,74 +972,34 @@ def plot_diagnostics(results):
 def main():
     """Compare MPC and MPC/Gaia estimation, including any available radar."""
     print(f"Starting estimation of {TARGET}", flush=True)
+
+    # Loading spice kernels
     spice.load_standard_kernels()
 
-    (
-        optical_tracking_data,
-        optical_supplementary_data,
-        radar_tracking_data,
-        radar_supplementary_data,
-        gaia_tracking_data,
-        gaia_supplementary_data,
-        gaia_astrometry,
-    ) = load_tracking_data()
-    observation_start_epoch, observation_end_epoch = observation_epoch_bounds(
-        optical_tracking_data + radar_tracking_data
-    )
+    # Load data, categorized in MPC, MPC + radar and MPC + radar + Gaia
+    setups, observation_start_epoch, observation_end_epoch = load_tracking_data()
 
-    # GaiaAstrometry epochs are already TDB; do not convert them from UTC again.
-    if gaia_astrometry is not None:
-        observation_start_epoch = min(observation_start_epoch, gaia_astrometry.table.epoch.min())
-        observation_end_epoch = max(observation_end_epoch, gaia_astrometry.table.epoch.max())
-
-    setups = {
-        "MPC astrometry": (
-            optical_tracking_data,
-            optical_supplementary_data,
-            None,
-        ),
-    }
-    if radar_tracking_data:
-        setups["MPC astrometry and JPL radar"] = (
-            optical_tracking_data + radar_tracking_data,
-            optical_supplementary_data + radar_supplementary_data,
-            None,
-        )
-    if gaia_astrometry is not None:
-        gaia_label = (
-            "MPC astrometry, JPL radar and Gaia"
-            if radar_tracking_data else "MPC astrometry and Gaia"
-        )
-        setups[gaia_label] = (
-            optical_tracking_data + radar_tracking_data + gaia_tracking_data,
-            optical_supplementary_data + radar_supplementary_data + gaia_supplementary_data,
-            gaia_astrometry,
-        )
-    else:
-        print("No Gaia data available; skipping the Gaia-inclusive run.", flush=True)
-
+    # Run estimation for the different data categories
     results = {}
-    for label, (tracking_data, supplementary_data, gaia) in setups.items():
-        print(f"\nRunning {label}...", flush=True)
+    for label, (tracking_data, supplementary_data) in setups.items():
+        print(f"\nRunning estimation for: {label}...", flush=True)
         output, observation_dataset, estimator = perform_estimation(
             tracking_data,
             supplementary_data,
             observation_start_epoch,
             observation_end_epoch,
         )
+
+        # Print summary of results to terminal
         print_residual_summary(label, output, observation_dataset)
         if ESTIMATE_YARKOVSKY:
             print_yarkovsky_result(output)
-        results[label] = (output, observation_dataset, estimator, gaia)
 
-    if "MPC astrometry and JPL radar" in results:
-        initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
-        print_orbit_difference_rsw(
-            results["MPC astrometry"][0],
-            results["MPC astrometry and JPL radar"][0],
-            initial_epoch,
-        )
-    plot_diagnostics(results)
+        # Save results
+        results[label] = (output, observation_dataset, estimator)
+
+    # Plot estimation results
+    plot_results(results)
 
 
 if __name__ == "__main__":
