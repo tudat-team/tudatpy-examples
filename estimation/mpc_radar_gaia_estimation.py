@@ -18,7 +18,7 @@ The example follows the current data path directly:
 
 Gaia's full transit covariance includes random RA/Dec correlations and
 systematic errors shared by the CCD observations in each transit. Relativistic light deflection and a
-spherical photocenter correction are applied before creating the dataset.
+spherical photocenter correction are evaluated during dataset conversion.
 
 Gaia along-scan and cross-scan plots use the published scan position angle and
 RA multiplied by cos(dec). Cross-scan is the perpendicular tangent-plane
@@ -182,11 +182,22 @@ def load_tracking_data( ):
         print(f"Loaded {len(radar_table)} JPL center-of-mass radar observations.")
 
     gaia_astrometry = load_gaia_astrometry()
+    gaia_tracking_data, gaia_supplementary_data = [], []
+    if gaia_astrometry is not None:
+        radius = PHOTOCENTER_RADIUS
+        if radius is None:
+            radius = sbdb_photocenter_radius(TARGET)
+        gaia_tracking_data, gaia_supplementary_data = gaia_astrometry.to_tracking_data(
+            light_deflection_bodies=("Sun", "Jupiter"),
+            photocenter_body_dimensions={int(TARGET): radius},
+        )
     return (
         optical_tracking_data,
         optical_supplementary_data,
         radar_tracking_data,
         radar_supplementary_data,
+        gaia_tracking_data,
+        gaia_supplementary_data,
         gaia_astrometry,
     )
 
@@ -255,7 +266,7 @@ def load_gaia_astrometry(target=None, archive_path=None):
     return gaia
 
 
-def create_bodies(first_epoch, final_epoch, gaia_astrometry=None, reference_state_history=None,
+def create_bodies(first_epoch, final_epoch, reference_state_history=None,
                   estimated_bodies=None):
     """Create the estimation environment and Earth observing stations."""
     estimated_bodies = [TARGET] if estimated_bodies is None else list(estimated_bodies)
@@ -320,12 +331,6 @@ def create_bodies(first_epoch, final_epoch, gaia_astrometry=None, reference_stat
             body_settings.get(body).ephemeris_settings = environment_setup.ephemeris.tabulated(
                 history, PROPAGATION_CENTRAL_BODY, FRAME_ORIENTATION,
             )
-    if gaia_astrometry is not None:
-        body_settings.add_empty_settings("Gaia")
-        body_settings.get("Gaia").ephemeris_settings = (
-            gaia_astrometry.get_gaia_ephemeris_settings(geocentric=True)
-        )
-
     for number, name in ASTEROID_PERTURBERS:
         selected = str(number) in estimated_bodies
         body_name = str(number) if selected else asteroid_body_name(number, name)
@@ -506,7 +511,6 @@ def perform_estimation(
     supplementary_data,
     observation_start_epoch,
     observation_end_epoch,
-    gaia_astrometry=None,
 ):
     """Estimate TARGET using the common observation interval for all fits."""
     initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))
@@ -520,7 +524,7 @@ def perform_estimation(
     )
     initial_state = reference_ephemeris.cartesian_state(float(initial_epoch))
     print("Creating bodies, stations and propagation settings...", flush=True)
-    bodies = create_bodies(first_epoch, final_epoch, gaia_astrometry, reference_state_history)
+    bodies = create_bodies(first_epoch, final_epoch, reference_state_history)
 
     # This installs transmitter-frequency histories, identifies the passive
     # radar reflector, and creates the space-telescope bodies and ephemerides.
@@ -569,32 +573,12 @@ def perform_estimation(
         termination_settings=termination_settings,
     )
 
-    corrected_gaia = None
-    if gaia_astrometry is not None:
-        corrected_gaia = gaia_astrometry.copy()
-        radius = PHOTOCENTER_RADIUS
-        if radius is None:
-            radius = sbdb_photocenter_radius(TARGET)
-        corrected_gaia.apply_corrections(
-            bodies, light_deflection_bodies=("Sun", "Jupiter"),
-            photocenter_body_dimensions={int(TARGET): radius},
-        )
-        gaia_tracking_data, _ = corrected_gaia.to_tracking_data()
-        tracking_data = list(tracking_data) + gaia_tracking_data
-
     print("Creating the observation dataset and applying weights...", flush=True)
     observation_dataset = observations.create_observation_dataset_from_tracking_data(
         tracking_data, bodies, apply_corrections=True,
     )
     print("Computing prefit residuals against Horizons and rejecting MPC outliers...", flush=True)
     reject_mpc_prefit_outliers(observation_dataset, bodies)
-    if corrected_gaia is not None:
-        scalar_data = observation_scalar_data(observation_dataset)
-        scalar_count = np.count_nonzero(scalar_data["station_labels"] == "Gaia")
-        if scalar_count != 2 * len(corrected_gaia.table) or scalar_count == 0:
-            raise RuntimeError("The estimation dataset lost Gaia CCD observations.")
-        print(f"Estimation dataset contains {scalar_count // 2} Gaia CCD observations.")
-
     parameter_settings = parameters_setup.initial_states(propagator_settings, bodies)
     if ESTIMATE_YARKOVSKY:
         parameter_settings.append(parameters_setup.yarkovsky_parameter(TARGET, "Sun"))
@@ -632,7 +616,7 @@ def perform_estimation(
         f"for diagnostics (best: {output.best_iteration}; zero-based indices).",
         flush=True,
     )
-    return output, observation_dataset, estimator, corrected_gaia
+    return output, observation_dataset, estimator
 
 
 #####################################################################
@@ -1120,6 +1104,8 @@ def main():
         optical_supplementary_data,
         radar_tracking_data,
         radar_supplementary_data,
+        gaia_tracking_data,
+        gaia_supplementary_data,
         gaia_astrometry,
     ) = load_tracking_data()
     observation_start_epoch, observation_end_epoch = observation_epoch_bounds(
@@ -1150,8 +1136,8 @@ def main():
             if radar_tracking_data else "MPC astrometry and Gaia"
         )
         setups[gaia_label] = (
-            optical_tracking_data + radar_tracking_data,
-            optical_supplementary_data + radar_supplementary_data,
+            optical_tracking_data + radar_tracking_data + gaia_tracking_data,
+            optical_supplementary_data + radar_supplementary_data + gaia_supplementary_data,
             gaia_astrometry,
         )
     else:
@@ -1160,17 +1146,16 @@ def main():
     results = {}
     for label, (tracking_data, supplementary_data, gaia) in setups.items():
         print(f"\nRunning {label}...", flush=True)
-        output, observation_dataset, estimator, corrected_gaia = perform_estimation(
+        output, observation_dataset, estimator = perform_estimation(
             tracking_data,
             supplementary_data,
             observation_start_epoch,
             observation_end_epoch,
-            gaia,
         )
         print_residual_summary(label, output, observation_dataset)
         if ESTIMATE_YARKOVSKY:
             print_yarkovsky_result(output)
-        results[label] = (output, observation_dataset, estimator, corrected_gaia)
+        results[label] = (output, observation_dataset, estimator, gaia)
 
     if "MPC astrometry and JPL radar" in results:
         initial_epoch = max(0.0, 0.5 * (observation_start_epoch + observation_end_epoch))

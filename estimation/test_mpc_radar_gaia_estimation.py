@@ -170,7 +170,9 @@ def test_main_loads_all_observations_before_estimation(monkeypatch, with_radar, 
     monkeypatch.setattr(example, "load_gaia_astrometry", unexpected_separate_gaia_query)
     optical, radar = [object()], [object()] if with_radar else []
     gaia = SimpleNamespace(table=pd.DataFrame({"epoch": [-10., 20.]})) if with_gaia else None
-    monkeypatch.setattr(example, "load_tracking_data", lambda: (optical, [], radar, [], gaia))
+    gaia_tracking, gaia_supplementary = ([object()], [object()]) if with_gaia else ([], [])
+    monkeypatch.setattr(example, "load_tracking_data", lambda: (
+        optical, [], radar, [], gaia_tracking, gaia_supplementary, gaia))
     monkeypatch.setattr(example, "observation_epoch_bounds", lambda tracks: (0., 10.))
 
     def unexpected_horizons_query(**kwargs):
@@ -181,10 +183,10 @@ def test_main_loads_all_observations_before_estimation(monkeypatch, with_radar, 
 
     def estimate(*args, **kwargs):
         assert args[2:4] == ((-10., 20.) if with_gaia else (0., 10.))
-        assert args[4] is None or args[4] is gaia
+        assert len(args) == 4
         assert "reference_state_history" not in kwargs
-        calls.append((args[0], args[4]))
-        return None, None, None, args[4]
+        calls.append((args[0], args[1]))
+        return None, None, None
 
     monkeypatch.setattr(example, "perform_estimation", estimate)
     monkeypatch.setattr(example, "print_residual_summary", lambda *args: None)
@@ -192,10 +194,10 @@ def test_main_loads_all_observations_before_estimation(monkeypatch, with_radar, 
     monkeypatch.setattr(example, "plot_diagnostics", lambda results: plotted.extend(results))
     example.main()
     expected = ["MPC astrometry"] + (["MPC astrometry and JPL radar"] if with_radar else [])
-    expected_calls = [(optical, None)] + ([(optical + radar, None)] if with_radar else [])
+    expected_calls = [(optical, [])] + ([(optical + radar, [])] if with_radar else [])
     if with_gaia:
         expected.append("MPC astrometry, JPL radar and Gaia" if with_radar else "MPC astrometry and Gaia")
-        expected_calls.append((optical + radar, gaia))
+        expected_calls.append((optical + radar + gaia_tracking, gaia_supplementary))
     assert plotted == expected
     assert calls == expected_calls
 
@@ -212,7 +214,7 @@ def test_estimation_loads_and_reuses_horizons_reference_for_initialization(monke
     class StopAfterEnvironment(Exception):
         pass
 
-    def create_environment(first, final, gaia, histories):
+    def create_environment(first, final, histories):
         assert first == -example.PROPAGATION_BUFFER
         assert final == 10. + example.PROPAGATION_BUFFER
         environments.append(histories)
@@ -441,28 +443,27 @@ def test_tracking_reader_excludes_observatory_704_before_conversion(monkeypatch)
     monkeypatch.setattr(example, "optical_table_to_tracking_data", convert_optical)
     monkeypatch.setattr(example, "JPLRadarQuery", lambda *args, **kwargs: SimpleNamespace(
         to_radar_data=lambda **kwargs: pd.DataFrame()))
-    gaia_data = object()
+    def gaia_tracking(**kwargs):
+        assert kwargs == {"light_deflection_bodies": ("Sun", "Jupiter"),
+                          "photocenter_body_dimensions": {int(example.TARGET): 2500.}}
+        return ["Gaia observations"], ["Gaia geocentric states"]
+
+    gaia_data = SimpleNamespace(to_tracking_data=gaia_tracking)
+    monkeypatch.setattr(example, "PHOTOCENTER_RADIUS", 2500.)
     monkeypatch.setattr(example, "load_gaia_astrometry", lambda: gaia_data)
-    optical, extra, radar, radar_extra, gaia = example.load_tracking_data()
+    optical, extra, radar, radar_extra, gaia_tracks, gaia_extra, gaia = example.load_tracking_data()
+    assert gaia_tracks == ["Gaia observations"]
+    assert gaia_extra == ["Gaia geocentric states"]
     assert optical == ["remaining MPC observations"]
     assert extra == radar == radar_extra == []
     assert gaia is gaia_data
 
 
 @pytest.mark.parametrize("yarkovsky", [False, True])
-@pytest.mark.parametrize("gaia_corrections", [None, True])
-def test_single_body_setup_uses_global_settings_and_internal_initialization(monkeypatch, yarkovsky, gaia_corrections):
+def test_single_body_setup_uses_global_settings_and_internal_initialization(monkeypatch, yarkovsky):
     example.spice.load_standard_kernels()
     monkeypatch.setattr(example, "ESTIMATE_YARKOVSKY", yarkovsky)
     monkeypatch.setattr(example, "ASTEROID_PERTURBERS", [(16, "Psyche")])
-    monkeypatch.setattr(example, "PHOTOCENTER_RADIUS", 2500. if yarkovsky else None)
-    radius_queries = []
-
-    def sbdb_radius(target):
-        radius_queries.append(target)
-        return 2500.
-
-    monkeypatch.setattr(example, "sbdb_photocenter_radius", sbdb_radius)
     initial = example.spice.get_body_cartesian_state_at_epoch("2000016", "Sun", "J2000", "NONE", 0.)
     day = example.constants.JULIAN_DAY
     epochs = np.linspace(-day - example.PROPAGATION_BUFFER, day + example.PROPAGATION_BUFFER, 12)
@@ -476,43 +477,10 @@ def test_single_body_setup_uses_global_settings_and_internal_initialization(monk
 
     monkeypatch.setattr(example, "load_reference_state_history", reference)
     dataset = example.observations.ObservationDataset()
-    gaia = None
-
-    class Gaia:
-        def __init__(self):
-            self.table = pd.DataFrame({"epoch": [0., 1.], "ra": [1., 2.]})
-            self.corrected = False
-
-        def copy(self):
-            return Gaia()
-
-        def get_gaia_ephemeris_settings(self, geocentric):
-            assert geocentric is True
-            return example.environment_setup.ephemeris.constant(
-                [1.e9, 0., 0., 0., 0., 0.], "Earth", "J2000")
-
-        def apply_corrections(self, bodies, light_deflection_bodies, photocenter_body_dimensions):
-            assert light_deflection_bodies == ("Sun", "Jupiter")
-            assert photocenter_body_dimensions == {int(example.TARGET): 2500.}
-            assert bodies.does_body_exist(example.TARGET)
-            self.table["ra"] += 3.
-            self.corrected = True
-
-        def to_tracking_data(self):
-            return ["Gaia observations"], []
-
-    if gaia_corrections is not None:
-        gaia = Gaia()
-        obs = example.observations
-        link = obs.LinkDefinition({obs.transmitter: obs.LinkEndId(example.TARGET, ""),
-                                   obs.receiver: obs.LinkEndId("Gaia", "")})
-        dataset.add_observation_set(obs.angular_position_type, link, np.zeros((2, 2)), [0., 1.], obs.receiver)
-        dataset.set_weight_matrix_for_set(0, np.eye(4) + .25 * np.ones((4, 4)))
-    original_weights = dataset.get_weight_matrix().toarray().copy()
 
     def create_dataset(tracking, bodies, apply_corrections):
-        assert tracking == (["Gaia observations"] if gaia is not None else [])
-        assert apply_corrections is True  # MPC corrections stay enabled.
+        assert tracking == []
+        assert apply_corrections is True
         return dataset
 
     monkeypatch.setattr(example.observations, "create_observation_dataset_from_tracking_data", create_dataset)
@@ -536,19 +504,10 @@ def test_single_body_setup_uses_global_settings_and_internal_initialization(monk
 
     monkeypatch.setattr(example.estimation_analysis, "Estimator", Estimator)
     monkeypatch.setattr(example.estimation_analysis, "EstimationInput", EstimationInput)
-    result = example.perform_estimation([], [], -day, day, gaia)
+    result = example.perform_estimation([], [], -day, day)
     parameters = captured["estimated_parameters"]
     assert parameters.parameter_set_size == (7 if yarkovsky else 6)
     np.testing.assert_allclose(parameters.parameter_vector[:6], initial, atol=1.e-3)
     if yarkovsky:
         assert parameters.parameter_vector[6] == 0.
-    assert len(result) == 4 and result[0] is output
-    np.testing.assert_array_equal(dataset.get_weight_matrix().toarray(), original_weights)
-    if gaia is None:
-        assert result[3] is None
-    else:
-        assert result[3] is not gaia
-        assert result[3].corrected is gaia_corrections
-        np.testing.assert_allclose(gaia.table["ra"], [1., 2.])
-        np.testing.assert_allclose(result[3].table["ra"], [4., 5.] if gaia_corrections else [1., 2.])
-    assert radius_queries == ([example.TARGET] if gaia_corrections and not yarkovsky else [])
+    assert len(result) == 3 and result[0] is output
