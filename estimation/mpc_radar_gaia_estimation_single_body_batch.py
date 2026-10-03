@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import traceback
+from types import SimpleNamespace
 
 RUNNER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
@@ -80,6 +81,63 @@ def baseline(manifest, targets):
     od.OBSERVATION_END = dt.datetime.fromisoformat(manifest['end'])
     od.NUMBER_OF_ESTIMATION_ITERATIONS = manifest['iterations']
     od.RUN_ONLY_LAST_SETUP = True
+    kernels = manifest.get('kernel_overrides', {})
+    if kernels:
+        original_kernel_load = od.spice.load_standard_kernels
+        preserved_asteroid_gms = {}
+        def configured_kernel_load(*args, **kwargs):
+            original_kernel_load(*args, **kwargs)
+            for number, _ in od.ASTEROID_PERTURBERS:
+                spice_id = od.spice.asteroid_spice_id(number)
+                if od.spice.check_body_property_in_kernel_pool(spice_id, 'GM'):
+                    preserved_asteroid_gms[str(number)] = od.spice.get_body_gravitational_parameter(spice_id)
+            for key in ('planetary_spk', 'planetary_gm_kernel'):
+                if key in kernels:
+                    path = Path(kernels[key])
+                    if not path.is_file():
+                        raise FileNotFoundError(path)
+                    od.spice.load_kernel(str(path))
+            print('Planetary kernel overrides: '+json.dumps(kernels), flush=True)
+        od.spice.load_standard_kernels = configured_kernel_load
+        original_system = od.environment_setup.create_system_of_bodies
+        def configured_system(settings):
+            for name, gm in preserved_asteroid_gms.items():
+                settings.get(name).gravity_field_settings = od.environment_setup.gravity_field.central(gm)
+            if 'planetary_gm_kernel' in kernels:
+                # Set TDB GM after the baseline Earth TT-to-TDB conversion.
+                for name in ('Earth', 'Moon'):
+                    gm = od.spice.get_body_gravitational_parameter(name)
+                    gravity = settings.get(name).gravity_field_settings
+                    if hasattr(gravity, 'gravitational_parameter'):
+                        gravity.gravitational_parameter = gm
+                    else:
+                        settings.get(name).gravity_field_settings = od.environment_setup.gravity_field.central(gm)
+            return original_system(settings)
+        od.environment_setup.create_system_of_bodies = configured_system
+    diagnostic = manifest.get('diagnostic_overrides', {})
+    if diagnostic:
+        allowed = {'rejection_threshold', 'recovery_threshold', 'first_rejection_iteration', 'setup'}
+        if set(diagnostic) - allowed:
+            raise ValueError('Unsupported diagnostic override')
+        original_rejection = od.estimation_analysis.carpino_outlier_rejection_settings
+        def configured_rejection(*args, **kwargs):
+            for key, setting in [('rejection_threshold', 'chi2_rejection_threshold'),
+                                 ('recovery_threshold', 'chi2_recovery_threshold')]:
+                if key in diagnostic:
+                    kwargs[setting] = float(diagnostic[key])
+            if 'first_rejection_iteration' in diagnostic:
+                kwargs['first_iteration_with_rejection'] = int(diagnostic['first_rejection_iteration'])
+            return original_rejection(*args, **kwargs)
+        od.estimation_analysis.carpino_outlier_rejection_settings = configured_rejection
+        if 'setup' in diagnostic:
+            original_load = od.load_tracking_data
+            def selected_tracking_data():
+                setups, first, last, epoch = original_load()
+                label = diagnostic['setup']
+                if label not in setups:
+                    raise ValueError(f'Diagnostic setup unavailable: {label}')
+                return {label: setups[label]}, first, last, epoch
+            od.load_tracking_data = selected_tracking_data
     numerical = manifest.get('numerical_overrides', {})
     if 'maximum_step' in numerical:
         od.INTEGRATOR_MAXIMUM_STEP = float(numerical['maximum_step'])
@@ -189,14 +247,17 @@ def export_fit(od, output, dataset, estimator, destination, label, first, last, 
     body_covariances = np.array([
         [np.asarray(propagated[t])[6*i:6*i+6, 6*i:6*i+6] for i in range(len(od.ACTIVE_TARGETS))]
         for t in epochs])
-    prior = np.zeros_like(covariance)
-    if od.ESTIMATE_SUN_J2:
-        prior[indices['C20'],indices['C20']] = 1/(od.SUN_J2_PRIOR_SIGMA/np.sqrt(5))**2
+    prior = np.asarray(od.solar_j2_inverse_apriori_covariance(
+        SimpleNamespace(parameter_vector=parameters[:,-1])))
+    if prior.shape != covariance.shape:
+        raise RuntimeError('Unexpected prior covariance layout')
     save_arrays(destination / 'fit.npz', parameter_names=names, parameter_units=units,
         parameter_history=parameters, last_evaluated_parameters=od.last_iteration_parameters(output),
         covariance=covariance, formal_errors=np.sqrt(np.diag(covariance)),
         correlation=covariance/np.sqrt(np.outer(np.diag(covariance), np.diag(covariance))),
         residual_history=output.residual_history, best_iteration=output.best_iteration,
+        best_parameters=output.final_parameters, best_residuals=output.final_residuals,
+        active_flags_per_iteration=output.active_flags_per_iteration,
         last_evaluated_iteration=np.asarray(output.residual_history).shape[1]-1,
         normalized_design_matrix=output.normalized_design_matrix,
         normalization=output.normalization_terms, estimation_epoch=epoch,
@@ -250,6 +311,8 @@ def export_fit(od, output, dataset, estimator, destination, label, first, last, 
         weighted_rank=rank,parameter_count=len(names),balanced_condition=condition,
         maximum_step=od.INTEGRATOR_MAXIMUM_STEP,
         numerical_overrides=manifest_path(destination).get('numerical_overrides', {}),
+        diagnostic_overrides=manifest_path(destination).get('diagnostic_overrides', {}),
+        kernel_overrides=manifest_path(destination).get('kernel_overrides', {}),
         station_exclusions=od.campaign_station_exclusions,
         beta=float(od.last_iteration_parameters(output)[beta_index]),
         beta_sigma=float(np.sqrt(covariance[beta_index,beta_index])),
@@ -488,7 +551,15 @@ def campaign(args):
             extra_excluded_stations=[],python=sys.executable,runner_sha256=digest(__file__),
             numerical_overrides={key:value for key,value in {
                 'maximum_step':args.maximum_step,
-                'state_interpolation_order':args.state_interpolation_order}.items() if value is not None})
+                'state_interpolation_order':args.state_interpolation_order}.items() if value is not None},
+            diagnostic_overrides={key:value for key,value in {
+                'rejection_threshold':args.rejection_threshold,
+                'recovery_threshold':args.recovery_threshold,
+                'setup':args.setup,
+                'first_rejection_iteration':args.first_rejection_iteration}.items() if value is not None},
+            kernel_overrides={key:str(value.resolve()) for key,value in {
+                'planetary_spk':args.planetary_spk,
+                'planetary_gm_kernel':args.planetary_gm_kernel}.items() if value is not None})
         write_json(manifest_file,manifest)
     if digest(manifest['original_source']) != manifest['baseline_sha256']:
         raise RuntimeError('Protected joint source has changed; refusing mixed campaign')
@@ -524,6 +595,12 @@ def main():
     parser.add_argument('--iterations',type=int,help='Override only for smoke tests')
     parser.add_argument('--maximum-step',type=float,help='Optional maximum step override [s], for numerical convergence studies')
     parser.add_argument('--state-interpolation-order',type=int,help='Optional propagated-ephemeris Lagrange point count')
+    parser.add_argument('--planetary-spk', type=Path, help='Optional planetary SPK override; retain baseline asteroid masses')
+    parser.add_argument('--planetary-gm-kernel', type=Path, help='Optional matching planetary GM kernel')
+    parser.add_argument('--rejection-threshold', type=float, help='Override Carpino rejection threshold for a separate diagnostic campaign')
+    parser.add_argument('--recovery-threshold', type=float, help='Override Carpino recovery threshold for a separate diagnostic campaign')
+    parser.add_argument('--first-rejection-iteration', type=int, help='Delay rejection for a separate diagnostic campaign (zero-based)')
+    parser.add_argument('--setup', help='Select an observation setup for a separate diagnostic campaign')
     parser.add_argument('--skip-joint',action='store_true',help='Validate independent workers without joint fit')
     args = parser.parse_args()
     args.campaign = args.campaign.resolve()

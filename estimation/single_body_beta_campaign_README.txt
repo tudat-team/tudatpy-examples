@@ -45,3 +45,36 @@ Optional --maximum-step (seconds) and --state-interpolation-order overrides are
 for separate numerical convergence studies. They are recorded in the manifest;
 combined rankings reject campaigns with different numerical settings. They do
 not change the default scientific setup or the protected multi-body script.
+
+Final joint runs can override the maximum step and state interpolation in their
+new manifest's numerical_overrides; for the best-15 run these are maximum_step
+43200 and state_interpolation_order 10. Retain the completed original campaign
+manifest when studying different numerics in a separate campaign directory.
+
+New fit exports also contain best parameters/residuals and the active flags for
+each iteration. These map the best-fit design matrix to its actual observation
+rows even when the rejection mask differs from the last iteration's mask.
+The actual inverse prior covariance is exported from the same setup function
+used by the estimator. No states are stored per iteration.
+
+For separate diagnostic campaigns, --rejection-threshold, --recovery-threshold,
+--first-rejection-iteration and --setup select controlled tests. Optional
+--planetary-spk and --planetary-gm-kernel load planetary kernel overrides after
+the default kernels; the original asteroid perturber masses are preserved.
+All overrides are recorded and campaigns with different settings cannot be
+combined in one uncertainty ranking. None of these options changes defaults.
+
+Inspect an exported single-body fit with rejection flags:
+  python diagnose_single_body_beta.py <result-directory>
+This checks linearized source/transit/radar influence and predictive residuals
+with the rejection mask held fixed; it does not replace nonlinear refitting.
+  python check_rejected_covariance.py <result-directory>
+This compares the active precision matrix against the precision obtained by
+selecting retained rows of each full covariance matrix. It writes a separate
+linearized comparison and preserves the original fit.
+
+For a joint fit with saved best-iteration flags:
+  python profile_joint_beta.py <result-directory>
+This removes each body's observations and its initial-state/A2 columns in turn
+and solves the remaining linearized nuisance parameters. The original fit is
+preserved. Use the output to assess which body drives the joint beta result.

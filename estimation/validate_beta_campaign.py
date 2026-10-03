@@ -32,6 +32,16 @@ def validate(directory):
     assert np.count_nonzero(~obs['rejected_mask']) == len(obs['active_rows'])
     assert sparse.load_npz(directory / 'observation_weights.npz').shape == (len(obs['all_observations']),)*2
     assert len(eph['state_epochs']) == len(eph['integration_states'])
+    steps = np.diff(eph['integration_epochs'])
+    assert np.all(steps > 0)
+    assert np.max(steps) <= summary.get('maximum_step', 36*3600)*(1+1e-10)
+    if 'active_flags_per_iteration' in fit:
+        flags = fit['active_flags_per_iteration']
+        assert flags.shape == fit['residual_history'].shape
+        best = int(fit['best_iteration'])
+        assert np.count_nonzero(flags[:,best]) == len(fit['normalized_design_matrix'])
+        np.testing.assert_allclose(fit['best_residuals'].reshape(-1), fit['residual_history'][flags[:,best],best])
+        np.testing.assert_allclose(fit['best_parameters'].reshape(-1), fit['parameter_history'][:,best])
     assert eph['comparison_epochs'][0] >= eph['integration_epochs'][0] + 10*summary.get("maximum_step",36*3600)
     assert eph['comparison_epochs'][-1] <= eph['integration_epochs'][-1] - 10*summary.get("maximum_step",36*3600)
     # Check rotation and epochwise covariance normalization independently.
@@ -58,7 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('campaign', type=Path)
     parser.add_argument('--completed-only', action='store_true')
     args = parser.parse_args()
-    for directory in sorted((args.campaign / 'targets').iterdir()):
+    for directory in sorted((args.campaign / 'targets').glob('*')):
         if directory.is_dir():
             if args.completed_only and (not (directory/'summary.json').exists() or json.loads((directory/'summary.json').read_text())['status'] != 'completed'):
                 continue
