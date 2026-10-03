@@ -21,6 +21,8 @@ import sys
 import time
 import traceback
 
+RUNNER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
 TARGETS = (
     '3200 1566 66146 137924 437844 138127 480883 468468 364136 33342 '
     '85989 85953 2100 99907 2062 153201 524522 2340 162004 276033 '
@@ -78,6 +80,20 @@ def baseline(manifest, targets):
                 excluded | set(kwargs.get('observatories_exclude', [])))
             return super().filter(*args, **kwargs)
     od.BatchMPC = CampaignBatchMPC
+    original_horizons = od.HorizonsQuery
+    class RetryingHorizonsQuery(original_horizons):
+        def cartesian(self, *args, **kwargs):
+            import requests
+            for attempt in range(5):
+                try:
+                    return super().cartesian(*args, **kwargs)
+                except (requests.RequestException, TimeoutError) as exc:
+                    if attempt == 4:
+                        raise
+                    delay = 2**(attempt+1)
+                    print(f'Horizons request failed ({exc}); retrying in {delay} s', flush=True)
+                    time.sleep(delay)
+    od.HorizonsQuery = RetryingHorizonsQuery
     return od
 
 
@@ -185,6 +201,7 @@ def export_fit(od, output, dataset, estimator, destination, label, first, last, 
     condition = float(np.linalg.cond(balanced))
     print(f'Weighted system including prior: rank {rank}/{len(names)}, balanced condition {condition:.6g}',flush=True)
     summary = dict(status='fit_saved', targets=od.ACTIVE_TARGETS, setup=label,
+        runner_sha256=RUNNER_SHA256,
         saved_state_iterations=len(output.simulation_results_per_iteration),
         weighted_rank=rank,parameter_count=len(names),balanced_condition=condition,
         beta=float(od.last_iteration_parameters(output)[beta_index]),
