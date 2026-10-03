@@ -56,9 +56,12 @@ def validate(directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('campaign', type=Path)
+    parser.add_argument('--completed-only', action='store_true')
     args = parser.parse_args()
     for directory in sorted((args.campaign / 'targets').iterdir()):
         if directory.is_dir():
+            if args.completed_only and (not (directory/'summary.json').exists() or json.loads((directory/'summary.json').read_text())['status'] != 'completed'):
+                continue
             validate(directory)
     if (args.campaign / 'joint_top20' / 'summary.json').exists():
         validate(args.campaign / 'joint_top20')

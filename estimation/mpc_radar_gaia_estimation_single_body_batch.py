@@ -57,6 +57,19 @@ def save_arrays(path, **arrays):
     tmp.replace(path)
 
 
+def retry_request(function, *args, **kwargs):
+    import requests
+    for attempt in range(6):
+        try:
+            return function(*args, **kwargs)
+        except (requests.RequestException, TimeoutError) as exc:
+            if attempt == 5:
+                raise
+            delay = min(60, 5*2**attempt)
+            print(f'Request failed ({exc}); retrying in {delay} s', flush=True)
+            time.sleep(delay)
+
+
 def baseline(manifest, targets):
     spec = importlib.util.spec_from_file_location('campaign_baseline', manifest['snapshot'])
     od = importlib.util.module_from_spec(spec)
@@ -75,6 +88,9 @@ def baseline(manifest, targets):
     original = od.BatchMPC
     excluded = set(manifest.get('extra_excluded_stations', []))
     class CampaignBatchMPC(original):
+        def get_observations(self, *args, **kwargs):
+            return retry_request(super().get_observations, *args, **kwargs)
+
         def filter(self, *args, **kwargs):
             kwargs['observatories_exclude'] = sorted(
                 excluded | set(kwargs.get('observatories_exclude', [])))
@@ -83,17 +99,15 @@ def baseline(manifest, targets):
     original_horizons = od.HorizonsQuery
     class RetryingHorizonsQuery(original_horizons):
         def cartesian(self, *args, **kwargs):
-            import requests
-            for attempt in range(5):
-                try:
-                    return super().cartesian(*args, **kwargs)
-                except (requests.RequestException, TimeoutError) as exc:
-                    if attempt == 4:
-                        raise
-                    delay = 2**(attempt+1)
-                    print(f'Horizons request failed ({exc}); retrying in {delay} s', flush=True)
-                    time.sleep(delay)
+            return retry_request(super().cartesian, *args, **kwargs)
     od.HorizonsQuery = RetryingHorizonsQuery
+    original_radar = od.JPLRadarQuery
+    class RetryingRadarQuery(original_radar):
+        def to_radar_data(self, *args, **kwargs):
+            return retry_request(super().to_radar_data, *args, **kwargs)
+    od.JPLRadarQuery = RetryingRadarQuery
+    original_gaia = od.load_gaia_astrometry
+    od.load_gaia_astrometry = lambda *args, **kwargs: retry_request(original_gaia, *args, **kwargs)
     return od
 
 
