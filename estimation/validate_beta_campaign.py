@@ -32,8 +32,8 @@ def validate(directory):
     assert np.count_nonzero(~obs['rejected_mask']) == len(obs['active_rows'])
     assert sparse.load_npz(directory / 'observation_weights.npz').shape == (len(obs['all_observations']),)*2
     assert len(eph['state_epochs']) == len(eph['integration_states'])
-    assert eph['comparison_epochs'][0] >= eph['integration_epochs'][0] + 10*36*3600
-    assert eph['comparison_epochs'][-1] <= eph['integration_epochs'][-1] - 10*36*3600
+    assert eph['comparison_epochs'][0] >= eph['integration_epochs'][0] + 10*summary.get("maximum_step",36*3600)
+    assert eph['comparison_epochs'][-1] <= eph['integration_epochs'][-1] - 10*summary.get("maximum_step",36*3600)
     # Check rotation and epochwise covariance normalization independently.
     for i in range(len(orbit['targets'])):
         h = orbit['horizons_states'][:, i]
@@ -63,5 +63,8 @@ if __name__ == '__main__':
             if args.completed_only and (not (directory/'summary.json').exists() or json.loads((directory/'summary.json').read_text())['status'] != 'completed'):
                 continue
             validate(directory)
-    if (args.campaign / 'joint_top20' / 'summary.json').exists():
-        validate(args.campaign / 'joint_top20')
+    for directory in sorted(args.campaign.glob('joint_*')):
+        if (directory / 'summary.json').exists():
+            if args.completed_only and json.loads((directory/'summary.json').read_text())['status'] != 'completed':
+                continue
+            validate(directory)

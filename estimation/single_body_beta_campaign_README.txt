@@ -25,3 +25,23 @@ selected_top20.json records the chosen targets. joint_top20/ contains the joint
 fit using the frozen joint script with only its target list overridden in memory.
 Validate exports without refitting:
   python validate_beta_campaign.py single_body_beta_campaign
+
+Additional campaigns can use a different list without changing the frozen source:
+  python mpc_radar_gaia_estimation_single_body_batch.py --campaign additional --workers 8 --skip-joint --targets <IDs>
+The worker limit is 8; use 3 while a simultaneous large joint fit is running.
+Each worker limits BLAS/OpenMP to one thread.
+
+Combine completed campaigns with matching scientific settings and select 25:
+  python rank_single_body_campaigns.py single_body_beta_campaign additional --count 25 --output combined_ranking
+Run the JSON-selected targets together using the worker mode:
+  python mpc_radar_gaia_estimation_single_body_batch.py --mode worker --campaign single_body_beta_campaign --destination single_body_beta_campaign/joint_top25 --targets <selected IDs>
+
+Stations missing from the configured MPC Earth catalog are excluded. Spacecraft
+observations with only one receiver position epoch are excluded for that target,
+because a linear receiver ephemeris needs at least two points. Other spacecraft
+observations remain available. Exclusions are recorded in summary.json and logs.
+
+Optional --maximum-step (seconds) and --state-interpolation-order overrides are
+for separate numerical convergence studies. They are recorded in the manifest;
+combined rankings reject campaigns with different numerical settings. They do
+not change the default scientific setup or the protected multi-body script.

@@ -80,6 +80,19 @@ def baseline(manifest, targets):
     od.OBSERVATION_END = dt.datetime.fromisoformat(manifest['end'])
     od.NUMBER_OF_ESTIMATION_ITERATIONS = manifest['iterations']
     od.RUN_ONLY_LAST_SETUP = True
+    numerical = manifest.get('numerical_overrides', {})
+    if 'maximum_step' in numerical:
+        od.INTEGRATOR_MAXIMUM_STEP = float(numerical['maximum_step'])
+        if od.INTEGRATOR_MAXIMUM_STEP <= 0:
+            raise ValueError('Maximum step must be positive')
+    if 'state_interpolation_order' in numerical:
+        original_translational = od.propagation_setup.propagator.translational
+        def configured_translational(*args, **kwargs):
+            settings = original_translational(*args, **kwargs)
+            settings.processing_settings.interpolator_settings = od.interpolators.lagrange_interpolation(
+                int(numerical['state_interpolation_order']))
+            return settings
+        od.propagation_setup.propagator.translational = configured_translational
     od.GAIA_ARCHIVE_PATHS = {
         target: Path(manifest['data_directory']) / f'gaia_{target}_fpr.parquet'
         for target in targets
@@ -87,6 +100,9 @@ def baseline(manifest, targets):
     # New catalog omissions can be excluded without changing the frozen example.
     original = od.BatchMPC
     excluded = set(manifest.get('extra_excluded_stations', []))
+    known_ground = {station.station_name for station in od.environment_setup.ground_station.optical_telescope_stations()}
+    removed_stations = {}
+    od.campaign_station_exclusions = removed_stations
     class CampaignBatchMPC(original):
         def get_observations(self, *args, **kwargs):
             return retry_request(super().get_observations, *args, **kwargs)
@@ -94,7 +110,21 @@ def baseline(manifest, targets):
         def filter(self, *args, **kwargs):
             kwargs['observatories_exclude'] = sorted(
                 excluded | set(kwargs.get('observatories_exclude', [])))
-            return super().filter(*args, **kwargs)
+            result = super().filter(*args, **kwargs)
+            from tudatpy.data_input.tracking_data.optical_utilities.optical_utilities import _spacecraft_observation_mask
+            table = self.table
+            space = _spacecraft_observation_mask(table)
+            missing = set(table.loc[~space,'observatory'].astype(str)) - known_ground
+            for code in missing:
+                removed_stations[code] = 'No Earth station in the configured MPC station catalog'
+            for code, group in table.loc[space].groupby('observatory'):
+                if group['epoch_seconds_UTC'].nunique() < 2:
+                    missing.add(str(code))
+                    removed_stations[str(code)] = 'Only one spacecraft position epoch; receiver ephemeris cannot be interpolated'
+            if missing:
+                print('Excluding stations with unavailable receiver states: '+', '.join(sorted(missing)),flush=True)
+                super().filter(observatories_exclude=sorted(missing))
+            return result
     od.BatchMPC = CampaignBatchMPC
     original_horizons = od.HorizonsQuery
     class RetryingHorizonsQuery(original_horizons):
@@ -218,6 +248,9 @@ def export_fit(od, output, dataset, estimator, destination, label, first, last, 
         runner_sha256=RUNNER_SHA256,
         saved_state_iterations=len(output.simulation_results_per_iteration),
         weighted_rank=rank,parameter_count=len(names),balanced_condition=condition,
+        maximum_step=od.INTEGRATOR_MAXIMUM_STEP,
+        numerical_overrides=manifest_path(destination).get('numerical_overrides', {}),
+        station_exclusions=od.campaign_station_exclusions,
         beta=float(od.last_iteration_parameters(output)[beta_index]),
         beta_sigma=float(np.sqrt(covariance[beta_index,beta_index])),
         best_iteration=int(output.best_iteration), iterations=int(output.residual_history.shape[1]),
@@ -452,7 +485,10 @@ def campaign(args):
             original_source=str(source),baseline_sha256=digest(source),data_directory=str(source.parent),
             start=args.start or '1980-01-01T00:00:00',end=args.end or od.OBSERVATION_END.isoformat(),
             iterations=args.iterations or od.NUMBER_OF_ESTIMATION_ITERATIONS,
-            extra_excluded_stations=[],python=sys.executable,runner_sha256=digest(__file__))
+            extra_excluded_stations=[],python=sys.executable,runner_sha256=digest(__file__),
+            numerical_overrides={key:value for key,value in {
+                'maximum_step':args.maximum_step,
+                'state_interpolation_order':args.state_interpolation_order}.items() if value is not None})
         write_json(manifest_file,manifest)
     if digest(manifest['original_source']) != manifest['baseline_sha256']:
         raise RuntimeError('Protected joint source has changed; refusing mixed campaign')
@@ -486,6 +522,8 @@ def main():
     parser.add_argument('--start',help='Override observation cutoff (ISO UTC; default 1980-01-01)')
     parser.add_argument('--end',help='Override end (default companion script setting)')
     parser.add_argument('--iterations',type=int,help='Override only for smoke tests')
+    parser.add_argument('--maximum-step',type=float,help='Optional maximum step override [s], for numerical convergence studies')
+    parser.add_argument('--state-interpolation-order',type=int,help='Optional propagated-ephemeris Lagrange point count')
     parser.add_argument('--skip-joint',action='store_true',help='Validate independent workers without joint fit')
     args = parser.parse_args()
     args.campaign = args.campaign.resolve()

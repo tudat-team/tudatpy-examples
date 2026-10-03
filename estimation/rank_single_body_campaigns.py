@@ -11,7 +11,7 @@ def combine(campaigns, output, count):
     settings = None
     for campaign in campaigns:
         manifest = json.loads((campaign/'manifest.json').read_text())
-        signature = tuple(manifest[key] for key in ('baseline_sha256', 'start', 'end', 'iterations'))
+        signature = tuple(manifest[key] for key in ('baseline_sha256', 'start', 'end', 'iterations')) + (json.dumps(manifest.get('numerical_overrides', {}),sort_keys=True),)
         if settings is None:
             settings = signature
         elif settings != signature:
@@ -52,7 +52,7 @@ def combine(campaigns, output, count):
         targets=[row['target'] for row in rows[:count]], ranking=rows,
         criterion='ascending returned formal beta uncertainty', no_data=absent,
         campaigns=[str(path.resolve()) for path in campaigns],
-        scientific_settings=dict(zip(('baseline_sha256','start','end','iterations'),settings))),indent=2)+'\n')
+        scientific_settings=dict(zip(('baseline_sha256','start','end','iterations','numerical_overrides'),settings))),indent=2)+'\n')
     for i,row in enumerate(rows[:count],1):
         print(f"{i:2d}. {row['target']:>6}: sigma_beta = {row['beta_sigma']:.8g}")
 
