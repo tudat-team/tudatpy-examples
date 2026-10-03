@@ -482,7 +482,7 @@ def main():
     parser.add_argument('--baseline',type=Path,default=Path(__file__).with_name('mpc_radar_gaia_estimation_multi_body.py'))
     parser.add_argument('--destination',type=Path)
     parser.add_argument('--targets',nargs='+')
-    parser.add_argument('--workers',type=int,choices=range(1,6),default=5)
+    parser.add_argument('--workers',type=int,choices=range(1,9),default=5)
     parser.add_argument('--start',help='Override observation cutoff (ISO UTC; default 1980-01-01)')
     parser.add_argument('--end',help='Override end (default companion script setting)')
     parser.add_argument('--iterations',type=int,help='Override only for smoke tests')
