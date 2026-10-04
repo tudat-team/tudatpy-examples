@@ -78,3 +78,16 @@ For a joint fit with saved best-iteration flags:
 This removes each body's observations and its initial-state/A2 columns in turn
 and solves the remaining linearized nuisance parameters. The original fit is
 preserved. Use the output to assess which body drives the joint beta result.
+
+For the isolated 66391 radiation-pressure diagnostic, the separate
+run_beta_radiation_pressure_diagnostic.py worker imports the frozen baseline
+and estimates both its existing A2 and a cannonball solar-pressure Cr. Its
+manifest supplies radiation_pressure_diagnostic with reference_radius_m,
+reference_density_kg_m3, and initial_coefficient. The reference area is pi*r^2
+and mass is 4*pi*density*r^3/3. Cr is free and signed, with no prior; the radius
+and density only set its scale, so Cr is conditional on that assumed area/mass.
+The summary and raw log also give the effective radial acceleration at 1 AU
+and correlations with beta, A2, and solar C20. The original joint script,
+solar C20 prior, observation/rejection settings, and fixed variational
+equations are retained. The numerical comparison uses a six-hour maximum
+step and ten-point state interpolation; manifests retain the exact settings.
