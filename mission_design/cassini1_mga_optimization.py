@@ -269,8 +269,8 @@ Before executing the optimization, it is necessary to select the bounds for the 
 
 
 # Lower and upper bound on departure date
-departure_date_lb = DateTime(1997, 4, 6).epoch()
-departure_date_ub = DateTime(1999, 12, 31).epoch()
+departure_date_lb = DateTime(1997, 4, 6).to_epoch()
+departure_date_ub = DateTime(1999, 12, 31).to_epoch()
 
 # List of lower and upper on time of flight for each leg
 legs_tof_lb = np.zeros(5)
@@ -405,7 +405,7 @@ print("Jupiter-Saturn time of flight [days]: ", best_decision_variables[5])
 fig, ax = plt.subplots(figsize=(8, 4))
 ax.plot(
     np.arange(0, number_of_evolutions),
-    np.float_(fitness_list) / 1000,
+    np.float64(fitness_list) / 1000,
     label="Function value: Feval",
 )
 # Plot champion

@@ -461,8 +461,8 @@ To ensure the porkchop plot is rendered with good resolution, the time resolutio
 
 time_window_percentage = 0.5
 time_resolution = time_resolution = min(
-        latest_departure_time.epoch() - earliest_departure_time.epoch(),
-        latest_arrival_time.epoch()   - earliest_arrival_time.epoch()
+        latest_departure_time.to_epoch() - earliest_departure_time.to_epoch(),
+        latest_arrival_time.to_epoch()   - earliest_arrival_time.to_epoch()
 ) / constants.JULIAN_DAY * time_window_percentage / 100
 
 
@@ -598,8 +598,8 @@ def inspect_low_thrust_trajectory(
     ###########################################################################
 
     trajectory_parameters = [
-        departure_date.epoch() / constants.JULIAN_DAY,
-        (arrival_date.epoch() - departure_date.epoch()) / constants.JULIAN_DAY,
+        departure_date.to_epoch() / constants.JULIAN_DAY,
+        (arrival_date.to_epoch() - departure_date.to_epoch()) / constants.JULIAN_DAY,
         number_of_revolutions,
         *radial_velocity_shaping_free_coefficients,
         *normal_velocity_shaping_free_coefficients,
@@ -613,8 +613,8 @@ def inspect_low_thrust_trajectory(
     time_buffer = 30.0 * constants.JULIAN_DAY
 
     # Propagation time settings
-    initial_propagation_time = departure_date.epoch() + time_buffer
-    final_propagation_time = arrival_date.epoch() - time_buffer
+    initial_propagation_time = departure_date.to_epoch() + time_buffer
+    final_propagation_time = arrival_date.to_epoch() - time_buffer
 
     ###########################################################################
     # OBTAIN LOW-THRUST SHAPE-BASED SEMI-ANALYTICAL TRAJECTORY ################

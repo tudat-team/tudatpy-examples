@@ -55,7 +55,7 @@ spice.load_standard_kernels()
 ### Setting some constants
 Let's setup some constants that are used throughout the tutorial. The **MPC code** for Eros is 433. We also set a start and end date for our observations, the number of iterations for our estimation, a timestep for our integrator and a 1 month buffer to avoid interpolation errors in our analysis.
 
-We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
+We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SBDB to retrieve the name and SPK-ID used for the spice kernel.
 
 For our frame origin we use the Solar System Barycenter. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
 """
@@ -78,6 +78,7 @@ timestep_global = 20 * 3600.0
 
 # 1 month time buffer used to avoid interpolation errors:
 time_buffer = 1 * 31 * 86400.0
+
 
 # define the frame origin and orientation.
 global_frame_origin = "SSB"
@@ -111,9 +112,6 @@ batch.filter(
     epoch_end=observations_end,
 )
 
-batch.summary()
-
-
 """
 Other than **Earth-based telescopes**, our batch also includes observations from **space telescopes**.
 Let's check that out. 
@@ -131,13 +129,12 @@ As we can see, observations by WISE, TESS and Yangwang, as well as some non-geoc
 
 obs_by_WISE = (
     batch.table.query("observatory == 'C51'")
-    .loc[:, ["number", "epochUTC", "RA", "DEC"]]
+    .loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
     .iloc[[0, -1]]
 )
 
 print("\nInitial and Final Observations by WISE:")
 print(obs_by_WISE)
-
 
 """
 While the observations from space telescopes appear to be useful, including them requires setting up the dynamics for the spacecraft, which is too advanced for this tutorial. Space-based observations will therefore be excluded later on in this example. 
@@ -286,7 +283,6 @@ For the integrator we use the fixed timestep RKF-7(8) setting our initial time t
 
 # Create numerical integrator settings
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    epoch_start_buffer,
     timestep_global,
     propagation_setup.integrator.CoefficientSets.rkf_78,
     timestep_global,

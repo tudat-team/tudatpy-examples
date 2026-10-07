@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 4.3.2 commit date:2024-12-16, commit time:21:10, hash:32f5fdce0a0a</authoring_tool>
+    </contributor>
+    <created>2025-04-08T12:40:24</created>
+    <modified>2025-04-08T12:40:24</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="HGA_front-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <color sid="diffuse">0.6279511 0.6279511 0.6279511 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.5</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="HGA_back-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <diffuse>
+              <color sid="diffuse">0.3280128 0.3280128 0.3280128 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="ior">1.5</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_images/>
+  <library_materials>
+    <material id="HGA_front-material" name="HGA_front">
+      <instance_effect url="#HGA_front-effect"/>
+    </material>
+    <material id="HGA_back-material" name="HGA_back">
+      <instance_effect url="#HGA_back-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="MRO_hga_8-mesh" name="MRO_hga_8">
+      <mesh>
+        <source id="MRO_hga_8-mesh-positions">
+          <float_array id="MRO_hga_8-mesh-positions-array" count="72">0 1323.21 1372.9 -1060.66 2150.66 892.9001 -164.9047 1254.905 1372.9 2.00753e-5 2590 892.9001 -233.2105 1090 1372.9 -1500 1090 892.9001 -164.9047 925.0953 1372.9 -1060.66 29.3398 892.9001 -149.1014 1239.101 272.9 -210.8612 1090 272.9 3.82978e-5 1300.861 272.9 164.9046 1254.905 1372.9 1060.66 2150.66 892.9001 149.1014 1239.101 272.9 233.2104 1090 1372.9 1500 1090 892.9001 8.69478e-5 856.7896 1372.9 164.9047 925.0953 1372.9 2.47857e-6 -410 892.9001 -149.1014 940.8987 272.9 1060.66 29.33983 892.9001 0 879.1388 272.9 210.8612 1090 272.9 149.1014 940.8987 272.9</float_array>
+          <technique_common>
+            <accessor source="#MRO_hga_8-mesh-positions-array" count="24" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="MRO_hga_8-mesh-normals">
+          <float_array id="MRO_hga_8-mesh-normals-array" count="132">-0.1452112 0.3505721 0.9252097 -0.1452116 0.3505716 0.9252097 -0.3505718 0.1452116 0.9252097 -0.3505718 0.1452115 0.9252097 -0.3505718 -0.1452116 0.9252097 -0.3505718 -0.1452115 0.9252097 -0.4266002 0.1767036 -0.8870108 -0.4266002 0.1767035 -0.8870108 -0.1767036 0.4266002 -0.8870108 -0.1767036 0.4266001 -0.8870108 0.1452116 0.3505718 0.9252097 0.1452109 0.3505717 0.9252098 0.1767036 0.4266002 -0.8870108 0.1767036 0.4266001 -0.8870108 0.3505718 0.1452116 0.9252097 0.3505718 0.1452116 0.9252097 0 0 1 0 0 1 1.26368e-6 -1.26368e-6 1 6.31841e-7 2.61717e-7 1 0 0 1 -6.31841e-7 2.61717e-7 1 -0.1452115 -0.3505719 0.9252097 -0.1452116 -0.3505718 0.9252097 -0.4266001 -0.1767037 -0.8870108 -0.4266001 -0.1767035 -0.8870108 0.1452121 -0.3505713 0.9252099 0.1452116 -0.3505718 0.9252097 -0.1767037 -0.4266001 -0.8870108 -0.1767035 -0.4266001 -0.8870108 0 0 -1 0 0 -1 0 0 -1 0 0 -1 0 0 -1 0 0 -1 0.3505718 -0.1452119 0.9252097 0.3505718 -0.1452115 0.9252098 0.4266002 0.1767035 -0.8870108 0.4266002 0.1767036 -0.8870108 0.1767039 -0.4266001 -0.8870108 0.1767035 -0.4266002 -0.8870108 0.4266001 -0.1767036 -0.8870108 0.4266002 -0.1767035 -0.8870108</float_array>
+          <technique_common>
+            <accessor source="#MRO_hga_8-mesh-normals-array" count="44" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="MRO_hga_8-mesh-vertices">
+          <input semantic="POSITION" source="#MRO_hga_8-mesh-positions"/>
+        </vertices>
+        <triangles material="HGA_front-material" count="22">
+          <input semantic="VERTEX" source="#MRO_hga_8-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#MRO_hga_8-mesh-normals" offset="1"/>
+          <p>0 0 1 0 2 0 1 1 0 1 3 1 2 2 1 2 5 2 2 3 5 3 4 3 6 4 5 4 7 4 4 5 5 5 6 5 11 10 12 10 3 10 3 11 0 11 11 11 15 14 12 14 11 14 14 15 15 15 11 15 16 16 14 16 11 16 2 17 4 17 6 17 16 18 17 18 14 18 16 19 0 19 2 19 6 20 16 20 2 20 11 21 0 21 16 21 6 22 7 22 16 22 7 23 18 23 16 23 16 26 20 26 17 26 16 27 18 27 20 27 17 36 15 36 14 36 15 37 17 37 20 37</p>
+        </triangles>
+        <triangles material="HGA_back-material" count="22">
+          <input semantic="VERTEX" source="#MRO_hga_8-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#MRO_hga_8-mesh-normals" offset="1"/>
+          <p>5 6 1 6 8 6 8 7 9 7 5 7 8 8 1 8 10 8 1 9 3 9 10 9 10 12 12 12 13 12 10 13 3 13 12 13 5 24 9 24 19 24 19 25 7 25 5 25 19 28 21 28 18 28 18 29 7 29 19 29 22 30 21 30 19 30 22 31 8 31 10 31 22 32 23 32 21 32 22 33 9 33 8 33 10 34 13 34 22 34 19 35 9 35 22 35 15 38 22 38 13 38 13 39 12 39 15 39 23 40 18 40 21 40 20 41 18 41 23 41 23 42 22 42 15 42 15 43 20 43 23 43</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="MRO_hga_8" name="MRO_hga_8" type="NODE">
+        <matrix sid="transform">0.001 0 0 0 0 0.001 0 0 0 0 0.001 0 0 0 0 1</matrix>
+        <instance_geometry url="#MRO_hga_8-mesh" name="MRO_hga_8">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="HGA_front-material" target="#HGA_front-material"/>
+              <instance_material symbol="HGA_back-material" target="#HGA_back-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

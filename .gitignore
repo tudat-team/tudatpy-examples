@@ -64,5 +64,17 @@ estimation/grail_kernels
 estimation/mro_parallel_outputs
 estimation/Archive_grail
 estimation/outputs_mro
+mro_outputs/
 estimation/grail_residuals_output
 estimation/grail_estimation_output
+
+# mission data downloader
+mro_archive/
+CASSINI_CUSTOM_ARCHIVE/
+GRAIL_ARCHIVE/
+lro_archive/
+
+
+# output from run_selected_examples.py
+figures_selected/
+logs_selected/

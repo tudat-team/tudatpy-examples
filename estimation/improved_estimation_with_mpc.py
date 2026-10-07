@@ -15,15 +15,12 @@ As in the previous example we will estimate the initial state of [433 Eros](http
 
 # Tudat imports for propagation and estimation
 from tudatpy.interface import spice
-from tudatpy.dynamics import environment_setup, parameters_setup, parameters, propagation, propagation_setup
+from tudatpy.dynamics import environment_setup, parameters_setup, propagation_setup
 from tudatpy import estimation
-from tudatpy.estimation import observable_models_setup,observable_models, observations_setup, observations, estimation_analysis
+from tudatpy.estimation import observable_models_setup, estimation_analysis
 from tudatpy.constants import GRAVITATIONAL_CONSTANT
 from tudatpy.astro.frame_conversion import inertial_to_rsw_rotation_matrix
-from tudatpy.astro.time_representation import DateTime
-from tudatpy.astro import element_conversion
-
-# import MPC, SBDB and Horizons interface
+import matplotlib.gridspec as gridspec
 from tudatpy.data.mpc import BatchMPC
 from tudatpy.data.horizons import HorizonsQuery
 from tudatpy.data.sbdb import SBDBquery
@@ -52,7 +49,7 @@ spice.load_standard_kernels()
 ### Setting the input constants
 Let's setup some constants that are used throughout the tutorial. The MPC code for Eros is 433. We also set a start and end date for our observations, the number of iterations for our estimation, a timestep for our integrator and a 1 month buffer to avoid interpolation errors in our analysis.
 
-We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SDBD to retrieve the name and SPK-ID used for the spice kernel.
+We use a spice kernel to get a guess for our initial state and to check our estimation afterwards. The default spice kernel `codes_300ast_20100725.bsp` contains many popular asteroids, however they are not all identified by name (433 Eros is `"Eros"` but 16 Psyche is `"2000016"` etc.). To ensure this example works dynamically, for any single MPC code as input we use the SBDB to retrieve the name and SPK-ID used for the spice kernel.
 
 For our frame origin we use the Solar System Barycentre. The data from MPC is presented in the J2000 reference frame, currently BatchMPC does not support conversion to other reference frames and as such we match it in our environment. 
 
@@ -175,7 +172,6 @@ All NEAs from the archive are retrieved, as well as all MBA with a mass greater 
 
 lvl3_extra_bodies = ["999", "Triton", "Titania"]  # here 999 is Pluto in JPL Horizons
 lvl3_extra_bodies_masses = [1.3025e22, 2.1389e22, 3.4550e21]
-
 
 
 file = "SiMDA_240512.csv"
@@ -501,7 +497,6 @@ We use the same fixed timestep RKF-7(8) integrator as before, with the buffered 
 
 # Create numerical integrator settings
 integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-    time_representation.Time(epoch_start_buffer),
     time_representation.Time(timestep_global),
     propagation_setup.integrator.CoefficientSets.rkf_78,
     time_representation.Time(timestep_global),
@@ -1022,58 +1017,66 @@ def plot_cartesian_single(
     return fig, ax
 
 
-
-import matplotlib.gridspec as gridspec
-from matplotlib.lines import Line2D
-
-
 def plot_star_catalog_corrections(
         mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 6)
 ):
+    """
+    Plot star catalog RA/DEC corrections per observation with optional satellite observations.
 
+    Parameters
+    ----------
+    mpc_batch : BatchMPC
+        Batch containing table with epoch [Julian Days] 'epoch_seconds_TDB', 'epoch_seconds_UTC','corr_RA_EFCC18', 'corr_DEC_EFCC18', 'note2'.
+    include_satellites : bool, optional
+        Whether to include satellite observations, by default True
+    figsize : tuple, optional
+        Figure size, by default (9, 6)
+
+    Returns
+    -------
+    fig, ax1, ax2, hist1, hist2
+        Figure, RA axis, Dec axis, RA histogram, Dec histogram
+    """
+
+    # Extract data
     if include_satellites:
-        epochs = mpc_batch.table["epochUTC"].values
+        epochsUTC = mpc_batch.table["epoch_seconds_UTC"].values
         ra_corrections = mpc_batch.table["corr_RA_EFCC18"].values
         dec_corrections = mpc_batch.table["corr_DEC_EFCC18"].values
     else:
-        epochs = mpc_batch.table[mpc_batch.table["note2"] != "S"]["epochUTC"].values
-        ra_corrections = mpc_batch.table[mpc_batch.table["note2"] != "S"][
-            "corr_RA_EFCC18"
-        ].values
-        dec_corrections = mpc_batch.table[mpc_batch.table["note2"] != "S"][
-            "corr_DEC_EFCC18"
-        ].values
+        mask = mpc_batch.table["note2"] != "S"
+        epochsUTC = mpc_batch.table["epoch_seconds_UTC"][mask].values
+        ra_corrections = mpc_batch.table["corr_RA_EFCC18"][mask].values
+        dec_corrections = mpc_batch.table["corr_DEC_EFCC18"][mask].values
 
+    # Convert epochs to ISO strings (YYYY-MM-DD)
+    iso_labels = [DateTime.from_epoch(t).to_iso_string()[:10] for t in epochsUTC]
+
+    # Numeric x-axis positions
+    x = np.arange(len(epochsUTC))
+
+    # Set up figure and GridSpec
     fig = plt.figure(figsize=figsize, constrained_layout=True)
     gs = gridspec.GridSpec(
         2, 2, width_ratios=[4, 1], height_ratios=[1, 1], hspace=0.1, wspace=0.05
     )
 
-    # Scatter plots
     ax1 = fig.add_subplot(gs[0, 0])
     ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
 
-    # Histograms on the right
     hist1 = fig.add_subplot(gs[0, 1], sharey=ax1)
     hist2 = fig.add_subplot(gs[1, 1], sharey=ax2)
 
     # Scatter plots
-    ax1.scatter(epochs, ra_corrections, color="tab:blue", marker="+")
-    ax2.scatter(epochs, dec_corrections, color="tab:orange", marker="+")
+    ax1.scatter(x, ra_corrections, color="tab:blue", marker="+")
+    ax2.scatter(x, dec_corrections, color="tab:orange", marker="+")
 
     # Histograms
-    hist1.hist(
-        ra_corrections, bins=50, orientation="horizontal", color="tab:blue", alpha=0.6
-    )
-    hist2.hist(
-        dec_corrections,
-        bins=50,
-        orientation="horizontal",
-        color="tab:orange",
-        alpha=0.6,
-    )
+    hist1.hist(ra_corrections, bins=50, orientation="horizontal", color="tab:blue", alpha=0.6)
+    hist2.hist(dec_corrections, bins=50, orientation="horizontal", color="tab:orange", alpha=0.6)
     hist2.set_xlabel("Occurrences")
 
+    # Axis labels
     ax1.set_ylabel(r"Right Ascension $[rad]$")
     ax2.set_ylabel(r"Declination $[rad]$")
     ax2.set_xlabel("Epoch [UTC]")
@@ -1082,83 +1085,93 @@ def plot_star_catalog_corrections(
     ax1.tick_params(labelbottom=False)
     hist1.tick_params(labelleft=False, labelbottom=False)
     hist2.tick_params(labelleft=False)
+
+    # X-axis ISO tick labels
+    tick_spacing = max(1, len(x)//10)  # show ~10 ticks max
+    ax2.set_xticks(x[::tick_spacing])
+    ax2.set_xticklabels([iso_labels[i] for i in range(0, len(x), tick_spacing)], rotation=45, ha='right')
+
     fig.suptitle("Star Catalog Corrections (per observation)")
 
     return fig, ax1, ax2, hist1, hist2
 
-
 def plot_observation_weights(
-        mpc_batch: BatchMPC, include_satellites: bool = True, figsize=(9, 4)
+        mpc_batch, include_satellites: bool = True, figsize=(9, 4)
 ):
+    """
+    Plot observation weights per RA/DEC pair with optional satellite observations.
 
-    sat_epochs = mpc_batch.table[mpc_batch.table["note2"] == "S"]["epochUTC"].values
-    sat_weights = mpc_batch.table[mpc_batch.table["note2"] == "S"]["weight"].values
+    Parameters
+    ----------
+    mpc_batch : BatchMPC
+        Batch containing table with 'epoch_seconds_UTC', 'weight', and 'note2'.
+    include_satellites : bool, optional
+        Whether to include satellite observations, by default True
+    figsize : tuple, optional
+        Figure size, by default (9, 4)
 
-    reg_epochs = mpc_batch.table[mpc_batch.table["note2"] != "S"]["epochUTC"].values
-    reg_weights = mpc_batch.table[mpc_batch.table["note2"] != "S"]["weight"].values
+    Returns
+    -------
+    fig, ax, hist_ax
+        Figure, main scatter axis, histogram axis
+    """
 
-    # Set up figure and GridSpec for scatter + histogram
+    # Extract regular and satellite observations
+    reg_mask = mpc_batch.table["note2"] != "S"
+    sat_mask = mpc_batch.table["note2"] == "S"
+
+    reg_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][reg_mask].values
+    reg_weights = mpc_batch.table["weight"][reg_mask].values
+    reg_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in reg_epochsUTC]  # YYYY-MM-DD
+
+    if include_satellites:
+        sat_epochsUTC = mpc_batch.table["epoch_seconds_UTC"][sat_mask].values
+        sat_weights = mpc_batch.table["weight"][sat_mask].values
+        sat_iso = [DateTime.from_epoch(t).to_iso_string()[:10] for t in sat_epochsUTC]
+
+    # Numeric x-axis for plotting
+    reg_x = np.arange(len(reg_epochsUTC))
+    if include_satellites:
+        sat_x = np.arange(len(sat_epochsUTC)) + len(reg_x)  # offset to avoid overlap
+
+    # Set up figure and GridSpec
     fig = plt.figure(figsize=figsize)
     gs = gridspec.GridSpec(1, 2, width_ratios=[4, 1], wspace=0.05)
-
     ax = fig.add_subplot(gs[0])
-    ax.scatter(reg_epochs, reg_weights, marker="+")
-
-    if include_satellites:
-        ax.scatter(
-            sat_epochs, sat_weights, marker="+", color="tab:red", label="Satellite"
-        )
-
     hist_ax = fig.add_subplot(gs[1])
 
-    hist_ranges = (
-        min(reg_weights.min(), sat_weights.min()),
-        max(reg_weights.max(), sat_weights.max()),
-    )
-
-    hist_ax.hist(
-        reg_weights,
-        range=hist_ranges if include_satellites else None,
-        bins=30,
-        orientation="horizontal",
-        color="tab:blue",
-        alpha=0.6,
-        log=False,
-    )
-
+    # Scatter plots
+    ax.scatter(reg_x, reg_weights, marker="+", color="tab:blue", label="Regular")
     if include_satellites:
-        hist_ax.hist(
-            sat_weights,
-            range=hist_ranges,
-            bins=30,
-            orientation="horizontal",
-            color="tab:red",
-            alpha=0.6,
-            log=False,
-        )
+        ax.scatter(sat_x, sat_weights, marker="+", color="tab:red", label="Satellite")
+
+    # X-axis ticks and labels
+    all_x = np.concatenate([reg_x, sat_x]) if include_satellites else reg_x
+    all_iso = np.concatenate([reg_iso, sat_iso]) if include_satellites else reg_iso
+
+    tick_spacing = max(1, len(all_x) // 10)  # show ~10 ticks max
+    ax.set_xticks(all_x[::tick_spacing])
+    ax.set_xticklabels(all_iso[::tick_spacing], rotation=45, ha='right')
+
+    # Histogram
+    hist_ranges = (min(reg_weights.min(), sat_weights.min() if include_satellites else reg_weights.min()),
+                   max(reg_weights.max(), sat_weights.max() if include_satellites else reg_weights.max()))
+    hist_ax.hist(reg_weights, bins=30,
+                 range=hist_ranges if include_satellites else None,
+                 orientation="horizontal", color="tab:blue", alpha=0.6, log=False)
+    if include_satellites:
+        hist_ax.hist(sat_weights, bins=30, range=hist_ranges,
+                     orientation="horizontal", color="tab:red", alpha=0.6, log=False)
 
     hist_ax.tick_params(labelleft=False)
     hist_ax.grid(False)
     hist_ax.set_xlabel("Occurrences")
 
+    # Legends
     if include_satellites:
         legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="+",
-                color="tab:blue",
-                linestyle="None",
-                label="Regular",
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="+",
-                color="tab:red",
-                linestyle="None",
-                label="Satellite",
-            ),
+            Line2D([0], [0], marker="+", color="tab:blue", linestyle="None", label="Regular"),
+            Line2D([0], [0], marker="+", color="tab:red", linestyle="None", label="Satellite"),
         ]
         ax.legend(handles=legend_elements, title="Observatory Type")
 
@@ -1168,7 +1181,6 @@ def plot_observation_weights(
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     return fig, ax, hist_ax
-
 
 """
 ## Comparison Round 1: Acceleration models
@@ -1751,7 +1763,6 @@ fig, _, _ = plot_observation_weights(temp, include_satellites=False, figsize=(6,
 fig = batch.plot_observations_sky(figsize=(6, 4))
 fig.suptitle(f"{batch.size} observations for {target_name} in the sky")
 fig.axes[0].get_legend().remove()
-
 # fig.savefig("Eros_observations_sky.pdf")
 
 

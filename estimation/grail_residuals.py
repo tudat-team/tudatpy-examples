@@ -1,11 +1,33 @@
-# GRAIL - Comparing Doppler measurements from ODF files to simulated observables
 """
-Copyright (c) 2010-2022, Delft University of Technology. All rights reserved. This file is part of the Tudat. Redistribution and use in source and binary forms, with or without modification, are permitted exclusively under the terms of the Modified BSD license. You should have received a copy of the license with this file. If not, please or visit: http://tudat.tudelft.nl/LICENSE.
+# GRAIL - Comparing Doppler measurements from ODF files to simulated observables
+
+## Objectives
+Within this example, we perform a Doppler residual analysis for the GRAIL spacecraft. Unlike the estimation script (see **`grail_odf_estimation.ipynb`**), which fits an orbit to the data, this script assesses the accuracy of the physical observation models by comparing real ODF Doppler measurements against synthetic observables simulated using the reference SPICE trajectory. The script follows this methodology:
+
+1) **Data Loading**: Loading raw ODF files containing Doppler measurements and filtering them for the specific time intervals of interest.
+
+2) **Reference Trajectory**: Utilizing the high-precision reference SPICE trajectory for GRAIL (instead of propagating a dynamic orbit) to serve as the "ground truth" geometry for simulation.
+
+3) **Sensitivity Analysis**: Running four parallel setups to evaluate the impact of specific model components on the residuals:
+
+- **Default**: Full fidelity model.
+
+- **Antenna Offset**: Neglecting the offset between the Center of Mass (CoM) and the antenna phase center.
+
+- **Troposphere**: Neglecting corrections for the Earth's troposphere.
+
+- **Ionosphere**: Neglecting corrections for the Earth's ionosphere.
+
+4) **Residual Computation**: Calculating the difference between the simulated Doppler observables (derived from the SPICE trajectory and physical models) and the actual ODF observations.
+
+5) **Analysis**: Computing RMS and mean residuals to quantify the error introduced by ignoring specific physical corrections.
+
+## Important Remarks
+- Before running this script, please make sure you are using **Tudatpy v1.0 or above**.
+- **Data Download**: Running the example automatically triggers the download of all required kernels and data files if they are not found locally (trajectory/orientation kernels, ODF files, atmospheric corrections). This initial download may take significant time (~1h).
+- **Parallel Execution**: The script utilizes the multiprocessing module to run the four different model setups in parallel, producing output files (of type: *grail_residuals_output_x.dat*) and comparative plots for validation.
 """
 
-## Context
-"""
-"""
 
 # Load required standard modules
 import multiprocessing as mp
@@ -14,64 +36,52 @@ from matplotlib import pyplot as plt
 import os
 
 # Load required tudatpy modules
+from datetime import datetime
 from tudatpy.data import grail_antenna_file_reader
 from tudatpy.interface import spice
 from tudatpy.math import interpolators
 from tudatpy.astro import time_representation
 from tudatpy import util
-
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup import radiation_pressure
-from tudatpy import estimation
-from tudatpy.estimation import estimation_analysis
 from tudatpy.estimation import observable_models_setup
 from tudatpy.estimation import observations, observations_setup
-
-from datetime import datetime
 
 # Import GRAIL examples functions
 from grail_examples_functions import get_grail_files, get_grail_panel_geometry
 
 
-### ------------------------------------------------------------------------------------------
-### IMPORTANT PRELIMINARY REMARKS
-### ------------------------------------------------------------------------------------------
-#
-# The following example can only be run with manually compiled Tudat kernels (see https://github.com/tudat-team/tudat-bundle
-# for how to perform to the installation and compilation). Before proceeding to the compilation and testing (i.e., before step
-# 6 of the readme), the file tudat-bundle/tudatpy/tudatpy/kernel/scalarTypes.h must be modified to specify how the time type
-# should be converted in tudatpy. Within this scalarTypes.h file, both TIME_TYPE and INTERPOLATOR_TIME_TYPE should be set to
-# tudat::Time (instead of double). Once this change has been implemented, proceed with the default installation steps.
-#
-# Running the example automatically triggers the download of all required kernels and data files if they are not found locally
-# (trajectory and orientation kernels for the MRO spacecraft, atmospheric corrections files, ODF files containing the Doppler
-# measurements, etc.). Running this script for the first time can therefore take some time in case all files need to be downloaded
-# (~ 1h, depending on your internet connection). Note that this step needs only be performed once, since the script checks whether
-# each relevant file is already present locally and only proceeds to the download if it is not.
-#
-### ------------------------------------------------------------------------------------------
+"""
+## The Main Function
 
+We pack the main residual analysis functionality into the `perform_residuals_analysis` function. 
 
-# This function performs Doppler residual analysis for the GRAIL spacecraft by adopting the following approach:
-# 1) GRAIL Doppler measurements are loaded from the relevant ODF files
-# 2) Synthetic Doppler observables are simulated for all "real" observation times, using the reference spice trajectory for GRAIL
-# 3) Residuals are computed as the difference between simulated and real Doppler observations.
+This function evaluates the quality of the orbit determination results obtained from the previous fitting step. It assesses how well the GRAIL dynamical model, updated with the estimated parameters, matches the reference spice trajectory. This is done by propagating the orbit using the best-fit parameters and computing the residuals (the difference between the "observed" spice ephemeris and the computed model positions) to generate statistical metrics and visual plots.
 
-# The "inputs" variable used as input argument is a list with 14 entries:
-#   1- the index of the current run (the perform_residuals_analysis function is run in parallel for different setups)
-#   2- the start date of the time interval under consideration
-#   3- the end date of the time interval under consideration
-#   4- the list of ODF files to be loaded to cover the above-mentioned time interval
-#   5- the clock file to be loaded
-#   6- the list of orientation kernels to be loaded
-#   7- the list of tropospheric correction files to be loaded
-#   8- the list of ionospheric correction files to be loaded
-#   9- the antennas switch files to be loaded
-#   10- the list of GRAIL trajectory files to be loaded
-#   11- the GRAIL reference frames file to be loaded
-#   12- the lunar orientation kernel to be loaded
-#   13- the lunar reference frame kernel to be loaded
-#   14- output files directory
+The "inputs" variable used as input argument is a list with eleven entries:
+
+1) the index of the current run (used for parallel process identification)
+
+2) the date for the day-long arc under consideration
+
+3) the index of the setup to consider (referencing the specific dynamical model and the estimated parameters from the fit)
+
+4) the clock file to be loaded
+
+5) the list of orientation kernels to be loaded
+
+6) the GRAIL manoeuvres file to be loaded
+
+7) the list of GRAIL trajectory files to be loaded (reference data)
+
+8) the GRAIL reference frames file to be loaded
+
+9) the lunar orientation kernel to be loaded
+
+10) the lunar reference frame kernel to be loaded
+
+11) the output files directory (where the fit results are read from and analysis plots/reports are saved)
+"""
 
 
 def perform_residuals_analysis(inputs):
@@ -80,8 +90,8 @@ def perform_residuals_analysis(inputs):
     input_index = inputs[0]
 
     # Convert start and end datetime objects to Tudat Time variables.
-    start_date = time_representation.datetime_to_tudat(inputs[1]).to_epoch()
-    end_date = time_representation.datetime_to_tudat(inputs[2]).to_epoch()
+    start_date = time_representation.DateTime.from_python_datetime(inputs[1]).to_epoch()
+    end_date = time_representation.DateTime.from_python_datetime(inputs[2]).to_epoch()
 
     # Retrieve lists of relevant kernels and input files to load (ODF files, clock and orientation kernels for GRAIL,
     # tropospheric and ionospheric corrections, antennas switch files, GRAIL trajectory files, GRAIL reference frames file,
@@ -106,7 +116,6 @@ def perform_residuals_analysis(inputs):
         True,
         True,
     ):
-
         print("input_index", input_index)
 
         filename_suffix = str(input_index)
@@ -220,56 +229,58 @@ def perform_residuals_analysis(inputs):
         )
 
         # Modify default shape, rotation, and gravity field settings for the Earth
-        body_settings.get("Earth").shape_settings = (
-            environment_setup.shape.oblate_spherical_spice()
+        body_settings.get(
+            "Earth"
+        ).shape_settings = environment_setup.shape.oblate_spherical_spice()
+        body_settings.get(
+            "Earth"
+        ).rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+            environment_setup.rotation_model.iau_2006,
+            global_frame_orientation,
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                start_date,
+                end_date,
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                start_date,
+                end_date,
+                3600.0,
+            ),
+            interpolators.interpolator_generation_settings(
+                interpolators.cubic_spline_interpolation(),
+                start_date,
+                end_date,
+                60.0,
+            ),
         )
-        body_settings.get("Earth").rotation_model_settings = (
-            environment_setup.rotation_model.gcrs_to_itrs(
-                environment_setup.rotation_model.iau_2006,
-                global_frame_orientation,
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    start_date,
-                    end_date,
-                    3600.0,
-                ),
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    start_date,
-                    end_date,
-                    3600.0,
-                ),
-                interpolators.interpolator_generation_settings(
-                    interpolators.cubic_spline_interpolation(),
-                    start_date,
-                    end_date,
-                    60.0,
-                ),
-            )
-        )
-        body_settings.get("Earth").gravity_field_settings.associated_reference_frame = (
-            "ITRS"
-        )
+        body_settings.get(
+            "Earth"
+        ).gravity_field_settings.associated_reference_frame = "ITRS"
 
         # Set up DSN ground stations
-        body_settings.get("Earth").ground_station_settings = (
-            environment_setup.ground_station.dsn_stations()
-        )
+        body_settings.get(
+            "Earth"
+        ).ground_station_settings = environment_setup.ground_station.dsn_stations()
 
         # Modify default rotation and gravity field settings for the Moon
-        body_settings.get("Moon").rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
-            )
+        body_settings.get(
+            "Moon"
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, "MOON_PA_DE440", "MOON_PA_DE440"
         )
-        body_settings.get("Moon").gravity_field_settings = (
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings = (
             environment_setup.gravity_field.predefined_spherical_harmonic(
                 environment_setup.gravity_field.gggrx1200, 500
             )
         )
-        body_settings.get("Moon").gravity_field_settings.associated_reference_frame = (
-            "MOON_PA_DE440"
-        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_settings.associated_reference_frame = "MOON_PA_DE440"
 
         # Define gravity field variations for the tides on the Moon
         moon_gravity_field_variations = list()
@@ -281,9 +292,9 @@ def perform_residuals_analysis(inputs):
         moon_gravity_field_variations.append(
             environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.02405, 2)
         )
-        body_settings.get("Moon").gravity_field_variation_settings = (
-            moon_gravity_field_variations
-        )
+        body_settings.get(
+            "Moon"
+        ).gravity_field_variation_settings = moon_gravity_field_variations
         body_settings.get("Moon").ephemeris_settings.frame_origin = "Earth"
 
         # Add Moon radiation properties
@@ -298,7 +309,9 @@ def perform_residuals_analysis(inputs):
                 "Sun",
             ),
         ]
-        body_settings.get("Moon").radiation_source_settings = (
+        body_settings.get(
+            "Moon"
+        ).radiation_source_settings = (
             radiation_pressure.panelled_extended_radiation_source(
                 moon_surface_radiosity_models, [6, 12]
             )
@@ -311,27 +324,27 @@ def perform_residuals_analysis(inputs):
         body_settings.get(spacecraft_name).constant_mass = 150
 
         # Define translational ephemeris from SPICE
-        body_settings.get(spacecraft_name).ephemeris_settings = (
-            environment_setup.ephemeris.interpolated_spice(
-                start_date,
-                end_date,
-                10.0,
-                spacecraft_central_body,
-                global_frame_orientation,
-            )
+        body_settings.get(
+            spacecraft_name
+        ).ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+            start_date,
+            end_date,
+            10.0,
+            spacecraft_central_body,
+            global_frame_orientation,
         )
 
         # Define rotational ephemeris from SPICE
-        body_settings.get(spacecraft_name).rotation_model_settings = (
-            environment_setup.rotation_model.spice(
-                global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
-            )
+        body_settings.get(
+            spacecraft_name
+        ).rotation_model_settings = environment_setup.rotation_model.spice(
+            global_frame_orientation, spacecraft_name + "_SPACECRAFT", ""
         )
 
         # Define GRAIL panel geometry, which will be used for the panel radiation pressure model
-        body_settings.get(spacecraft_name).vehicle_shape_settings = (
-            get_grail_panel_geometry()
-        )
+        body_settings.get(
+            spacecraft_name
+        ).vehicle_shape_settings = get_grail_panel_geometry()
 
         # Create environment
         bodies = environment_setup.create_system_of_bodies(body_settings)
@@ -507,6 +520,7 @@ def perform_residuals_analysis(inputs):
         )
 
 
+
 if __name__ == "__main__":
     print("Start")
     inputs = []
@@ -548,7 +562,6 @@ if __name__ == "__main__":
 
     # For each setup to be run in parallel
     for i in range(nb_parallel_runs):
-
         # Construct a list of input arguments containing the arguments needed this specific run.
         # These include the start and end dates, along with the names of all relevant kernels and data files that should be loaded
         inputs.append(
@@ -591,7 +604,6 @@ if __name__ == "__main__":
     ]
 
     for i in range(nb_parallel_runs):
-
         obs_times = np.loadtxt(output_folder + "observation_times_" + str(i) + ".dat")
         link_ends_ids = np.loadtxt(output_folder + "link_end_ids_" + str(i) + ".dat")
         residuals_wrt_spice = np.loadtxt(
@@ -603,7 +615,9 @@ if __name__ == "__main__":
         residuals_rms = np.loadtxt(output_folder + "residuals_rms_" + str(i) + ".dat")
         residuals_mean = np.loadtxt(output_folder + "residuals_mean_" + str(i) + ".dat")
 
-        start_date_float = time_representation.datetime_to_tudat(start_date).to_epoch()
+        start_date_float = time_representation.DateTime.from_python_datetime(
+            start_date
+        ).to_epoch()
 
         # Plot full residuals wrt reference spice trajectory
         axs1[i].scatter(
@@ -645,3 +659,6 @@ if __name__ == "__main__":
     fig1.tight_layout()
     fig2.tight_layout()
     plt.show()
+
+
+plt.show()

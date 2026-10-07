@@ -332,7 +332,7 @@ Now the termination settings can be created.
 
 
 # Set simulation start and end epochs
-simulation_start_epoch = DateTime(2000, 1, 1).epoch()
+simulation_start_epoch = DateTime(2000, 1, 1).to_epoch()
 simulation_end_epoch   = simulation_start_epoch + constants.JULIAN_DAY * 60.0
 
 # Create object to compute angular separation
