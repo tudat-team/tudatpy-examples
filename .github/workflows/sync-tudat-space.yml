@@ -2,7 +2,10 @@ name: Sync tudat-space submodule
 on:
     push:
       branches:
-        - master
+        - develop
+      # A release version update must not sync the examples again.
+      paths-ignore:
+        - version
     workflow_dispatch:
 
 env:

@@ -54,8 +54,11 @@ The examples are organized in different categories.
 
 ## Contribute
 
+Submit changes to `develop`. The `master` branch holds released examples and is
+updated through the TudatPy release workflow.
+
 Contributions to this repository are always welcome.
-It is recommended to use the `tudat-examples` conda environment for the development of example applications (created using [this .yaml file](https://github.com/tudat-team/tudatpy-examples/blob/master/environment.yaml)), as it contains all dependencies for the creation and maintenance of example applications, such as `ipython`, `nbconvert` in addition to `pygmo`. However, examples developed using the regular (or develop) conda environment are also most welcome!
+It is recommended to use the `tudat-examples` conda environment for the development of example applications (created using [this .yaml file](https://github.com/tudat-team/tudatpy-examples/blob/develop/environment.yaml)), as it contains all dependencies for the creation and maintenance of example applications, such as `ipython`, `nbconvert` in addition to `pygmo`. However, examples developed using the regular (or develop) conda environment are also most welcome!
 
 Simply install the environment using
 
