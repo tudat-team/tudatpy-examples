@@ -1,12 +1,11 @@
-# dependencies fixed for reproducibility
+# Environment for developing and running the examples.
 name: tudat-examples
 channels:
   - conda-forge
-  - tudat-team/label/dev
   - tudat-team
 dependencies:
   - tudatpy
-  - numpy<2.0
+  - numpy
   - pygmo
   - ipython
   - ipykernel
