@@ -46,7 +46,7 @@ from tudatpy.astro.time_representation import DateTime
 r"""
 ## Aerodynamic guidance class
 
-First of all, let's  create a class that contains the aerodynamic guidance. This class needs to be inherited from `propagation.AerodynamicGuidance`.
+First of all, let's  create a class that contains the aerodynamic guidance. Its `getAerodynamicAngles` method, which returns the angle of attack, sideslip angle and bank angle at a given time, is used to define the rotation model of the vehicle.
 
 During the initialisation of this class, the current system of simulated bodies will have to be input.
 
@@ -73,7 +73,7 @@ In this equation, $\chi$ and $\delta$ are the heading and latitude angles. $L$, 
 """
 
 
-# Create a class for the aerodynamic guidance of the STS, inheriting from 'propagation.AerodynamicGuidance'
+# Create a class for the aerodynamic guidance of the STS
 class STSAerodynamicGuidance:
 
     def __init__(self, bodies: environment.SystemOfBodies):
