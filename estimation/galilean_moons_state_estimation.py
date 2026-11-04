@@ -304,7 +304,7 @@ ephemeris_observation_simulators = observations_setup.observations_simulation_se
     position_observation_settings, bodies)
 # Get ephemeris states as ObservationCollection
 print('Checking ephemerides...')
-ephemeris_satellite_states = observations.simulate_observations(
+ephemeris_satellite_states = observations.simulate_observation_dataset(
     observation_simulation_settings,
     ephemeris_observation_simulators,
     bodies)
@@ -335,7 +335,8 @@ with util.redirect_std():
 
 
 # Create input object for the estimation
-estimation_input = estimation_analysis.EstimationInput(ephemeris_satellite_states)
+estimation_input = estimation_analysis.EstimationInput(
+    observation_dataset=ephemeris_satellite_states)
 # Set methodological options
 estimation_input.define_estimation_settings(save_state_history_per_iteration=True)
 # Perform the estimation

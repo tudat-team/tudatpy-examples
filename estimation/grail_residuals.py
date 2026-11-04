@@ -326,44 +326,37 @@ def perform_residuals_analysis(inputs):
         # typically be found for a given observable type and link ends, but they will cover different observation time intervals.
         # When loading ODF data, a separate observation set is created for each ODF file (which means the time intervals of each
         # set match those of the corresponding ODF file).
-        original_odf_observations = observations.create_observation_collection_from_tracking_data(
+        original_odf_observations = observations.create_observation_dataset_from_tracking_data(
             tracking_data, bodies
         )
 
         # Filter all ODF observations that exceed the time interval defined by the start and end dates. This is only necessary because
         # the last ODF file might span over longer than one day (as any other ODF file), thus exceeding the time interval over which the
         # dynamical model is defined.
-        day_arc_filter = observations.observations_processing.observation_filter(
-            observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-            start_date,
-            end_date,
-            use_opposite_condition=True,
+        original_odf_observations.remove_observations(
+            ~observations.observation_query.time.between(start_date, end_date)
         )
-        original_odf_observations.filter_observations(day_arc_filter)
-        original_odf_observations.remove_empty_observation_sets()
 
         # Retrieve the time bounds of all ODF observations combined. A time buffer of 1h is subtracted/added to the observation
         # start and end times. This is necessary to ensure that the simulation environment covers the full time span of the
         # loaded ODF observations, without interpolation errors at the arc boundaries.
-        observation_time_limits = original_odf_observations.time_bounds_time_object
+        observation_time_limits = original_odf_observations.observation_time_bounds
         obs_start_time = observation_time_limits[0] - 3600.0
         obs_end_time = observation_time_limits[1] + 3600.0
 
         print(
             "Original observations: ",
-            original_odf_observations.concatenated_observations.size,
+            original_odf_observations.total_scalar_size,
         )
-        original_odf_observations.print_observation_sets_start_and_size()
 
         # Compress Doppler observations from 1.0 s integration time to 60.0 s
-        compressed_observations = observations.create_compressed_doppler_collection(
+        compressed_observations = observations.create_compressed_doppler_dataset(
             original_odf_observations, 60, 10
         )
         print(
             "Compressed observations: ",
-            compressed_observations.concatenated_observations.size,
+            compressed_observations.total_scalar_size,
         )
-        compressed_observations.print_observation_sets_start_and_size()
 
         # Update bodies based on ODF file. This step is necessary to set the antenna transmission frequencies for the GRAIL spacecraft
         observations.set_tracking_supplementary_data_in_bodies(
@@ -440,9 +433,9 @@ def perform_residuals_analysis(inputs):
         # Create observation model settings for the Doppler observables. This first implies creating the link ends defining all relevant
         # tracking links between various ground stations and the MRO spacecraft. The list of light-time corrections defined above is then
         # added to each of these link ends.
-        doppler_link_ends = compressed_observations.link_definitions_per_observable[
+        doppler_link_ends = compressed_observations.link_definitions_for_observable(
             observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-        ]
+        )
 
         observation_model_settings = list()
         for current_link_definition in doppler_link_ends:
@@ -463,34 +456,39 @@ def perform_residuals_analysis(inputs):
         )
 
         # Filter residual outliers
-        compressed_observations.filter_observations(
-            observations.observations_processing.observation_filter(
-                observations.observations_processing.ObservationFilterType.residual_filtering,
-                0.1,
-            )
+        compressed_observations.remove_observations(
+            observations.observation_query.residual.abs_greater_than(0.1)
         )
+
+        observation_vector_data = compressed_observations.observation_vector_data()
 
         # Save residuals as directly computed w.r.t. the reference SPICE trajectory for GRAIL, along with the
         # observation times and link ends IDs.
         np.savetxt(
             output_folder + "residuals_wrt_spice_" + filename_suffix + ".dat",
-            compressed_observations.get_concatenated_residuals(),
+            observation_vector_data.residual_vector,
             delimiter=",",
         )
         np.savetxt(
             output_folder + "observation_times_" + filename_suffix + ".dat",
-            compressed_observations.concatenated_times,
+            observation_vector_data.times,
             delimiter=",",
         )
         np.savetxt(
             output_folder + "link_end_ids_" + filename_suffix + ".dat",
-            compressed_observations.concatenated_link_definition_ids,
+            observation_vector_data.link_definition_ids,
             delimiter=",",
         )
 
         # Retrieve RMS and mean residuals
-        rms_residuals = compressed_observations.get_rms_residuals()
-        mean_residuals = compressed_observations.get_mean_residuals()
+        rms_residuals = [
+            compressed_observations.rms_residuals_for_set(set_id)
+            for set_id in observation_vector_data.set_ids_in_row_order
+        ]
+        mean_residuals = [
+            compressed_observations.mean_residuals_for_set(set_id)
+            for set_id in observation_vector_data.set_ids_in_row_order
+        ]
 
         # Save RMS and mean residuals
         np.savetxt(
@@ -505,9 +503,10 @@ def perform_residuals_analysis(inputs):
         )
 
         # Retrieve time bounds per observation set
-        time_bounds_per_set = (
-            compressed_observations.get_time_bounds_per_set_time_object()
-        )
+        time_bounds_per_set = [
+            compressed_observations.time_bounds_for_set(set_id)
+            for set_id in observation_vector_data.set_ids_in_row_order
+        ]
         time_bounds_array = np.zeros((len(time_bounds_per_set), 2))
         for j in range(len(time_bounds_per_set)):
             time_bounds_array[j, 0] = time_bounds_per_set[j][0].to_float()

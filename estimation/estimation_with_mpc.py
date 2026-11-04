@@ -171,17 +171,18 @@ tracking_data, supplementary_data = batch.to_tracking_dataset(
     add_star_catalog_corrections=True,
 )
 observations.set_tracking_supplementary_data_in_bodies(bodies, supplementary_data)
-observation_collection = observations.create_observation_collection_from_tracking_data(
+observation_dataset = observations.create_observation_dataset_from_tracking_data(
     tracking_data, bodies, apply_corrections=True
 )
 
 # set create angular_position settings for each link in the list.
 observation_settings_list = list()
-link_list = list(
-    observation_collection.get_link_definitions_for_observables(
-        observable_type=observable_models_setup.model_settings.angular_position_type
-    )
-)
+link_list = [
+    metadata["link_definition"]
+    for metadata in observation_dataset.get_metadata().values()
+    if metadata["observable_type"]
+    == observable_models_setup.model_settings.angular_position_type
+]
 
 for link in link_list:
     # add optional bias settings here
@@ -339,7 +340,7 @@ estimator = estimation_analysis.Estimator(
 
 # provide the observation collection as input, and limit number of iterations for estimation.
 pod_input = estimation_analysis.EstimationInput(
-    observations_and_times=observation_collection,
+    observation_dataset=observation_dataset,
     convergence_checker=estimation.estimation_analysis.estimation_convergence_checker(
         maximum_iterations=number_of_pod_iterations,
     ),
@@ -410,9 +411,8 @@ fig, axs = plt.subplots(
 )
 
 # We cheat a little to get an approximate year out of our times (which are in seconds since J2000)
-residual_times = (
-    np.array(observation_collection.concatenated_times) / (86400 * 365.25) + 2000
-)
+vector_data = observation_dataset.observation_vector_data()
+residual_times = np.array(vector_data.times) / (86400 * 365.25) + 2000
 
 
 # plot the residuals, split between RA and DEC types
@@ -460,7 +460,7 @@ Lets check out the correlation of the estimated parameters.
 
 
 # Correlation can be retrieved using the CovarianceAnalysisInput class:
-covariance_input = estimation_analysis.CovarianceAnalysisInput(observation_collection)
+covariance_input = estimation_analysis.CovarianceAnalysisInput(observation_dataset)
 covariance_output = estimator.compute_covariance(covariance_input)
 
 correlations = covariance_output.correlations
@@ -601,13 +601,14 @@ top_observatories = observatory_names.index.tolist()
 
 # This piece of code creates a `concatenated_receiving_observatories` map
 # to identify the observatories by their MPC code instead of an internally used id
-residuals_observatories = observation_collection.concatenated_link_definition_ids
+residuals_observatories = vector_data.set_ids
 unique_observatories = set(residuals_observatories)
+metadata_by_set_id = observation_dataset.get_metadata()
 
 observatory_link_to_mpccode = {
-    idx: observation_collection.link_definition_ids[idx][
-        observable_models_setup.links.receiver
-    ].reference_point
+    idx: metadata_by_set_id[idx]["link_definition"]
+    .link_end_id(observable_models_setup.links.receiver)
+    .reference_point
     for idx in unique_observatories
 }
 

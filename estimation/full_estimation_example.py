@@ -398,7 +398,7 @@ Using the created `Estimator` object, we can perform the simulation of observati
 
 
 # Simulate required observations
-simulated_observations = observations.simulate_observations(
+simulated_observations = observations.simulate_observation_dataset(
     [observation_simulation_settings],
     estimator.observation_simulators,
     bodies)
@@ -413,7 +413,8 @@ To set up the inversion of the problem, we collect all relevant inputs in the fo
 """
 
 
-simulated_observations.set_constant_weight(noise_level ** -2)
+simulated_observations.set_constant_single_observation_scalar_weight(
+    observations.ObservationSelectionCondition.all(), noise_level ** -2)
 
 
 
@@ -442,7 +443,7 @@ parameters_to_estimate.parameter_vector = perturbed_parameters
 # Create input object for the estimation
 convergence_checker = estimation_analysis.estimation_convergence_checker(maximum_iterations=4)
 estimation_input = estimation_analysis.EstimationInput(
-    simulated_observations,
+    observation_dataset=simulated_observations,
     convergence_checker=convergence_checker)
 
 
@@ -499,7 +500,7 @@ parameters_to_estimate.parameter_vector = perturbed_parameters
 # Create input object for the estimation
 convergence_checker = estimation_analysis.estimation_convergence_checker(maximum_iterations=4)
 estimation_input = estimation_analysis.EstimationInput(
-    simulated_observations,
+    observation_dataset=simulated_observations,
     convergence_checker=convergence_checker)
 
 
@@ -540,8 +541,9 @@ First, we will thus plot all simulations we have simulated over time. One can cl
 """
 
 
-observation_times = np.array(simulated_observations.concatenated_times)
-observations_list = np.array(simulated_observations.concatenated_observations)
+observation_vector_data = simulated_observations.observation_vector_data()
+observation_times = np.array([float(time) for time in observation_vector_data.times])
+observations_list = np.asarray(observation_vector_data.observation_vector)
 
 
 

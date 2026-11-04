@@ -209,7 +209,7 @@ def calendar_observation_times_tdb(raw_datafile, selected_indices=None):
     return observation_times
 
 
-def create_manual_n_way_collection(raw_datafile, link_end_builder, tracking_dataset=None):
+def create_manual_n_way_dataset(raw_datafile, link_end_builder, tracking_dataset=None):
     raw_data = raw_datafile.double_datamap
     if tracking_dataset is None:
         selected_indices = range(len(raw_data[TrackingDataType.n_way_light_time]))
@@ -233,18 +233,17 @@ def create_manual_n_way_collection(raw_datafile, link_end_builder, tracking_data
         grouped_observations[link_key]["observations"].append(np.array([value]))
         grouped_observations[link_key]["times"].append(time)
 
-    observation_sets = [
-        observations.create_single_observation_set(
+    observation_dataset = observations.ObservationDataset()
+    for grouped_data in grouped_observations.values():
+        observation_dataset.add_observation_set(
             observable_models_setup.model_settings.n_way_range_type,
-            grouped_data["link_ends"],
+            links.LinkDefinition(grouped_data["link_ends"]),
             grouped_data["observations"],
             grouped_data["times"],
             links.receiver,
-            ancillary_settings,
+            ancillary_settings=ancillary_settings,
         )
-        for grouped_data in grouped_observations.values()
-    ]
-    return observations.ObservationCollection(observation_sets)
+    return observation_dataset
 
 
 def create_mars_barycenter_link_ends(raw_data, idx):
@@ -259,27 +258,23 @@ def create_mars_barycenter_link_ends(raw_data, idx):
     }
 
 
-# Create the observation collection
-def create_range_observation_collection(tracking_dataset):
+# Create the observation dataset
+def create_range_observation_dataset(tracking_dataset):
     raw_data = read_range_data_file(tracking_dataset)
 
-    if tracking_dataset.get("thinning_step", 1) > 1:
-        return create_manual_n_way_collection(raw_data, create_mars_barycenter_link_ends, tracking_dataset)
-    return observations.create_tracking_txtfile_observation_collection(
-        raw_data,
-        tracking_dataset["spacecraft_name"],
-        ancillary_settings=ancillary_settings,
-    )
+    return create_manual_n_way_dataset(
+        raw_data, create_mars_barycenter_link_ends, tracking_dataset)
 
 
-OBSERVATION_COLLECTION_CACHE = {}
+OBSERVATION_DATASET_CACHE = {}
 
 
-def get_range_observation_collection(tracking_dataset):
+def get_range_observation_dataset(tracking_dataset):
     dataset_name = tracking_dataset["name"]
-    if dataset_name not in OBSERVATION_COLLECTION_CACHE:
-        OBSERVATION_COLLECTION_CACHE[dataset_name] = create_range_observation_collection(tracking_dataset)
-    return OBSERVATION_COLLECTION_CACHE[dataset_name]
+    if dataset_name not in OBSERVATION_DATASET_CACHE:
+        OBSERVATION_DATASET_CACHE[dataset_name] = create_range_observation_dataset(
+            tracking_dataset)
+    return OBSERVATION_DATASET_CACHE[dataset_name]
 
 
 """
@@ -363,18 +358,17 @@ The system of bodies was already defined above, and all the other required infor
 
 
 def create_observation_model_settings(
-    source_observation_collection,
+    source_observation_dataset,
     light_time_corrections=None,
     time_scale_for_observable=None,
 ):
     # Extract the relevant information from the real observations to mimic
-    current_distinct_linkdefs = source_observation_collection.get_link_definitions_for_observables(
-        observable_models_setup.model_settings.n_way_range_type
-    )
-    if hasattr(current_distinct_linkdefs, "values"):
-        current_link_definitions = current_distinct_linkdefs.values()
-    else:
-        current_link_definitions = current_distinct_linkdefs
+    current_link_definitions = {
+        metadata["link_definition"]
+        for metadata in source_observation_dataset.get_metadata().values()
+        if metadata["observable_type"]
+        == observable_models_setup.model_settings.n_way_range_type
+    }
 
     # Create the observation model settings to match those of the real observations
     observation_settings = []
@@ -398,15 +392,16 @@ def create_observation_model_settings(
     return observation_settings
 
 
-def create_observations(observation_model_settings, bodies, source_observation_collection):
+def create_observations(observation_model_settings, bodies, source_observation_dataset):
     # Create the observation simulators
     observation_simulators = observations_setup.observations_simulation_settings.create_observation_simulators(observation_model_settings, bodies)
 
     # Get the simulator settings directly from the real observations
-    observation_simulation_settings = observations_setup.observations_simulation_settings.observation_settings_from_collection(source_observation_collection, bodies)
+    observation_simulation_settings = observations.observation_simulation_settings_from_dataset(
+        source_observation_dataset, bodies)
 
     # Simulate the observations
-    simulated_observations = observations.simulate_observations(
+    simulated_observations = observations.simulate_observation_dataset(
         observation_simulation_settings, observation_simulators, bodies
     )
 
@@ -522,22 +517,24 @@ def compute_signal_path_solar_distances(observation_times):
 
 
 def simulate_tracking_dataset(tracking_dataset, run_case, print_summary=True):
-    current_collection = get_range_observation_collection(tracking_dataset)
-    current_observations = np.asarray(current_collection.concatenated_observations)
-    current_times = np.asarray(current_collection.concatenated_times)
+    current_dataset = get_range_observation_dataset(tracking_dataset)
+    current_observations = np.asarray(current_dataset.get_observations()).reshape(-1)
+    current_times = np.asarray([float(time) for time in current_dataset.get_times()])
     current_times_year = current_times / constants.JULIAN_YEAR + 2000
 
     current_model_settings = create_observation_model_settings(
-        current_collection,
+        current_dataset,
         run_case["light_time_corrections"],
         time_scale_for_observable=run_case["time_scale_for_observable"],
     )
     current_simulated_observations = create_observations(
         current_model_settings,
         run_case["bodies"],
-        current_collection,
+        current_dataset,
     )
-    current_residuals = np.asarray(current_simulated_observations.concatenated_observations) - current_observations
+    current_residuals = (
+        np.asarray(current_simulated_observations.get_observations()).reshape(-1)
+        - current_observations)
 
     rms_residual = np.sqrt(np.mean(current_residuals ** 2))
     mean_residual = np.mean(current_residuals)
