@@ -1,5 +1,5 @@
 """
-# MPC space astrometry and JPL radar estimation
+# Bennu orbit estimation from MPC astrometry and radar data
 
 This example estimates the state of a configured minor planet twice: first from
 MPC optical astrometry, and then from the same astrometry with JPL radar delay
@@ -60,6 +60,9 @@ Numerical model settings
 """
 PROPAGATION_BUFFER = 2.0 * 31.0 * constants.JULIAN_DAY
 INTEGRATOR_STEP = 12.0 * 3600.0
+EARTH_MOON_EPHEMERIS_STEP = 6.0 * 3600.0
+PLANET_EPHEMERIS_STEP = constants.JULIAN_DAY
+ASTEROID_EPHEMERIS_STEP = 5.0 * constants.JULIAN_DAY
 
 """
 Plotting settings
@@ -105,8 +108,15 @@ we place the planet at the center of mass of its own system, and give it the tot
 """
 
 
-def create_bodies() -> environment.SystemOfBodies:
+def create_bodies(first_epoch: float, final_epoch: float) -> environment.SystemOfBodies:
     """Create the estimation environment and Earth observing stations.
+
+    Parameters
+    ----------
+    first_epoch : float
+        Start of the propagation interval [s since J2000, TDB].
+    final_epoch : float
+        End of the propagation interval [s since J2000, TDB].
 
     Returns
     -------
@@ -131,19 +141,26 @@ def create_bodies() -> environment.SystemOfBodies:
         GLOBAL_FRAME_ORIENTATION,
     )
 
+    # Use ephemerides tabulated from spice, since reading the spice kernels during the propagation is very slow.
     # Move each planet from Mars onwards to the barycenter of its own planetary system, and give it the
     # full system's mass
-    for body_name in ["Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]:
-        barycenter_name = f"{body_name} Barycenter"
+    for body_name in body_names:
+        is_planetary_system = body_name in ["Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+        spice_name = f"{body_name} Barycenter" if is_planetary_system else body_name
+        time_step = EARTH_MOON_EPHEMERIS_STEP if body_name in ["Earth", "Moon"] else PLANET_EPHEMERIS_STEP
         settings = body_settings.get(body_name)
-        settings.ephemeris_settings = environment_setup.ephemeris.direct_spice(
+        settings.ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+            first_epoch - 10.0 * time_step,
+            final_epoch + 10.0 * time_step,
+            time_step,
             GLOBAL_FRAME_ORIGIN,
             GLOBAL_FRAME_ORIENTATION,
-            barycenter_name,
+            body_name_to_use=spice_name,
         )
-        settings.gravity_field_settings = (
-            environment_setup.gravity_field.central_spice(barycenter_name)
-        )
+        if is_planetary_system:
+            settings.gravity_field_settings = (
+                environment_setup.gravity_field.central_spice(spice_name)
+            )
 
     # Modify Earth settings to high-quality shape and rotation model
     earth_settings = body_settings.get("Earth")
@@ -173,10 +190,13 @@ def create_bodies() -> environment.SystemOfBodies:
         spice_id = f"200{number:04d}"  # NAIF identifier used by the standard 300-asteroid SPICE kernel
         body_settings.add_empty_settings(body_name)
         settings = body_settings.get(body_name)
-        settings.ephemeris_settings = environment_setup.ephemeris.direct_spice(
+        settings.ephemeris_settings = environment_setup.ephemeris.interpolated_spice(
+            first_epoch - 10.0 * ASTEROID_EPHEMERIS_STEP,
+            final_epoch + 10.0 * ASTEROID_EPHEMERIS_STEP,
+            ASTEROID_EPHEMERIS_STEP,
             GLOBAL_FRAME_ORIGIN,
             GLOBAL_FRAME_ORIENTATION,
-            spice_id,
+            body_name_to_use=spice_id,
         )
         settings.gravity_field_settings = environment_setup.gravity_field.central_spice(
             spice_id
@@ -392,7 +412,7 @@ def perform_estimation(
     """
     
     # Create environment
-    bodies = create_bodies()
+    bodies = create_bodies(first_epoch, final_epoch)
 
     # Create observation_collection object from tracking data; update environment
     # with relevant information from tracking data source (radar transmitter frequencies, space observatory ephemerides, etc.)
