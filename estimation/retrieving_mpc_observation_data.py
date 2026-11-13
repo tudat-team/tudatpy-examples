@@ -82,13 +82,13 @@ We can also directly have a look at the the observations themselves. For example
 """
 
 
-obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
-obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]].iloc[[0, -1]]
+obs_by_TESS = batch1.table.query("observatory == 'C57'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
+obs_by_WISE = batch1.table.query("observatory == 'C51'").loc[:, ["number", "epoch_seconds_UTC", "RA", "DEC"]]
 
 print("Initial and Final Observations by TESS")
-print(obs_by_TESS)
+print(obs_by_TESS.iloc[[0, -1]] if not obs_by_TESS.empty else "No TESS observations in this batch.")
 print("Initial and Final Observations by WISE")
-print(obs_by_WISE)
+print(obs_by_WISE.iloc[[0, -1]] if not obs_by_WISE.empty else "No WISE observations in this batch.")
 
 
 """

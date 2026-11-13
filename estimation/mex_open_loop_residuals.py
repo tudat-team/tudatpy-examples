@@ -586,15 +586,10 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
     utc_times = [time_representation.DateTime.to_python_datetime(
         time_representation.DateTime.from_epoch(t)) for t in times_utc]
 
-    residuals = ifms_vector_data.residual_vector
-    mean_residuals = [
-        ifms_observations.mean_residuals_for_set(set_id)
-        for set_id in ifms_vector_data.set_ids_in_row_order
-    ]
-    rms_residuals = [
-        ifms_observations.rms_residuals_for_set(set_id)
-        for set_id in ifms_vector_data.set_ids_in_row_order
-    ]
+    residuals = np.asarray(ifms_vector_data.residual_vector)
+    set_ids = np.asarray(ifms_vector_data.set_ids_in_row_order)
+    mean_residuals = [np.mean(residuals[set_ids == set_id]) for set_id in np.unique(set_ids)]
+    rms_residuals = [np.sqrt(np.mean(residuals[set_ids == set_id] ** 2)) for set_id in np.unique(set_ids)]
 
     # Store IFMS results
     if transmitting_station_name not in ifms_station_residuals:
@@ -703,14 +698,14 @@ for ifms_idx, ifms_file in enumerate(ifms_files, 1):
         utc_times_fdets = [time_representation.DateTime.to_python_datetime(
             time_representation.DateTime.from_epoch(t)) for t in times_utc_fdets]
 
-        residuals_fdets = fdets_vector_data.residual_vector
+        residuals_fdets = np.asarray(fdets_vector_data.residual_vector)
+        set_ids_fdets = np.asarray(fdets_vector_data.set_ids_in_row_order)
         mean_residuals_fdets = [
-            fdets_observations.mean_residuals_for_set(set_id)
-            for set_id in fdets_vector_data.set_ids_in_row_order
+            np.mean(residuals_fdets[set_ids_fdets == set_id]) for set_id in np.unique(set_ids_fdets)
         ]
         rms_residuals_fdets = [
-            fdets_observations.rms_residuals_for_set(set_id)
-            for set_id in fdets_vector_data.set_ids_in_row_order
+            np.sqrt(np.mean(residuals_fdets[set_ids_fdets == set_id] ** 2))
+            for set_id in np.unique(set_ids_fdets)
         ]
 
         # Store FDETS results
