@@ -733,7 +733,10 @@ The observation ids are the same in all datasets that were created from the same
 of rejected observations can be compared directly. We also compare with a simple post-fit screening, which rejects
 the observations whose residual exceeds 3 times the uncertainty from the weights in the fit without outlier rejection.
 Contrary to the scheme of Carpino et al. (2003), this screening is a single step, which does not account for the
-effect of each observation on the fit, and cannot recover observations.
+effect of each observation on the fit, and cannot recover observations. Since the weights used here are conservative
+(the normalized post-fit RMS of most observatories is well below 1), a 3-sigma criterion only rejects clearly discordant
+observations, whereas the simple scheme, which ignores the weights, also rejects observations from less accurate
+observatories.
 """
 
 
