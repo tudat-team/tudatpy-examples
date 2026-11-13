@@ -90,7 +90,8 @@ ASTEROID_EPHEMERIS_STEP = 5.0 * constants.JULIAN_DAY
 Outlier rejection settings. The scheme of Carpino et al. (2003) rejects an observation when the chi-squared value of its
 residual (the squared residual normalized by its covariance, which accounts for the fit itself) exceeds a threshold, and
 recovers it when the value drops below a slightly lower threshold. The thresholds of 9 and 8 (i.e. about 3 sigma) are
-the defaults; Chesley et al. (2014) compare several thresholds for Bennu. The simple scheme instead rejects an
+the defaults; Chesley et al. (2014) compare several thresholds for Bennu, and reject 7 of their 569 optical observations
+with this one. The simple scheme instead rejects an
 observation when the absolute value of a residual component exceeds a fixed value per observable type, without
 accounting for the observation uncertainty.
 """
@@ -112,6 +113,7 @@ ASTROMETRY_SETUP_NAME = "MPC astrometry"
 RADAR_SETUP_NAME = "MPC astrometry and JPL radar"
 CARPINO_SETUP_NAME = "MPC astrometry and JPL radar, Carpino et al. (2003) outlier rejection"
 SIMPLE_SETUP_NAME = "MPC astrometry and JPL radar, simple outlier rejection"
+PLOTTED_SETUPS = [ASTROMETRY_SETUP_NAME, CARPINO_SETUP_NAME]
 ARCSECONDS_PER_RADIAN = 180.0 / np.pi * 3600.0
 
 """
@@ -401,15 +403,13 @@ def receivers(observation_dataset: observations.ObservationDataset, condition) -
     list[LinkEndId]
         Receiver link end ids, sorted by decreasing number of selected observations.
     """
-    receiver_ids = {}
+    number_of_observations = {}
     for metadata in observation_dataset.get_metadata(condition).values():
         receiver = metadata["link_definition"].link_end_id(links.receiver)
-        receiver_ids[(receiver.body_name, receiver.reference_point)] = receiver
-    number_of_observations = {
-        key: len(observation_dataset.get_observation_ids(condition & (observation_query.receiver == receiver)))
-        for key, receiver in receiver_ids.items()
-    }
-    return [receiver_ids[key] for key in sorted(number_of_observations, key=number_of_observations.get, reverse=True)]
+        number_of_observations[receiver] = len(
+            observation_dataset.get_observation_ids(condition & (observation_query.receiver == receiver))
+        )
+    return sorted(number_of_observations, key=number_of_observations.get, reverse=True)
 
 
 RADAR_STATION_NAMES = {"JPL:-1": "Arecibo", "JPL:-14": "Goldstone DSS-14"}
@@ -872,7 +872,8 @@ def print_covariance_with_observatory_weights(
 The code below generates the figures. The residuals are plotted both as their values, for right ascension and
 declination in arcseconds, for radar (if any) in meters and Hz, and normalized by their uncertainty (as taken from the
 weights). Rejected observations are shown with black crosses. The post-fit orbit difference w.r.t. Horizons is also
-shown, along with the formal uncertainty from our estimation
+shown, along with the formal uncertainty from our estimation. The figures are made for the setups in
+``PLOTTED_SETUPS``; the RMS of the difference with Horizons is printed for all setups.
 """
 
 
@@ -959,8 +960,9 @@ def plot_orbit_difference(
     estimator: estimation_analysis.Estimator,
     epochs: np.ndarray,
     horizons_states: np.ndarray,
+    plot: bool = True,
 ) -> None:
-    """Plot the RSW difference with Horizons with ±3σ bands, and the 1σ formal errors.
+    """Print the RMS of the RSW difference with Horizons and (optionally) plot it, with ±3σ bands and 1σ formal errors.
 
     Parameters
     ----------
@@ -974,6 +976,8 @@ def plot_orbit_difference(
         Plot epochs [s since J2000, TDB].
     horizons_states : numpy.ndarray
         Horizons Cartesian state per plot epoch [m, m/s].
+    plot : bool, default True
+        Whether to plot the difference.
     """
     state_history = best_state_history(output)
     propagated_covariances = estimation_analysis.propagate_covariance(
@@ -995,6 +999,12 @@ def plot_orbit_difference(
         )
     differences_rsw /= 1000.0
     formal_errors_rsw /= 1000.0
+    print(
+        f"\n{setup_label}\n  RMS difference with Horizons over {len(epochs)} epochs [km]: "
+        + ", ".join(f"{name} = {value:.4g}" for name, value in zip("RSW", np.sqrt(np.mean(differences_rsw**2, axis=0))))
+    )
+    if not plot:
+        return
     years = 2000.0 + epochs / constants.JULIAN_YEAR
 
     figure, axes = plt.subplots(3, 2, figsize=(14.0, 10.5), sharex=True)
@@ -1018,10 +1028,6 @@ def plot_orbit_difference(
         f"{setup_label}\n{TARGET} orbit difference with respect to JPL Horizons, heliocentric RSW"
     )
     figure.tight_layout()
-    print(
-        f"\n{setup_label}\n  RMS difference with Horizons over {len(epochs)} epochs [km]: "
-        + ", ".join(f"{name} = {value:.4g}" for name, value in zip("RSW", np.sqrt(np.mean(differences_rsw**2, axis=0))))
-    )
 
 
 def print_orbit_difference_rsw(
@@ -1121,8 +1127,10 @@ def plot_diagnostics(
     ).cartesian(frame_orientation=GLOBAL_FRAME_ORIENTATION)[:, 1:]
 
     for setup_label, (output, observation_dataset, estimator) in results.items():
-        plot_residuals(setup_label, observation_dataset)
-        plot_orbit_difference(setup_label, output, estimator, plot_epochs, horizons_states)
+        plot = setup_label in PLOTTED_SETUPS
+        if plot:
+            plot_residuals(setup_label, observation_dataset)
+        plot_orbit_difference(setup_label, output, estimator, plot_epochs, horizons_states, plot)
     plt.show()
 
 
