@@ -1,4 +1,53 @@
+# %% [markdown]
+"""
+# MRO orbit determination from DSN TNF Doppler data, using an observation dataset
+
+This example estimates the orbit of the Mars Reconnaissance Orbiter (MRO) from X-band Doppler data of NASA's Deep
+Space Network (DSN), stored in TNF (TRK-2-34) files. By default, a single three-day arc in January 2012 is processed;
+up to seven consecutive arcs can be processed in parallel (see `ARCS_TO_PROCESS`).
+
+The observations are stored in an `ObservationDataset`. Most of its functions act on the observations selected by
+a condition, which is created from `observation_query`, for instance `observation_query.receiver == station`,
+`observation_query.time.between(start, end)` or `observation_query.residual.abs_greater_than(limit)`, and combined
+with `&`, `|` and `~`. Rejected observations remain in the dataset (with the reason of their rejection), but are not
+used in the estimation. This example uses these conditions to:
+
+* select the data of the arc (time window) and edit low-elevation data (with an elevation dependent variable);
+* distinguish two-way and three-way Doppler: in two-way Doppler (F2) the same DSN station transmits and receives,
+  in three-way Doppler (F3) the signal is received by another station than the one that transmits
+  [Moyer, 2000, Sect. 13.3]. In Tudat, both are `dsn_n_way_averaged_doppler` observables, which only differ in
+  their link ends (transmitter and receiver);
+* compute residual statistics per receiving station and per tracking pass;
+* weight the data of each receiving station by its own noise level, and reject outliers before (sigma-based) and
+  during (Carpino et al., 2003) the estimation.
+
+The Doppler data of MRO up to March 2014 contain a periodic transponder signature (periods near 4-5 s) that increases
+their noise above that of e.g. Mars Odyssey [~0.02 mm/s at 60 s; Genova et al., 2015]. The uncertainty of each
+link is therefore derived from the data (the RMS of its residuals w.r.t. the reconstructed SPICE orbit of MRO), rather
+than taken from a nominal value. The TNF files also contain sequential range data, which are loaded into the same
+dataset (with the observable type as an additional selection criterion), but not used in the fit.
+
+Two outlier rejection methods are used. A sigma-based limit on the residuals w.r.t. the reconstructed orbit removes
+outliers before the fit, independently of the fit itself. The algorithm of Carpino et al. (2003) tests the residuals
+of each iteration against their expected standard deviation, which accounts for the effect of the fit on each residual.
+This is essential for a few observations that each strongly affect the fit (as in asteroid astrometry), but makes
+little difference for thousands of Doppler data, for which it reduces to a chi^2 test that is applied during the fit,
+and which is only meaningful with realistic weights. For Doppler data, the sigma-based editing is therefore the main
+tool here, and the Carpino rejection a safeguard against outliers that only appear during the fit.
+
+References:
+
+* Carpino, M., Milani, A., Chesley, S. R. (2003). Error statistics of asteroid optical astrometric observations.
+  Icarus 166, 248-270.
+* Genova, A., Goossens, S., Lemoine, F. G., Mazarico, E., Smith, D. E., Zuber, M. T. (2015). The gravity field of
+  Mars from MGS, Mars Odyssey, and MRO radio science. 46th Lunar and Planetary Science Conference, abstract 1872.
+* Moyer, T. D. (2000). Formulation for observed and computed values of Deep Space Network data types for navigation.
+  JPL Publication 00-7 (DESCANSO Monograph 2).
+"""
+
 # %%
+import functools
+import operator
 import os
 import re
 from collections.abc import Callable, Sequence
@@ -21,6 +70,9 @@ from tudatpy.data_input.tracking_data import TrackingData, TrackingSupplementary
 from tudatpy.data_input.tracking_data.tnf import OpenRampHandling, read_tnf_data
 from tudatpy.dynamics import environment, environment_setup, parameters, propagation_setup, parameters_setup, propagation
 from tudatpy.estimation import estimation_analysis, observable_models_setup, observations, observations_setup
+from tudatpy.estimation.observable_models_setup import links
+from tudatpy.estimation.observations import observation_query
+from tudatpy.estimation.observations_setup import observations_dependent_variables
 
 from tudatpy.math import interpolators
 
@@ -28,6 +80,18 @@ import time as t
 
 
 HERE = Path(__file__).resolve().parent
+# Arcs to process (indices in ESTIMATION_ARCS); use range(len(ESTIMATION_ARCS)) to process all seven arcs in parallel
+ARCS_TO_PROCESS = (0,)
+DOPPLER_TYPE = observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
+RANGE_TYPE = observable_models_setup.model_settings.dsn_n_way_range_type
+# Data below this elevation (at the transmitting or receiving station) are rejected
+ELEVATION_CUTOFF = np.deg2rad(10.0)
+# Gross-error limit on the Doppler residuals w.r.t. the reconstructed (SPICE) MRO orbit (8 mHz is ~0.14 mm/s)
+GROSS_ERROR_LIMIT = 0.008
+# Residuals larger than this multiple of the uncertainty of their link are rejected before the estimation
+SIGMA_REJECTION_LIMIT = 3.0
+# A new tracking pass starts after a data gap longer than this [s]
+PASS_GAP = 1800.0
 ESTIMATION_ARCS = (
     ("2012-01-01 03:18:01.965", "2012-01-04 01:58:15.132"),
     ("2012-01-04 02:25:09.706", "2012-01-07 02:55:23.122"),
@@ -161,11 +225,11 @@ def load_spice_kernels(
 def load_tracking_data(
     tnf_files: Sequence[str],
 ) -> tuple[list[TrackingData], list[TrackingSupplementaryData]]:
-    """Load MRO Doppler observations and their supplementary data."""
+    """Load MRO Doppler and (sequential) range observations, and their supplementary data."""
     print("Loading TNF tracking data...")
     return read_tnf_data(
         tnf_files,
-        ["doppler"],
+        ["doppler", "range"],
         spacecraft_name="MRO",
         open_ramp_handling=OpenRampHandling.close_silently,
     )
@@ -252,16 +316,21 @@ def create_environment(
         environment_setup.gravity_field_variation.solid_body_tide("Sun", 0.1697, 2),
         environment_setup.gravity_field_variation.solid_body_tide("Phobos", 0.1697, 2),
     ]
-    body_settings.get("Mars").climate_model_settings = (
-        environment_setup.atmosphere.mars_climate_database_climate_model(
-            dust_scenario=1,
-            perturbation_key=0,
-            high_resolution_mode=0,
+    # The Mars Climate Database (MCD) is only available if Tudat is built with its interface; otherwise, the DTM-Mars
+    # model is used
+    if hasattr(environment_setup.atmosphere, "mars_climate_database_climate_model"):
+        body_settings.get("Mars").climate_model_settings = (
+            environment_setup.atmosphere.mars_climate_database_climate_model(
+                dust_scenario=1,
+                perturbation_key=0,
+                high_resolution_mode=0,
+            )
         )
-    )
-    body_settings.get("Mars").atmosphere_settings = (
-        environment_setup.atmosphere.mars_climate_database_atmosphere_model()
-    )
+        body_settings.get("Mars").atmosphere_settings = (
+            environment_setup.atmosphere.mars_climate_database_atmosphere_model()
+        )
+    else:
+        body_settings.get("Mars").atmosphere_settings = environment_setup.atmosphere.mars_dtm()
 
     # The mean Martian Bond albedo is approximately 0.25 (NASA Mars Fact Sheet).
     mars_surface_radiosity = [
@@ -344,38 +413,188 @@ def create_observations(
     bodies: environment.SystemOfBodies,
     arc_start: time_representation.Time,
     arc_end: time_representation.Time,
-) -> tuple[
-    observations.ObservationCollection,
-    time_representation.Time,
-    time_representation.Time,
-]:
-    """Apply supplementary data, select the arc, and compress its Doppler data."""
+) -> observations.ObservationDataset:
+    """Create the observation dataset of the arc, and compress its Doppler data to 60 s."""
     print("Preparing and compressing observations...")
+    # The frequency ramps of the DSN stations are needed to compute the Doppler observables
     observations.set_tracking_supplementary_data_in_bodies(
         bodies, supplementary_data
     )
-    original_observations = (
-        observations.create_observation_collection_from_tracking_data(
-            tracking_data, bodies
+    original_observations = observations.create_observation_dataset_from_tracking_data(
+        tracking_data, bodies
+    )
+
+    # The TNF files cover full days: remove the data outside the arc (rejecting them instead would keep them in the
+    # dataset, without using them in the estimation)
+    original_observations.remove_observations(
+        ~observation_query.time.between(arc_start, arc_end)
+    )
+
+    # Average the Doppler data (1 s count time in the TNF files) over 60 s. Tracking arcs with fewer than 10 data
+    # points are left out.
+    return observations.create_count_time_compressed_doppler_dataset(
+        original_observations, bodies, target_count_time=60.0, minimum_number_of_observations=10
+    )
+
+
+def link_label(link_definition: links.LinkDefinition) -> str:
+    """Return a label such as 'DSS-25 -> DSS-25 (2-way)' for a Doppler link."""
+    transmitter = link_definition.link_end_id(links.transmitter).reference_point
+    receiver = link_definition.link_end_id(links.receiver).reference_point
+    link_type = "2-way" if transmitter == receiver else "3-way"
+    return f"{transmitter} -> {receiver} ({link_type})"
+
+
+def doppler_links(
+    dataset: observations.ObservationDataset,
+) -> dict[str, links.LinkDefinition]:
+    """Return the Doppler link definitions of the dataset, by link label."""
+    return {
+        link_label(link_definition): link_definition
+        for link_definition in dataset.link_definitions_for_observable(DOPPLER_TYPE)
+    }
+
+
+def two_way_doppler(dataset: observations.ObservationDataset) -> observations.ObservationSelectionCondition:
+    """Condition selecting the two-way Doppler data (same transmitting and receiving station)."""
+    stations = sorted(
+        {
+            link_definition.link_end_id(links.receiver).reference_point
+            for link_definition in doppler_links(dataset).values()
+        }
+    )
+    same_station = [
+        (observation_query.transmitter == links.body_reference_point_link_end_id("Earth", station))
+        & (observation_query.receiver == links.body_reference_point_link_end_id("Earth", station))
+        for station in stations
+    ]
+    return (observation_query.observable_type == DOPPLER_TYPE) & functools.reduce(
+        operator.or_, same_station
+    )
+
+
+def station_summary(dataset: observations.ObservationDataset) -> pd.DataFrame:
+    """Number of active Doppler data per DSN station, as receiver of two-way data and as transmitter/receiver of
+    three-way data."""
+    doppler = (observation_query.observable_type == DOPPLER_TYPE) & observation_query.active
+    two_way = two_way_doppler(dataset)
+    stations = sorted(
+        {
+            link_definition.link_end_id(link_end_type).reference_point
+            for link_definition in doppler_links(dataset).values()
+            for link_end_type in (links.transmitter, links.receiver)
+        }
+    )
+    rows = []
+    for station in stations:
+        station_id = links.body_reference_point_link_end_id("Earth", station)
+        rows.append(
+            dict(
+                station=station,
+                two_way=len(dataset.get_observation_ids(doppler & two_way & (observation_query.receiver == station_id))),
+                three_way_transmitted=len(
+                    dataset.get_observation_ids(doppler & ~two_way & (observation_query.transmitter == station_id))
+                ),
+                three_way_received=len(
+                    dataset.get_observation_ids(doppler & ~two_way & (observation_query.receiver == station_id))
+                ),
+            )
         )
-    )
+    return pd.DataFrame(rows)
 
-    arc_filter = observations.observations_processing.observation_filter(
-        observations.observations_processing.ObservationFilterType.time_bounds_filtering,
-        arc_start.to_float(),
-        arc_end.to_float(),
-        use_opposite_condition=True,
-    )
-    original_observations.filter_observations(arc_filter)
-    original_observations.remove_empty_observation_sets()
 
-    observation_time_limits = original_observations.time_bounds_time_object
-    obs_start_time = observation_time_limits[0]
-    obs_end_time = observation_time_limits[1]
-    compressed_observations = observations.create_compressed_doppler_collection(
-        original_observations, 60, 10
-    )
-    return compressed_observations, obs_start_time, obs_end_time
+def tracking_passes(times: np.ndarray) -> list[tuple[float, float]]:
+    """Split sorted observation times into passes, separated by gaps longer than PASS_GAP."""
+    if len(times) == 0:
+        return []
+    breaks = np.flatnonzero(np.diff(times) > PASS_GAP)
+    starts = np.r_[times[0], times[breaks + 1]]
+    ends = np.r_[times[breaks], times[-1]]
+    return list(zip(starts, ends))
+
+
+def residuals_of(
+    dataset: observations.ObservationDataset,
+    condition: observations.ObservationSelectionCondition,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the times [s] and (scalar) residuals of the selected observations, sorted by time."""
+    data = dataset.get_data(condition, fields=["times", "residuals"])
+    times = np.array([time.to_float() for time in data["times"]])
+    residuals = np.array([residual[0] for residual in data["residuals"]])
+    order = np.argsort(times)
+    return times[order], residuals[order]
+
+
+def white_noise(times: np.ndarray, residuals: np.ndarray) -> float:
+    """Robust estimate of the white noise of residuals, from differences of consecutive residuals within a pass.
+
+    Differencing removes slowly varying signatures (e.g. orbit errors); the median absolute deviation makes the
+    estimate insensitive to outliers.
+    """
+    differences = np.diff(residuals)[np.diff(times) <= PASS_GAP]
+    if differences.size < 10:
+        return np.nan
+    return 1.4826 * np.median(np.abs(differences - np.median(differences))) / np.sqrt(2.0)
+
+
+def residual_statistics(
+    dataset: observations.ObservationDataset, per_pass: bool = True
+) -> pd.DataFrame:
+    """Residual statistics of the active Doppler data per link and (optionally) per tracking pass."""
+    rows = []
+    for label, link_definition in doppler_links(dataset).items():
+        link_condition = (observation_query.observable_type == DOPPLER_TYPE) & (
+            observation_query.link_definition == link_definition
+        )
+        all_times, _ = residuals_of(dataset, link_condition)
+        windows = tracking_passes(all_times) if per_pass else [(all_times[0], all_times[-1])]
+        for start, end in windows:
+            window = link_condition & observation_query.time.between(start, end)
+            times, residuals = residuals_of(dataset, window & observation_query.active)
+            rows.append(
+                dict(
+                    link=label,
+                    start_tdb=time_representation.DateTime.from_epoch(start).to_python_datetime().strftime(
+                        "%Y-%m-%d %H:%M"
+                    )
+                    if per_pass
+                    else "",
+                    duration_h=(end - start) / 3600.0,
+                    total=len(dataset.get_observation_ids(window)),
+                    active=len(times),
+                    mean_mHz=1.0e3 * np.mean(residuals) if len(times) else np.nan,
+                    rms_mHz=1.0e3 * np.sqrt(np.mean(residuals**2)) if len(times) else np.nan,
+                    noise_mHz=1.0e3 * white_noise(times, residuals),
+                )
+            )
+    return pd.DataFrame(rows)
+
+
+def range_statistics(dataset: observations.ObservationDataset) -> pd.DataFrame:
+    """Range residual statistics per receiving station (all range data, including rejected ones)."""
+    rows = []
+    for link_definition in dataset.link_definitions_for_observable(RANGE_TYPE):
+        receiver = link_definition.link_end_id(links.receiver)
+        condition = (observation_query.observable_type == RANGE_TYPE) & (
+            observation_query.link_definition == link_definition
+        )
+        _, residuals = residuals_of(dataset, condition)
+        median = np.median(residuals)
+        rows.append(
+            dict(
+                link=f"{link_definition.link_end_id(links.transmitter).reference_point} -> {receiver.reference_point}",
+                observations=residuals.size,
+                median_RU=median,
+                robust_std_RU=1.4826 * np.median(np.abs(residuals - median)),
+                beyond_100_RU=int(np.sum(np.abs(residuals - median) > 100.0)),
+            )
+        )
+    return pd.DataFrame(rows)
+
+
+def print_table(title: str, table: pd.DataFrame) -> None:
+    print(f"\n{title}")
+    print(table.to_string(index=False, float_format=lambda value: f"{value:.3f}"))
 
 
 # =============================================================================================
@@ -688,9 +907,13 @@ def create_inverse_apriori_covariance(
         parameter_types.radiation_pressure_target_direction_scaling_factor_type,
         lambda block_size: np.full(block_size, 0.2),
     )
+    # Earth-based Doppler data measure the line-of-sight velocity, and hardly constrain the out-of-plane (N) motion
+    # of MRO over a few days. With realistic data weights, unconstrained N accelerations let the orbit drift
+    # out-of-plane by tens of meters, so these are constrained to 1e-8 m/s^2 (~15% of the solar radiation pressure
+    # acceleration of MRO). The coefficients are ordered T, N per functional shape (see create_parameter_metadata).
     set_prior(
         parameter_types.arc_wise_empirical_acceleration_coefficients_type,
-        lambda block_size: np.full(block_size, 3.0e-6),
+        lambda block_size: np.tile([3.0e-6, 1.0e-8], block_size // 2),
     )
 
     if not np.isfinite(prior_sigmas).all():
@@ -700,28 +923,27 @@ def create_inverse_apriori_covariance(
 
 
 # =============================================================================================
-# ================   CONFIGURE THE DOPPLER MODEL AND FILTER THE DATA   ========================
+# ================   CONFIGURE THE DOPPLER MODEL, EDIT AND WEIGHT THE DATA   ==================
 # =============================================================================================
 
 
 def set_antenna_reference_point(
-    observation_collection: observations.ObservationCollection,
+    observation_dataset: observations.ObservationDataset,
     bodies: environment.SystemOfBodies,
 ) -> None:
-    """Set the MRO antenna position relative to its centre of mass."""
+    """Set the MRO high-gain antenna as reference point of the spacecraft in all observations."""
     print("Setting the MRO antenna reference point...")
+    # Position of the antenna w.r.t. the centre of mass, in the spacecraft-fixed frame, tabulated from the SPICE
+    # structure and attitude kernels over the observation interval (with 1 h margin)
     centre_of_mass = np.array([-0.001235, -1.14978, -0.001288])
+    first_time, last_time = observation_dataset.observation_time_bounds
     position_history = {}
-    for observation_times in observation_collection.get_observation_times_objects():
-        epoch = observation_times[0].to_float() - 3600.0
-        final_epoch = observation_times[-1].to_float() + 3600.0
-        while epoch <= final_epoch:
-            state = np.zeros(6)
-            state[:3] = spice.get_body_cartesian_position_at_epoch(
-                "-74214", "-74000", "MRO_SPACECRAFT", "none", epoch
-            ) - centre_of_mass
-            position_history[epoch] = state
-            epoch += 60.0
+    for epoch in np.arange(first_time.to_float() - 3600.0, last_time.to_float() + 3600.0, 60.0):
+        state = np.zeros(6)
+        state[:3] = spice.get_body_cartesian_position_at_epoch(
+            "-74214", "-74000", "MRO_SPACECRAFT", "none", epoch
+        ) - centre_of_mass
+        position_history[epoch] = state
 
     antenna = environment_setup.ephemeris.create_ephemeris(
         environment_setup.ephemeris.tabulated(
@@ -729,23 +951,19 @@ def set_antenna_reference_point(
         ),
         "Antenna",
     )
-    observation_collection.set_reference_point(
-        bodies,
-        antenna,
-        "Antenna",
-        "MRO",
-        observable_models_setup.links.LinkEndType.reflector1,
-    )
+    # Add the antenna to the spacecraft, and use it in the link definitions in which MRO retransmits the signal
+    bodies.get("MRO").system_models.set_reference_point("Antenna", antenna)
+    observation_dataset.set_link_end_reference_point("MRO", "Antenna", links.reflector1)
 
 
 def create_observation_models(
-    observation_collection: observations.ObservationCollection,
+    observation_dataset: observations.ObservationDataset,
     bodies: environment.SystemOfBodies,
     tro_files: Sequence[str],
     ion_files: Sequence[str],
 ) -> tuple[list[observable_models_setup.model_settings.ObservationModelSettings], list[Any]]:
-    """Create corrected DSN averaged-Doppler models and simulators."""
-    print("Setting up Doppler observation models...")
+    """Create corrected DSN averaged-Doppler and range models and simulators, one per link and observable."""
+    print("Setting up Doppler and range observation models...")
     corrections = [
         observable_models_setup.light_time_corrections.approximated_second_order_relativistic_light_time_correction(
             ["Sun"]
@@ -757,14 +975,14 @@ def create_observation_models(
             ion_files, {74: "MRO"}
         ),
     ]
-    observable_type = observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
     model_settings = [
         observable_models_setup.model_settings.dsn_n_way_doppler_averaged(
             link_definition, corrections
         )
-        for link_definition in observation_collection.link_definitions_per_observable[
-            observable_type
-        ]
+        for link_definition in observation_dataset.link_definitions_for_observable(DOPPLER_TYPE)
+    ] + [
+        observable_models_setup.model_settings.dsn_n_way_range(link_definition, corrections)
+        for link_definition in observation_dataset.link_definitions_for_observable(RANGE_TYPE)
     ]
     simulators = observations_setup.observations_simulation_settings.create_observation_simulators(
         model_settings, bodies
@@ -772,59 +990,79 @@ def create_observation_models(
     return model_settings, simulators
 
 
-def filter_prefit_residuals(
-    observation_collection: observations.ObservationCollection,
+# Elevation of the receiving and transmitting stations (for two-way Doppler, these are the same station)
+ELEVATION_AT_RECEIVER = observations_dependent_variables.elevation_angle_dependent_variable(links.receiver)
+ELEVATION_AT_TRANSMITTER = observations_dependent_variables.elevation_angle_dependent_variable(links.transmitter)
+
+
+def compute_spice_residuals(
+    observation_dataset: observations.ObservationDataset,
     simulators: Sequence[Any],
     bodies: environment.SystemOfBodies,
-) -> pd.DataFrame:
-    """Compute SPICE-trajectory residuals and apply the 8 mHz outlier filter."""
-    print("Computing and filtering prefit residuals...")
+) -> None:
+    """Compute residuals and station elevations, using the reconstructed (SPICE) orbit of MRO."""
+    print("Computing residuals w.r.t. the reconstructed orbit...")
+    observation_dataset.add_dependent_variable(ELEVATION_AT_RECEIVER)
+    observation_dataset.add_dependent_variable(ELEVATION_AT_TRANSMITTER)
     observations.compute_residuals_and_dependent_variables(
-        observation_collection, simulators, bodies
-    )
-    unfiltered = np.asarray(observation_collection.get_concatenated_residuals()).copy()
-    observable_type = observable_models_setup.model_settings.dsn_n_way_averaged_doppler_type
-    parser = observations.observations_processing.observation_parser(observable_type)
-    observation_collection.filter_observations(
-        {
-            parser: observations.observations_processing.observation_filter(
-                observations.observations_processing.ObservationFilterType.residual_filtering,
-                0.008,
-            )
-        }
+        observation_dataset, simulators, bodies
     )
 
-    residuals = observation_collection.get_concatenated_residuals(parser)
-    link_ids = observation_collection.get_concatenated_link_definition_ids(parser)
-    link_definitions = observation_collection.link_definition_ids
-    link_ends = [
-        " - ".join(
-            (
-                link_definitions[link_id][
-                    observable_models_setup.links.LinkEndType.transmitter
-                ].reference_point,
-                link_definitions[link_id][
-                    observable_models_setup.links.LinkEndType.receiver
-                ].reference_point,
-            )
+
+def edit_and_weight_observations(observation_dataset: observations.ObservationDataset) -> pd.DataFrame:
+    """Reject low-elevation data and gross errors, weight each link by its residual RMS, and reject outliers.
+
+    Returns the residual statistics per link, after editing.
+    """
+    print("Editing and weighting the observations...")
+    # Low elevation: largest tropospheric and multipath errors. A three-way observation is rejected if either
+    # station is low.
+    low_elevation = ~observation_query.dependent_variable(ELEVATION_AT_RECEIVER).greater_than(
+        ELEVATION_CUTOFF
+    ) | ~observation_query.dependent_variable(ELEVATION_AT_TRANSMITTER).greater_than(ELEVATION_CUTOFF)
+    observation_dataset.reject_observations(low_elevation, reason="low elevation")
+
+    # The range data are not used: over a three-day arc, the orbit of MRO around Mars is determined by the Doppler
+    # data, whereas the range data mainly constrain the Earth-Mars distance (fixed here by the planetary ephemeris),
+    # and would need a calibration bias per station. They remain in the dataset, with their residuals.
+    observation_dataset.reject_observations(
+        observation_query.active & (observation_query.observable_type == RANGE_TYPE),
+        reason="range not used",
+    )
+
+    # Gross errors in the Doppler data (e.g. at ramp transitions or the start of a pass)
+    observation_dataset.reject_observations(
+        observation_query.active
+        & (observation_query.observable_type == DOPPLER_TYPE)
+        & observation_query.residual.abs_greater_than(GROSS_ERROR_LIMIT),
+        reason="gross error",
+    )
+
+    # Weight each link by the RMS of its residuals w.r.t. the reconstructed orbit. This RMS contains the noise of the
+    # data, but also signatures that the estimation will not remove (e.g. the frequency offset between the two
+    # stations of a three-way link), so that the weights are not too optimistic.
+    for link_definition in doppler_links(observation_dataset).values():
+        link_condition = (observation_query.observable_type == DOPPLER_TYPE) & (
+            observation_query.link_definition == link_definition
         )
-        for link_id in link_ids
-    ]
-    table = pd.DataFrame(
-        {
-            "spice": residuals,
-            "time": observation_collection.get_concatenated_observation_times(parser),
-            "link_id": [int(link_id) for link_id in link_ids],
-            "link_ends": link_ends,
-            "msrType": "doppler",
-        }
+        _, residuals = residuals_of(observation_dataset, link_condition & observation_query.active)
+        if residuals.size < 10:
+            observation_dataset.reject_observations(link_condition, reason="too few data")
+            continue
+        sigma = np.sqrt(np.mean(residuals**2))
+        observation_dataset.set_constant_single_observation_scalar_weight(link_condition, 1.0 / sigma**2)
+
+    # Sigma-based rejection, using the weights (sigma = 1 / sqrt(weight)) of each observation
+    observation_dataset.reject_observations(
+        observation_query.active, sigma_limit=SIGMA_REJECTION_LIMIT, reason="sigma-based rejection"
     )
-    table.attrs.update(
-        unfiltered_count=len(unfiltered),
-        unfiltered_rms_hz=float(np.sqrt(np.mean(unfiltered**2))),
-        unfiltered_max_hz=float(np.max(np.abs(unfiltered))),
-    )
-    return table
+    return residual_statistics(observation_dataset, per_pass=False)
+
+
+def summarise_rejections(observation_dataset: observations.ObservationDataset) -> pd.Series:
+    """Number of rejected observations per rejection reason."""
+    rows = observation_dataset.get_rows(observation_query.rejected)
+    return pd.Series([row["rejection_reason"] for row in rows]).value_counts()
 
 
 # =============================================================================================
@@ -834,7 +1072,7 @@ def filter_prefit_residuals(
 
 def estimate_parameters(
     bodies: environment.SystemOfBodies,
-    observation_collection: observations.ObservationCollection,
+    observation_dataset: observations.ObservationDataset,
     observation_model_settings: Sequence[
         observable_models_setup.model_settings.ObservationModelSettings
     ],
@@ -843,23 +1081,39 @@ def estimate_parameters(
     inverse_apriori_covariance: np.ndarray,
     arc_index: int,
 ) -> estimation_analysis.EstimationOutput:
-    """Run the constrained estimation and return its native output."""
+    """Run the constrained estimation, with outlier rejection, and return its native output."""
     print("Running estimation...")
-    observation_collection.set_constant_weight(1.0)
+    # Carpino et al. (2003) reject an observation when its chi^2 (squared ratio of the residual and its standard
+    # deviation, taking into account the fit itself) exceeds a threshold, and recover it when it drops below a lower
+    # one. Their thresholds (8 and 7) are for two-dimensional astrometry of asteroids, with few observations per
+    # object. For thousands of scalar Doppler data with correlated, non-Gaussian errors, a 5-sigma rejection limit
+    # (chi^2 = 25) avoids rejecting good data, and at most 5% of the data may be rejected.
+    outlier_rejection = estimation_analysis.carpino_outlier_rejection_settings(
+        chi2_rejection_threshold=25.0,
+        chi2_recovery_threshold=16.0,
+        maximum_rejected_fraction=0.05,
+    )
     estimation_input = estimation_analysis.EstimationInput(
-        observation_collection,
+        observation_dataset=observation_dataset,
         inverse_apriori_covariance=inverse_apriori_covariance,
         convergence_checker=estimation_analysis.estimation_convergence_checker(5),
         apply_apriori_parameter_deviation=True,
+        outlier_rejection_settings=outlier_rejection,
     )
     estimation_input.define_estimation_settings(
         reintegrate_equations_on_first_iteration=False,
         reintegrate_variational_equations=False,
-        print_output_to_terminal=True,
+        print_output_to_terminal=False,
         save_state_history_per_iteration=True,
-        limit_condition_number_for_warning=1.0,
-        condition_number_warning_each_iteration=True,
     )
+
+    def report_iteration(iteration: int, residuals: np.ndarray, inverse_covariance: np.ndarray) -> None:
+        print(
+            f"  iteration {iteration}: {residuals.size} observations used, "
+            f"residual RMS {1.0e3 * np.sqrt(np.mean(np.square(residuals))):.3f} mHz"
+        )
+
+    estimation_input.iteration_callback = report_iteration
     output = estimation_analysis.Estimator(
         bodies,
         parameters_to_estimate,
@@ -885,9 +1139,31 @@ def estimate_parameters(
 # =============================================================================================
 
 
+def observation_table(observation_dataset: observations.ObservationDataset) -> pd.DataFrame:
+    """Table of all Doppler observations (including rejected ones), in the order used in the estimation."""
+    data = observation_dataset.get_data(
+        observation_query.observable_type == DOPPLER_TYPE,
+        fields=["observation_ids", "times", "residuals", "set_ids", "rows"],
+        ordering="estimation",
+    )
+    labels = {
+        set_id: link_label(metadata["link_definition"])
+        for set_id, metadata in observation_dataset.get_metadata().items()
+    }
+    return pd.DataFrame(
+        {
+            "observation_id": data["observation_ids"],
+            "time": [time.to_float() for time in data["times"]],
+            "residual": [residual[0] for residual in data["residuals"]],
+            "link_ends": [labels[set_id] for set_id in data["set_ids"]],
+            "active": [row["is_active"] for row in data["rows"]],
+            "rejection_reason": [row["rejection_reason"] for row in data["rows"]],
+        }
+    ).set_index("observation_id")
+
+
 def run_arc(arc_index: int) -> ArcResult:
     """Fit one MRO arc and return only picklable selected products."""
-    plt.switch_backend("Agg")
     start_text, end_text = ESTIMATION_ARCS[arc_index]
     start_datetime = datetime.fromisoformat(start_text)
     end_datetime = datetime.fromisoformat(end_text)
@@ -945,7 +1221,7 @@ def run_arc(arc_index: int) -> ArcResult:
     environment_end_time = arc_end + 7200.0
 
     bodies = create_environment(environment_start_time, environment_end_time)
-    compressed_observations, _, _ = create_observations(
+    observation_dataset = create_observations(
         tracking_data,
         supplementary_data,
         bodies,
@@ -955,13 +1231,24 @@ def run_arc(arc_index: int) -> ArcResult:
     prop_start_time = arc_start - 3600.0
     prop_end_time = arc_end + 3600.0
 
-    set_antenna_reference_point(compressed_observations, bodies)
+    set_antenna_reference_point(observation_dataset, bodies)
     observation_model_settings, observation_simulators = create_observation_models(
-        compressed_observations, bodies, tro_files, ion_files
+        observation_dataset, bodies, tro_files, ion_files
     )
-    residDf = filter_prefit_residuals(
-        compressed_observations, observation_simulators, bodies
+    compute_spice_residuals(observation_dataset, observation_simulators, bodies)
+    print_table(
+        f"Arc {arc_index}: Doppler residuals w.r.t. the reconstructed orbit, before editing",
+        residual_statistics(observation_dataset, per_pass=False),
     )
+    print_table(
+        f"Arc {arc_index}: range residuals w.r.t. the reconstructed orbit [range units]",
+        range_statistics(observation_dataset),
+    )
+    link_noise = edit_and_weight_observations(observation_dataset)
+    print_table(f"Arc {arc_index}: after editing and weighting", link_noise)
+    print_table(f"Arc {arc_index}: active Doppler data per station", station_summary(observation_dataset))
+    residuals_table = observation_table(observation_dataset).rename(columns={"residual": "spice"})
+
     propagator_settings, unperturbed_initial_state = create_propagator_settings(
         bodies,
         estimation_epoch,
@@ -1002,9 +1289,14 @@ def run_arc(arc_index: int) -> ArcResult:
     )
     initial_parameters = parameters_to_estimate.parameter_vector.copy()
 
+    # The residuals of all observations (including the rejected ones) of each iteration are stored in the rows of
+    # the residual history, in the order of the observation vector data that includes the rejected observations
+    residual_history_ids = observation_dataset.observation_vector_data(
+        include_rejected=True
+    ).observation_ids
     estimation_output = estimate_parameters(
         bodies,
-        compressed_observations,
+        observation_dataset,
         observation_model_settings,
         propagator_settings,
         parameters_to_estimate,
@@ -1014,8 +1306,20 @@ def run_arc(arc_index: int) -> ArcResult:
 
     print("Processing estimation results...")
     best_iteration = estimation_output.best_iteration
-    residDf["prefit"] = estimation_output.residual_history[:, 0]
-    residDf["postfit"] = estimation_output.residual_history[:, best_iteration]
+    # After the estimation, the dataset contains the residuals of the best iteration, and the observations rejected
+    # by the outlier rejection are marked as rejected
+    postfit = observation_table(observation_dataset)
+    residuals_table["postfit"] = postfit["residual"]
+    residuals_table["active"] = postfit["active"]
+    residuals_table["rejection_reason"] = postfit["rejection_reason"]
+    residuals_table["prefit"] = pd.Series(
+        estimation_output.residual_history[:, 0], index=residual_history_ids
+    )
+    print(f"Rejected observations per reason:\n{summarise_rejections(observation_dataset).to_string()}")
+    print_table(
+        f"Arc {arc_index}: postfit residuals per link and pass",
+        residual_statistics(observation_dataset, per_pass=True),
+    )
 
     prefit_state_history = estimation_output.simulation_results_per_iteration[
         0
@@ -1027,7 +1331,7 @@ def run_arc(arc_index: int) -> ArcResult:
     print(f"Finished processing arc {arc_index}")
     return _plain_arc_result({
         "arc_index": arc_index,
-        "residuals": residDf,
+        "residuals": residuals_table.reset_index(),
         "estimation_output": estimation_output,
         "prefit_state_history": prefit_state_history,
         "postfit_state_history": estimated_state_history,
@@ -1089,8 +1393,9 @@ def retained_observation_tag_orbit(
     orbit: pd.DataFrame, residuals: pd.DataFrame
 ) -> pd.DataFrame:
     """Apply the primary inclusive first/last retained-observation-tag mask."""
-    first = float(residuals["time"].min())
-    last = float(residuals["time"].max())
+    retained_times = residuals.loc[residuals["active"], "time"]
+    first = float(retained_times.min())
+    last = float(retained_times.max())
     selected = orbit[(orbit["t"] >= first) & (orbit["t"] <= last)].copy()
     if selected.empty:
         raise ValueError("The retained-observation-tag orbit mask is empty.")
@@ -1195,6 +1500,7 @@ def _plain_arc_result(arc_result: ArcResult) -> ArcResult:
 def _pooled_primary_metrics(results: Sequence[ArcResult]) -> dict[str, float]:
     """Compute pooled primary-mask orbit and residual statistics."""
     residuals = pd.concat([result["residuals"] for result in results])
+    residuals = residuals[residuals["active"]]
     orbit = pd.concat([result["postfit_orbit"] for result in results])
     position = orbit[["R", "T", "N"]].to_numpy()
     return {
@@ -1226,11 +1532,40 @@ def plot_results(results: Sequence[ArcResult]) -> list[Figure]:
     results_by_arc = {int(result["arc_index"]): result for result in results}
     if len(results_by_arc) != len(results):
         raise ValueError("Each plotted result must have a unique arc_index.")
-    residuals = pd.concat([result["residuals"] for result in results])
+    all_residuals = pd.concat([result["residuals"] for result in results])
+    residuals = all_residuals[all_residuals["active"]]
     prefit_orbit = pd.concat([result["prefit_orbit"] for result in results])
     postfit_orbit = pd.concat([result["postfit_orbit"] for result in results])
     origin = min(result["arc_bounds"][0] for result in results)
     figures = []
+
+    # Postfit residuals per link: two-way (dots) and three-way (crosses) Doppler, and rejected data (grey)
+    figure, axis = plt.subplots(figsize=(14, 6))
+    rejected = all_residuals[~all_residuals["active"]]
+    axis.plot(
+        (rejected["time"] - origin) / 86400.0,
+        rejected["postfit"] * 1.0e3,
+        ".",
+        color="0.7",
+        markersize=3,
+        label=f"rejected ({len(rejected)})",
+    )
+    for link, frame in residuals.groupby("link_ends", sort=True):
+        axis.plot(
+            (frame["time"] - origin) / 86400.0,
+            frame["postfit"] * 1.0e3,
+            "x" if "3-way" in link else ".",
+            markersize=3,
+            label=link,
+        )
+    axis.set_ylim(-10.0, 10.0)
+    axis.set_xlabel("TDB days since first estimation arc start")
+    axis.set_ylabel("Postfit Doppler residual [mHz]")
+    axis.set_title("MRO postfit Doppler residuals per link")
+    axis.grid(alpha=0.3)
+    axis.legend(ncol=3, fontsize=7)
+    figure.tight_layout()
+    figures.append(figure)
 
     figure, axes = plt.subplots(3, 1, figsize=(14, 9), sharex=True)
     for axis, column, title in zip(
@@ -1393,41 +1728,41 @@ def plot_results(results: Sequence[ArcResult]) -> list[Figure]:
 
 
 # =============================================================================================
-# ================   RUN THE SEVEN ESTIMATION ARCS IN PARALLEL   ==============================
+# ================   RUN THE ESTIMATION ARCS   =================================================
 # =============================================================================================
 
 
 def run_estimation() -> None:
-    """Estimate seven independent arcs in parallel and plot the combined results."""
+    """Estimate the selected arcs (in parallel, if more than one) and plot the combined results."""
     started = t.time()
-    print(
-        "Running seven MRO arcs in isolated processes: RKF56/30 s, "
-        "anchored priors, two-orbit edge-merged TN empiricals, fixed drag/lift scales."
-    )
-    first_epoch = datetime.fromisoformat(ESTIMATION_ARCS[0][0])
-    last_epoch = datetime.fromisoformat(ESTIMATION_ARCS[-1][1])
+    first_epoch = datetime.fromisoformat(ESTIMATION_ARCS[min(ARCS_TO_PROCESS)][0])
+    last_epoch = datetime.fromisoformat(ESTIMATION_ARCS[max(ARCS_TO_PROCESS)][1])
     get_mro_files(
         str(HERE / "mro_kernels") + os.sep,
         first_epoch - timedelta(days=1),
         last_epoch,
     )
-    results = []
-    context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(
-        max_workers=len(ESTIMATION_ARCS), mp_context=context
-    ) as executor:
-        futures = {
-            executor.submit(run_arc, index): index
-            for index in range(len(ESTIMATION_ARCS))
-        }
-        for future in as_completed(futures):
-            arc_index = futures[future]
-            result = future.result()
-            results.append(result)
-            print(
-                f"Arc {arc_index} complete; selected native iteration "
-                f"{result['best_iteration']}."
-            )
+    if len(ARCS_TO_PROCESS) == 1:
+        results = [run_arc(ARCS_TO_PROCESS[0])]
+    else:
+        # Each arc is estimated in a separate process
+        results = []
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=len(ARCS_TO_PROCESS), mp_context=context
+        ) as executor:
+            futures = {
+                executor.submit(run_arc, index): index
+                for index in ARCS_TO_PROCESS
+            }
+            for future in as_completed(futures):
+                arc_index = futures[future]
+                result = future.result()
+                results.append(result)
+                print(
+                    f"Arc {arc_index} complete; selected native iteration "
+                    f"{result['best_iteration']}."
+                )
 
     results.sort(key=lambda result: result["arc_index"])
     metrics = _pooled_primary_metrics(results)
