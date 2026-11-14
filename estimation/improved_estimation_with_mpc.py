@@ -748,9 +748,9 @@ def compare_rejections(results: dict) -> None:
     results : dict[str, tuple[EstimationOutput, ObservationDataset, Estimator]]
         Estimation output, observations and estimator per data setup.
     """
-    screened_dataset = results[RADAR_SETUP_NAME][1].create_new_and_keep(observations.ObservationSelectionCondition.all())
+    screened_dataset = results[RADAR_SETUP_NAME][1].create_new_and_keep(observations.observation_query.all)
     screened_dataset.reject_observations(
-        observations.ObservationSelectionCondition.all(),
+        observations.observation_query.all,
         sigma_limit=SIGMA_SCREENING_LIMIT,
         reason=f"{SIGMA_SCREENING_LIMIT:g}-sigma post-fit screening",
     )
@@ -843,7 +843,7 @@ def print_covariance_with_observatory_weights(
     estimator : estimation_analysis.Estimator
         Estimator of the setup, containing the observation models of all observations.
     """
-    reweighted_dataset = observation_dataset.create_new_and_keep(observations.ObservationSelectionCondition.all())
+    reweighted_dataset = observation_dataset.create_new_and_keep(observations.observation_query.all)
     print("\nObservatory-specific weights: factor by which the 1-sigma uncertainty is multiplied [-]")
     for receiver in receivers(observation_dataset, OPTICAL):
         station = OPTICAL & (observation_query.receiver == receiver)
@@ -1194,7 +1194,7 @@ if __name__ == "__main__":
     # Define the estimation setups: astrometry only, and (if any) astrometry + radar, without and with outlier
     # rejection. Each setup uses its own dataset, since the estimation stores the residuals and the rejected
     # observations in it. A copy of a dataset is created by keeping all of its observations.
-    all_observations = observations.ObservationSelectionCondition.all()
+    all_observations = observations.observation_query.all
     setups = {
         ASTROMETRY_SETUP_NAME: (observation_dataset.create_new_and_keep(OPTICAL), None),
     }
