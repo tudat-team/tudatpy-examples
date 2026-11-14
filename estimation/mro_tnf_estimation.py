@@ -1017,9 +1017,9 @@ def edit_and_weight_observations(observation_dataset: observations.ObservationDa
     print("Editing and weighting the observations...")
     # Low elevation: largest tropospheric and multipath errors. A three-way observation is rejected if either
     # station is low.
-    low_elevation = ~observation_query.dependent_variable(ELEVATION_AT_RECEIVER).greater_than(
+    low_elevation = observation_query.dependent_variable(ELEVATION_AT_RECEIVER).less_than(
         ELEVATION_CUTOFF
-    ) | ~observation_query.dependent_variable(ELEVATION_AT_TRANSMITTER).greater_than(ELEVATION_CUTOFF)
+    ) | observation_query.dependent_variable(ELEVATION_AT_TRANSMITTER).less_than(ELEVATION_CUTOFF)
     observation_dataset.reject_observations(low_elevation, reason="low elevation")
 
     # The range data are not used: over a three-day arc, the orbit of MRO around Mars is determined by the Doppler
