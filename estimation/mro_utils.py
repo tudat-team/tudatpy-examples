@@ -241,7 +241,7 @@ def download_url_files_time(
     # BeautifulSoup package to look for all pattern-matching names at the targeted url (without any a priori information on the date and/or
     # wildcard present in the file name)
     reduced_filename = filename_split[-1]
-    reduced_filename = reduced_filename.replace(r"\w", "*")
+    reduced_filename = reduced_filename.replace("\w", "*")
 
     # Retrieve all filenames present at the "local_path" location that match the specified filename format
     existing_files = glob.glob(local_path + reduced_filename)
@@ -476,7 +476,7 @@ def get_mro_files(local_path, start_date, end_date):
     # Retrieve the names of all existing TNF files within the time interval of interest, and download them if they do not exist locally yet
     tnf_files = download_url_files_time(
         local_path=local_path,
-        filename_format=r"mromagr*_\w\w\w\wxmmmv1.tnf",
+        filename_format="mromagr*_\w\w\w\wxmmmv1.tnf",
         start_date=start_date,
         end_date=end_date,
         url=url_odf,
@@ -566,7 +566,8 @@ def get_mro_files(local_path, start_date, end_date):
     )
 
 
-def macromodel_mro():
+def macromodel_mro(reduced_solar_arrays=False):
+    """Create the MRO panel model, optionally using three triangles per array side."""
 
     dae_path = Path(__file__).parent / "mro_macromodel"
 
@@ -575,6 +576,7 @@ def macromodel_mro():
         "INS": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.03,
             diffuse_reflectivity=0.12,
+            energy_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -582,6 +584,7 @@ def macromodel_mro():
         "BUS": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.05,
             diffuse_reflectivity=0.21,
+            energy_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -601,6 +604,7 @@ def macromodel_mro():
         "HGA_front": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.55,
             diffuse_reflectivity=0.25,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -608,6 +612,7 @@ def macromodel_mro():
         "HGA_back": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.05,
             diffuse_reflectivity=0.8,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -627,10 +632,14 @@ def macromodel_mro():
         "MRO_SPACECRAFT", "MRO_HGA_OUTER_GIMBAL", ""
     )
     # SAPX/SAMX
+    solar_array_mesh = (
+        "MRO_sa_reduced.dae" if reduced_solar_arrays else "MRO_sa.dae"
+    )
     sa_material_properties = {
         "SA_front": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.03,
             diffuse_reflectivity=0.07,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -638,6 +647,7 @@ def macromodel_mro():
         "SA_back": environment_setup.vehicle_systems.material_properties(
             specular_reflectivity=0.02,
             diffuse_reflectivity=0.2,
+            energy_accomodation_coefficient=1.0,
             tangential_accomodation_coefficient=1.0,
             normal_accomodation_coefficient=1.0,
             normal_velocity_at_wall_ratio=0.1,
@@ -646,7 +656,7 @@ def macromodel_mro():
     sa_reradiation_settings = {"SA_front": True, "SA_back": True}
     sapx_frame_origin = np.array([1.144, -2.5354, 0.113])
     sapx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        (dae_path / "MRO_sa.dae").as_posix(),
+        (dae_path / solar_array_mesh).as_posix(),
         sapx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
@@ -658,7 +668,7 @@ def macromodel_mro():
     )
     samx_frame_origin = np.array([-1.144, -2.5354, 0.113])
     samx_panels = environment_setup.vehicle_systems.body_panel_settings_list_from_dae(
-        (dae_path / "MRO_sa.dae").as_posix(),
+        (dae_path / solar_array_mesh).as_posix(),
         samx_frame_origin,
         sa_material_properties,
         sa_reradiation_settings,
