@@ -71,7 +71,7 @@ from tudatpy.data_input.tracking_data.tnf import OpenRampHandling, read_tnf_data
 from tudatpy.dynamics import environment, environment_setup, parameters, propagation_setup, parameters_setup, propagation
 from tudatpy.estimation import estimation_analysis, observable_models_setup, observations, observations_setup
 from tudatpy.estimation.observable_models_setup import links
-from tudatpy.estimation.observations import observation_query
+from tudatpy.estimation.observations import ObservationDataField, observation_query
 from tudatpy.estimation.observations_setup import observations_dependent_variables
 
 from tudatpy.math import interpolators
@@ -518,9 +518,11 @@ def residuals_of(
     condition: observations.ObservationSelectionCondition,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return the times [s] and (scalar) residuals of the selected observations, sorted by time."""
-    data = dataset.get_data(condition, fields=["times", "residuals"])
-    times = np.array([time.to_float() for time in data["times"]])
-    residuals = np.array([residual[0] for residual in data["residuals"]])
+    data = dataset.get_data(
+        condition, fields=[ObservationDataField.times, ObservationDataField.residuals]
+    )
+    times = np.array([time.to_float() for time in data[ObservationDataField.times]])
+    residuals = np.array([residual[0] for residual in data[ObservationDataField.residuals]])
     order = np.argsort(times)
     return times[order], residuals[order]
 
@@ -1143,7 +1145,13 @@ def observation_table(observation_dataset: observations.ObservationDataset) -> p
     """Table of all Doppler observations (including rejected ones), in the order used in the estimation."""
     data = observation_dataset.get_data(
         observation_query.observable_type == DOPPLER_TYPE,
-        fields=["observation_ids", "times", "residuals", "set_ids", "rows"],
+        fields=[
+            ObservationDataField.observation_ids,
+            ObservationDataField.times,
+            ObservationDataField.residuals,
+            ObservationDataField.set_ids,
+            ObservationDataField.rows,
+        ],
         ordering="estimation",
     )
     labels = {
@@ -1152,12 +1160,12 @@ def observation_table(observation_dataset: observations.ObservationDataset) -> p
     }
     return pd.DataFrame(
         {
-            "observation_id": data["observation_ids"],
-            "time": [time.to_float() for time in data["times"]],
-            "residual": [residual[0] for residual in data["residuals"]],
-            "link_ends": [labels[set_id] for set_id in data["set_ids"]],
-            "active": [row["is_active"] for row in data["rows"]],
-            "rejection_reason": [row["rejection_reason"] for row in data["rows"]],
+            "observation_id": data[ObservationDataField.observation_ids],
+            "time": [time.to_float() for time in data[ObservationDataField.times]],
+            "residual": [residual[0] for residual in data[ObservationDataField.residuals]],
+            "link_ends": [labels[set_id] for set_id in data[ObservationDataField.set_ids]],
+            "active": [row["is_active"] for row in data[ObservationDataField.rows]],
+            "rejection_reason": [row["rejection_reason"] for row in data[ObservationDataField.rows]],
         }
     ).set_index("observation_id")
 

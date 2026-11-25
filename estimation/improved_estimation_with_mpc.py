@@ -53,7 +53,7 @@ from tudatpy.data_input.tracking_data.mpc import BatchMPC
 from tudatpy.dynamics import environment, environment_setup, parameters_setup, propagation_setup
 from tudatpy.estimation import estimation_analysis, observable_models_setup, observations
 from tudatpy.estimation.observable_models_setup import links, model_settings
-from tudatpy.estimation.observations import observation_query
+from tudatpy.estimation.observations import ObservationDataField, observation_query
 
 
 """
@@ -660,11 +660,20 @@ def print_observatory_statistics(label: str, observation_dataset: observations.O
     for receiver in receivers(observation_dataset, OPTICAL)[:NUMBER_OF_COLORED_OBSERVATORIES]:
         station = OPTICAL & (observation_query.receiver == receiver)
         used = station & observation_query.active
-        data = observation_dataset.get_data(used, fields=["observations", "residuals", "weight_diagonal"])
-        residuals = np.array(data["residuals"]) * ARCSECONDS_PER_RADIAN
+        data = observation_dataset.get_data(
+            used,
+            fields=[
+                ObservationDataField.observations,
+                ObservationDataField.residuals,
+                ObservationDataField.weight_diagonal,
+            ],
+        )
+        residuals = np.array(data[ObservationDataField.residuals]) * ARCSECONDS_PER_RADIAN
         # Right ascension residuals are multiplied by cos(Dec), to obtain the residual on the sky
-        residuals[:, 0] *= np.cos(np.array(data["observations"])[:, 1])
-        normalized = np.array(data["residuals"]).reshape(-1) * np.sqrt(data["weight_diagonal"])
+        residuals[:, 0] *= np.cos(np.array(data[ObservationDataField.observations])[:, 1])
+        normalized = np.array(data[ObservationDataField.residuals]).reshape(-1) * np.sqrt(
+            data[ObservationDataField.weight_diagonal]
+        )
         number_rejected = len(observation_dataset.get_observation_ids(station & observation_query.rejected))
         print(
             f"  {receiver_name(receiver):>11}   {len(residuals):>4}   {number_rejected:>8}   "
@@ -915,12 +924,21 @@ def plot_residuals(setup_label: str, observation_dataset: observations.Observati
                 ("Rejected", selected & observation_query.rejected, {"color": "black", "marker": "x"})
             )
             for name, condition, style in groups_with_status:
-                data = observation_dataset.get_data(condition, fields=["times", "residuals", "weight_diagonal"])
-                if len(data["times"]) == 0:
+                data = observation_dataset.get_data(
+                    condition,
+                    fields=[
+                        ObservationDataField.times,
+                        ObservationDataField.residuals,
+                        ObservationDataField.weight_diagonal,
+                    ],
+                )
+                if len(data[ObservationDataField.times]) == 0:
                     continue
-                years = 2000.0 + np.array([float(time) for time in data["times"]]) / constants.JULIAN_YEAR
-                residuals = np.array(data["residuals"])[:, component]
-                sigmas = 1.0 / np.sqrt(np.reshape(data["weight_diagonal"], (len(years), -1))[:, component])
+                times = data[ObservationDataField.times]
+                years = 2000.0 + np.array([float(time) for time in times]) / constants.JULIAN_YEAR
+                residuals = np.array(data[ObservationDataField.residuals])[:, component]
+                weights = np.reshape(data[ObservationDataField.weight_diagonal], (len(years), -1))
+                sigmas = 1.0 / np.sqrt(weights[:, component])
                 axes[0].scatter(years, residuals * scale, s=11, label=name, **style)
                 axes[1].scatter(years, residuals / sigmas, s=11, **style)
             for axis, y_label in zip(axes, [f"Post-fit residual [{unit}]", "Residual / 1σ uncertainty"]):
